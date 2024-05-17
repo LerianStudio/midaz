@@ -1,3 +1,10 @@
+## [1.0.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.0.0-beta.1...v1.0.0-beta.2) (2024-05-17)
+
+
+### Bug Fixes
+
+* change conversion of a signed 64-bit integer to int ([2fd77c2](https://github.com/LerianStudio/midaz/commit/2fd77c298a1aa4c74dbfa5e030ec65ca3628afd4))
+
 ## 1.0.0-beta.1 (2024-05-17)
 
 
