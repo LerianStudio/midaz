@@ -1,0 +1,150 @@
+package ports
+
+import (
+	"github.com/LerianStudio/midaz/common/mlog"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
+	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
+	"github.com/gofiber/fiber/v2"
+)
+
+// AccountHandler struct contains an account use case for managing account related operations.
+type AccountHandler struct {
+	Command *command.UseCase
+	Query   *query.UseCase
+}
+
+// CreateAccount is a method that creates account information.
+func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+
+	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioID)
+
+	payload := i.(*a.CreateAccountInput)
+	logger.Infof("Request to create a Account with details: %#v", payload)
+
+	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, portfolioID, payload)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully created Account")
+
+	return commonHTTP.Created(c, account)
+}
+
+// GetAllAccounts is a method that retrieves all Accounts.
+func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+
+	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID)
+
+	for key, value := range c.Queries() {
+		logger.Infof("Initiating retrieval of all Accounts by metadata")
+
+		organizations, err := handler.Query.GetAllMetadataAccounts(ctx, key, value, organizationID, ledgerID, portfolioID)
+		if err != nil {
+			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
+			return commonHTTP.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Accounts by metadata")
+
+		return commonHTTP.OK(c, organizations)
+	}
+
+	logger.Infof("Initiating retrieval of all Accounts ")
+
+	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved all Accounts")
+
+	return commonHTTP.OK(c, accounts)
+}
+
+// GetAccountByID is a method that retrieves Account information by a given id.
+func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+	id := c.Params("id")
+
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, portfolioID, id)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID, id, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+
+	return commonHTTP.OK(c, account)
+}
+
+// UpdateAccount is a method that updates Account information.
+func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+	id := c.Params("id")
+
+	logger.Infof("Initiating update of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+
+	payload := i.(*a.UpdateAccountInput)
+	logger.Infof("Request to update an Account with details: %#v", payload)
+
+	account, err := handler.Command.UpdateAccountByID(ctx, organizationID, ledgerID, portfolioID, id, payload)
+	if err != nil {
+		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+
+	return commonHTTP.OK(c, account)
+}
+
+// DeleteAccountByID is a method that removes Account information by a given ids.
+func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+	id := c.Params("id")
+
+	logger.Infof("Initiating removal of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+
+	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
+		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID, id, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+
+	return commonHTTP.NoContent(c)
+}

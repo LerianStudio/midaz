@@ -1,0 +1,1200 @@
+{
+	"info": {
+		"_postman_id": "4af684d1-4e4d-4e08-89c8-97988f119d9d",
+		"name": "MIDAZ",
+		"description": "# 🚀 Get started here\n\nThis template guides you through CRUD operations (GET, POST, PUT, DELETE), variables, and tests.\n\n## 🔖 **How to use this template**\n\n#### **Step 1: Send requests**\n\nRESTful APIs allow you to perform CRUD operations using the POST, GET, PUT, and DELETE HTTP methods.\n\nThis collection contains each of these [request](https://learning.postman.com/docs/sending-requests/requests/) types. Open each request and click \"Send\" to see what happens.\n\n#### **Step 2: View responses**\n\nObserve the response tab for status code (200 OK), response time, and size.\n\n#### **Step 3: Send new Body data**\n\nUpdate or add new data in \"Body\" in the POST request. Typically, Body data is also used in PUT request.\n\n```\n{\n    \"name\": \"Add your name in the body\"\n}\n\n ```\n\n#### **Step 4: Update the variable**\n\nVariables enable you to store and reuse values in Postman. We have created a [variable](https://learning.postman.com/docs/sending-requests/variables/) called `base_url` with the sample request [https://postman-api-learner.glitch.me](https://postman-api-learner.glitch.me). Replace it with your API endpoint to customize this collection.\n\n#### **Step 5: Add tests in the \"Tests\" tab**\n\nTests help you confirm that your API is working as expected. You can write test scripts in JavaScript and view the output in the \"Test Results\" tab.\n\n<img src=\"https://content.pstmn.io/b5f280a7-4b09-48ec-857f-0a7ed99d7ef8/U2NyZWVuc2hvdCAyMDIzLTAzLTI3IGF0IDkuNDcuMjggUE0ucG5n\">\n\n## 💪 Pro tips\n\n- Use folders to group related requests and organize the collection.\n- Add more [scripts](https://learning.postman.com/docs/writing-scripts/intro-to-scripts/) in \"Tests\" to verify if the API works as expected and execute workflows.\n    \n\n## 💡Related templates\n\n[API testing basics](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=e9a37a28-055b-49cd-8c7e-97494a21eb54&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)  \n[API documentation](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=e9c28f47-1253-44af-a2f3-20dce4da1f18&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)  \n[Authorization methods](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=31a9a6ed-4cdf-4ced-984c-d12c9aec1c27&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "32592108"
+	},
+	"item": [
+		{
+			"name": "Organizations",
+			"item": [
+				{
+					"name": "Organizations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"organization_id antes: \" + postman.getEnvironmentVariable(\"organization_id\"));",
+									"    postman.setEnvironmentVariable(\"organization_id\", jsonData.id);",
+									"    console.log(\"organization_id depois: \" + postman.getEnvironmentVariable(\"organization_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"48784548000104\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"neighborhood\": \"Jardim Paulista\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Organizations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"BLOCKD BY McGregor\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"neighborhood\": \"Jardim Paulista\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"asaasdsdsadwqdqd\",\n        \"boolean\": false,\n        \"double\": 10.5,\n        \"int\": 2\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Organizations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{url}}/v1/organizations",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Organizations by Id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Organizations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Ledgers",
+			"item": [
+				{
+					"name": "Ledgers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"ledger_id antes: \" + postman.getEnvironmentVariable(\"ledger_id\"));",
+									"    postman.setEnvironmentVariable(\"ledger_id\", jsonData.id);",
+									"    console.log(\"ledger_id depois: \" + postman.getEnvironmentVariable(\"ledger_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"McGregor Tech LTDA\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"McGregor\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Ledgers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"BLOCKED Tech LTDA\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste BLOCKED Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"mudei\",\n        \"boolean\": false,\n        \"double\": 90.5,\n        \"int\": 1000\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Ledgers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Ledgers by Id",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Ledgers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Instruments",
+			"item": [
+				{
+					"name": "Instruments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"instrument_id antes: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
+									"    postman.setEnvironmentVariable(\"instrument_id\", jsonData.id);",
+									"    console.log(\"instrument_id depois: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Brazilian Real\",\n    \"type\": \"FIAT\",\n    \"code\": \"BRL\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"instruments"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Instruments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Bitcoin\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"McGregor 2 BLOCKED INSTRUMENT\"\n    },\n    \"metadata\": {\n        \"chave\": \"jacare\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments/{{instrument_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"instruments",
+								"{{instrument_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Instruments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"instruments"
+							],
+							"query": [
+								{
+									"key": "metadata.internalExchangeAddress",
+									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Instruments by Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments/{{instrument_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"instruments",
+								"{{instrument_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments/{{instrument_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"instruments",
+								"{{instrument_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Portfolios",
+			"item": [
+				{
+					"name": "Portfolios",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"portfolio_id antes: \" + postman.getEnvironmentVariable(\"portfolio_id\"));",
+									"    postman.setEnvironmentVariable(\"portfolio_id\", jsonData.id);",
+									"    console.log(\"portfolio_id depois: \" + postman.getEnvironmentVariable(\"portfolio_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"McGregor Portfolio 3\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Portfolio 3\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Portfolios",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"McGregor Portfolio 3 UPDATE\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Portfolio 3 Update\"\n    },\n    \"metadata\": {\n        \"chave\": \"Change Update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Portfolios",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios?metadata.chave=xuxa",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "xuxa"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Portfolios by Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Portfolios",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"product_id antes: \" + postman.getEnvironmentVariable(\"product_id\"));",
+									"    postman.setEnvironmentVariable(\"product_id\", jsonData.id);",
+									"    console.log(\"product_id depois: \" + postman.getEnvironmentVariable(\"product_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"McGregor Product 1\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Produc3\"\n    },\n    \"metadata\": {\n        \"chave\": \"eliana\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"McGregor Product 1 BLOCKED\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Product BLOCKED\"\n    },\n    \"metadata\": {\n        \"chave\": \"elianas\",\n        \"boolean\": false,\n        \"double\": 100.5,\n        \"int\": 2\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products/{{product_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"products",
+								"{{product_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products?metadata.chave=xuxa",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"products"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "xuxa"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products by Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products/{{product_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"products",
+								"{{product_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Products",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products/{{product_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"products",
+								"{{product_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Accounts",
+			"item": [
+				{
+					"name": "Accounts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"account_id antes: \" + postman.getEnvironmentVariable(\"account_id\"));",
+									"    postman.setEnvironmentVariable(\"account_id\", jsonData.id);",
+									"    console.log(\"account_id depois: \" + postman.getEnvironmentVariable(\"account_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"McGregor\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"balance\": {\n        \"available\": 1000,\n        \"onHold\": 10000,\n        \"scale\": 2\n    },\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"accounts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Sanchez Account\", //opcional\n    \"alias\": \"Sanchez\",\n    \"allowSending\": false,\n    \"allowReceiving\": false,\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"cracatua\",\n        \"boolean\": false,\n        \"double\": 15.5,\n        \"int\": 10\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts?metadata.chave=cracatua",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"accounts"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "cracatua"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts by Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "id",
+			"value": "1"
+		},
+		{
+			"key": "base_url",
+			"value": "https://postman-rest-api-learner.glitch.me/"
+		}
+	]
+}

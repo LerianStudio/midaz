@@ -1,0 +1,46 @@
+project_name: mdz
+
+builds:
+  - id: "mdz"
+    main: ./components/mdz/main.go
+    binary: mdz
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+    goarm:
+      - "6"
+    ldflags:
+      - -s -w # Flags to reduce binary size
+
+archives:
+  - id: "mdz"
+    builds:
+      - "mdz"
+    format: tar.gz
+    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    wrap_in_directory: true
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  skip: false
+
+git:
+  prerelease_suffix: "-"
+
+release:
+  prerelease: auto
+
+# brews:
+#   - name: mdz
+#     description: "Midaz CLI"
+#     homepage: "https://github.com/LerianStudio/midaz/components/mdz"
+#     tap:
+#       owner: LerianStudio
+#       name: homebrew-tap
+#     url_template: "https://github.com/LerianStudio/midaz/components/mdz/releases/download/{{ .Tag }}/{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz"
+#     caveats: "Thanks for installing mdz!"
