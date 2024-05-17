@@ -1,0 +1,84 @@
+version: v1.1.0
+
+serve:
+  public:
+    base_url: http://localhost:4433/
+    cors:
+      enabled: true
+  admin:
+    base_url: http://localhost:4434/
+
+selfservice:
+  default_browser_return_url: http://localhost:4455/
+  allowed_return_urls:
+    - http://localhost:4455
+    - http://localhost:4444
+
+  methods:
+    password:
+      enabled: true
+    totp:
+      config:
+        issuer: Kratos
+      enabled: true
+    link:
+      enabled: true
+      config:
+        lifespan: 15m
+
+  flows:
+    error:
+      ui_url: http://localhost:4455/error
+
+    settings:
+      ui_url: http://localhost:4455/settings
+      privileged_session_max_age: 15m
+
+    recovery:
+      enabled: true
+      ui_url: http://localhost:4455/recovery
+      after:
+        hooks:
+          - hook: revoke_active_sessions
+
+    verification:
+      enabled: true
+      ui_url: http://localhost:4455/verification
+
+    logout:
+      after:
+        default_browser_return_url: http://localhost:4455/logout
+
+    login:
+      lifespan: 10m
+      ui_url: http://localhost:4455/login
+      after:
+        default_browser_return_url: http://localhost:4455/dashboard
+        password:
+          hooks:
+            - hook: require_verified_address
+
+    registration:
+      lifespan: 10m
+      ui_url: http://localhost:4455/registration
+      after:
+        default_browser_return_url: http://localhost:4455/registered
+
+ciphers:
+  algorithm: xchacha20-poly1305
+
+hashers:
+  argon2:
+    parallelism: 1
+    memory: 128MB
+    iterations: 2
+    salt_length: 16
+    key_length: 16
+
+identity:
+  default_schema_id: organization_user
+  schemas:
+    - id: organization_user
+      url: file:///etc/kratos/identity-schemas/organization_user.schema.json
+    - id: default_user
+      url: file:///etc/kratos/identity-schemas/default_user.schema.json

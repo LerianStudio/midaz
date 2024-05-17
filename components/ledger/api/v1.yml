@@ -1,0 +1,834 @@
+openapi: 3.0.0
+info:
+  title: Ledger API
+  description: API to manage ledger, accounts, instruments, portfolios, organizations, and products.
+  version: "1.0"
+servers:
+  - url: "http://localhost:8080/v1"
+tags:
+  - name: Organizations
+  - name: Ledgers
+  - name: Accounts
+  - name: Instruments
+  - name: Portfolios
+  - name: Products
+
+paths:
+  # Organizations Paths
+  /organizations:
+    get:
+      tags:
+        - Organizations
+      summary: Retrieve all organizations
+      responses:
+        "200":
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+    post:
+      tags:
+        - Organizations
+      summary: Create an organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationInput"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+  "/organizations/{id}":
+    get:
+      tags:
+        - Organizations
+      summary: Get an organization by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detailed organization data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+    patch:
+      tags:
+        - Organizations
+      summary: Update an organization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrganizationInput"
+      responses:
+        "200":
+          description: Organization updated
+    delete:
+      tags:
+        - Organizations
+      summary: Delete an organization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Organization deleted
+
+  # Ledgers Paths
+  /ledgers:
+    get:
+      tags:
+        - Ledgers
+      summary: Retrieve all ledgers
+      responses:
+        "200":
+          description: List of ledgers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ledger"
+    post:
+      tags:
+        - Ledgers
+      summary: Create a ledger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LedgerInput"
+      responses:
+        "201":
+          description: Ledger created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+  "/ledgers/{id}":
+    get:
+      tags:
+        - Ledgers
+      summary: Get a ledger by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detailed ledger data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ledger"
+    patch:
+      tags:
+        - Ledgers
+      summary: Update a ledger
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LedgerInput"
+      responses:
+        "200":
+          description: Ledger updated
+    delete:
+      tags:
+        - Ledgers
+      summary: Delete a ledger
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Ledger deleted
+
+  # Accounts Paths
+  /accounts:
+    get:
+      tags:
+        - Accounts
+      summary: Retrieve all accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+    post:
+      tags:
+        - Accounts
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountInput"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+  "/accounts/{id}":
+    get:
+      tags:
+        - Accounts
+      summary: Get an account by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detailed account data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+    patch:
+      tags:
+        - Accounts
+      summary: Update an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountInput"
+      responses:
+        "200":
+          description: Account updated
+    delete:
+      tags:
+        - Accounts
+      summary: Delete an account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Account deleted
+
+  # Instruments Paths
+  /instruments:
+    get:
+      tags:
+        - Instruments
+      summary: Retrieve all instruments
+      responses:
+        "200":
+          description: List of instruments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Instrument"
+    post:
+      tags:
+        - Instruments
+      summary: Create an instrument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstrumentInput"
+      responses:
+        "201":
+          description: Instrument created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instrument"
+  "/instruments/{id}":
+    get:
+      tags:
+        - Instruments
+      summary: Get an instrument by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detailed instrument data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Instrument"
+    patch:
+      tags:
+        - Instruments
+      summary: Update an instrument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstrumentInput"
+      responses:
+        "200":
+          description: Instrument updated
+    delete:
+      tags:
+        - Instruments
+      summary: Delete an instrument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Instrument deleted
+
+  # Portfolios Paths
+  /portfolios:
+    get:
+      tags:
+        - Portfolios
+      summary: Retrieve all portfolios
+      responses:
+        "200":
+          description: List of portfolios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Portfolio"
+    post:
+      tags:
+        - Portfolios
+      summary: Create a portfolio
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioInput"
+      responses:
+        "201":
+          description: Portfolio created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+  "/portfolios/{id}":
+    get:
+      tags:
+        - Portfolios
+      summary: Get a portfolio by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detailed portfolio data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Portfolio"
+    patch:
+      tags:
+        - Portfolios
+      summary: Update a portfolio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PortfolioInput"
+      responses:
+        "200":
+          description: Portfolio updated
+    delete:
+      tags:
+        - Portfolios
+      summary: Delete a portfolio
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Portfolio deleted
+
+  # Products Paths
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Retrieve all products
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      tags:
+        - Products
+      summary: Create a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  "/products/{id}":
+    get:
+      tags:
+        - Products
+      summary: Get a product by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Detailed product data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+    patch:
+      tags:
+        - Products
+      summary: Update a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "200":
+          description: Product updated
+    delete:
+      tags:
+        - Products
+      summary: Delete a product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Product deleted
+
+components:
+  schemas:
+    # Organization Schema
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        legalName:
+          type: string
+        doingBusinessAs:
+          type: string
+          nullable: true
+        legalDocument:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    # Address Schema
+    Address:
+      type: object
+      properties:
+        line1:
+          type: string
+        line2:
+          type: string
+          nullable: true
+        neighborhood:
+          type: string
+        zipCode:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+    # Organization Input Schema
+    OrganizationInput:
+      type: object
+      properties:
+        legalName:
+          type: string
+        doingBusinessAs:
+          type: string
+          nullable: true
+        legalDocument:
+          type: string
+        address:
+          $ref: "#/components/schemas/Address"
+        metadata:
+          type: object
+          additionalProperties: true
+    # Ledger Schema
+    Ledger:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        organizationId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    # Ledger Input Schema
+    LedgerInput:
+      type: object
+      properties:
+        name:
+          type: string
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+        organizationId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    # Account Schema
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        portfolioId:
+          type: string
+        instrumentCode:
+          type: string
+        availableBalance:
+          type: number
+          nullable: true
+        onHoldBalance:
+          type: number
+          nullable: true
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        allowSending:
+          type: boolean
+        allowReceiving:
+          type: boolean
+        ledgerId:
+          type: string
+        alias:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    # Account Input Schema
+    AccountInput:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        instrumentCode:
+          type: string
+        statusCode:
+          type: string
+        allowSending:
+          type: boolean
+        allowReceiving:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+    # Instrument Schema
+    Instrument:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        types:
+          type: string
+        code:
+          type: string
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        ledgerId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    # Instrument Input Schema
+    InstrumentInput:
+      type: object
+      properties:
+        name:
+          type: string
+        types:
+          type: string
+        code:
+          type: string
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    # Portfolio Schema
+    Portfolio:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        entityId:
+          type: string
+          nullable: true
+        ledgerID:
+          type: string
+        productId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+    # Portfolio Input Schema
+    PortfolioInput:
+      type: object
+      properties:
+        name:
+          type: string
+        statusCode:
+          type: string
+        statusDescription:
+          type: string
+        entityId:
+          type: string
+        ledgerID:
+          type: string
+        productId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    # Product Schema
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ledgerID:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    # Product Input Schema
+    ProductInput:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        ledgerID:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true

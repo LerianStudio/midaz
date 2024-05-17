@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# Add a specific emoji to the end of the first line in every commit message
+# based on the conventional commits keyword.
+
+if [ ! -f "$1" ] || grep -q "fixup!" "$1"; then
+    # Exit if we didn't get a target file for some reason
+    # or we have a fixup commit
+    exit 0
+fi
+
+KEYWORD=$(head -n 1 "$1" | awk '{print $1}' | sed -e 's/://')
+
+case $KEYWORD in
+    "feat"|"feat("*)
+        EMOJI=":sparkles:"
+        ;;
+    "fix"|"fix("*)
+        EMOJI=":bug:"
+        ;;
+    "docs"|"docs("*)
+        EMOJI=":books:"
+        ;;
+    "style"|"style("*)
+        EMOJI=":gem:"
+        ;;
+    "refactor"|"refactor("*)
+        EMOJI=":hammer:"
+        ;;
+    "perf"|"perf("*)
+        EMOJI=":rocket:"
+        ;;
+    "test"|"test("*)
+        EMOJI=":rotating_light:"
+        ;;
+    "build"|"build("*)
+        EMOJI=":package:"
+        ;;
+    "ci"|"ci("*)
+        EMOJI=":construction_worker:"
+        ;;
+    "chore"|"chore("*)
+        EMOJI=":wrench:"
+        ;;
+    *)
+        EMOJI=""
+        ;;
+esac
+
+MESSAGE=$(sed -E "1s/(.*)/\\1 $EMOJI/" <"$1")
+
+echo "$MESSAGE" >"$1"

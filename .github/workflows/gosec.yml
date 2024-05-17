@@ -1,0 +1,34 @@
+name: "GoSec"
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  GoSec:
+    runs-on: ubuntu-latest
+    name: Run GoSec to Midaz
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+        cache: false
+
+    - name: Gosec Scanner
+      uses: securego/gosec@master
+      with:
+        args: ./...
