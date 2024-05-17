@@ -67,12 +67,12 @@ func GetInt(cmd *cobra.Command, flagName string) int {
 	if err != nil {
 		v := os.Getenv(strcase.ToScreamingSnake(flagName))
 		if v != "" {
-			v, err := strconv.ParseInt(v, 10, 64)
+			v, err := strconv.Atoi(v)
 			if err != nil {
 				return 0
 			}
 
-			return int(v)
+			return v
 		}
 
 		return 0
