@@ -1,3 +1,10 @@
+## 1.0.0-beta.1 (2024-05-17)
+
+
+### Features
+
+* Open tech for all ([cd4cf48](https://github.com/LerianStudio/midaz/commit/cd4cf4874503756b6b051723f512fde41323e609))
+
 ## [1.17.0](https://github.com/LerianStudio/midaz-private/compare/v1.16.0...v1.17.0) (2024-05-17)
 
 
