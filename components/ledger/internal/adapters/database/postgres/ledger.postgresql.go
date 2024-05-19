@@ -76,6 +76,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 	ledger := &l.LedgerPostgreSQLModel{}
 	row := db.QueryRowContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL", organizationID, id)
+
 	if err := row.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 		&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
