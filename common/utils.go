@@ -49,7 +49,8 @@ func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 
 // ValidateCountryAddress validate if country in object address contains in countries list using ISO 3166-1 alpha-2
 func ValidateCountryAddress(country string) error {
-	countries := []string{"AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
+	countries := []string{
+		"AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
 		"BA", "BB", "BD", "BE", "BF", "BG", "BH", "BI", "BJ", "BL", "BM", "BN", "BO", "BQ", "BR", "BS", "BT", "BV", "BW",
 		"BY", "BZ", "CA", "CC", "CD", "CF", "CG", "CH", "CI", "CK", "CL", "CM", "CN", "CO", "CR", "CU", "CV", "CW", "CX",
 		"CY", "CZ", "DE", "DJ", "DK", "DM", "DO", "DZ", "EC", "EE", "EG", "EH", "ER", "ES", "ET", "FI", "FJ", "FK", "FM",
@@ -62,7 +63,8 @@ func ValidateCountryAddress(country string) error {
 		"RE", "RO", "RS", "RU", "RW", "SA", "SB", "SC", "SD", "SE", "SG", "SH", "SI", "SJ", "SK", "SL", "SM", "SN", "SO",
 		"SR", "SS", "ST", "SV", "SX", "SY", "SZ", "TC", "TD", "TF", "TG", "TH", "TJ", "TK", "TL", "TM", "TN", "TO", "TR",
 		"TT", "TV", "TW", "TZ", "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VI", "VN", "VU", "WF", "WS",
-		"YE", "YT", "ZA", "ZM", "ZW"}
+		"YE", "YT", "ZA", "ZM", "ZW",
+	}
 
 	if !slices.Contains(countries, country) {
 		return ValidationError{
@@ -71,5 +73,6 @@ func ValidateCountryAddress(country string) error {
 			Message: "The provided country code in the 'address.country' field does not conform to the ISO-3166 alpha-2 standard. Please provide a valid alpha-2 country code.",
 		}
 	}
+
 	return nil
 }

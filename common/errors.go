@@ -70,7 +70,7 @@ type ValidationError struct {
 // Error implements the error interface.
 func (e ValidationError) Error() string {
 	if strings.TrimSpace(e.Code) != "" {
-		return fmt.Sprintf("%s - %s - %s", e.Title, e.Code, e.Message)
+		return fmt.Sprintf("%s - %s", e.Code, e.Message)
 	}
 
 	return e.Message
