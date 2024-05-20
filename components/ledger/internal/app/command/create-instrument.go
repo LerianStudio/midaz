@@ -26,6 +26,26 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID, ledgerI
 		status = cii.Status
 	}
 
+	if err := common.ValidateType(cii.Type); err != nil {
+		return nil, err
+	}
+
+	if err := common.IsUpper(cii.Code); err != nil {
+		return nil, err
+	}
+
+	if cii.Type == "currency" {
+		if err := common.ValidateCurrency(cii.Code); err != nil {
+			return nil, err
+		}
+	}
+
+	_, err := uc.InstrumentRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
+	if err != nil {
+		logger.Errorf("Error creating instrument: %v", err)
+		return nil, err
+	}
+
 	instrument := &i.Instrument{
 		Name:           cii.Name,
 		Type:           cii.Type,

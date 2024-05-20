@@ -71,6 +71,32 @@ func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument 
 	return record.ToEntity(), nil
 }
 
+// FindByNameOrCode retrieves Instrument entities by nam or code from the database.
+func (r *InstrumentPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
+	db, err := r.connection.GetDB(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM instrument WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 OR code = $4 AND deleted_at IS NULL ORDER BY created_at DESC",
+		organizationID, ledgerID, name, code)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		return true, common.EntityConflictError{
+			EntityType: reflect.TypeOf(i.Instrument{}).Name(),
+			Code:       "0003",
+			Title:      "Invalid Data provided.",
+			Message:    "Invalid Data provided.",
+		}
+	}
+
+	return false, nil
+}
+
 // FindAll retrieves Instrument entities from the database.
 func (r *InstrumentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*i.Instrument, error) {
 	db, err := r.connection.GetDB(ctx)
