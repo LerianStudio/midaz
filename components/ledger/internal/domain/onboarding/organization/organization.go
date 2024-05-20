@@ -27,18 +27,18 @@ type OrganizationPostgreSQLModel struct {
 type CreateOrganizationInput struct {
 	LegalName            string         `json:"legalName"`
 	ParentOrganizationID *string        `json:"parentOrganizationId"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs,omitempty"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
 	LegalDocument        string         `json:"legalDocument"`
 	Address              Address        `json:"address"`
-	Status               Status         `json:"status,omitempty"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 type UpdateOrganizationInput struct {
 	LegalName            string         `json:"legalName"`
 	ParentOrganizationID *string        `json:"parentOrganizationId"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs,omitempty"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -47,16 +47,16 @@ type UpdateOrganizationInput struct {
 // Organization is a struct designed to encapsulate response payload data.
 type Organization struct {
 	ID                   string         `json:"id,omitempty"`
-	ParentOrganizationID *string        `json:"parentOrganizationId,omitempty"`
+	ParentOrganizationID *string        `json:"parentOrganizationId"`
 	LegalName            string         `json:"legalName"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs,omitempty"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
 	LegalDocument        string         `json:"legalDocument"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	CreatedAt            time.Time      `json:"createdAt"`
 	UpdatedAt            time.Time      `json:"updatedAt"`
 	DeletedAt            *time.Time     `json:"deletedAt"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -73,7 +73,7 @@ func (s Status) IsEmpty() bool {
 // Address structure for marshaling/unmarshalling JSON.
 type Address struct {
 	Line1   string  `json:"line1"`
-	Line2   *string `json:"line2,omitempty"`
+	Line2   *string `json:"line2"`
 	ZipCode string  `json:"zipCode"`
 	City    string  `json:"city"`
 	State   string  `json:"state"`

@@ -23,15 +23,15 @@ type LedgerPostgreSQLModel struct {
 // CreateLedgerInput is a struct design to encapsulate request create payload data.
 type CreateLedgerInput struct {
 	Name     string         `json:"name"`
-	Status   Status         `json:"status,omitempty"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdateLedgerInput is a struct design to encapsulate request update payload data.
 type UpdateLedgerInput struct {
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // Ledger is a struct designed to encapsulate payload data.
@@ -43,7 +43,7 @@ type Ledger struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt" sql:"index"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	Metadata       map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.

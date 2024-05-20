@@ -25,14 +25,14 @@ type ProductPostgreSQLModel struct {
 type CreateProductInput struct {
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdateProductInput is a struct design to encapsulate request update payload data.
 type UpdateProductInput struct {
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // Product is a struct designed to encapsulate payload data.
@@ -45,7 +45,7 @@ type Product struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	Metadata       map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
