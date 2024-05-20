@@ -25,6 +25,10 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		status = coi.Status
 	}
 
+	if coi.ParentOrganizationID != nil && len(*coi.ParentOrganizationID) == 0 {
+		coi.ParentOrganizationID = nil
+	}
+
 	organization := &o.Organization{
 		ParentOrganizationID: coi.ParentOrganizationID,
 		LegalName:            coi.LegalName,
