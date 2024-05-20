@@ -25,8 +25,12 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		status = coi.Status
 	}
 
-	if coi.ParentOrganizationID != nil && len(*coi.ParentOrganizationID) == 0 {
+	if common.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
+	}
+
+	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
+		return nil, err
 	}
 
 	organization := &o.Organization{
