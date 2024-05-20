@@ -57,12 +57,6 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		}
 
 		portfolioUpdated.Metadata = upi.Metadata
-
-		return portfolioUpdated, nil
-	}
-
-	if err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id); err != nil {
-		return nil, err
 	}
 
 	return portfolioUpdated, nil

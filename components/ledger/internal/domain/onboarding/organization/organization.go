@@ -40,7 +40,7 @@ type UpdateOrganizationInput struct {
 	DoingBusinessAs *string        `json:"doingBusinessAs,omitempty"`
 	Address         Address        `json:"address"`
 	Status          Status         `json:"status"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	Metadata        map[string]any `json:"metadata"`
 }
 
 // Organization is a struct designed to encapsulate response payload data.

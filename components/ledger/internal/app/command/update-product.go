@@ -57,10 +57,6 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		}
 
 		productUpdated.Metadata = upi.Metadata
-	} else {
-		if err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(r.Product{}).Name(), id); err != nil {
-			return nil, err
-		}
 	}
 
 	return productUpdated, nil

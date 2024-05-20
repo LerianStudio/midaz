@@ -55,11 +55,6 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 		}
 
 		accountUpdated.Metadata = uai.Metadata
-	} else {
-		err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(a.Account{}).Name(), id)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return accountUpdated, nil
