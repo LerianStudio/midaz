@@ -29,14 +29,14 @@ type CreateInstrumentInput struct {
 	Type     string         `json:"type"`
 	Code     string         `json:"code"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdateInstrumentInput is a struct design to encapsulate request update payload data.
 type UpdateInstrumentInput struct {
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // Instrument is a struct designed to encapsulate payload data.
@@ -51,7 +51,7 @@ type Instrument struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	Metadata       map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.

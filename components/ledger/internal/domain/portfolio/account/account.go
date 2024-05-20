@@ -44,7 +44,7 @@ type CreateAccountInput struct {
 	EntityID        *string        `json:"entityId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	Metadata        map[string]any `json:"metadata"`
 }
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
@@ -55,7 +55,7 @@ type UpdateAccountInput struct {
 	AllowSending   bool           `json:"allowSending"`
 	AllowReceiving bool           `json:"allowReceiving"`
 	ProductID      string         `json:"productId"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	Metadata       map[string]any `json:"metadata"`
 }
 
 // Account is a struct designed to encapsulate response payload data.
@@ -78,7 +78,7 @@ type Account struct {
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`
 	DeletedAt       *time.Time     `json:"deletedAt"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	Metadata        map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
