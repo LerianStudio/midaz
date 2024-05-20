@@ -8,7 +8,7 @@ import (
 
 // Repository provides an interface for operations related to product entities.
 //
-//go:generate mockgen --destination=../../gen/mock/product/product_mock.go --package=mock . Repository
+//go:generate mockgen --destination=../../../gen/mock/product/product_mock.go --package=mock . Repository
 type Repository interface {
 	Create(ctx context.Context, product *Product) (*Product, error)
 	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
