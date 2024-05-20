@@ -26,7 +26,7 @@ type OrganizationPostgreSQLModel struct {
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 type CreateOrganizationInput struct {
 	LegalName            string         `json:"legalName"`
-	ParentOrganizationID *string        `json:"parentOrganizationId,omitempty"`
+	ParentOrganizationID *string        `json:"parentOrganizationId"`
 	DoingBusinessAs      *string        `json:"doingBusinessAs,omitempty"`
 	LegalDocument        string         `json:"legalDocument"`
 	Address              Address        `json:"address"`
