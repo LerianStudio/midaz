@@ -72,6 +72,7 @@ func InitLocalEnvConfig() *LocalEnvConfig {
 	envName := GetenvOrDefault("ENV_NAME", "local")
 
 	fmt.Printf("ENVIRONMENT NAME \u001B[31m(%s)\u001B[0m\n", envName)
+
 	if envName == "local" {
 		localEnvConfigOnce.Do(func() {
 			if err := godotenv.Load(); err != nil {
