@@ -59,12 +59,6 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		}
 
 		organizationUpdated.Metadata = uoi.Metadata
-
-		return organizationUpdated, nil
-	}
-
-	if err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(o.Organization{}).Name(), id); err != nil {
-		return nil, err
 	}
 
 	return organizationUpdated, nil
