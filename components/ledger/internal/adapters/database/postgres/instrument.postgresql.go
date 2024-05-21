@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -51,6 +52,11 @@ func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument 
 		record.ID, record.Name, record.Type, record.Code, record.Status, record.StatusDescription,
 		record.LedgerID, record.OrganizationID, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -232,6 +238,11 @@ func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizatio
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
+		}
+
 		return nil, err
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -48,6 +49,11 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 	address, err := json.Marshal(record.Address)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -138,6 +144,11 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
+		}
+
 		return nil, err
 	}
 

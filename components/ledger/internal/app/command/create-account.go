@@ -17,6 +17,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create account: %v", cai)
 
+	if common.IsNilOrEmpty(&cai.Name) {
+		cai.Name = cai.InstrumentCode + " " + cai.Type + " account"
+	}
+
+	if common.IsNilOrEmpty(cai.Alias) {
+		cai.Alias = nil
+	}
+
 	var status a.Status
 	if cai.Status.IsEmpty() {
 		status = a.Status{
@@ -28,18 +36,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 
 	balanceValue := float64(0)
 
-	var balance a.Balance
-	if cai.Balance.IsEmpty() {
-		balance = a.Balance{
-			Available: &balanceValue,
-			OnHold:    &balanceValue,
-			Scale:     &balanceValue,
-		}
-	} else {
-		balance = cai.Balance
+	balance := a.Balance{
+		Available: &balanceValue,
+		OnHold:    &balanceValue,
+		Scale:     &balanceValue,
 	}
-
-	var entityID string
 
 	if cai.EntityID == nil {
 		portfolio, err := uc.PortfolioRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID))
@@ -48,9 +49,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 			return nil, err
 		}
 
-		entityID = portfolio.EntityID
-	} else {
-		entityID = *cai.EntityID
+		cai.EntityID = &portfolio.EntityID
 	}
 
 	account := &a.Account{
@@ -64,13 +63,36 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		OrganizationID:  organizationID,
 		PortfolioID:     portfolioID,
 		LedgerID:        ledgerID,
-		EntityID:        entityID,
+		EntityID:        *cai.EntityID,
 		Balance:         balance,
 		Status:          status,
 		AllowSending:    true,
 		AllowReceiving:  true,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
+	}
+
+	if !common.IsNilOrEmpty(cai.ParentAccountID) {
+		acc, err := uc.AccountRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), uuid.MustParse(*cai.ParentAccountID))
+		if err != nil {
+			return nil, err
+		}
+
+		if acc.InstrumentCode != account.InstrumentCode {
+			return nil, common.ValidationError{
+				EntityType: reflect.TypeOf(a.Account{}).Name(),
+				Title:      "Mismatched Instrument Code",
+				Code:       "0030",
+				Message:    "The provided parent account ID is associated with a different instrument code than the one specified in your request. Please ensure the instrument code matches that of the parent account, or use a different parent account ID and try again.",
+			}
+		}
+	}
+
+	if !common.IsNilOrEmpty(cai.Alias) {
+		_, err := uc.AccountRepo.FindByAlias(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), *cai.Alias)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	port, err := uc.AccountRepo.Create(ctx, account)

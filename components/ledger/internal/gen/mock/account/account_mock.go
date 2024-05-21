@@ -100,6 +100,21 @@ func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3 any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), arg0, arg1, arg2, arg3)
 }
 
+// FindByAlias mocks base method.
+func (m *MockRepository) FindByAlias(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByAlias", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByAlias indicates an expected call of FindByAlias.
+func (mr *MockRepositoryMockRecorder) FindByAlias(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), arg0, arg1, arg2, arg3, arg4)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 []uuid.UUID) ([]*account.Account, error) {
 	m.ctrl.T.Helper()
