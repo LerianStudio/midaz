@@ -25,7 +25,7 @@ type AccountPostgreSQLModel struct {
 	StatusDescription *string
 	AllowSending      bool
 	AllowReceiving    bool
-	Alias             string
+	Alias             *string
 	Type              string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
@@ -37,12 +37,11 @@ type AccountPostgreSQLModel struct {
 type CreateAccountInput struct {
 	InstrumentCode  string         `json:"instrumentCode"`
 	Name            string         `json:"name"`
-	Alias           string         `json:"alias"`
+	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
 	ParentAccountID *string        `json:"parentAccountId"`
 	ProductID       string         `json:"productId"`
 	EntityID        *string        `json:"entityId"`
-	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata"`
 }
@@ -51,7 +50,7 @@ type CreateAccountInput struct {
 type UpdateAccountInput struct {
 	Name           string         `json:"name"`
 	Status         Status         `json:"status"`
-	Alias          string         `json:"alias"`
+	Alias          *string        `json:"alias"`
 	AllowSending   bool           `json:"allowSending"`
 	AllowReceiving bool           `json:"allowReceiving"`
 	ProductID      string         `json:"productId"`
@@ -73,7 +72,7 @@ type Account struct {
 	Status          Status         `json:"status"`
 	AllowSending    bool           `json:"allowSending"`
 	AllowReceiving  bool           `json:"allowReceiving"`
-	Alias           string         `json:"alias"`
+	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`
