@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -50,6 +51,11 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
 		record.ID, record.Name, record.OrganizationID, record.Status, record.StatusDescription, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -211,6 +217,11 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+		}
+
 		return nil, err
 	}
 

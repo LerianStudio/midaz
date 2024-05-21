@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -73,6 +75,11 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 		record.DeletedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -196,6 +203,32 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	return account.ToEntity(), nil
 }
 
+// FindByAlias find account from the database using Organization and Ledger id and Alias.
+func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias string) (bool, error) {
+	db, err := r.connection.GetDB(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND alias LIKE $4 AND deleted_at IS NULL ORDER BY created_at DESC",
+		organizationID, ledgerID, portfolioID, alias)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		return true, common.EntityConflictError{
+			EntityType: reflect.TypeOf(a.Account{}).Name(),
+			Title:      "Alias has been taken",
+			Code:       "0020",
+			Message:    fmt.Sprintf("The alias %s has been taken already. Please, inform another one.", alias),
+		}
+	}
+
+	return false, nil
+}
+
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
 	db, err := r.connection.GetDB(ctx)
@@ -277,7 +310,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.StatusDescription)
 	}
 
-	if account.Alias != "" {
+	if !common.IsNilOrEmpty(account.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Alias)
 	}
@@ -312,6 +345,10 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
+		}
 		return nil, err
 	}
 
