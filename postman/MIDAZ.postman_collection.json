@@ -39,7 +39,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"48784548000104\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"neighborhood\": \"Jardim Paulista\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"48784548000104\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -83,7 +83,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"BLOCKD BY McGregor\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"neighborhood\": \"Jardim Paulista\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"asaasdsdsadwqdqd\",\n        \"boolean\": false,\n        \"double\": 10.5,\n        \"int\": 2\n    }\n}",
+							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"BLOCKD BY McGregor\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"asaasdsdsadwqdqd\",\n        \"boolean\": false,\n        \"double\": 10.5,\n        \"int\": 2\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -447,7 +447,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Brazilian Real\",\n    \"type\": \"FIAT\",\n    \"code\": \"BRL\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Brazilian Real\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1001,7 +1001,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"McGregor\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"balance\": {\n        \"available\": 1000,\n        \"onHold\": 10000,\n        \"scale\": 2\n    },\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"wallet\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"

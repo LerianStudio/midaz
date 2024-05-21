@@ -26,11 +26,20 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		}
 	}
 
+	if common.IsNilOrEmpty(uoi.ParentOrganizationID) {
+		uoi.ParentOrganizationID = nil
+	}
+
+	if err := common.ValidateCountryAddress(uoi.Address.Country); err != nil {
+		return nil, err
+	}
+
 	organization := &o.Organization{
-		LegalName:       uoi.LegalName,
-		DoingBusinessAs: uoi.DoingBusinessAs,
-		Address:         uoi.Address,
-		Status:          uoi.Status,
+		ParentOrganizationID: uoi.ParentOrganizationID,
+		LegalName:            uoi.LegalName,
+		DoingBusinessAs:      uoi.DoingBusinessAs,
+		Address:              uoi.Address,
+		Status:               uoi.Status,
 	}
 
 	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, uuid.MustParse(id), organization)
@@ -59,12 +68,6 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		}
 
 		organizationUpdated.Metadata = uoi.Metadata
-
-		return organizationUpdated, nil
-	}
-
-	if err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(o.Organization{}).Name(), id); err != nil {
-		return nil, err
 	}
 
 	return organizationUpdated, nil

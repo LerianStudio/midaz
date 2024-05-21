@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -57,6 +58,11 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 		record.DeletedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(r.Product{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -243,6 +249,11 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(r.Product{}).Name())
+		}
+
 		return nil, err
 	}
 

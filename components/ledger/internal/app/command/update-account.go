@@ -18,6 +18,10 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update account: %v", uai)
 
+	if common.IsNilOrEmpty(uai.Alias) {
+		uai.Alias = nil
+	}
+
 	account := &a.Account{
 		Name:           uai.Name,
 		Status:         uai.Status,
@@ -55,11 +59,6 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 		}
 
 		accountUpdated.Metadata = uai.Metadata
-	} else {
-		err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(a.Account{}).Name(), id)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return accountUpdated, nil

@@ -60,12 +60,6 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID, led
 		}
 
 		instrumentUpdated.Metadata = uii.Metadata
-
-		return instrumentUpdated, nil
-	}
-
-	if err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(i.Instrument{}).Name(), id.String()); err != nil {
-		return nil, err
 	}
 
 	return instrumentUpdated, nil

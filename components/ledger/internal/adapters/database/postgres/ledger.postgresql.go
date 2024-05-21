@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -50,6 +51,11 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
 		record.ID, record.Name, record.OrganizationID, record.Status, record.StatusDescription, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -75,10 +81,8 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 	}
 
 	ledger := &l.LedgerPostgreSQLModel{}
-
-	var status string
-
 	row := db.QueryRowContext(ctx, "SELECT * FROM ledger WHERE organization_id = $1 AND id = $2 AND deleted_at IS NULL", organizationID, id)
+
 	if err := row.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 		&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -90,11 +94,6 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 			}
 		}
 
-		return nil, err
-	}
-
-	err = json.Unmarshal([]byte(status), &ledger.Status)
-	if err != nil {
 		return nil, err
 	}
 
@@ -118,16 +117,8 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	for rows.Next() {
 		var ledger l.LedgerPostgreSQLModel
-
-		var status string
-
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
-			return nil, err
-		}
-
-		err = json.Unmarshal([]byte(status), &ledger.Status)
-		if err != nil {
 			return nil, err
 		}
 
@@ -226,6 +217,11 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+		}
+
 		return nil, err
 	}
 

@@ -27,14 +27,14 @@ type CreatePortfolioInput struct {
 	EntityID string         `json:"entityId"`
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdatePortfolioInput is a struct design to encapsulate payload data.
 type UpdatePortfolioInput struct {
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // Portfolio is a struct designed to encapsulate request update payload data.
@@ -48,7 +48,7 @@ type Portfolio struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	Metadata       map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.

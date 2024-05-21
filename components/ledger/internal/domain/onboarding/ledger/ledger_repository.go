@@ -8,7 +8,7 @@ import (
 
 // Repository provides an interface for operations related to ledger entities.
 //
-//go:generate mockgen --destination=../../gen/mock/ledger/ledger_mock.go --package=mock . Repository
+//go:generate mockgen --destination=../../../gen/mock/ledger/ledger_mock.go --package=mock . Repository
 type Repository interface {
 	Create(ctx context.Context, ledger *Ledger) (*Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*Ledger, error)

@@ -26,36 +26,37 @@ type OrganizationPostgreSQLModel struct {
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 type CreateOrganizationInput struct {
 	LegalName            string         `json:"legalName"`
-	ParentOrganizationID *string        `json:"parentOrganizationId,omitempty"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs,omitempty"`
+	ParentOrganizationID *string        `json:"parentOrganizationId"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
 	LegalDocument        string         `json:"legalDocument"`
 	Address              Address        `json:"address"`
-	Status               Status         `json:"status,omitempty"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 type UpdateOrganizationInput struct {
-	LegalName       string         `json:"legalName"`
-	DoingBusinessAs *string        `json:"doingBusinessAs,omitempty"`
-	Address         Address        `json:"address"`
-	Status          Status         `json:"status"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	LegalName            string         `json:"legalName"`
+	ParentOrganizationID *string        `json:"parentOrganizationId"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // Organization is a struct designed to encapsulate response payload data.
 type Organization struct {
 	ID                   string         `json:"id,omitempty"`
-	ParentOrganizationID *string        `json:"parentOrganizationId,omitempty"`
+	ParentOrganizationID *string        `json:"parentOrganizationId"`
 	LegalName            string         `json:"legalName"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs,omitempty"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
 	LegalDocument        string         `json:"legalDocument"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	CreatedAt            time.Time      `json:"createdAt"`
 	UpdatedAt            time.Time      `json:"updatedAt"`
 	DeletedAt            *time.Time     `json:"deletedAt"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
@@ -71,19 +72,17 @@ func (s Status) IsEmpty() bool {
 
 // Address structure for marshaling/unmarshalling JSON.
 type Address struct {
-	Line1        string  `json:"line1"`
-	Line2        *string `json:"line2,omitempty"`
-	Neighborhood string  `json:"neighborhood"`
-	ZipCode      string  `json:"zipCode"`
-	City         string  `json:"city"`
-	State        string  `json:"state"`
-	Country      string  `json:"country"` // According to ISO 3166-1 alpha-2
+	Line1   string  `json:"line1"`
+	Line2   *string `json:"line2"`
+	ZipCode string  `json:"zipCode"`
+	City    string  `json:"city"`
+	State   string  `json:"state"`
+	Country string  `json:"country"` // According to ISO 3166-1 alpha-2
 }
 
 // IsEmpty method that set empty or nil in fields
 func (a Address) IsEmpty() bool {
-	return a.Line1 == "" && a.Line2 == nil && a.Neighborhood == "" &&
-		a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
+	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
 }
 
 // ToEntity converts an OrganizationPostgreSQLModel to entity.Organization

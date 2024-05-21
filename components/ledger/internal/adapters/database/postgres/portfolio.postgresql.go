@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -50,6 +51,11 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 		record.ID, record.Name, record.EntityID, record.LedgerID, record.OrganizationID,
 		record.Status, record.StatusDescription, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(p.Portfolio{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -238,6 +244,11 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(p.Portfolio{}).Name())
+		}
+
 		return nil, err
 	}
 

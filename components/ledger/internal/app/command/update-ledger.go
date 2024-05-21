@@ -58,12 +58,6 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id stri
 		}
 
 		ledgerUpdated.Metadata = uli.Metadata
-
-		return ledgerUpdated, nil
-	}
-
-	if err := uc.MetadataRepo.Delete(ctx, reflect.TypeOf(l.Ledger{}).Name(), id); err != nil {
-		return nil, err
 	}
 
 	return ledgerUpdated, nil

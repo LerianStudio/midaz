@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS account
     status_description              TEXT,
     allow_sending                   BOOLEAN NOT NULL,
     allow_receiving                 BOOLEAN NOT NULL,
-    alias                           TEXT NOT NULL,
+    alias                           TEXT NULL,
     type                            TEXT NOT NULL,
     created_at                      TIMESTAMP WITH TIME ZONE,
     updated_at                      TIMESTAMP WITH TIME ZONE,
