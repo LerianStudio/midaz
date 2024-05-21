@@ -8,7 +8,7 @@ import (
 
 // Repository provides an interface for operations related to portfolio entities.
 //
-//go:generate mockgen --destination=../../gen/mock/portfolio/portfolio_mock.go --package=mock . Repository
+//go:generate mockgen --destination=../../../gen/mock/portfolio/portfolio_mock.go --package=mock . Repository
 type Repository interface {
 	Create(ctx context.Context, portfolio *Portfolio) (*Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*Portfolio, error)

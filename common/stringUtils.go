@@ -41,6 +41,21 @@ func IsNilOrEmpty(s *string) bool {
 	return s == nil || strings.TrimSpace(*s) == ""
 }
 
+// IsUpper check if string is lower
+func IsUpper(s string) error {
+	for _, r := range s {
+		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
+			return ValidationError{
+				Code:    "0004",
+				Title:   "Invalid Data provided.",
+				Message: "Invalid Data provided.",
+			}
+		}
+	}
+
+	return nil
+}
+
 // CamelToSnakeCase converts a given camelCase string to snake_case format.
 func CamelToSnakeCase(str string) string {
 	var buffer bytes.Buffer

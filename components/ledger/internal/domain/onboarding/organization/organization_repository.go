@@ -8,7 +8,7 @@ import (
 
 // Repository provides an interface for operations related to organization entities.
 //
-//go:generate mockgen --destination=../../gen/mock/organization/organization_mock.go --package=mock . Repository
+//go:generate mockgen --destination=../../../gen/mock/organization/organization_mock.go --package=mock . Repository
 type Repository interface {
 	Create(ctx context.Context, organization *Organization) (*Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *Organization) (*Organization, error)
