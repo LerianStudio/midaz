@@ -349,6 +349,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		if errors.As(err, &pgErr) {
 			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
 		}
+
 		return nil, err
 	}
 

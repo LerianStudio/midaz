@@ -35,8 +35,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	balanceValue := float64(0)
-	var balance a.Balance
-	balance = a.Balance{
+
+	balance := a.Balance{
 		Available: &balanceValue,
 		OnHold:    &balanceValue,
 		Scale:     &balanceValue,
@@ -77,6 +77,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		if err != nil {
 			return nil, err
 		}
+
 		if acc.InstrumentCode != account.InstrumentCode {
 			return nil, common.ValidationError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
