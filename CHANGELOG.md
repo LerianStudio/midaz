@@ -1,3 +1,35 @@
+## [1.1.0](https://github.com/LerianStudio/midaz/compare/v1.0.0...v1.1.0) (2024-05-21)
+
+
+### Features
+
+* business message :sparkles: ([c6e3c97](https://github.com/LerianStudio/midaz/commit/c6e3c979edfd578d61f88525360d771336be7da8))
+* create method that search instrument by name or code to cant insert again ([8e01080](https://github.com/LerianStudio/midaz/commit/8e01080e7a44656568b66aed0bfeee6dc6b336a7))
+* create new method findbyalias :sparkles: ([6d86734](https://github.com/LerianStudio/midaz/commit/6d867340c58251cb45f13c08b89124187cb1e8f7))
+* create two methods, validate type and validate currency validate ISO 4217 :bug: ([09c622b](https://github.com/LerianStudio/midaz/commit/09c622b908989bd334fab244e3639f312ca1b0df))
+* re run mock :sparkles: ([5cd0b70](https://github.com/LerianStudio/midaz/commit/5cd0b7002a7fb416cf7a316cb050a565afa17182))
+
+
+### Bug Fixes
+
+* (cqrs): remove delete metadata when update object with field is null ([9142901](https://github.com/LerianStudio/midaz/commit/91429013d88bbfc5183487284bde8f11a4f00297))
+* adjust make lint ([dacca62](https://github.com/LerianStudio/midaz/commit/dacca62bfcb272c9d70c10de95fdd4473d3b97c2))
+* adjust path mock to generate new files and add new method interface in instrument :bug: ([ecbfce9](https://github.com/LerianStudio/midaz/commit/ecbfce9b4d74dbbb72df384c1f697c9ff9a8772e))
+* ajust alias to receive nil :bug: ([19844fd](https://github.com/LerianStudio/midaz/commit/19844fdc8a507ac1060812630419c495cb7bf326))
+* bugs and new implements features :bug: ([8b8ee76](https://github.com/LerianStudio/midaz/commit/8b8ee76dfd7a2d7c446eab205b627ddf1c87b622))
+* business message :bug: ([d3c35d7](https://github.com/LerianStudio/midaz/commit/d3c35d7da834698a2b50e59e16db519132b8786b))
+* create method to validate if code has letter uppercase :bug: ([36f6c0e](https://github.com/LerianStudio/midaz/commit/36f6c0e295f24a809acde2332d4b6c3b51eefd8b))
+* env default local :bug: ([b1d8f04](https://github.com/LerianStudio/midaz/commit/b1d8f0492c7cdd0bc2828b55d5f632f1c2694adc))
+* golint :bug: ([481e1fe](https://github.com/LerianStudio/midaz/commit/481e1fec585ad094dafccb0b4a4e0dc4df600f7c))
+* lint :bug: ([9508657](https://github.com/LerianStudio/midaz/commit/950865748e3fdcf340599c92cd3143ffc737f87f))
+* lint and error message :bug: ([be8637e](https://github.com/LerianStudio/midaz/commit/be8637eb10a2ec105a6da841eae56d7ac7b0827d))
+* migration alias to receive null :bug: ([9c83a9c](https://github.com/LerianStudio/midaz/commit/9c83a9ccb693031b588a67e5f42b03cc5b26a509))
+* regenerate mocks :bug: ([8592e17](https://github.com/LerianStudio/midaz/commit/8592e17ab449151972af43ebc64d6dfdc9975087))
+* remove and update postman :bug: ([0971d13](https://github.com/LerianStudio/midaz/commit/0971d133c9ea969d9c063e8acb7a617edb620be2))
+* remove json unmarshal from status in method find and findall ([021e5af](https://github.com/LerianStudio/midaz/commit/021e5af12b8ff6791bac9c694e5de157efbad4c7))
+* removes omitempty to return field even than null :bug: ([030ea64](https://github.com/LerianStudio/midaz/commit/030ea6406baf1a5ced486e4b3b2ab577f44adedf))
+* **ledger:** when string ParentOrganizationID is empty set nil ([6f6c044](https://github.com/LerianStudio/midaz/commit/6f6c0449c0833c333d06aeabcfeeeee1108c0256))
+
 ## [1.1.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.0.0...v1.1.0-beta.1) (2024-05-21)
 
 
