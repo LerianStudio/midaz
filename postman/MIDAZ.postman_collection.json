@@ -447,7 +447,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Brazilian Real\",\n    \"type\": \"FIAT\",\n    \"code\": \"BRL\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Brazilian Real\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1001,7 +1001,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"McGregor\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"balance\": {\n        \"available\": 1000,\n        \"onHold\": 10000,\n        \"scale\": 2\n    },\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"wallet\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
