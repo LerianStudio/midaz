@@ -1,3 +1,11 @@
+## [1.2.0](https://github.com/LerianStudio/midaz/compare/v1.1.0...v1.2.0) (2024-05-23)
+
+
+### Bug Fixes
+
+* fix patch updates to accept only specific fields, not all like put :bug: ([95c2847](https://github.com/LerianStudio/midaz/commit/95c284760b82e0ed3d173ed83728dc03417dc3a5))
+* remove not null from field entity_id in account :bug: ([921b21e](https://github.com/LerianStudio/midaz/commit/921b21ef6bc4c7c9ddb957f48b3849a93c9551ee))
+
 ## [1.1.0](https://github.com/LerianStudio/midaz/compare/v1.0.0...v1.1.0) (2024-05-21)
 
 
