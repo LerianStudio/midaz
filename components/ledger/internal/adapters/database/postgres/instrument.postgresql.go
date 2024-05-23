@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -46,15 +47,23 @@ func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument 
 	record := &i.InstrumentPostgreSQLModel{}
 	record.FromEntity(instrument)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO instrument 
-	(id, name, type, code, status, status_description, ledger_id, organization_id, created_at, updated_at, deleted_at) 
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-		record.ID, record.Name, record.Type, record.Code, record.Status, record.StatusDescription,
-		record.LedgerID, record.OrganizationID, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
+	result, err := db.ExecContext(ctx, `INSERT INTO instrument VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+		record.ID,
+		record.Name,
+		record.Type,
+		record.Code,
+		record.Status,
+		record.StatusDescription,
+		record.LedgerID,
+		record.OrganizationID,
+		record.CreatedAt,
+		record.UpdatedAt,
+		record.DeletedAt,
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
 		}
 
 		return nil, err
@@ -240,7 +249,7 @@ func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizatio
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
 		}
 
 		return nil, err

@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -47,13 +48,20 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 	record := &l.LedgerPostgreSQLModel{}
 	record.FromEntity(ledger)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO ledger (id, name, organization_id, status, status_description, created_at, updated_at, deleted_at) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-		record.ID, record.Name, record.OrganizationID, record.Status, record.StatusDescription, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
+	result, err := db.ExecContext(ctx, `INSERT INTO ledger VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+		record.ID,
+		record.Name,
+		record.OrganizationID,
+		record.Status,
+		record.StatusDescription,
+		record.CreatedAt,
+		record.UpdatedAt,
+		record.DeletedAt,
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -219,7 +227,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err

@@ -18,20 +18,14 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update organization: %v", uoi)
 
-	if uoi.LegalName == "" && uoi.DoingBusinessAs == nil && uoi.Address.IsEmpty() && uoi.Status.IsEmpty() && uoi.Metadata == nil {
-		return nil, common.UnprocessableOperationError{
-			Message: "at least one of the allowed fields must be sent with a valid value [legalName, doingBusinessAs, address, status, metadata]",
-			Code:    "0006",
-			Err:     nil,
-		}
-	}
-
 	if common.IsNilOrEmpty(uoi.ParentOrganizationID) {
 		uoi.ParentOrganizationID = nil
 	}
 
-	if err := common.ValidateCountryAddress(uoi.Address.Country); err != nil {
-		return nil, err
+	if !uoi.Address.IsEmpty() {
+		if err := common.ValidateCountryAddress(uoi.Address.Country); err != nil {
+			return nil, err
+		}
 	}
 
 	organization := &o.Organization{
