@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/jackc/pgx/v5/pgconn"
 )
