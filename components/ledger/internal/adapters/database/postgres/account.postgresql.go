@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -77,7 +78,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
@@ -347,7 +348,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
