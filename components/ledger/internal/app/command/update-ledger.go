@@ -18,14 +18,6 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id stri
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update ledger: %v", uli)
 
-	if uli.Name == "" && uli.Status.IsEmpty() && uli.Metadata == nil {
-		return nil, common.UnprocessableOperationError{
-			Message: "at least one of the allowed fields must be sent with a valid value [name, status.code, status.description, metadata]",
-			Code:    "0006",
-			Err:     nil,
-		}
-	}
-
 	ledger := &l.Ledger{
 		Name:           uli.Name,
 		OrganizationID: organizationID,

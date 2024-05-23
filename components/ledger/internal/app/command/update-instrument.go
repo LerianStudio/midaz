@@ -18,20 +18,9 @@ func (uc *UseCase) UpdateInstrumentByID(ctx context.Context, organizationID, led
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update instrument: %v", uii)
 
-	if uii.Name == "" && uii.Status.IsEmpty() && uii.Metadata == nil {
-		return nil, common.UnprocessableOperationError{
-			Message: "at least one of the allowed fields must be sent with a valid value [name, status.code, status.description, metadata]",
-			Code:    "0006",
-			Err:     nil,
-		}
-	}
-
 	instrument := &i.Instrument{
-		Name: uii.Name,
-	}
-
-	if !uii.Status.IsEmpty() {
-		instrument.Status = uii.Status
+		Name:   uii.Name,
+		Status: uii.Status,
 	}
 
 	instrumentUpdated, err := uc.InstrumentRepo.Update(ctx, organizationID, ledgerID, id, instrument)
