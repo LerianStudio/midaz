@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS account
     id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name                            TEXT,
     parent_account_id               UUID,
-    entity_id                       UUID NOT NULL,
+    entity_id                       UUID,
     instrument_code                 TEXT NOT NULL,
     organization_id                 UUID NOT NULL,
     ledger_id                       UUID NOT NULL,
