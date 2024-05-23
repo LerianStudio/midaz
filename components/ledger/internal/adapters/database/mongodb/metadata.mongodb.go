@@ -48,12 +48,10 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 		return err
 	}
 
-	insertResult, err := coll.InsertOne(ctx, record)
+	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Inserted a document: ", insertResult.InsertedID)
 
 	return nil
 }

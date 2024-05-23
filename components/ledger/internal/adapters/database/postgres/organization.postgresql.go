@@ -12,6 +12,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -49,19 +50,10 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 	address, err := json.Marshal(record.Address)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
-		}
-
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO organization (
-	 	id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at
-	) VALUES (
-		$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-	) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO organization VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
 		record.ID,
 		record.ParentOrganizationID,
 		record.LegalName,
@@ -74,6 +66,11 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		record.UpdatedAt,
 		record.DeletedAt)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
+		}
+
 		return nil, err
 	}
 
@@ -105,12 +102,17 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 	var args []any
 
-	if organization.LegalName != "" {
+	if !common.IsNilOrEmpty(organization.ParentOrganizationID) {
+		updates = append(updates, "parent_organization_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.ParentOrganizationID)
+	}
+
+	if !common.IsNilOrEmpty(&organization.LegalName) {
 		updates = append(updates, "legal_name = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.LegalName)
 	}
 
-	if organization.DoingBusinessAs != nil {
+	if !common.IsNilOrEmpty(organization.DoingBusinessAs) {
 		updates = append(updates, "doing_business_as = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.DoingBusinessAs)
 	}
@@ -146,7 +148,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err

@@ -18,14 +18,6 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update product: %v", upi)
 
-	if upi.Name == "" && upi.Status.IsEmpty() && upi.Metadata == nil {
-		return nil, common.UnprocessableOperationError{
-			Message: "at least one of the allowed fields must be sent with a valid value [name, status.code, status.description, metadata]",
-			Code:    "0006",
-			Err:     nil,
-		}
-	}
-
 	product := &r.Product{
 		Name:   upi.Name,
 		Status: upi.Status,

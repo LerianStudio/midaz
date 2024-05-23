@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -46,14 +47,22 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 	record := &p.PortfolioPostgreSQLModel{}
 	record.FromEntity(portfolio)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO portfolio (id, name, entity_id, ledger_id, organization_id, 
-        status, status_description, created_at, updated_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-		record.ID, record.Name, record.EntityID, record.LedgerID, record.OrganizationID,
-		record.Status, record.StatusDescription, record.CreatedAt, record.UpdatedAt, record.DeletedAt)
+	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+		record.ID,
+		record.Name,
+		record.EntityID,
+		record.LedgerID,
+		record.OrganizationID,
+		record.Status,
+		record.StatusDescription,
+		record.CreatedAt,
+		record.UpdatedAt,
+		record.DeletedAt,
+	)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -246,7 +255,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, common.ValidatePGError(pgErr, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
