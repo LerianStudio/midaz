@@ -3,8 +3,6 @@ package common
 import (
 	"slices"
 	"strconv"
-
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.
@@ -85,9 +83,9 @@ func ValidateType(t string) error {
 
 	if !slices.Contains(types, t) {
 		return ValidationError{
-			Code:    "0033",
-			Title:   "Invalid Code Format",
-			Message: "The 'code' field must be alphanumeric, in upper case, and must contain at least one letter. Please provide a valid code.",
+			Code:    "0040",
+			Title:   "Invalid Type",
+			Message: "The provided type is not valid. Accepted types are: currency, crypto, commodities, or others. Please provide a valid type.",
 		}
 	}
 
@@ -116,68 +114,11 @@ func ValidateCurrency(code string) error {
 
 	if !slices.Contains(currencies, code) {
 		return ValidationError{
-			Code:    "0005",
-			Title:   "Invalid Data provided.",
-			Message: "Invalid Data provided.",
+			Code:    "0033",
+			Title:   "Invalid Code Format",
+			Message: "The 'code' field must be alphanumeric, in upper case, and must contain at least one letter. Please provide a valid code.",
 		}
 	}
 
 	return nil
-}
-
-// ValidatePGError validate pgError and return business error
-func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
-	switch pgErr.ConstraintName {
-	case "account_parent_account_id_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Invalid Parent Account ID",
-			Code:       "0029",
-			Message:    "The specified parent account ID does not exist. Please verify the ID is correct and attempt your request again.",
-		}
-	case "account_instrument_code_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Instrument Code Not Found",
-			Code:       "0034",
-			Message:    "The provided instrument code does not exist in our records. Please verify the instrument code and try again.",
-		}
-	case "account_portfolio_id_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Portfolio ID Not Found",
-			Code:       "0035",
-			Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
-		}
-	case "account_product_id_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Product ID Not Found",
-			Code:       "0036",
-			Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
-		}
-	case "account_ledger_id_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Ledger ID Not Found",
-			Code:       "0037",
-			Message:    "The provided ledger ID does not exist in our records. Please verify the ledger ID and try again.",
-		}
-	case "account_organization_id_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Organization ID Not Found",
-			Code:       "0038",
-			Message:    "The provided organization ID does not exist in our records. Please verify the organization ID and try again.",
-		}
-	case "account_parent_organization_id_fkey":
-		return ValidationError{
-			EntityType: entityType,
-			Title:      "Parent Organization ID Not Found",
-			Code:       "0039",
-			Message:    "The provided parent organization ID does not exist in our records. Please verify the parent organization ID and try again.",
-		}
-	default:
-		return pgErr
-	}
 }
