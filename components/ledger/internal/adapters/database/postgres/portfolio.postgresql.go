@@ -47,7 +47,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 	record := &p.PortfolioPostgreSQLModel{}
 	record.FromEntity(portfolio)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
 		record.ID,
 		record.Name,
 		record.EntityID,
@@ -55,6 +55,8 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 		record.OrganizationID,
 		record.Status,
 		record.StatusDescription,
+		record.AllowSending,
+		record.AllowReceiving,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -97,7 +99,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND entity_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, entityID)
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-		&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
@@ -137,7 +139,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	for rows.Next() {
 		var portfolio p.PortfolioPostgreSQLModel
 		if err := rows.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-			&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+			&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 			return nil, err
 		}
 
@@ -163,7 +165,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, id)
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-		&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
@@ -198,7 +200,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	for rows.Next() {
 		var portfolio p.PortfolioPostgreSQLModel
 		if err := rows.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-			&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+			&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 			return nil, err
 		}
 
@@ -237,6 +239,12 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
+
+		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowSending)
+
+		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowReceiving)
 	}
 
 	record.UpdatedAt = time.Now()
