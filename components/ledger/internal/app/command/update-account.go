@@ -23,13 +23,11 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 	}
 
 	account := &a.Account{
-		Name:           uai.Name,
-		Status:         uai.Status,
-		Alias:          uai.Alias,
-		AllowSending:   uai.AllowSending,
-		AllowReceiving: uai.AllowReceiving,
-		ProductID:      uai.ProductID,
-		Metadata:       uai.Metadata,
+		Name:      uai.Name,
+		Status:    uai.Status,
+		Alias:     uai.Alias,
+		ProductID: uai.ProductID,
+		Metadata:  uai.Metadata,
 	}
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), uuid.MustParse(id), account)

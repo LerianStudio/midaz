@@ -20,7 +20,9 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	var status p.Status
 	if cpi.Status.IsEmpty() {
 		status = p.Status{
-			Code: "ACTIVE",
+			Code:           "ACTIVE",
+			AllowReceiving: true,
+			AllowSending:   true,
 		}
 	} else {
 		status = cpi.Status

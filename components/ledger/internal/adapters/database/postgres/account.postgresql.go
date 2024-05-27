@@ -309,21 +309,17 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
+
+		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowSending)
+
+		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowReceiving)
 	}
 
 	if !common.IsNilOrEmpty(account.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Alias)
-	}
-
-	if account.AllowSending != record.AllowSending {
-		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AllowSending)
-	}
-
-	if account.AllowReceiving != record.AllowReceiving {
-		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AllowReceiving)
 	}
 
 	if account.ProductID != "" {

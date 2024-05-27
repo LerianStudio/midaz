@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS portfolio
     organization_id               UUID NOT NULL,
     status                        TEXT NOT NULL,
     status_description            TEXT,
+    allow_sending                 BOOLEAN NOT NULL,
+    allow_receiving               BOOLEAN NOT NULL,
     created_at                    TIMESTAMP WITH TIME ZONE,
     updated_at                    TIMESTAMP WITH TIME ZONE,
     deleted_at                    TIMESTAMP WITH TIME ZONE,

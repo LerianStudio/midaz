@@ -28,7 +28,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	var status a.Status
 	if cai.Status.IsEmpty() {
 		status = a.Status{
-			Code: "ACTIVE",
+			Code:           "ACTIVE",
+			AllowReceiving: true,
+			AllowSending:   true,
 		}
 	} else {
 		status = cai.Status
@@ -66,8 +68,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		EntityID:        *cai.EntityID,
 		Balance:         balance,
 		Status:          status,
-		AllowSending:    true,
-		AllowReceiving:  true,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}

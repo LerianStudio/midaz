@@ -630,7 +630,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"McGregor Portfolio 3\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Portfolio 3\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"McGregor Portfolio 3\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Portfolio 3\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -673,7 +673,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"McGregor Portfolio 3 UPDATE\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Portfolio 3 Update\"\n    },\n    \"metadata\": {\n        \"chave\": \"Change Update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"McGregor Portfolio 3 UPDATE\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Portfolio 3 Update\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"Change Update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -704,7 +704,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios?metadata.chave=xuxa",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios",
 							"host": [
 								"{{url}}"
 							],
@@ -719,7 +719,8 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "xuxa"
+									"value": "xuxa",
+									"disabled": true
 								}
 							]
 						}
@@ -1001,7 +1002,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"wallet\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"wallet\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1046,7 +1047,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Sanchez Account\", //opcional\n    \"alias\": \"Sanchez\",\n    \"allowSending\": false,\n    \"allowReceiving\": false,\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"cracatua\",\n        \"boolean\": false,\n        \"double\": 15.5,\n        \"int\": 10\n    }\n}",
+							"raw": "{\n    \"name\": \"Sanchez Account\", //opcional\n    \"alias\": \"Sanchez\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"cracatua\",\n        \"boolean\": false,\n        \"double\": 15.5,\n        \"int\": 10\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1079,7 +1080,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts?metadata.chave=cracatua",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts",
 							"host": [
 								"{{url}}"
 							],
@@ -1096,7 +1097,8 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "cracatua"
+									"value": "cracatua",
+									"disabled": true
 								}
 							]
 						}

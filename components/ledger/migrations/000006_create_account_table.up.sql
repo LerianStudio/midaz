@@ -27,4 +27,4 @@ CREATE TABLE IF NOT EXISTS account
     FOREIGN KEY (ledger_id)         REFERENCES ledger (id),
     FOREIGN KEY (portfolio_id)      REFERENCES portfolio (id),
     FOREIGN KEY (product_id)        REFERENCES product (id)
-    );
+);
