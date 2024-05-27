@@ -48,13 +48,11 @@ type CreateAccountInput struct {
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
 type UpdateAccountInput struct {
-	Name           string         `json:"name"`
-	Status         Status         `json:"status"`
-	Alias          *string        `json:"alias"`
-	AllowSending   bool           `json:"allowSending"`
-	AllowReceiving bool           `json:"allowReceiving"`
-	ProductID      string         `json:"productId"`
-	Metadata       map[string]any `json:"metadata"`
+	Name      string         `json:"name"`
+	Status    Status         `json:"status"`
+	Alias     *string        `json:"alias"`
+	ProductID string         `json:"productId"`
+	Metadata  map[string]any `json:"metadata"`
 }
 
 // Account is a struct designed to encapsulate response payload data.
@@ -70,8 +68,6 @@ type Account struct {
 	ProductID       string         `json:"productId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
-	AllowSending    bool           `json:"allowSending"`
-	AllowReceiving  bool           `json:"allowReceiving"`
 	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
 	CreatedAt       time.Time      `json:"createdAt"`
@@ -82,8 +78,10 @@ type Account struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code           string  `json:"code"`
+	Description    *string `json:"description"`
+	AllowSending   bool    `json:"allowSending"`
+	AllowReceiving bool    `json:"allowReceiving"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -106,8 +104,10 @@ func (b Balance) IsEmpty() bool {
 // ToEntity converts an AccountPostgreSQLModel to a response entity Account
 func (t *AccountPostgreSQLModel) ToEntity() *Account {
 	status := Status{
-		Code:        t.Status,
-		Description: t.StatusDescription,
+		Code:           t.Status,
+		Description:    t.StatusDescription,
+		AllowSending:   t.AllowSending,
+		AllowReceiving: t.AllowReceiving,
 	}
 
 	balance := Balance{
@@ -128,8 +128,6 @@ func (t *AccountPostgreSQLModel) ToEntity() *Account {
 		ProductID:       t.ProductID,
 		Balance:         balance,
 		Status:          status,
-		AllowSending:    t.AllowSending,
-		AllowReceiving:  t.AllowReceiving,
 		Alias:           t.Alias,
 		Type:            t.Type,
 		CreatedAt:       t.CreatedAt,
@@ -162,8 +160,8 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 		BalanceScale:      account.Balance.Scale,
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
-		AllowSending:      account.AllowSending,
-		AllowReceiving:    account.AllowReceiving,
+		AllowSending:      account.Status.AllowSending,
+		AllowReceiving:    account.Status.AllowReceiving,
 		Alias:             account.Alias,
 		Type:              account.Type,
 		CreatedAt:         account.CreatedAt,
