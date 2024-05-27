@@ -3,25 +3,26 @@ LEDGER_DIR := ./components/ledger
 
 .PHONY: auth ledger
 
-build:
-	./make.sh "build"
-
 help:
 	@echo "Management commands"
 	@echo ""
 	@echo "Usage:"
 	@echo "  ## Root Commands"
-	@echo "    make build           Build all project services."
-	@echo "    make test            Run tests on all projects."
-	@echo "    make clean           Clean the directory tree of produced artifacts."
-	@echo "    make lint            Run static code analysis (lint)."
-	@echo "    make format          Run code formatter."
-	@echo "    make checkEnvs       Check if github hooks are instaled and secret env on files are not exposed."
-	@echo "    make gen             Generates all project code to connect its components using Wire."
+	@echo "    make build                               Build all project services."
+	@echo "    make test                                Run tests on all projects."
+	@echo "    make clean                               Clean the directory tree of produced artifacts."
+	@echo "    make lint                                Run static code analysis (lint)."
+	@echo "    make format                              Run code formatter."
+	@echo "    make checkEnvs                           Check if github hooks are installed and secret env on files are not exposed."
+	@echo "    make auth                                Run a command inside the auth app in the components directory to see available commands."
+	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
 	@echo ""
 	@echo "  ## Utility Commands"
-	@echo "    make setup-git-hooks       Setup git hooks."
+	@echo "    make setup-git-hooks                     Command to setup git hooks."
 	@echo ""
+
+build:
+	./make.sh "build"
 
 test:
 	go test -v ./... ./...
@@ -57,13 +58,7 @@ sec:
 	gosec ./...
 
 auth:
-	$(MAKE) -C $(AUTH_DIR) restart
-
-gen_auth:
-	$(MAKE) -C $(AUTH_DIR) gen
+	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
 
 ledger:
-	$(MAKE) -C $(LEDGER_DIR) restart
-
-gen:
-	$(MAKE) -C $(LEDGER_DIR) gen
+	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
