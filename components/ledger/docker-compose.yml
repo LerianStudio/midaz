@@ -33,6 +33,7 @@ x-redis-common:
 
 services:
   ledger:
+    container_name: midaz-ledger
     build:
       context: ../../
       dockerfile: ./components/ledger/Dockerfile
@@ -61,7 +62,7 @@ services:
 
   mongodb:
     <<: *mongodb-common
-    container_name: mongodb_ledger
+    container_name: midaz-mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
@@ -72,13 +73,13 @@ services:
 
   redis:
     <<: *redis-common
-    container_name: redis_ledger
+    container_name: midaz-redis
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
 
   primary-ledger:
     <<: *postgres-ledger-common
-    container_name: primary-ledger
+    container_name: midaz-postgres-primary
     ports:
       - ${DB_PORT}:${DB_PORT}
     environment:
@@ -99,7 +100,7 @@ services:
 
   replica-ledger:
     <<: *postgres-ledger-common
-    container_name: replica-ledger
+    container_name: midaz-postgres-replica
     ports:
       - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
     environment:
