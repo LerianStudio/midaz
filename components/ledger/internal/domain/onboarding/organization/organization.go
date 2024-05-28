@@ -132,3 +132,12 @@ func (t *OrganizationPostgreSQLModel) FromEntity(organization *Organization) {
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }
+
+// Pagination is a struct designed to encapsulate pagination response payload data.
+type Pagination struct {
+	Organizations     []*Organization `json:"organizations"`
+	CurrentPage       int             `json:"current_page"`
+	TotalPages        int             `json:"total_pages"`
+	NextPageToken     *string         `json:"next_page_token"`
+	PreviousPageToken *string         `json:"previous_page_token"`
+}
