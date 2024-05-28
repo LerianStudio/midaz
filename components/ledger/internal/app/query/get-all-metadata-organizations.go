@@ -14,11 +14,11 @@ import (
 )
 
 // GetAllMetadataOrganizations fetch all Organizations from the repository
-func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, key string, value string) ([]*o.Organization, error) {
+func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter bson.M) ([]*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving organizations")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), bson.M{key: value})
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(o.Organization{}).Name(),

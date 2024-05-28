@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/google/uuid"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -13,11 +14,16 @@ import (
 )
 
 // GetAllOrganizations fetch all Organizations from the repository
-func (uc *UseCase) GetAllOrganizations(ctx context.Context) ([]*o.Organization, error) {
+func (uc *UseCase) GetAllOrganizations(ctx context.Context, limit int, token *string) (*o.Pagination, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving organizations")
 
-	organizations, err := uc.OrganizationRepo.FindAll(ctx)
+	id := uuid.Nil
+	if token != nil {
+		id = uuid.MustParse(*token)
+	}
+
+	pagination, err := uc.OrganizationRepo.FindAll(ctx, limit, id)
 	if err != nil {
 		logger.Errorf("Error getting organizations on repo: %v", err)
 
@@ -32,6 +38,8 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context) ([]*o.Organization, 
 
 		return nil, err
 	}
+
+	organizations := pagination.Organizations
 
 	if organizations != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), bson.M{})
@@ -57,5 +65,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context) ([]*o.Organization, 
 		}
 	}
 
-	return organizations, nil
+	pagination.Organizations = organizations
+
+	return pagination, nil
 }
