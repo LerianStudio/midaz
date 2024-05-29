@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllMetadataPortfolios fetch all Portfolios from the repository
-func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, key, value, organizationID, ledgerID string) ([]*p.Portfolio, error) {
+func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving portfolios")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), bson.M{key: value})
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), filter.Metadata)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),

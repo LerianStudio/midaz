@@ -14,11 +14,11 @@ import (
 )
 
 // GetAllPortfolio fetch all Portfolio from the repository
-func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID string) ([]*p.Portfolio, error) {
+func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving portfolios")
 
-	portfolios, err := uc.PortfolioRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID))
+	portfolios, err := uc.PortfolioRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting portfolios on repo: %v", err)
 

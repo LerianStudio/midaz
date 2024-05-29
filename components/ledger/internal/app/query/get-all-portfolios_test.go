@@ -16,6 +16,8 @@ import (
 func TestGetAllPortfolios(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
+	limit := 10
+	page := 1
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -30,10 +32,10 @@ func TestGetAllPortfolios(t *testing.T) {
 		portfolios := []*p.Portfolio{{}}
 		mockPortfolioRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID).
+			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).
 			Return(portfolios, nil).
 			Times(1)
-		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID)
+		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, limit, page)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -43,10 +45,10 @@ func TestGetAllPortfolios(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockPortfolioRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID).
+			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID)
+		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, limit, page)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
