@@ -11,7 +11,7 @@ import (
 //go:generate mockgen --destination=../../../gen/mock/instrument/instrument_mock.go --package=mock . Repository
 type Repository interface {
 	Create(ctx context.Context, instrument *Instrument) (*Instrument, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Instrument, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*Instrument, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Instrument, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Instrument, error)
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)

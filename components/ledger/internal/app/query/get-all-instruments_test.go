@@ -16,6 +16,8 @@ import (
 func TestGetAllInstruments(t *testing.T) {
 	ledgerID := uuid.New()
 	organizationID := uuid.New()
+	limit := 10
+	page := 1
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -30,10 +32,10 @@ func TestGetAllInstruments(t *testing.T) {
 		instruments := []*i.Instrument{{}}
 		mockInstrumentRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID).
+			FindAll(gomock.Any(), organizationID, ledgerID, page, limit).
 			Return(instruments, nil).
 			Times(1)
-		res, err := uc.InstrumentRepo.FindAll(context.TODO(), organizationID, ledgerID)
+		res, err := uc.InstrumentRepo.FindAll(context.TODO(), organizationID, ledgerID, page, limit)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -43,10 +45,10 @@ func TestGetAllInstruments(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockInstrumentRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID).
+			FindAll(gomock.Any(), organizationID, ledgerID, page, limit).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.InstrumentRepo.FindAll(context.TODO(), organizationID, ledgerID)
+		res, err := uc.InstrumentRepo.FindAll(context.TODO(), organizationID, ledgerID, page, limit)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

@@ -1,13 +1,16 @@
 package ports
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // InstrumentHandler struct contains an instrument use case for managing instrument related operations.
@@ -52,10 +55,17 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	logger.Infof("Initiating create of Instrument with ledger ID: %s", ledgerID)
 
-	for key, value := range c.Queries() {
+	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := domain.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Instruments by metadata")
 
-		organizations, err := handler.Query.GetAllMetadataInstruments(ctx, key, value, organizationID, ledgerID)
+		instruments, err := handler.Query.GetAllMetadataInstruments(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Instruments, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -63,12 +73,16 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Instruments by metadata")
 
-		return commonHTTP.OK(c, organizations)
+		pagination.SetItems(instruments)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Instruments ")
 
-	instruments, err := handler.Query.GetAllInstruments(ctx, organizationID, ledgerID)
+	headerParams.Metadata = &bson.M{}
+
+	instruments, err := handler.Query.GetAllInstruments(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Instruments, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -76,7 +90,9 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Instruments")
 
-	return commonHTTP.OK(c, instruments)
+	pagination.SetItems(instruments)
+
+	return commonHTTP.OK(c, pagination)
 }
 
 // GetInstrumentByID is a method that retrieves Instrument information by a given id.

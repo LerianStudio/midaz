@@ -14,11 +14,11 @@ import (
 )
 
 // GetAllInstruments fetch all Instrument from the repository
-func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID, ledgerID string) ([]*i.Instrument, error) {
+func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*i.Instrument, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving instruments")
 
-	instruments, err := uc.InstrumentRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID))
+	instruments, err := uc.InstrumentRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting instruments on repo: %v", err)
 
