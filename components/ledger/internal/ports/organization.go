@@ -1,6 +1,10 @@
 package ports
 
 import (
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
+	"go.mongodb.org/mongo-driver/bson"
+	"os"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -8,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/gofiber/fiber/v2"
-	"os"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -91,10 +94,16 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := domain.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
 	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Organizations by metadata")
 
-		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams.Metadata)
+		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -102,18 +111,22 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Organizations by metadata")
 
-		return commonHTTP.OK(c, organizations)
+		pagination.SetItems(organizations)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Organizations ")
-
-	pagination, err := handler.Query.GetAllOrganizations(ctx, headerParams.Limit, headerParams.Token)
+	headerParams.Metadata = &bson.M{}
+	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Organizations")
+
+	pagination.SetItems(organizations)
 
 	return commonHTTP.OK(c, pagination)
 }

@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -211,7 +210,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 }
 
 // FindAll retrieves Organizations entities from the database.
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit int, id uuid.UUID) (*o.Pagination, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*o.Organization, error) {
 	db, err := r.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -222,19 +221,18 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit in
 	findAll := sqrl.Select("*").
 		From(r.tableName).
 		Where(sqrl.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
+		OrderBy("created_at ASC").
 		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
 		PlaceholderFormat(sqrl.Dollar)
 
-	var previousPageToken string
-	if id != uuid.Nil {
-		findAll = findAll.Where(sqrl.Gt{"id": id})
-		previousPageToken = id.String()
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
 	}
 
-	query, _, err := findAll.ToSql()
-
-	rows, err := db.QueryContext(ctx, query, id)
+	var rows *sql.Rows
+	rows, err = db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -263,25 +261,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit in
 		return nil, err
 	}
 
-	totalPages, err := r.countPages(ctx, limit)
-	if err != nil {
-		return nil, err
-	}
-
-	currentPage, err := r.currentPage(ctx, limit, id)
-	if err != nil {
-		return nil, err
-	}
-
-	var pagination = &o.Pagination{
-		Organizations:     organizations,
-		CurrentPage:       currentPage,
-		TotalPages:        totalPages,
-		NextPageToken:     &organizations[limit-1].ID,
-		PreviousPageToken: &previousPageToken,
-	}
-
-	return pagination, nil
+	return organizations, nil
 }
 
 // ListByIDs retrieves Organizations entities from the database using the provided IDs.
@@ -352,61 +332,4 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	return nil
-}
-
-// countPages response total of count in the table
-func (r *OrganizationPostgreSQLRepository) countPages(ctx context.Context, limit int) (int, error) {
-	db, err := r.connection.GetDB(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	query, _, err := sqrl.Select(fmt.Sprintf("CEIL(COUNT(id) / %d.0) AS total_pages", limit)).
-		From(r.tableName).
-		Where(sqrl.Eq{"deleted_at": nil}).
-		ToSql()
-	if err != nil {
-		return 0, err
-	}
-
-	var totalPages int
-	err = db.QueryRowContext(ctx, query).Scan(&totalPages)
-	if err != nil {
-		return 0, err
-	}
-
-	return totalPages, nil
-}
-
-// currentPage response current page
-func (r *OrganizationPostgreSQLRepository) currentPage(ctx context.Context, limit int, id uuid.UUID) (int, error) {
-	db, err := r.connection.GetDB(ctx)
-	if err != nil {
-		return 0, err
-	}
-
-	recordsBefore := sqrl.Select("COUNT(id) AS records_before").
-		From(r.tableName).
-		Where(sqrl.Eq{"deleted_at": nil}).
-		PlaceholderFormat(sqrl.Dollar)
-
-	if id != uuid.Nil {
-		recordsBefore = recordsBefore.Where(sqrl.Gt{"id": sqrl.Expr("CAST(? AS uuid)", id)})
-	}
-
-	query, _, err := sqrl.Select(fmt.Sprintf("CEIL(records_before / %d.0) AS current_page", limit)).
-		FromSelect(recordsBefore, "records_before").
-		Limit(uint64(limit)).
-		ToSql()
-	if err != nil {
-		return 0, err
-	}
-
-	var current int
-	err = db.QueryRowContext(ctx, query).Scan(&current)
-	if err != nil {
-		return 0, err
-	}
-
-	return current, nil
 }
