@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllLedgers fetch all Ledgers from the repository
-func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string) ([]*l.Ledger, error) {
+func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string, filter common.QueryHeader) ([]*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving ledgers")
 
-	ledgers, err := uc.LedgerRepo.FindAll(ctx, uuid.MustParse(organizationID))
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, uuid.MustParse(organizationID), filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting ledgers on repo: %v", err)
 
@@ -35,7 +34,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string) ([]
 	}
 
 	if ledgers != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), bson.M{})
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), filter.Metadata)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(l.Ledger{}).Name(),

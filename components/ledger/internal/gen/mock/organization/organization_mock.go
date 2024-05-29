@@ -86,10 +86,10 @@ func (mr *MockRepositoryMockRecorder) Find(arg0, arg1 any) *gomock.Call {
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1 int, arg2 uuid.UUID) (*organization.Pagination, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 int) ([]*organization.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*organization.Pagination)
+	ret0, _ := ret[0].([]*organization.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

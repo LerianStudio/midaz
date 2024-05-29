@@ -221,7 +221,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 	findAll := sqrl.Select("*").
 		From(r.tableName).
 		Where(sqrl.Eq{"deleted_at": nil}).
-		OrderBy("created_at ASC").
+		OrderBy("created_at DESC").
 		Limit(uint64(limit)).
 		Offset(uint64((page - 1) * limit)).
 		PlaceholderFormat(sqrl.Dollar)
@@ -231,9 +231,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 		return nil, err
 	}
 
-	var rows *sql.Rows
-
-	rows, err = db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
