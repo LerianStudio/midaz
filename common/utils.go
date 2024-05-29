@@ -1,10 +1,11 @@
 package common
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
 	"slices"
 	"strconv"
 	"strings"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.
@@ -134,10 +135,11 @@ type QueryHeader struct {
 
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) *QueryHeader {
-
 	var metadata *bson.M
-	var limit = 10
-	var page = 1
+
+	limit := 10
+
+	page := 1
 
 	for key, value := range params {
 		switch {

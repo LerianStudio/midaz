@@ -1,9 +1,10 @@
 package ports
 
 import (
+	"os"
+
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
-	"os"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -117,7 +118,9 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Initiating retrieval of all Organizations ")
+
 	headerParams.Metadata = &bson.M{}
+
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())

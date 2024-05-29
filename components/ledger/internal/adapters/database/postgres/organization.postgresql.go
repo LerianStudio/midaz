@@ -232,10 +232,12 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 	}
 
 	var rows *sql.Rows
+
 	rows, err = db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	for rows.Next() {
