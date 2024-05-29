@@ -125,11 +125,11 @@ func ValidateCurrency(code string) error {
 	return nil
 }
 
-// QueryHeader entity from query parameter from apis
+// QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
 	Metadata *bson.M
 	Limit    int
-	Token    *string
+	Page     int
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -137,7 +137,7 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 
 	var metadata *bson.M
 	var limit = 10
-	var token *string
+	var page = 1
 
 	for key, value := range params {
 		switch {
@@ -145,15 +145,15 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 			metadata = &bson.M{key: value}
 		case strings.Contains(key, "limit"):
 			limit, _ = strconv.Atoi(value)
-		case strings.Contains(key, "token"):
-			token = &value
+		case strings.Contains(key, "page"):
+			page, _ = strconv.Atoi(value)
 		}
 	}
 
 	query := &QueryHeader{
 		Metadata: metadata,
 		Limit:    limit,
-		Token:    token,
+		Page:     page,
 	}
 
 	return query
