@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter common.QueryH
 	}
 
 	if organizations != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter.Metadata)
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),
