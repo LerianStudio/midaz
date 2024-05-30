@@ -34,7 +34,7 @@ func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID 
 	}
 
 	if products != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter.Metadata)
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(r.Product{}).Name(),

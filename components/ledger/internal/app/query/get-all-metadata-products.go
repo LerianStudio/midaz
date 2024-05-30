@@ -17,7 +17,7 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving products")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter.Metadata)
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
