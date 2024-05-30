@@ -34,7 +34,7 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 	}
 
 	if portfolios != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), filter.Metadata)
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
