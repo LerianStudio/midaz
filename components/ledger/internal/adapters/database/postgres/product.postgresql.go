@@ -9,6 +9,10 @@ import (
 	"strings"
 	"time"
 
+	sqrl "github.com/Masterminds/squirrel"
+
+	sqrl "github.com/Masterminds/squirrel"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -21,12 +25,14 @@ import (
 // ProductPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
 type ProductPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewProductPostgreSQLRepository returns a new instance of ProductPostgreSQLRepository using the given Postgres connection.
 func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPostgreSQLRepository {
 	c := &ProductPostgreSQLRepository{
 		connection: pc,
+		tableName:  "product",
 	}
 
 	_, err := c.connection.GetDB(context.Background())
@@ -111,7 +117,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 }
 
 // FindAll retrieves Product entities from the database.
-func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*r.Product, error) {
+func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*r.Product, error) {
 	db, err := p.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -119,8 +125,22 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var products []*r.Product
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID)
+	findAll := sqrl.Select("*").
+		From(p.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),

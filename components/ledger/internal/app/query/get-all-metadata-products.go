@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllMetadataProducts fetch all Products from the repository
-func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, key, value, organizationID, ledgerID string) ([]*r.Product, error) {
+func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving products")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), bson.M{key: value})
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter.Metadata)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
