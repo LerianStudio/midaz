@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"testing"
 
@@ -18,7 +19,11 @@ import (
 // TestGetAllMetadataAccounts is responsible to test TestGetAllMetadataAccounts with success and error
 func TestGetAllMetadataAccounts(t *testing.T) {
 	collection := reflect.TypeOf(a.Account{}).Name()
-	filter := bson.M{"metadata": 1}
+	filter := common.QueryHeader{
+		Metadata: &bson.M{"metadata": 1},
+		Limit:    10,
+		Page:     1,
+	}
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
