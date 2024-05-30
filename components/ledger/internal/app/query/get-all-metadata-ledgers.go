@@ -17,7 +17,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID str
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving ledgers")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), filter.Metadata)
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(l.Ledger{}).Name(),
