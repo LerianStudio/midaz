@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllAccount fetch all Account from the repository
-func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, portfolioID string) ([]*a.Account, error) {
+func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, portfolioID string, filter common.QueryHeader) ([]*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving accounts")
 
-	accounts, err := uc.AccountRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID))
+	accounts, err := uc.AccountRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
@@ -35,7 +34,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if accounts != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), bson.M{})
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter.Metadata)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),

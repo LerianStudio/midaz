@@ -17,6 +17,8 @@ func TestGetAllAccounts(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	portfolioID := uuid.New()
+	limit := 10
+	page := 1
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -31,10 +33,10 @@ func TestGetAllAccounts(t *testing.T) {
 		accounts := []*a.Account{{}}
 		mockAccountRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, portfolioID).
+			FindAll(gomock.Any(), organizationID, ledgerID, portfolioID, limit, page).
 			Return(accounts, nil).
 			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, portfolioID)
+		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, portfolioID, limit, page)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -44,10 +46,10 @@ func TestGetAllAccounts(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockAccountRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, portfolioID).
+			FindAll(gomock.Any(), organizationID, ledgerID, portfolioID, limit, page).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, portfolioID)
+		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, portfolioID, limit, page)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
