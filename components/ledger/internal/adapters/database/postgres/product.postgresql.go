@@ -9,14 +9,11 @@ import (
 	"strings"
 	"time"
 
-	sqrl "github.com/Masterminds/squirrel"
-
-	sqrl "github.com/Masterminds/squirrel"
-
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
