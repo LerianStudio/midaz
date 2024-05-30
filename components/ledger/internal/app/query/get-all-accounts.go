@@ -34,7 +34,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if accounts != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter.Metadata)
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),

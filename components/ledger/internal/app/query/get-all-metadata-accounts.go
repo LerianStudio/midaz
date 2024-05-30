@@ -17,7 +17,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving accounts")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter.Metadata)
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
