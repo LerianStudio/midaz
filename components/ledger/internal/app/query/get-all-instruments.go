@@ -10,7 +10,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllInstruments fetch all Instrument from the repository
@@ -35,7 +34,7 @@ func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID, ledger
 	}
 
 	if instruments != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(i.Instrument{}).Name(), bson.M{})
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(i.Instrument{}).Name(), filter.Metadata)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(i.Instrument{}).Name(),
