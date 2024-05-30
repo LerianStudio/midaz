@@ -34,7 +34,7 @@ func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID, ledger
 	}
 
 	if instruments != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(i.Instrument{}).Name(), filter.Metadata)
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(i.Instrument{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(i.Instrument{}).Name(),

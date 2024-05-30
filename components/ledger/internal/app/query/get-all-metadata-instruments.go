@@ -17,7 +17,7 @@ func (uc *UseCase) GetAllMetadataInstruments(ctx context.Context, organizationID
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving instruments")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(i.Instrument{}).Name(), filter.Metadata)
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(i.Instrument{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(i.Instrument{}).Name(),
