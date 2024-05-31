@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS operation (
+    id                                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id                     UUID NOT NULL,
+    description                        TEXT NOT NULL,
+    ledger_id                          UUID NOT NULL,
+    type                               TEXT NOT NULL,
+    instrument_code                    TEXT NOT NULL,
+    status                             TEXT NOT NULL,
+    amount                             NUMERIC NOT NULL,
+    amount_scale                       NUMERIC NOT NULL,
+    available_balance                  NUMERIC NOT NULL,
+    on_hold_balance                    NUMERIC NOT NULL,
+    balance_scale                      NUMERIC NOT NULL,
+    available_balance_after            NUMERIC NOT NULL,
+    on_hold_balance_after              NUMERIC NOT NULL,
+    balance_scale_after                NUMERIC NOT NULL,
+    account_id                         UUID NOT NULL,
+    account_alias                      TEXT NOT NULL,
+    portfolio_id                       UUID NOT NULL,
+    created_at                         TIMESTAMP WITH TIME ZONE,
+    updated_at                         TIMESTAMP WITH TIME ZONE,
+    deleted_at                         TIMESTAMP WITH TIME ZONE
+)
