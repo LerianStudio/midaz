@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS transactions (
+CREATE TABLE IF NOT EXISTS "transaction" (
     id                                  UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
     parent_transaction_id               UUID,
     description                         TEXT NOT NULL,
@@ -13,5 +13,5 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at                          TIMESTAMP WITH TIME ZONE,
     updated_at                          TIMESTAMP WITH TIME ZONE,
     deleted_at                          TIMESTAMP WITH TIME ZONE,
-    FOREIGN KEY (parent_transaction_id) REFERENCES transactions (id)
+    FOREIGN KEY (parent_transaction_id) REFERENCES "transaction" (id)
 )

@@ -1,9 +1,9 @@
 package transaction
 
 import (
-	"database/sql"
 	"time"
 
+	"database/sql"
 	"github.com/google/uuid"
 )
 
