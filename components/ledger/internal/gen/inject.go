@@ -45,6 +45,7 @@ func setupPostgreSQLConnection(cfg *service.Config) *mpostgres.PostgresConnectio
 		ConnectionStringReplica: connStrReplica,
 		PrimaryDBName:           cfg.PrimaryDBName,
 		ReplicaDBName:           cfg.ReplicaDBName,
+		Component:               "ledger",
 	}
 }
 

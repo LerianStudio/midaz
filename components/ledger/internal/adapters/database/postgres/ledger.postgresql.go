@@ -33,7 +33,7 @@ func NewLedgerPostgreSQLRepository(pc *mpostgres.PostgresConnection) *LedgerPost
 		tableName:  "ledger",
 	}
 
-	_, err := c.connection.GetDB(component)
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -43,7 +43,7 @@ func NewLedgerPostgreSQLRepository(pc *mpostgres.PostgresConnection) *LedgerPost
 
 // Create a new Ledger entity into Postgresql and returns it.
 func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledger) (*l.Ledger, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 
 // Find retrieves a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, id uuid.UUID) (*l.Ledger, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 
 // FindAll retrieves Ledgers entities from the database.
 func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*l.Ledger, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 // ListByIDs retrieves Ledgers entities from the database using the provided IDs.
 func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*l.Ledger, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 
 // Update a Ledger entity into Postgresql and returns the Ledger updated.
 func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *l.Ledger) (*l.Ledger, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 // Delete removes a Ledger entity from the database using the provided ID.
 func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID, id uuid.UUID) error {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}

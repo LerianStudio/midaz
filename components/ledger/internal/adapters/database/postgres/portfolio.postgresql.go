@@ -32,7 +32,7 @@ func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Portfol
 		tableName:  "portfolio",
 	}
 
-	_, err := c.connection.GetDB(component)
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -42,7 +42,7 @@ func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Portfol
 
 // Create a new portfolio entity into Postgresql and returns it.
 func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p.Portfolio) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 
 // FindByIDEntity find portfolio from the database using the Entity id.
 func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 
 // FindAll retrieves Portfolio entities from the database.
 func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*p.Portfolio, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 // Find retrieves a Portfolio entity from the database using the provided ID.
 func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +200,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 // ListByIDs retrieves Portfolios entities from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*p.Portfolio, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 // Update a Portfolio entity into Postgresql and returns the Portfolio updated.
 func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *p.Portfolio) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Portfolio entity from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}
