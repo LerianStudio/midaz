@@ -26,10 +26,11 @@ type PostgresConnection struct {
 	ReplicaDBName           string
 	ConnectionDB            *dbresolver.DB
 	Connected               bool
+	Component               string
 }
 
 // Connect keeps a singleton connection with postgres.
-func (pc *PostgresConnection) Connect(component string) error {
+func (pc *PostgresConnection) Connect() error {
 	fmt.Println("Connecting to primary and replica databases...")
 
 	dbPrimary, err := sql.Open("pgx", pc.ConnectionStringPrimary)
@@ -49,7 +50,7 @@ func (pc *PostgresConnection) Connect(component string) error {
 		dbresolver.WithReplicaDBs(dbReadOnlyReplica),
 		dbresolver.WithLoadBalancer(dbresolver.RoundRobinLB))
 
-	migrationsPath, err := filepath.Abs(filepath.Join("components", component, "migrations"))
+	migrationsPath, err := filepath.Abs(filepath.Join("components", pc.Component, "migrations"))
 	if err != nil {
 		log.Fatal("failed get filepath",
 			zap.Error(err))
@@ -105,9 +106,9 @@ func (pc *PostgresConnection) Connect(component string) error {
 }
 
 // GetDB returns a pointer to the postgres connection, initializing it if necessary.
-func (pc *PostgresConnection) GetDB(component string) (dbresolver.DB, error) {
+func (pc *PostgresConnection) GetDB() (dbresolver.DB, error) {
 	if pc.ConnectionDB == nil {
-		if err := pc.Connect(component); err != nil {
+		if err := pc.Connect(); err != nil {
 			log.Printf("ERRCONECT %s", err)
 			return nil, err
 		}
