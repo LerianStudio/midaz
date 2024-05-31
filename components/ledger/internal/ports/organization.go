@@ -1,9 +1,9 @@
 package ports
 
 import (
+	"github.com/LerianStudio/midaz/common/mpostgres"
 	"os"
 
-	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
 	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/LerianStudio/midaz/common"
@@ -96,7 +96,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	headerParams := common.ValidateParameters(c.Queries())
 
-	pagination := domain.Pagination{
+	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
 		Page:  headerParams.Page,
 	}

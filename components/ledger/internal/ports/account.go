@@ -3,10 +3,10 @@ package ports
 import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
@@ -55,7 +55,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	headerParams := common.ValidateParameters(c.Queries())
 
-	pagination := domain.Pagination{
+	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
 		Page:  headerParams.Page,
 	}
