@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS operation (
-    id                                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                                 UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
     transaction_id                     UUID NOT NULL,
     description                        TEXT NOT NULL,
     ledger_id                          UUID NOT NULL,
