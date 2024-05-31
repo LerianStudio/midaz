@@ -1,9 +1,12 @@
 module github.com/LerianStudio/midaz
 
-go 1.21.3
+go 1.22
+
+toolchain go1.22.0
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
+	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.4
@@ -24,7 +27,6 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
@@ -34,7 +36,7 @@ require (
 	github.com/swaggo/swag v1.16.3 // indirect
 	go.opentelemetry.io/otel v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
-	golang.org/x/tools v0.20.0 // indirect
+	golang.org/x/tools v0.21.0 // indirect
 )
 
 require (
@@ -75,7 +77,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.22.0 // indirect
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9 // indirect
+	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.15.0
@@ -111,6 +113,6 @@ require (
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/zitadel/oidc/v2 v2.12.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )
