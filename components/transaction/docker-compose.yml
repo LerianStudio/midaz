@@ -25,7 +25,7 @@ x-mongodb-common:
 
 services:
   transaction:
-    container_name: transaction
+    container_name: midaz-transaction
     build:
       context: ../../
       dockerfile: ./components/transaction/Dockerfile
@@ -51,7 +51,7 @@ services:
 
   mongodb:
     <<: *mongodb-common
-    container_name: mongodb_transaction
+    container_name: midaz-mongodb-transaction
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
@@ -62,7 +62,7 @@ services:
 
   primary-transaction:
     <<: *postgres-transaction-common
-    container_name: primary-transaction
+    container_name: midaz-primary-transaction
     ports:
       - ${DB_PORT}:${DB_PORT}
     environment:
@@ -84,7 +84,7 @@ services:
 
   replica-transaction:
     <<: *postgres-transaction-common
-    container_name: replica-transaction
+    container_name: midaz-replica-transaction
     ports:
       - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
     environment:
@@ -112,7 +112,63 @@ services:
       primary-transaction:
         condition: service_healthy
 
+  mariadb:
+    container_name: trillina-mariadb
+    image: mariadb:latest
+    environment:
+      - MYSQL_DATABASE=${DATABASE}
+      - MYSQL_ROOT_PASSWORD=${ROOT_PASSWORD}
+      - MYSQL_USER=${TRILLIAN_USER}
+      - MYSQL_PASSWORD=${TRILLIAN_PASSWORD}
+    volumes:
+      - "trillian-data:/var/lib/mysql"
+      - ./db:/docker-entrypoint-initdb.d/:ro
+    restart: always
+
+  adminer:
+    container_name: trillina-adminer
+    image: adminer:latest
+    restart: always
+    ports:
+      - ${ADMINER_PORT}:${ADMINER_PORT}
+
+  trillian-log-server:
+    container_name: trillian-log-server
+    depends_on:
+      - mariadb
+    image: gcr.io/trillian-opensource-ci/log_server@sha256:73180a17a00470f073948434d3594c181247678cb8003c7e5e22a2095f231e31
+    command: [
+      "--storage_system=mysql",
+      "--mysql_uri=${TRILLIAN_USER}:${TRILLIAN_PASSWORD}@tcp(mariadb:${MARIA_PORT})/${DATABASE}",
+      "--rpc_endpoint=0.0.0.0:${RPC_PORT}",
+      "--http_endpoint=0.0.0.0:${HTTP_PORT}",
+      "--alsologtostderr",
+    ]
+    restart: always
+    ports:
+      - ${RPC_PORT}:${RPC_PORT}
+      - ${HTTP_PORT}:${HTTP_PORT}
+
+  trillian-log-signer:
+    container_name: trillian-log-signer
+    image: gcr.io/trillian-opensource-ci/log_signer@sha256:bb3f6f0e11329da904df2850198e4756056986b48036a8a6d0b120d3636e3c5d
+    depends_on:
+      - mariadb
+    command: [
+      "--storage_system=mysql",
+      "--mysql_uri=${TRILLIAN_USER}:${TRILLIAN_PASSWORD}@tcp(mariadb:${MARIA_PORT})/${DATABASE}",
+      "--rpc_endpoint=0.0.0.0:${RPC_PORT}",
+      "--http_endpoint=0.0.0.0:${HTTP_PORT}",
+      "--force_master",
+      "--alsologtostderr",
+    ]
+    restart: always
+    ports:
+      - ${SIGNER_PORT}:${HTTP_PORT}
+
 volumes:
+  trillian-data:
+    external: false
   mongodb_data_container:
 
 networks:
