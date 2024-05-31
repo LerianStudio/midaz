@@ -16,8 +16,6 @@ import (
 	"github.com/lib/pq"
 )
 
-const component = "transaction"
-
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
@@ -29,7 +27,7 @@ func NewTransactionPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Trans
 		connection: pc,
 	}
 
-	_, err := c.connection.GetDB(component)
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -39,7 +37,7 @@ func NewTransactionPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Trans
 
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *t.Transaction) (*t.Transaction, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +84,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 // FindAll retrieves Transactions entities from the database.
 func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*t.Transaction, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +131,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 // ListByIDs retrieves Transaction entities from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*t.Transaction, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +178,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 // Find retrieves a Transaction entity from the database using the provided ID.
 func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*t.Transaction, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +220,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *t.Transaction) (*t.Transaction, error) {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +268,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 // Delete removes a Transaction entity from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	db, err := r.connection.GetDB(component)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}
