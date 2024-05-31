@@ -47,7 +47,6 @@ type Transaction struct {
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
 func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
-
 	transaction := &Transaction{
 		ID:                       t.ID,
 		ParentTransactionID:      t.ParentTransactionID,
