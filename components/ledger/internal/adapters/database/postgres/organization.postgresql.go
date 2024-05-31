@@ -20,6 +20,8 @@ import (
 	"github.com/lib/pq"
 )
 
+const component = "ledger"
+
 // OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
 type OrganizationPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
@@ -33,7 +35,7 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 		tableName:  "organization",
 	}
 
-	_, err := c.connection.GetDB(context.Background())
+	_, err := c.connection.GetDB(component)
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -43,7 +45,7 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *o.Organization) (*o.Organization, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB(component)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +95,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 // Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *o.Organization) (*o.Organization, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB(component)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +178,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 // Find retrieves an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB(component)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +213,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 // FindAll retrieves Organizations entities from the database.
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*o.Organization, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB(component)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +268,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 
 // ListByIDs retrieves Organizations entities from the database using the provided IDs.
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*o.Organization, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB(component)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +309,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 // Delete removes an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB(component)
 	if err != nil {
 		return err
 	}
