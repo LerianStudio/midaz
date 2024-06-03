@@ -14,6 +14,7 @@ type TransactionPostgreSQLModel struct {
 	Description              string
 	Template                 string
 	Status                   string
+	StatusDescription        *string
 	Amount                   *float64
 	AmountScale              *float64
 	InstrumentCode           string
@@ -26,13 +27,24 @@ type TransactionPostgreSQLModel struct {
 	Metadata                 map[string]any
 }
 
+// Status structure for marshaling/unmarshalling JSON.
+type Status struct {
+	Code        string  `json:"code"`
+	Description *string `json:"description"`
+}
+
+// IsEmpty method that set empty or nil in fields
+func (s Status) IsEmpty() bool {
+	return s.Code == "" && s.Description == nil
+}
+
 // Transaction is a struct designed to encapsulate response payload data.
 type Transaction struct {
 	ID                       string         `json:"id"`
 	ParentTransactionID      *string        `json:"parentTransactionId,omitempty"`
 	Description              string         `json:"description"`
 	Template                 string         `json:"template"`
-	Status                   string         `json:"status"`
+	Status                   Status         `json:"status"`
 	Amount                   *float64       `json:"amount"`
 	AmountScale              *float64       `json:"amountScale"`
 	InstrumentCode           string         `json:"InstrumentCode"`
@@ -47,12 +59,17 @@ type Transaction struct {
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
 func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
+	status := Status{
+		Code:        t.Status,
+		Description: t.StatusDescription,
+	}
+
 	transaction := &Transaction{
 		ID:                       t.ID,
 		ParentTransactionID:      t.ParentTransactionID,
 		Description:              t.Description,
 		Template:                 t.Template,
-		Status:                   t.Status,
+		Status:                   status,
 		Amount:                   t.Amount,
 		AmountScale:              t.AmountScale,
 		InstrumentCode:           t.InstrumentCode,
@@ -78,7 +95,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
 		Template:                 transaction.Template,
-		Status:                   transaction.Status,
+		Status:                   transaction.Status.Code,
+		StatusDescription:        transaction.Status.Description,
 		Amount:                   transaction.Amount,
 		AmountScale:              transaction.AmountScale,
 		InstrumentCode:           transaction.InstrumentCode,

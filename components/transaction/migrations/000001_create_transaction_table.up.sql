@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     description                         TEXT NOT NULL,
     template                            TEXT NOT NULL,
     status                              TEXT NOT NULL,
+    status_description                  TEXT,
     amount                              NUMERIC NOT NULL,
     amount_scale                        NUMERIC NOT NULL,
     instrument_code                     TEXT NOT NULL,

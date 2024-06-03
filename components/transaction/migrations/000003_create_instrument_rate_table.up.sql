@@ -6,6 +6,9 @@ CREATE TABLE IF NOT EXISTS instrument_rate (
     scale                              NUMERIC NOT NULL,
     source                             TEXT NOT NULL,
     status                             TEXT NOT NULL,
+    status_description                 TEXT,
+    organization_id                    UUID NOT NULL,
+    ledger_id                          UUID NOT NULL,
     created_at                         TIMESTAMP WITH TIME ZONE,
     updated_at                         TIMESTAMP WITH TIME ZONE,
     deleted_at                         TIMESTAMP WITH TIME ZONE
