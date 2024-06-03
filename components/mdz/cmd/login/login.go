@@ -12,13 +12,13 @@ import (
 	"github.com/pterm/pterm"
 
 	"github.com/spf13/cobra"
-	"github.com/zitadel/oidc/v2/pkg/client/rp"
-	"github.com/zitadel/oidc/v2/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
 // LogIn func that can log in on midaz
 func LogIn(ctx context.Context, dialog Dialog, relyingParty rp.RelyingParty) (*oidc.AccessTokenResponse, error) {
-	deviceCode, err := rp.DeviceAuthorization(relyingParty.OAuthConfig().Scopes, relyingParty)
+	deviceCode, err := rp.DeviceAuthorization(ctx, relyingParty.OAuthConfig().Scopes, relyingParty, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (c *Controller) Run(cmd *cobra.Command, args []string) (pkg.Renderable, err
 		membershipURI = profile.GetMembershipURI()
 	}
 
-	relyingParty, err := pkg.GetAuthRelyingParty(pkg.GetHTTPClient(cmd, map[string][]string{}), membershipURI)
+	relyingParty, err := pkg.GetAuthRelyingParty(cmd.Context(), pkg.GetHTTPClient(cmd, map[string][]string{}), membershipURI)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +157,6 @@ func NewCommand() *cobra.Command {
 		pkg.WithHiddenFlag(pkg.MembershipURIFlag),
 		pkg.WithShortDescription("Login"),
 		pkg.WithArgs(cobra.ExactArgs(0)),
-		pkg.WithController(NewLoginController()),
+		pkg.WithController[*Store](NewLoginController()),
 	)
 }
