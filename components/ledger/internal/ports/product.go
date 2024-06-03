@@ -1,12 +1,15 @@
 package ports
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // ProductHandler struct contains a product use case for managing product related operations.
@@ -47,10 +50,17 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID, ledgerID)
 
-	for key, value := range c.Queries() {
+	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := domain.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Products by metadata")
 
-		organizations, err := handler.Query.GetAllMetadataProducts(ctx, key, value, organizationID, ledgerID)
+		products, err := handler.Query.GetAllMetadataProducts(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Products, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -58,12 +68,16 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Products by metadata")
 
-		return commonHTTP.OK(c, organizations)
+		pagination.SetItems(products)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Products ")
 
-	products, err := handler.Query.GetAllProducts(ctx, organizationID, ledgerID)
+	headerParams.Metadata = &bson.M{}
+
+	products, err := handler.Query.GetAllProducts(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Products, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -71,7 +85,9 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Products")
 
-	return commonHTTP.OK(c, products)
+	pagination.SetItems(products)
+
+	return commonHTTP.OK(c, pagination)
 }
 
 // GetProductByID is a method that retrieves Product information by a given id.

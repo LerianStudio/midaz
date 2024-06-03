@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -22,12 +23,14 @@ import (
 // OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
 type OrganizationPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewOrganizationPostgreSQLRepository returns a new instance of OrganizationPostgresRepository using the given Postgres connection.
 func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *OrganizationPostgreSQLRepository {
 	c := &OrganizationPostgreSQLRepository{
 		connection: pc,
+		tableName:  "organization",
 	}
 
 	_, err := c.connection.GetDB(context.Background())
@@ -182,7 +185,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 	var address string
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM organization WHERE id = $1 AND deleted_at IS NULL", id)
+	row := db.QueryRowContext(ctx, `SELECT * FROM organization WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err := row.Scan(&organization.ID, &organization.ParentOrganizationID, &organization.LegalName,
 		&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 		&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
@@ -207,7 +210,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 }
 
 // FindAll retrieves Organizations entities from the database.
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context) ([]*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*o.Organization, error) {
 	db, err := r.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -215,10 +218,24 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context) ([]*o.Or
 
 	var organizations []*o.Organization
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM organization WHERE deleted_at IS NULL ORDER BY created_at DESC")
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
 	if err != nil {
 		return nil, err
 	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
 	defer rows.Close()
 
 	for rows.Next() {
@@ -256,7 +273,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 	var organizations []*o.Organization
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM organization WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(ids))
+	rows, err := db.QueryContext(ctx, `SELECT * FROM organization WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC`, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}

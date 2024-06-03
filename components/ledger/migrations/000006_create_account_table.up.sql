@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS account
 (
-    id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id                              UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
     name                            TEXT,
     parent_account_id               UUID,
     entity_id                       UUID,

@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -22,12 +23,14 @@ import (
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
 func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
+		tableName:  "account",
 	}
 
 	_, err := c.connection.GetDB(context.Background())
@@ -102,7 +105,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 }
 
 // FindAll retrieves an Account entities from the database.
-func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID) ([]*a.Account, error) {
+func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*a.Account, error) {
 	db, err := r.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -110,8 +113,23 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, portfolioID)
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Expr("portfolio_id = ?", portfolioID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

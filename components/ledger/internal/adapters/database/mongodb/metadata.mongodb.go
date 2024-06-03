@@ -57,7 +57,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 }
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
-func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter any) ([]*m.Metadata, error) {
+func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter common.QueryHeader) ([]*m.Metadata, error) {
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -65,9 +65,11 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
-	opts := options.Find()
+	limit := int64(filter.Limit)
+	skip := int64(filter.Page*filter.Limit - filter.Limit)
+	opts := options.FindOptions{Limit: &limit, Skip: &skip}
 
-	cur, err := coll.Find(ctx, filter, opts)
+	cur, err := coll.Find(ctx, filter.Metadata, &opts)
 	if err != nil {
 		return nil, err
 	}

@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllMetadataLedgers fetch all Ledgers from the repository
-func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, key, value, organizationID string) ([]*l.Ledger, error) {
+func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID string, filter common.QueryHeader) ([]*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving ledgers")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), bson.M{key: value})
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(l.Ledger{}).Name(),

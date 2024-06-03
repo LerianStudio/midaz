@@ -16,6 +16,7 @@ help:
 	@echo "    make checkEnvs                           Check if github hooks are installed and secret env on files are not exposed."
 	@echo "    make auth                                Run a command inside the auth app in the components directory to see available commands."
 	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
+	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo ""
 	@echo "  ## Utility Commands"
 	@echo "    make setup-git-hooks                     Command to setup git hooks."
@@ -62,3 +63,7 @@ auth:
 
 ledger:
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
+
+all-services:
+	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
+	$(MAKE) -C $(AUTH_DIR) $(COMMAND)

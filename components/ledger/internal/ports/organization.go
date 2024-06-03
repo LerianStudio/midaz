@@ -3,6 +3,10 @@ package ports
 import (
 	"os"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
+	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
@@ -90,10 +94,17 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	for key, value := range c.Queries() {
+	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := domain.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Organizations by metadata")
 
-		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, key, value)
+		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -101,12 +112,16 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Organizations by metadata")
 
-		return commonHTTP.OK(c, organizations)
+		pagination.SetItems(organizations)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Organizations ")
 
-	organizations, err := handler.Query.GetAllOrganizations(ctx)
+	headerParams.Metadata = &bson.M{}
+
+	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -114,7 +129,9 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Organizations")
 
-	return commonHTTP.OK(c, organizations)
+	pagination.SetItems(organizations)
+
+	return commonHTTP.OK(c, pagination)
 }
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.

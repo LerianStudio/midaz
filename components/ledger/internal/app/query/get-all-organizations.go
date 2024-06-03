@@ -9,15 +9,14 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllOrganizations fetch all Organizations from the repository
-func (uc *UseCase) GetAllOrganizations(ctx context.Context) ([]*o.Organization, error) {
+func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter common.QueryHeader) ([]*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving organizations")
 
-	organizations, err := uc.OrganizationRepo.FindAll(ctx)
+	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting organizations on repo: %v", err)
 
@@ -34,7 +33,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context) ([]*o.Organization, 
 	}
 
 	if organizations != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), bson.M{})
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),

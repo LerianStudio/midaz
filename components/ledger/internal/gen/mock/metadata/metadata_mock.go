@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	common "github.com/LerianStudio/midaz/common"
 	metadata "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -84,7 +85,7 @@ func (mr *MockRepositoryMockRecorder) FindByEntity(arg0, arg1, arg2 any) *gomock
 }
 
 // FindList mocks base method.
-func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 any) ([]*metadata.Metadata, error) {
+func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 common.QueryHeader) ([]*metadata.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindList", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*metadata.Metadata)

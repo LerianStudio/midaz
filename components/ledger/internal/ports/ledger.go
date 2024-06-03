@@ -3,6 +3,10 @@ package ports
 import (
 	"os"
 
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
+	"go.mongodb.org/mongo-driver/bson"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
@@ -67,10 +71,17 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	organizationID := c.Params("organization_id")
 
-	for key, value := range c.Queries() {
+	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := domain.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Ledgers by metadata")
 
-		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, key, value, organizationID)
+		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -78,12 +89,16 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Ledgers by metadata")
 
-		return commonHTTP.OK(c, ledgers)
+		pagination.SetItems(ledgers)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Ledgers ")
 
-	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID)
+	headerParams.Metadata = &bson.M{}
+
+	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -91,7 +106,9 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Ledgers")
 
-	return commonHTTP.OK(c, ledgers)
+	pagination.SetItems(ledgers)
+
+	return commonHTTP.OK(c, pagination)
 }
 
 // UpdateLedger is a method that updates Ledger information.

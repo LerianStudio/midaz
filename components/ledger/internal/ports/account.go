@@ -1,12 +1,15 @@
 package ports
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
@@ -50,10 +53,17 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID)
 
-	for key, value := range c.Queries() {
+	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := domain.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Accounts by metadata")
 
-		organizations, err := handler.Query.GetAllMetadataAccounts(ctx, key, value, organizationID, ledgerID, portfolioID)
+		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -61,12 +71,16 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Accounts by metadata")
 
-		return commonHTTP.OK(c, organizations)
+		pagination.SetItems(accounts)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Accounts ")
 
-	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID)
+	headerParams.Metadata = &bson.M{}
+
+	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -74,7 +88,9 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Accounts")
 
-	return commonHTTP.OK(c, accounts)
+	pagination.SetItems(accounts)
+
+	return commonHTTP.OK(c, pagination)
 }
 
 // GetAccountByID is a method that retrieves Account information by a given id.

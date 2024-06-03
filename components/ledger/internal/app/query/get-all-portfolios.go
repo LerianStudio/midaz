@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllPortfolio fetch all Portfolio from the repository
-func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID string) ([]*p.Portfolio, error) {
+func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving portfolios")
 
-	portfolios, err := uc.PortfolioRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID))
+	portfolios, err := uc.PortfolioRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting portfolios on repo: %v", err)
 
@@ -35,7 +34,7 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 	}
 
 	if portfolios != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), bson.M{})
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), filter)
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),

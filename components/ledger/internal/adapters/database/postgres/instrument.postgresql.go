@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -21,12 +22,14 @@ import (
 // InstrumentPostgreSQLRepository is a Postgresql-specific implementation of the InstrumentRepository.
 type InstrumentPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewInstrumentPostgreSQLRepository returns a new instance of InstrumentPostgreSQLRepository using the given Postgres connection.
 func NewInstrumentPostgreSQLRepository(pc *mpostgres.PostgresConnection) *InstrumentPostgreSQLRepository {
 	c := &InstrumentPostgreSQLRepository{
 		connection: pc,
+		tableName:  "instrument",
 	}
 
 	_, err := c.connection.GetDB(context.Background())
@@ -113,7 +116,7 @@ func (r *InstrumentPostgreSQLRepository) FindByNameOrCode(ctx context.Context, o
 }
 
 // FindAll retrieves Instrument entities from the database.
-func (r *InstrumentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*i.Instrument, error) {
+func (r *InstrumentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*i.Instrument, error) {
 	db, err := r.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -121,8 +124,22 @@ func (r *InstrumentPostgreSQLRepository) FindAll(ctx context.Context, organizati
 
 	var instruments []*i.Instrument
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM instrument WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID)
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

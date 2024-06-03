@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -21,12 +22,14 @@ import (
 // PortfolioPostgreSQLRepository is a Postgresql-specific implementation of the PortfolioRepository.
 type PortfolioPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
 func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *PortfolioPostgreSQLRepository {
 	c := &PortfolioPostgreSQLRepository{
 		connection: pc,
+		tableName:  "portfolio",
 	}
 
 	_, err := c.connection.GetDB(context.Background())
@@ -116,7 +119,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 }
 
 // FindAll retrieves Portfolio entities from the database.
-func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*p.Portfolio, error) {
+func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*p.Portfolio, error) {
 	db, err := r.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -124,8 +127,22 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 	var portfolios []*p.Portfolio
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID)
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
