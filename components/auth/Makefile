@@ -1,62 +1,93 @@
-AUTH_DIR := ./components/auth
+service_name := auth-service
+bin_dir := ./.bin
+artifacts_dir := ./artifacts
 
-.PHONY: auth
+$(shell mkdir -p $(artifacts_dir))
 
-build:
-	./make.sh "build"
+.PHONY: info gen run test cover-html tidy help build up start down destroy stop restart logs logs-api ps login-timescale login-api db-shell
 
-help:
-	@echo "Management commands"
-	@echo ""
-	@echo "Usage:"
-	@echo "  ## Root Commands"
-	@echo "    make build           Build all project services."
-	@echo "    make test            Run tests on all projects."
-	@echo "    make clean           Clean the directory tree of produced artifacts."
-	@echo "    make lint            Run static code analysis (lint)."
-	@echo "    make format          Run code formatter."
-	@echo "    make checkEnvs       Check if github hooks are instaled and secret env on files are not exposed."
-	@echo "    make gen             Generates all project code to connect its components using Wire."
-	@echo ""
-	@echo "  ## Utility Commands"
-	@echo "    make setup-git-hooks       Setup git hooks."
-	@echo ""
-
-test:
-	go test -v ./... ./...
-
-cover:
-	go test -cover ./...
-
-clean:
-	./make.sh "clean"
-
-lint:
-	./make.sh "lint"
-
-format:
-	./make.sh "format"
-
-check-logs:
-	./make.sh "checkLogs"
-
-check-tests:
-	./make.sh "checkTests"
-
-setup-git-hooks:
-	./make.sh "setupGitHooks"
-
-goreleaser:
-	goreleaser release --snapshot --skip-publish --rm-dist
-
-tidy:
-	go mod tidy
-
-sec:
-	gosec ./...
-
-ledger:
-	$(MAKE) -C $(AUTH_DIR) restart
+# Display available commands
+info:
+	@echo "                                                                                                                                       "
+	@echo "                                                                                                                                       "
+	@echo "To run a specific command inside the auth container using make, you can execute:                                                     "
+	@echo "                                                                                                                                       "
+	@echo "make auth COMMAND=\"any\"                                                                                                            "
+	@echo "                                                                                                                                       "
+	@echo "This command will run the specified command inside the auth container. Replace \"any\" with the desired command you want to execute. "
+	@echo "                                                                                                                                       "
+	@echo "## App commands:"
+	@echo "                                                                                                                         "
+	@echo "  COMMAND=\"wire\"                                 Generates all project code to connect components using Wire."
+	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
+	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
+	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
+	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
+	@echo "                                                                                                                         "
+	@echo "## Docker commands:"
+	@echo "                                                                                                                         "
+	@echo "  COMMAND=\"build\"                                Builds all Docker images defined in docker-compose.yml."
+	@echo "  COMMAND=\"up\"                                   Starts and runs all services defined in docker-compose.yml."
+	@echo "  COMMAND=\"start\"                                Starts existing containers defined in docker-compose.yml without creating them."
+	@echo "  COMMAND=\"stop\"                                 Stops running containers defined in docker-compose.yml without removing them."
+	@echo "  COMMAND=\"down\"                                 Stops and removes containers, networks, and volumes defined in docker-compose.yml."
+	@echo "  COMMAND=\"destroy\"                              Stops and removes containers, networks, and volumes (including named volumes) defined in docker-compose.yml."
+	@echo "  COMMAND=\"restart\"                              Stops and removes containers, networks, and volumes, then starts all services in detached mode."
+	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
+	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the auth service defined in docker-compose.yml."
+	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
+	@echo "  COMMAND=\"auth-api\"                             Starts an interactive Bash shell session inside the running auth container defined in docker-compose.yml."
+	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the auth container, logging in as the postgres user."
 
 gen:
-	$(MAKE) -C $(AUTH_DIR) gen
+	@go generate ./...
+
+run:
+	@go run internal/main.go .env
+
+test:
+	@go test -v ./...
+
+cover-html:
+	@go tool cover -html=$(artifacts_dir)/coverage.out -o $(artifacts_dir)/coverage.html
+
+tidy:
+	@go mod tidy
+
+# Docker Compose Commands
+build:
+	@docker-compose -f docker-compose.yml build $(c)
+
+up:
+	@docker-compose -f docker-compose.yml up $(c)
+
+start:
+	@docker-compose -f docker-compose.yml start $(c)
+
+down:
+	@docker-compose -f docker-compose.yml down $(c)
+
+destroy:
+	@docker-compose -f docker-compose.yml down -v $(c)
+
+stop:
+	@docker-compose -f docker-compose.yml stop $(c)
+
+restart:
+	docker-compose -f docker-compose.yml down $(c) && \
+	docker-compose -f docker-compose.yml up -d $(c)
+
+logs:
+	@docker-compose -f docker-compose.yml logs --tail=100 -f $(c)
+
+logs-api:
+	@docker-compose -f docker-compose.yml logs --tail=100 -f auth
+
+ps:
+	@docker-compose -f docker-compose.yml ps
+
+auth-api:
+	@docker-compose -f docker-compose.yml exec auth /bin/bash
+
+db-shell:
+	@docker-compose -f docker-compose.yml exec auth psql -Upostgres

@@ -17,6 +17,8 @@ func TestGetAllOrganizations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockOrganizationRepo := mock.NewMockRepository(ctrl)
+	limit := 10
+	page := 1
 
 	uc := UseCase{
 		OrganizationRepo: mockOrganizationRepo,
@@ -26,10 +28,10 @@ func TestGetAllOrganizations(t *testing.T) {
 		organizations := []*o.Organization{{}}
 		mockOrganizationRepo.
 			EXPECT().
-			FindAll(gomock.Any()).
+			FindAll(gomock.Any(), limit, page).
 			Return(organizations, nil).
 			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO())
+		res, err := uc.OrganizationRepo.FindAll(context.TODO(), limit, page)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -39,10 +41,10 @@ func TestGetAllOrganizations(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockOrganizationRepo.
 			EXPECT().
-			FindAll(gomock.Any()).
+			FindAll(gomock.Any(), limit, page).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO())
+		res, err := uc.OrganizationRepo.FindAll(context.TODO(), limit, page)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

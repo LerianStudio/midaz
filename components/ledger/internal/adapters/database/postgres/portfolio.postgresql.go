@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -21,15 +22,17 @@ import (
 // PortfolioPostgreSQLRepository is a Postgresql-specific implementation of the PortfolioRepository.
 type PortfolioPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewPortfolioPostgreSQLRepository returns a new instance of PortfolioPostgreSQLRepository using the given Postgres connection.
 func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *PortfolioPostgreSQLRepository {
 	c := &PortfolioPostgreSQLRepository{
 		connection: pc,
+		tableName:  "portfolio",
 	}
 
-	_, err := c.connection.GetDB(context.Background())
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -39,7 +42,7 @@ func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Portfol
 
 // Create a new portfolio entity into Postgresql and returns it.
 func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p.Portfolio) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +50,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 	record := &p.PortfolioPostgreSQLModel{}
 	record.FromEntity(portfolio)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO portfolio VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
 		record.ID,
 		record.Name,
 		record.EntityID,
@@ -55,6 +58,8 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 		record.OrganizationID,
 		record.Status,
 		record.StatusDescription,
+		record.AllowSending,
+		record.AllowReceiving,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -87,7 +92,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 
 // FindByIDEntity find portfolio from the database using the Entity id.
 func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +102,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND entity_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, entityID)
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-		&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
@@ -114,16 +119,30 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 }
 
 // FindAll retrieves Portfolio entities from the database.
-func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*p.Portfolio, error) {
-	db, err := r.connection.GetDB(ctx)
+func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*p.Portfolio, error) {
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
 	var portfolios []*p.Portfolio
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID)
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
@@ -137,7 +156,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	for rows.Next() {
 		var portfolio p.PortfolioPostgreSQLModel
 		if err := rows.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-			&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+			&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 			return nil, err
 		}
 
@@ -153,7 +172,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 // Find retrieves a Portfolio entity from the database using the provided ID.
 func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +182,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	row := db.QueryRowContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, id)
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-		&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
@@ -181,7 +200,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 // ListByIDs retrieves Portfolios entities from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*p.Portfolio, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +217,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	for rows.Next() {
 		var portfolio p.PortfolioPostgreSQLModel
 		if err := rows.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
-			&portfolio.Status, &portfolio.StatusDescription, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
+			&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 			return nil, err
 		}
 
@@ -214,7 +233,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 // Update a Portfolio entity into Postgresql and returns the Portfolio updated.
 func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *p.Portfolio) (*p.Portfolio, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +256,12 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
+
+		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowSending)
+
+		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowReceiving)
 	}
 
 	record.UpdatedAt = time.Now()
@@ -280,7 +305,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Portfolio entity from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}

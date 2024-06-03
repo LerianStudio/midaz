@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -22,15 +23,17 @@ import (
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
 func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
+		tableName:  "account",
 	}
 
-	_, err := c.connection.GetDB(context.Background())
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -40,7 +43,7 @@ func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPo
 
 // Create a new account entity into Postgresql and returns it.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Account) (*a.Account, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -102,16 +105,31 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 }
 
 // FindAll retrieves an Account entities from the database.
-func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID) ([]*a.Account, error) {
-	db, err := r.connection.GetDB(ctx)
+func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*a.Account, error) {
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, portfolioID)
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Expr("portfolio_id = ?", portfolioID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +175,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // Find retrieves an Account entity from the database using the provided ID.
 func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*a.Account, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +224,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // FindByAlias find account from the database using Organization and Ledger id and Alias.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias string) (bool, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return false, err
 	}
@@ -232,7 +250,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +304,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, account *a.Account) (*a.Account, error) {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -309,21 +327,17 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
+
+		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowSending)
+
+		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AllowReceiving)
 	}
 
 	if !common.IsNilOrEmpty(account.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Alias)
-	}
-
-	if account.AllowSending != record.AllowSending {
-		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AllowSending)
-	}
-
-	if account.AllowReceiving != record.AllowReceiving {
-		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AllowReceiving)
 	}
 
 	if account.ProductID != "" {
@@ -373,7 +387,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete removes an Account entity from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error {
-	db, err := r.connection.GetDB(ctx)
+	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}

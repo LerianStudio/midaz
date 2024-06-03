@@ -1,7 +1,6 @@
 package mpostgres
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,13 +8,11 @@ import (
 	"net/url"
 	"path/filepath"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
-
-	"go.uber.org/zap"
-
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"go.uber.org/zap"
 
 	// File system migration source. We need to import it to be able to use it as source in migrate.NewWithSourceInstance
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -29,6 +26,7 @@ type PostgresConnection struct {
 	ReplicaDBName           string
 	ConnectionDB            *dbresolver.DB
 	Connected               bool
+	Component               string
 }
 
 // Connect keeps a singleton connection with postgres.
@@ -52,7 +50,7 @@ func (pc *PostgresConnection) Connect() error {
 		dbresolver.WithReplicaDBs(dbReadOnlyReplica),
 		dbresolver.WithLoadBalancer(dbresolver.RoundRobinLB))
 
-	migrationsPath, err := filepath.Abs(filepath.Join("components", "ledger", "migrations"))
+	migrationsPath, err := filepath.Abs(filepath.Join("components", pc.Component, "migrations"))
 	if err != nil {
 		log.Fatal("failed get filepath",
 			zap.Error(err))
@@ -108,7 +106,7 @@ func (pc *PostgresConnection) Connect() error {
 }
 
 // GetDB returns a pointer to the postgres connection, initializing it if necessary.
-func (pc *PostgresConnection) GetDB(ctx context.Context) (dbresolver.DB, error) {
+func (pc *PostgresConnection) GetDB() (dbresolver.DB, error) {
 	if pc.ConnectionDB == nil {
 		if err := pc.Connect(); err != nil {
 			log.Printf("ERRCONECT %s", err)

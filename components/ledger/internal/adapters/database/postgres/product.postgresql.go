@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -21,15 +22,17 @@ import (
 // ProductPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
 type ProductPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewProductPostgreSQLRepository returns a new instance of ProductPostgreSQLRepository using the given Postgres connection.
 func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPostgreSQLRepository {
 	c := &ProductPostgreSQLRepository{
 		connection: pc,
+		tableName:  "product",
 	}
 
-	_, err := c.connection.GetDB(context.Background())
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -39,7 +42,7 @@ func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPo
 
 // Create a new product entity into Postgresql and returns it.
 func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Product) (*r.Product, error) {
-	db, err := p.connection.GetDB(ctx)
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +89,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 
 // FindByName find product from the database using Organization and Ledger id and Name.
 func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
-	db, err := p.connection.GetDB(ctx)
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return false, err
 	}
@@ -111,16 +114,30 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 }
 
 // FindAll retrieves Product entities from the database.
-func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*r.Product, error) {
-	db, err := p.connection.GetDB(ctx)
+func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*r.Product, error) {
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
 	var products []*r.Product
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID)
+	findAll := sqrl.Select("*").
+		From(p.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
@@ -150,7 +167,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // FindByIDs retrieves Products entities from the database using the provided IDs.
 func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*r.Product, error) {
-	db, err := p.connection.GetDB(ctx)
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +200,7 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 // Find retrieves a Product entity from the database using the provided ID.
 func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*r.Product, error) {
-	db, err := p.connection.GetDB(ctx)
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +228,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // Update a Product entity into Postgresql and returns the Product updated.
 func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *r.Product) (*r.Product, error) {
-	db, err := p.connection.GetDB(ctx)
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +294,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete removes a Product entity from the database using the provided IDs.
 func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	db, err := p.connection.GetDB(ctx)
+	db, err := p.connection.GetDB()
 	if err != nil {
 		return err
 	}

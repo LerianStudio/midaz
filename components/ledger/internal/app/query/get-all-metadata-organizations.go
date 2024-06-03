@@ -10,15 +10,14 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // GetAllMetadataOrganizations fetch all Organizations from the repository
-func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, key string, value string) ([]*o.Organization, error) {
+func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter common.QueryHeader) ([]*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving organizations")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), bson.M{key: value})
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(o.Organization{}).Name(),

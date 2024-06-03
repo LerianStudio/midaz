@@ -16,6 +16,8 @@ import (
 func TestGetAllProducts(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
+	limit := 10
+	page := 1
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -30,10 +32,10 @@ func TestGetAllProducts(t *testing.T) {
 		products := []*p.Product{{}}
 		mockProductRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID).
+			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).
 			Return(products, nil).
 			Times(1)
-		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID)
+		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, limit, page)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -43,10 +45,10 @@ func TestGetAllProducts(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockProductRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID).
+			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID)
+		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, limit, page)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

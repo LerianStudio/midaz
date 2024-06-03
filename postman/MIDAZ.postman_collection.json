@@ -39,7 +39,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"Midaz Tech LTDA\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"48784548000104\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"country\": \"BR\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"48784548000104\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -127,7 +127,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{url}}/v1/organizations",
+							"raw": "{{url}}/v1/organizations?metadata.chave=teste&limit=6&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -138,8 +138,18 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
-									"disabled": true
+									"value": "teste",
+									"description": "com, pesquisa no mongodb, sem,  pesquisa no postgresql."
+								},
+								{
+									"key": "limit",
+									"value": "6",
+									"description": "default 10"
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "default 1"
 								}
 							]
 						}
@@ -249,7 +259,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"McGregor Tech LTDA\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"McGregor\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomCompanyName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"teste\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -331,7 +341,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers?metadata.chave=teste&limit=5&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -344,8 +354,15 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
-									"disabled": true
+									"value": "teste"
+								},
+								{
+									"key": "limit",
+									"value": "5"
+								},
+								{
+									"key": "page",
+									"value": "1"
 								}
 							]
 						}
@@ -447,7 +464,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Brazilian Real\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Brazilian Real\",\n    //\"name\": \"{{$randomCurrencyName}}\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    //\"code\": \"{{$randomCurrencyCode}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste instrument 1\"\n    },\n    \"metadata\": {\n        \"chave\": \"bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -521,7 +538,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments?metadata.chave=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf&limit=2&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -535,9 +552,16 @@
 							],
 							"query": [
 								{
-									"key": "metadata.internalExchangeAddress",
-									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
-									"disabled": true
+									"key": "metadata.chave",
+									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf"
+								},
+								{
+									"key": "limit",
+									"value": "2"
+								},
+								{
+									"key": "page",
+									"value": "1"
 								}
 							]
 						}
@@ -630,7 +654,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"McGregor Portfolio 3\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Portfolio 3\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"McGregor Portfolio 3\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Portfolio 3\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -673,7 +697,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"McGregor Portfolio 3 UPDATE\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Portfolio 3 Update\"\n    },\n    \"metadata\": {\n        \"chave\": \"Change Update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"McGregor Portfolio 3 UPDATE\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Portfolio 3 Update\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"Change Update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -704,7 +728,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios?metadata.chave=xuxa",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios?metadata.chave=teste&limit=2&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -719,7 +743,15 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "xuxa"
+									"value": "teste"
+								},
+								{
+									"key": "limit",
+									"value": "2"
+								},
+								{
+									"key": "page",
+									"value": "1"
 								}
 							]
 						}
@@ -812,7 +844,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"McGregor Product 1\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Produc3\"\n    },\n    \"metadata\": {\n        \"chave\": \"eliana\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Product {{$randomProductName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Product\"\n    },\n    \"metadata\": {\n        \"chave\": \"teste\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -893,7 +925,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products?metadata.chave=xuxa",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products?metadata.chave=teste&limit=5&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -908,7 +940,15 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "xuxa"
+									"value": "teste"
+								},
+								{
+									"key": "limit",
+									"value": "5"
+								},
+								{
+									"key": "page",
+									"value": "1"
 								}
 							]
 						}
@@ -1001,7 +1041,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"My BRL Account\",\n    \"alias\": \"wallet\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"xuxa\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1046,7 +1086,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Sanchez Account\", //opcional\n    \"alias\": \"Sanchez\",\n    \"allowSending\": false,\n    \"allowReceiving\": false,\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\"\n    },\n    \"metadata\": {\n        \"chave\": \"cracatua\",\n        \"boolean\": false,\n        \"double\": 15.5,\n        \"int\": 10\n    }\n}",
+							"raw": "{\n    \"name\": \"Sanchez Account\", //opcional\n    \"alias\": \"Sanchez\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"cracatua\",\n        \"boolean\": false,\n        \"double\": 15.5,\n        \"int\": 10\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1079,7 +1119,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts?metadata.chave=cracatua",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts?metadata.chave=xuxa&limit=2&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -1096,7 +1136,15 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "cracatua"
+									"value": "xuxa"
+								},
+								{
+									"key": "limit",
+									"value": "2"
+								},
+								{
+									"key": "page",
+									"value": "1"
 								}
 							]
 						}

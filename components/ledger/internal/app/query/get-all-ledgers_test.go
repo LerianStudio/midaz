@@ -19,6 +19,8 @@ func TestGetAllLedgers(t *testing.T) {
 	defer ctrl.Finish()
 	mockLedgerRepo := mock.NewMockRepository(ctrl)
 	organizationID := uuid.New()
+	limit := 10
+	page := 1
 
 	uc := UseCase{
 		LedgerRepo: mockLedgerRepo,
@@ -28,10 +30,10 @@ func TestGetAllLedgers(t *testing.T) {
 		ledgers := []*l.Ledger{{}}
 		mockLedgerRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID).
+			FindAll(gomock.Any(), organizationID, page, limit).
 			Return(ledgers, nil).
 			Times(1)
-		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID)
+		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID, page, limit)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -41,10 +43,10 @@ func TestGetAllLedgers(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockLedgerRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID).
+			FindAll(gomock.Any(), organizationID, page, limit).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID)
+		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID, page, limit)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

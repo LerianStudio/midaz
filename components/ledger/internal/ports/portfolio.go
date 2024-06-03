@@ -1,12 +1,15 @@
 package ports
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // PortfolioHandler struct contains a portfolio use case for managing portfolio related operations.
@@ -49,10 +52,17 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID, ledgerID)
 
-	for key, value := range c.Queries() {
+	headerParams := common.ValidateParameters(c.Queries())
+
+	pagination := mpostgres.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
 		logger.Infof("Initiating retrieval of all Portfolios by metadata")
 
-		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, key, value, organizationID, ledgerID)
+		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
 			return commonHTTP.WithError(c, err)
@@ -60,12 +70,16 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 		logger.Infof("Successfully retrieved all Portfolios by metadata")
 
-		return commonHTTP.OK(c, portfolios)
+		pagination.SetItems(portfolios)
+
+		return commonHTTP.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Portfolios")
 
-	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID)
+	headerParams.Metadata = &bson.M{}
+
+	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -73,7 +87,9 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Portfolios")
 
-	return commonHTTP.OK(c, portfolios)
+	pagination.SetItems(portfolios)
+
+	return commonHTTP.OK(c, pagination)
 }
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
