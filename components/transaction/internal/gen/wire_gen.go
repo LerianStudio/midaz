@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/google/wire"
@@ -35,7 +36,7 @@ func InitializeService() *service.Service {
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 	}
-	transactionHandler := &http.TransactionHandler{
+	transactionHandler := &ports.TransactionHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
@@ -82,7 +83,7 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
-		setupMongoDBConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)),
+		setupMongoDBConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))

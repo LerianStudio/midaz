@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -19,12 +20,14 @@ import (
 // TransactionPostgreSQLRepository is a Postgresql-specific implementation of the TransactionRepository.
 type TransactionPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
+	tableName  string
 }
 
 // NewTransactionPostgreSQLRepository returns a new instance of TransactionPostgreSQLRepository using the given Postgres connection.
 func NewTransactionPostgreSQLRepository(pc *mpostgres.PostgresConnection) *TransactionPostgreSQLRepository {
 	c := &TransactionPostgreSQLRepository{
 		connection: pc,
+		tableName:  "transaction",
 	}
 
 	_, err := c.connection.GetDB()
@@ -83,7 +86,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 }
 
 // FindAll retrieves Transactions entities from the database.
-func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*t.Transaction, error) {
+func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*t.Transaction, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -91,8 +94,22 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	var transactions []*t.Transaction
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID)
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
