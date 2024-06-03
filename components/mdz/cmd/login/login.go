@@ -113,7 +113,7 @@ func (c *Controller) Run(cmd *cobra.Command, args []string) (pkg.Renderable, err
 		membershipURI = profile.GetMembershipURI()
 	}
 
-	relyingParty, err := pkg.GetAuthRelyingParty(pkg.GetHTTPClient(cmd, map[string][]string{}), membershipURI)
+	relyingParty, err := pkg.GetAuthRelyingParty(cmd.Context(), pkg.GetHTTPClient(cmd, map[string][]string{}), membershipURI)
 	if err != nil {
 		return nil, err
 	}

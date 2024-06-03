@@ -11,8 +11,8 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/zitadel/oidc/v2/pkg/client/rp"
-	"github.com/zitadel/oidc/v2/pkg/oidc"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"golang.org/x/oauth2"
 )
 
@@ -154,12 +154,12 @@ func (p *Profile) GetToken(ctx context.Context, httpClient *http.Client) (*oauth
 		}
 
 		if claims.Expiration.AsTime().Before(time.Now()) {
-			relyingParty, err := GetAuthRelyingParty(httpClient, p.membershipURI)
+			relyingParty, err := GetAuthRelyingParty(ctx, httpClient, p.membershipURI)
 			if err != nil {
 				return nil, err
 			}
 
-			newToken, err := rp.RefreshAccessToken(relyingParty, p.token.RefreshToken, "", "")
+			newToken, err := rp.RefreshTokens[*oidc.IDTokenClaims](ctx, relyingParty, p.token.RefreshToken, "", "")
 			if err != nil {
 				return nil, newErrInvalidAuthentication(errors.Wrap(err, "refreshing token"))
 			}
