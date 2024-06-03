@@ -1,7 +1,8 @@
 AUTH_DIR := ./components/auth
 LEDGER_DIR := ./components/ledger
+TRANSACTION_DIR := ./components/transaction
 
-.PHONY: auth ledger
+.PHONY: auth ledger transaction
 
 help:
 	@echo "Management commands"
@@ -16,6 +17,7 @@ help:
 	@echo "    make checkEnvs                           Check if github hooks are installed and secret env on files are not exposed."
 	@echo "    make auth                                Run a command inside the auth app in the components directory to see available commands."
 	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
+	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo ""
 	@echo "  ## Utility Commands"
@@ -64,6 +66,10 @@ auth:
 ledger:
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
 
+transaction:
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
+
 all-services:
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
-	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
+	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
