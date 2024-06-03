@@ -90,6 +90,6 @@ func NewCommand() *cobra.Command {
 	return pkg.NewStackCommand("ui",
 		pkg.WithShortDescription("Open UI"),
 		pkg.WithArgs(cobra.ExactArgs(0)),
-		pkg.WithController(NewUIController()),
+		pkg.WithController[*Payload](NewUIController()),
 	)
 }
