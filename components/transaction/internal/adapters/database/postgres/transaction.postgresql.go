@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	sqrl "github.com/Masterminds/squirrel"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -105,6 +105,9 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		PlaceholderFormat(sqrl.Dollar)
 
 	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {

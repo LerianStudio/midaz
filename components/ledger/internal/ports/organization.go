@@ -1,18 +1,17 @@
 package ports
 
 import (
-	"github.com/LerianStudio/midaz/common/mpostgres"
 	"os"
-
-	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.

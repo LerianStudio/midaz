@@ -1,18 +1,17 @@
 package ports
 
 import (
-	"github.com/LerianStudio/midaz/common/mpostgres"
 	"os"
 
 	"github.com/LerianStudio/midaz/common"
-	"go.mongodb.org/mongo-driver/bson"
-
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
