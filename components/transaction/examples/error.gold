@@ -1,0 +1,19 @@
+(transaction
+    (chart-of-accounts-group-name PAG_CONTAS_CODE_123182371973821973981)
+    (metadata
+        (m 1)
+        (Cpf 43049498x)
+    )
+    (from 54748fc9-53f1-4d5b-bdc3-660c64f1e974 :amount BRL 2|4)
+    (description "description for the transaction not for the operation")
+    (send BRL 30|4 :from
+        (sources
+            (from 54748fc9-53f1-4d5b-bdc3-660c64f1e974 :remaining)
+        )
+    )
+    (distribute
+        (to @McGeegor :share 50 :of 25 :desc whatever)
+        (to @jeff :amount BRL 2|4)
+        (to @cl3v_ :remaining)
+    )
+)
