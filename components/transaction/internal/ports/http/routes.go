@@ -2,6 +2,7 @@ package http
 
 import (
 	lib "github.com/LerianStudio/midaz/common/net/http"
+	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/gofiber/fiber/v2"
@@ -27,6 +28,13 @@ func NewRouter(th *ports.TransactionHandler) *fiber.App {
 	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", nil)
 	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", nil)
 	//f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", nil)
+
+	// Transactions Templates
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates", lib.WithBody(new(t.InputDSL), th.CreateTransactionTemplate))
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates", nil)
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates/:code", nil)
+	//f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates/:code", nil)
+	//f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates/:code", nil)
 
 	// Operations
 	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", nil)
