@@ -3,12 +3,14 @@ package ports
 import (
 	"bytes"
 	"fmt"
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mlog"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
-
-	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
@@ -21,50 +23,15 @@ type TransactionHandler struct {
 	Query   *query.UseCase
 }
 
-// InputDSL is a struct design to encapsulate payload data.
-type InputDSL struct {
-	TransactionType     uuid.UUID      `json:"transactionType"`
-	TransactionTypeCode string         `json:"transactionTypeCode"`
-	Variables           map[string]any `json:"variables,omitempty"`
-}
+// CreateTransaction method that create transaction
+func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-func (handler *TransactionHandler) ValidateTransaction(ctx *fiber.Ctx) error {
-	fileHeader, err := ctx.FormFile("dsl")
+	dsl, err := getFileFromHeader(c)
 	if err != nil {
-		return err
+		logger.Error("Failed to validate and parse transaction", err.Error())
+		return commonHTTP.WithError(c, err)
 	}
-
-	if !strings.Contains(fileHeader.Filename, ".gold") {
-		return ctx.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"code":    -1,
-			"message": fmt.Sprintf("This type o file: %s can't be parsed", fileHeader.Filename),
-		})
-	}
-
-	if fileHeader.Size == 0 {
-		return ctx.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"code":    -1,
-			"message": fmt.Sprintf("This file: %s is empty", fileHeader.Filename),
-		})
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		return err
-	}
-	defer func(file multipart.File) {
-		err := file.Close()
-		if err != nil {
-			panic(0)
-		}
-	}(file)
-
-	buf := new(bytes.Buffer)
-	if _, err := io.Copy(buf, file); err != nil {
-		return err
-	}
-
-	dsl := buf.String()
 
 	errListener := transaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
@@ -78,39 +45,64 @@ func (handler *TransactionHandler) ValidateTransaction(ctx *fiber.Ctx) error {
 			})
 		}
 
-		return ctx.Status(http.StatusBadRequest).JSON(err)
+		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	t := transaction.Parse(dsl)
+	tran := transaction.Parse(dsl)
 
-	return ctx.Status(http.StatusOK).JSON(fiber.Map{
-		"transaction": t,
-	})
+	logger.Infof("Transaction parsed and validated")
+
+	return commonHTTP.Created(c, tran)
 }
 
-func (handler *TransactionHandler) ParserTransactionTemplate(ctx *fiber.Ctx) error {
+// CreateTransactionTemplate method that create transaction template
+func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	payload := p.(*t.InputDSL)
+	logger.Infof("Request to create an transaction with details: %#v", payload)
+
+	return commonHTTP.Created(c, payload)
+}
+
+// CommitTransaction method that commit transaction created before
+func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	return commonHTTP.Created(c, logger)
+}
+
+// RevertTransaction method that revert transaction created before
+func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	return commonHTTP.Created(c, logger)
+}
+
+// getFileFromHeader method that get file from header and give a string fom this dsl gold file
+func getFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile("dsl")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !strings.Contains(fileHeader.Filename, ".gold") {
-		return ctx.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"code":    -1,
-			"message": fmt.Sprintf("This type o file: %s can't be parsed", fileHeader.Filename),
-		})
+		return "", common.ValidationError{
+			Code:    "0001",
+			Message: fmt.Sprintf("This type o file: %s can't be parsed", fileHeader.Filename),
+		}
 	}
 
 	if fileHeader.Size == 0 {
-		return ctx.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"code":    -1,
-			"message": fmt.Sprintf("This file: %s is empty", fileHeader.Filename),
-		})
+		return "", common.ValidationError{
+			Code:    "0001",
+			Message: fmt.Sprintf("This file: %s is empty", fileHeader.Filename),
+		}
 	}
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func(file multipart.File) {
 		err := file.Close()
@@ -121,21 +113,10 @@ func (handler *TransactionHandler) ParserTransactionTemplate(ctx *fiber.Ctx) err
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return err
+		return "", err
 	}
 
 	dsl := buf.String()
 
-	if err := ctx.BodyParser(&InputDSL{}); err != nil {
-		return ctx.Status(http.StatusBadRequest).JSON(fiber.Map{
-			"code":    -1,
-			"message": fmt.Sprintf("This input: %s can't be parsed", err.Error()),
-		})
-	}
-
-	t := transaction.Parse(dsl)
-
-	return ctx.Status(http.StatusOK).JSON(fiber.Map{
-		"template": t,
-	})
+	return dsl, nil
 }

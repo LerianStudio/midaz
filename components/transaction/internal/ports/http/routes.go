@@ -19,8 +19,21 @@ func NewRouter(th *ports.TransactionHandler) *fiber.App {
 	// jwt := lib.NewJWTMiddleware(config.JWKAddress)
 
 	// -- Routes --
-	f.Post("transaction/v1/validate", th.ValidateTransaction)
-	f.Post("transaction/v1/parser", th.ParserTransactionTemplate)
+
+	// Transactions
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", th.CreateTransaction)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", th.CommitTransaction)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", th.RevertTransaction)
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", nil)
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", nil)
+	//f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", nil)
+
+	// Operations
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", nil)
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", nil)
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", nil)
+	//f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", nil)
+	//f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", nil)
 
 	// Health
 	f.Get("/health", lib.Ping)
