@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -109,11 +110,21 @@ func ValidateCurrency(code string) error {
 		"VED", "VEF", "VND", "VUV", "WST", "XAF", "XCD", "XDR", "XOF", "XPF", "XSU", "XUA", "YER", "ZAR", "ZMW", "ZWL",
 	}
 
+	for _, r := range code {
+		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
+			return ValidationError{
+				Code:    "0004",
+				Title:   "Code Uppercase Requirement",
+				Message: "The code must be in uppercase. Please send the code in uppercase format.",
+			}
+		}
+	}
+
 	if !slices.Contains(currencies, code) {
 		return ValidationError{
-			Code:    "0033",
-			Title:   "Invalid Code Format",
-			Message: "The 'code' field must be alphanumeric, in upper case, and must contain at least one letter. Please provide a valid code.",
+			Code:    "0005",
+			Title:   "Currency Code Standard Compliance",
+			Message: "Currency-type instruments must adhere to the ISO-4217 standard. Please use a currency code that follows ISO-4217 guidelines.",
 		}
 	}
 
