@@ -19,9 +19,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"organization_id antes: \" + postman.getEnvironmentVariable(\"organization_id\"));",
+									"    console.log(\"organization_id before: \" + postman.getEnvironmentVariable(\"organization_id\"));",
 									"    postman.setEnvironmentVariable(\"organization_id\", jsonData.id);",
-									"    console.log(\"organization_id depois: \" + postman.getEnvironmentVariable(\"organization_id\"));",
+									"    console.log(\"organization_id after: \" + postman.getEnvironmentVariable(\"organization_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -139,17 +139,17 @@
 								{
 									"key": "metadata.chave",
 									"value": "teste",
-									"description": "com, pesquisa no mongodb, sem,  pesquisa no postgresql."
+									"description": "Search on MongoDB"
 								},
 								{
 									"key": "limit",
 									"value": "6",
-									"description": "default 10"
+									"description": "Default 10"
 								},
 								{
 									"key": "page",
 									"value": "1",
-									"description": "default 1"
+									"description": "Default 1"
 								}
 							]
 						}
@@ -244,9 +244,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"ledger_id antes: \" + postman.getEnvironmentVariable(\"ledger_id\"));",
+									"    console.log(\"ledger_id before: \" + postman.getEnvironmentVariable(\"ledger_id\"));",
 									"    postman.setEnvironmentVariable(\"ledger_id\", jsonData.id);",
-									"    console.log(\"ledger_id depois: \" + postman.getEnvironmentVariable(\"ledger_id\"));",
+									"    console.log(\"ledger_id after: \" + postman.getEnvironmentVariable(\"ledger_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -354,15 +354,18 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "teste"
+									"value": "teste",
+									"description": "Search on MongoDB"
 								},
 								{
 									"key": "limit",
-									"value": "5"
+									"value": "5",
+									"description": "Default 10"
 								},
 								{
 									"key": "page",
-									"value": "1"
+									"value": "1",
+									"description": "Default 1"
 								}
 							]
 						}
@@ -449,9 +452,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"instrument_id antes: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
+									"    console.log(\"instrument_id before: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
 									"    postman.setEnvironmentVariable(\"instrument_id\", jsonData.id);",
-									"    console.log(\"instrument_id depois: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
+									"    console.log(\"instrument_id after: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -553,15 +556,18 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf"
+									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
+									"description": "Search on MongoDB"
 								},
 								{
 									"key": "limit",
-									"value": "2"
+									"value": "2",
+									"description": "Default 10"
 								},
 								{
 									"key": "page",
-									"value": "1"
+									"value": "1",
+									"description": "Default 1"
 								}
 							]
 						}
@@ -639,9 +645,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"portfolio_id antes: \" + postman.getEnvironmentVariable(\"portfolio_id\"));",
+									"    console.log(\"portfolio_id before: \" + postman.getEnvironmentVariable(\"portfolio_id\"));",
 									"    postman.setEnvironmentVariable(\"portfolio_id\", jsonData.id);",
-									"    console.log(\"portfolio_id depois: \" + postman.getEnvironmentVariable(\"portfolio_id\"));",
+									"    console.log(\"portfolio_id after: \" + postman.getEnvironmentVariable(\"portfolio_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -743,15 +749,18 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "teste"
+									"value": "teste",
+									"description": "Search on MongoDB"
 								},
 								{
 									"key": "limit",
-									"value": "2"
+									"value": "2",
+									"description": "Default 10"
 								},
 								{
 									"key": "page",
-									"value": "1"
+									"value": "1",
+									"description": "Default 1"
 								}
 							]
 						}
@@ -829,9 +838,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"product_id antes: \" + postman.getEnvironmentVariable(\"product_id\"));",
+									"    console.log(\"product_id before: \" + postman.getEnvironmentVariable(\"product_id\"));",
 									"    postman.setEnvironmentVariable(\"product_id\", jsonData.id);",
-									"    console.log(\"product_id depois: \" + postman.getEnvironmentVariable(\"product_id\"));",
+									"    console.log(\"product_id after: \" + postman.getEnvironmentVariable(\"product_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -925,7 +934,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products?metadata.chave=teste&limit=5&page=1",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products?metadata.chave=metadata_chave&limit=5&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -940,15 +949,18 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "teste"
+									"value": "metadata_chave",
+									"description": "Search on MongoDB"
 								},
 								{
 									"key": "limit",
-									"value": "5"
+									"value": "5",
+									"description": "Default 10"
 								},
 								{
 									"key": "page",
-									"value": "1"
+									"value": "1",
+									"description": "Default 1"
 								}
 							]
 						}
@@ -1026,9 +1038,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"account_id antes: \" + postman.getEnvironmentVariable(\"account_id\"));",
+									"    console.log(\"account_id before: \" + postman.getEnvironmentVariable(\"account_id\"));",
 									"    postman.setEnvironmentVariable(\"account_id\", jsonData.id);",
-									"    console.log(\"account_id depois: \" + postman.getEnvironmentVariable(\"account_id\"));",
+									"    console.log(\"account_id after: \" + postman.getEnvironmentVariable(\"account_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -1136,15 +1148,18 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "xuxa"
+									"value": "xuxa",
+									"description": "Search on MongoDB"
 								},
 								{
 									"key": "limit",
-									"value": "2"
+									"value": "2",
+									"description": "Default 10"
 								},
 								{
 									"key": "page",
-									"value": "1"
+									"value": "1",
+									"description": "Default 1"
 								}
 							]
 						}
