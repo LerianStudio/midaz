@@ -11,7 +11,7 @@ import (
 
 // MetadataMongoDBModel represents the metadata into mongodb context
 type MetadataMongoDBModel struct {
-	ID         primitive.ObjectID `bson:"_id"`
+	ID         primitive.ObjectID `bson:"_id,omitempty"`
 	EntityID   string             `bson:"entity_id"`
 	EntityName string             `bson:"entity_name"`
 	Data       JSON               `bson:"metadata"`
