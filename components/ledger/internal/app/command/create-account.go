@@ -54,6 +54,29 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		cai.EntityID = &portfolio.EntityID
 	}
 
+	if !common.IsNilOrEmpty(cai.ParentAccountID) {
+		acc, err := uc.AccountRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), uuid.MustParse(*cai.ParentAccountID))
+		if err != nil {
+			return nil, err
+		}
+
+		if acc.InstrumentCode != cai.InstrumentCode {
+			return nil, common.ValidationError{
+				EntityType: reflect.TypeOf(a.Account{}).Name(),
+				Title:      "Mismatched Instrument Code",
+				Code:       "0030",
+				Message:    "The provided parent account ID is associated with a different instrument code than the one specified in your request. Please ensure the instrument code matches that of the parent account, or use a different parent account ID and try again.",
+			}
+		}
+	}
+
+	if !common.IsNilOrEmpty(cai.Alias) {
+		_, err := uc.AccountRepo.FindByAlias(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), *cai.Alias)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	account := &a.Account{
 		ID:              uuid.New().String(),
 		InstrumentCode:  cai.InstrumentCode,
@@ -70,29 +93,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		Status:          status,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
-	}
-
-	if !common.IsNilOrEmpty(cai.ParentAccountID) {
-		acc, err := uc.AccountRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), uuid.MustParse(*cai.ParentAccountID))
-		if err != nil {
-			return nil, err
-		}
-
-		if acc.InstrumentCode != account.InstrumentCode {
-			return nil, common.ValidationError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Title:      "Mismatched Instrument Code",
-				Code:       "0030",
-				Message:    "The provided parent account ID is associated with a different instrument code than the one specified in your request. Please ensure the instrument code matches that of the parent account, or use a different parent account ID and try again.",
-			}
-		}
-	}
-
-	if !common.IsNilOrEmpty(cai.Alias) {
-		_, err := uc.AccountRepo.FindByAlias(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), *cai.Alias)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	port, err := uc.AccountRepo.Create(ctx, account)

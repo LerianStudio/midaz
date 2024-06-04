@@ -30,10 +30,6 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID, ledgerI
 		return nil, err
 	}
 
-	if err := common.IsUpper(cii.Code); err != nil {
-		return nil, err
-	}
-
 	if cii.Type == "currency" {
 		if err := common.ValidateCurrency(cii.Code); err != nil {
 			return nil, err
