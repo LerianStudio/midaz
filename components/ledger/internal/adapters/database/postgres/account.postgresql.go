@@ -340,7 +340,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.Alias)
 	}
 
-	if account.ProductID != "" {
+	if !common.IsNilOrEmpty(account.ProductID) {
 		updates = append(updates, "product_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.ProductID)
 	}

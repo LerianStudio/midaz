@@ -17,7 +17,7 @@ type AccountPostgreSQLModel struct {
 	OrganizationID    string
 	LedgerID          string
 	PortfolioID       string
-	ProductID         string
+	ProductID         *string
 	AvailableBalance  *float64
 	OnHoldBalance     *float64
 	BalanceScale      *float64
@@ -40,7 +40,7 @@ type CreateAccountInput struct {
 	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
 	ParentAccountID *string        `json:"parentAccountId"`
-	ProductID       string         `json:"productId"`
+	ProductID       *string        `json:"productId"`
 	EntityID        *string        `json:"entityId"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata"`
@@ -51,7 +51,7 @@ type UpdateAccountInput struct {
 	Name      string         `json:"name"`
 	Status    Status         `json:"status"`
 	Alias     *string        `json:"alias"`
-	ProductID string         `json:"productId"`
+	ProductID *string        `json:"productId"`
 	Metadata  map[string]any `json:"metadata"`
 }
 
@@ -59,13 +59,13 @@ type UpdateAccountInput struct {
 type Account struct {
 	ID              string         `json:"id"`
 	Name            string         `json:"name"`
-	ParentAccountID *string        `json:"parentAccountId,omitempty"`
+	ParentAccountID *string        `json:"parentAccountId"`
 	EntityID        string         `json:"entityId"`
 	InstrumentCode  string         `json:"instrumentCode"`
 	OrganizationID  string         `json:"organizationId"`
 	LedgerID        string         `json:"ledgerId"`
 	PortfolioID     string         `json:"portfolioId"`
-	ProductID       string         `json:"productId"`
+	ProductID       *string        `json:"productId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
 	Alias           *string        `json:"alias"`

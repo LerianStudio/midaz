@@ -36,24 +36,9 @@ func RemoveSpaces(word string) string {
 }
 
 // IsNilOrEmpty returns a boolean indicating if a *string is nil or empty.
-// It's use TrimSpace so, a string "  " and "" will be considered empty
+// It's use TrimSpace so, a string "  " and "" and "null" and "nil" will be considered empty
 func IsNilOrEmpty(s *string) bool {
-	return s == nil || strings.TrimSpace(*s) == ""
-}
-
-// IsUpper check if string is lower
-func IsUpper(s string) error {
-	for _, r := range s {
-		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
-			return ValidationError{
-				Code:    "0004",
-				Title:   "Invalid Data provided.",
-				Message: "Invalid Data provided.",
-			}
-		}
-	}
-
-	return nil
+	return s == nil || strings.TrimSpace(*s) == "" || strings.TrimSpace(*s) == "null" || strings.TrimSpace(*s) == "nil"
 }
 
 // CamelToSnakeCase converts a given camelCase string to snake_case format.

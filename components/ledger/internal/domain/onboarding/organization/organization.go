@@ -46,7 +46,7 @@ type UpdateOrganizationInput struct {
 
 // Organization is a struct designed to encapsulate response payload data.
 type Organization struct {
-	ID                   string         `json:"id,omitempty"`
+	ID                   string         `json:"id"`
 	ParentOrganizationID *string        `json:"parentOrganizationId"`
 	LegalName            string         `json:"legalName"`
 	DoingBusinessAs      *string        `json:"doingBusinessAs"`
