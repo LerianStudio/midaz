@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS portfolio
 (
     id                            UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
     name                          TEXT,
-    entity_id                     UUID NOT NULL,
+    entity_id                     TEXT NOT NULL,
     ledger_id                     UUID NOT NULL,
     organization_id               UUID NOT NULL,
     status                        TEXT NOT NULL,
