@@ -1,3 +1,17 @@
+## [1.5.0](https://github.com/LerianStudio/midaz/compare/v1.4.0...v1.5.0) (2024-06-04)
+
+
+### Bug Fixes
+
+* bring back omitempty on metadata in field _id because cant generate automatic id without :bug: ([d68be08](https://github.com/LerianStudio/midaz/commit/d68be08765d57c7c01d4a9b1f0466070007839c2))
+
+## [1.5.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.4.0...v1.5.0-beta.1) (2024-06-04)
+
+
+### Bug Fixes
+
+* bring back omitempty on metadata in field _id because cant generate automatic id without :bug: ([d68be08](https://github.com/LerianStudio/midaz/commit/d68be08765d57c7c01d4a9b1f0466070007839c2))
+
 ## [1.4.0](https://github.com/LerianStudio/midaz/compare/v1.3.0...v1.4.0) (2024-06-04)
 
 ## [1.4.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.3.0...v1.4.0-beta.1) (2024-06-04)
