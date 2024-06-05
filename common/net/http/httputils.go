@@ -16,9 +16,10 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata *bson.M
-	Limit    int
-	Page     int
+	Metadata    *bson.M
+	Limit       int
+	Page        int
+	UseMetadata bool
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -29,10 +30,13 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 
 	page := 1
 
+	useMetadata := false
+
 	for key, value := range params {
 		switch {
 		case strings.Contains(key, "metadata."):
 			metadata = &bson.M{key: value}
+			useMetadata = true
 		case strings.Contains(key, "limit"):
 			limit, _ = strconv.Atoi(value)
 		case strings.Contains(key, "page"):
@@ -41,9 +45,10 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 	}
 
 	query := &QueryHeader{
-		Metadata: metadata,
-		Limit:    limit,
-		Page:     page,
+		Metadata:    metadata,
+		Limit:       limit,
+		Page:        page,
+		UseMetadata: useMetadata,
 	}
 
 	return query

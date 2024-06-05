@@ -66,9 +66,12 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
-	limit := int64(filter.Limit)
-	skip := int64(filter.Page*filter.Limit - filter.Limit)
-	opts := options.FindOptions{Limit: &limit, Skip: &skip}
+	opts := options.FindOptions{}
+	if filter.UseMetadata {
+		limit := int64(filter.Limit)
+		skip := int64(filter.Page*filter.Limit - filter.Limit)
+		opts = options.FindOptions{Limit: &limit, Skip: &skip}
+	}
 
 	cur, err := coll.Find(ctx, filter.Metadata, &opts)
 	if err != nil {
