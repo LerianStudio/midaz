@@ -1,3 +1,10 @@
+## [1.6.0](https://github.com/LerianStudio/midaz/compare/v1.5.0...v1.6.0) (2024-06-05)
+
+
+### Bug Fixes
+
+* validate fields parentAccountId and parentOrganizationId that can receive null or check value is an uuid string :bug: ([37648ef](https://github.com/LerianStudio/midaz/commit/37648ef363d50d4baf36d9244f9e7f2417ebe040))
+
 ## [1.6.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.5.0...v1.6.0-beta.1) (2024-06-05)
 
 
