@@ -1,3 +1,29 @@
+## [1.7.0](https://github.com/LerianStudio/midaz/compare/v1.6.0...v1.7.0) (2024-06-05)
+
+
+### Features
+
+* Keto Stack Included in Docker Compose file - Auth ([c5c2831](https://github.com/LerianStudio/midaz/commit/c5c28311b661948c922e541cc618e30bcf878313))
+* Keto Stack Included in Docker Compose file - Auth ([7be883f](https://github.com/LerianStudio/midaz/commit/7be883fb0a7851d6798eeadfbc79938d20ba4129))
+
+
+### Bug Fixes
+
+* add comments :bug: ([dfd765f](https://github.com/LerianStudio/midaz/commit/dfd765fab6f1c860879e096eeb2f9527e998d820))
+
+## [1.7.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.6.0...v1.7.0-beta.1) (2024-06-05)
+
+
+### Features
+
+* Keto Stack Included in Docker Compose file - Auth ([c5c2831](https://github.com/LerianStudio/midaz/commit/c5c28311b661948c922e541cc618e30bcf878313))
+* Keto Stack Included in Docker Compose file - Auth ([7be883f](https://github.com/LerianStudio/midaz/commit/7be883fb0a7851d6798eeadfbc79938d20ba4129))
+
+
+### Bug Fixes
+
+* add comments :bug: ([dfd765f](https://github.com/LerianStudio/midaz/commit/dfd765fab6f1c860879e096eeb2f9527e998d820))
+
 ## [1.6.0](https://github.com/LerianStudio/midaz/compare/v1.5.0...v1.6.0) (2024-06-05)
 
 
