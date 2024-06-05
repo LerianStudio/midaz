@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/LerianStudio/midaz/common"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
 
 	"github.com/LerianStudio/midaz/common/mmongo"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -67,6 +68,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
 	opts := options.FindOptions{}
+
 	if filter.UseMetadata {
 		limit := int64(filter.Limit)
 		skip := int64(filter.Page*filter.Limit - filter.Limit)
