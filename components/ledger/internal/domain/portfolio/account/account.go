@@ -39,8 +39,8 @@ type CreateAccountInput struct {
 	Name            string         `json:"name"`
 	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
-	ParentAccountID *string        `json:"parentAccountId"`
-	ProductID       *string        `json:"productId"`
+	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
+	ProductID       *string        `json:"productId" validate:"uuid"`
 	EntityID        *string        `json:"entityId"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata"`
@@ -51,7 +51,7 @@ type UpdateAccountInput struct {
 	Name      string         `json:"name"`
 	Status    Status         `json:"status"`
 	Alias     *string        `json:"alias"`
-	ProductID *string        `json:"productId"`
+	ProductID *string        `json:"productId" validate:"uuid"`
 	Metadata  map[string]any `json:"metadata"`
 }
 
