@@ -1,7 +1,6 @@
 package ports
 
 import (
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -55,7 +54,7 @@ func (handler *InstrumentHandler) GetAllInstruments(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	logger.Infof("Initiating create of Instrument with ledger ID: %s", ledgerID)
 
-	headerParams := common.ValidateParameters(c.Queries())
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,

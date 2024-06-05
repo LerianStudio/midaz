@@ -1,7 +1,6 @@
 package ports
 
 import (
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -50,7 +49,7 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID, ledgerID)
 
-	headerParams := common.ValidateParameters(c.Queries())
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,

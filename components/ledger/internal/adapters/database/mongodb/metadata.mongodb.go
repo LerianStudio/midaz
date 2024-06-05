@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/LerianStudio/midaz/common"
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmongo"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -57,7 +58,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 }
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
-func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter common.QueryHeader) ([]*m.Metadata, error) {
+func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter commonHTTP.QueryHeader) ([]*m.Metadata, error) {
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err

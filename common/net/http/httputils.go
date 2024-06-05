@@ -1,9 +1,53 @@
 package http
 
 import (
+	"bytes"
+	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/LerianStudio/midaz/common"
+	"github.com/gofiber/fiber/v2"
 )
+
+// QueryHeader entity from query parameter from get apis
+type QueryHeader struct {
+	Metadata *bson.M
+	Limit    int
+	Page     int
+}
+
+// ValidateParameters validate and return struct of default parameters
+func ValidateParameters(params map[string]string) *QueryHeader {
+	var metadata *bson.M
+
+	limit := 10
+
+	page := 1
+
+	for key, value := range params {
+		switch {
+		case strings.Contains(key, "metadata."):
+			metadata = &bson.M{key: value}
+		case strings.Contains(key, "limit"):
+			limit, _ = strconv.Atoi(value)
+		case strings.Contains(key, "page"):
+			page, _ = strconv.Atoi(value)
+		}
+	}
+
+	query := &QueryHeader{
+		Metadata: metadata,
+		Limit:    limit,
+		Page:     page,
+	}
+
+	return query
+}
 
 // IPAddrFromRemoteAddr removes port information from string.
 func IPAddrFromRemoteAddr(s string) string {
@@ -35,4 +79,47 @@ func GetRemoteAddress(r *http.Request) string {
 	}
 
 	return realIP
+}
+
+// GetFileFromHeader method that get file from header and give a string fom this dsl gold file
+func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
+	fileHeader, err := ctx.FormFile(dsl)
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.Contains(fileHeader.Filename, fileExtension) {
+		return "", common.ValidationError{
+			Code:    "0001",
+			Message: fmt.Sprintf("This type o file: %s can't be parsed", fileHeader.Filename),
+		}
+	}
+
+	if fileHeader.Size == 0 {
+		return "", common.ValidationError{
+			Code:    "0001",
+			Message: fmt.Sprintf("This file: %s is empty", fileHeader.Filename),
+		}
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return "", err
+	}
+
+	defer func(file multipart.File) {
+		err := file.Close()
+		if err != nil {
+			panic(0)
+		}
+	}(file)
+
+	buf := new(bytes.Buffer)
+	if _, err := io.Copy(buf, file); err != nil {
+		return "", err
+	}
+
+	fileString := buf.String()
+
+	return fileString, nil
 }

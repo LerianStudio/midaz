@@ -7,13 +7,14 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataLedgers fetch all Ledgers from the repository
-func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID string, filter common.QueryHeader) ([]*l.Ledger, error) {
+func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID string, filter commonHTTP.QueryHeader) ([]*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving ledgers")
 
