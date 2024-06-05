@@ -8,41 +8,47 @@ x-postgres-common:
     - app-tier
 
 services:
-  kratos-db:
+  keto-db:
     <<: *postgres-common
-    container_name: kratos-db
+    container_name: keto-db
     ports:
-      - "5435:5432"
+      - "5436:5432"
     environment:
-      - POSTGRES_USER=${KRATOS_DB_USER}
-      - POSTGRES_PASSWORD=${KRATOS_DB_PASSWORD}
-      - POSTGRES_DB=${KRATOS_DB_NAME}
+      - POSTGRES_USER=${KETO_DB_USER}
+      - POSTGRES_PASSWORD=${KETO_DB_PASSWORD}
+      - POSTGRES_DB=${KETO_DB_NAME}
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${KRATOS_DB_USER} -d ${KRATOS_DB_NAME}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${KETO_DB_USER} -d ${KETO_DB_NAME}" ]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  hydra-db:
-    <<: *postgres-common
-    container_name: hydra-db
-    ports:
-      - "5434:5432"
+      
+  kratos:
+    container_name: kratos
+    image: oryd/kratos:v1.1.0
+    env_file:
+      - .env
     environment:
-      - POSTGRES_USER=${HYDRA_DB_USER}
-      - POSTGRES_PASSWORD=${HYDRA_DB_PASSWORD}
-      - POSTGRES_DB=${HYDRA_DB_NAME}
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${HYDRA_DB_USER} -d ${HYDRA_DB_NAME}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  mailslurper: #simulate email verification steps
-    image: oryd/mailslurper:latest-smtps
+      - DSN=postgres://${KRATOS_DB_USER}:${KRATOS_DB_PASSWORD}@kratos-db:${KRATOS_DB_PORT}/${KRATOS_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+      - OAUTH2_PROVIDER_URL=${HYDRA_ADDRESS}
+      - OAUTH2_PROVIDER_OVERRIDE_RETURN_TO=true
+      - SECRETS_COOKIE=${KRATOS_COOKIE_SECRET}
+      - SECRETS_CIPHER=${KRATOS_CIPHER_SECRET}
+      - COURIER_SMTP_CONNECTION_URI=smtps://${SMTP_USER}:${SMTP_PASSWORD}@${SMTP_ADDRESS}:${SMTP_PORT}/?skip_ssl_verify=true
+    command: serve -c /etc/kratos/config/kratos.yml --dev --watch-courier
+    depends_on:
+      - kratos-db
+      - kratos-migrate
     ports:
-      - "4436:4436"
-      - "4437:4437"
+      - "4433:4433" #public port
+      - "4434:4434" #admin port
+    volumes:
+      - type: bind
+        source: ../../config/auth
+        target: /etc/kratos/config
+      - type: bind
+        source: ../../config/identity-schemas
+        target: /etc/kratos/identity-schemas
     networks:
       - app-tier
 
@@ -55,22 +61,6 @@ services:
       - .env
     environment:
       - DSN=postgres://${KRATOS_DB_USER}:${KRATOS_DB_PASSWORD}@kratos-db:${KRATOS_DB_PORT}/${KRATOS_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
-    command: migrate sql -e --yes
-    networks:
-      - app-tier
-
-  hydra-migrate:
-    depends_on:
-      - hydra-db
-      - kratos-migrate
-    container_name: hydra-migrate
-    image: oryd/hydra:v2.2.0
-    env_file:
-      - .env
-    environment:
-      - DSN=postgres://${HYDRA_DB_USER}:${HYDRA_DB_PASSWORD}@hydra-db:${HYDRA_DB_PORT}/${HYDRA_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
-      - SECRETS_SYSTEM=${HYDRA_SYSTEM_SECRET}
-    restart: on-failure
     command: migrate sql -e --yes
     networks:
       - app-tier
@@ -102,33 +92,96 @@ services:
         target: /etc/hydra/config
     networks:
       - app-tier
-
-  kratos:
-    container_name: kratos
-    image: oryd/kratos:v1.1.0
+  
+  hydra-migrate:
+    depends_on:
+      - hydra-db
+      - kratos-migrate
+    container_name: hydra-migrate
+    image: oryd/hydra:v2.2.0
     env_file:
       - .env
     environment:
-      - DSN=postgres://${KRATOS_DB_USER}:${KRATOS_DB_PASSWORD}@kratos-db:${KRATOS_DB_PORT}/${KRATOS_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
-      - OAUTH2_PROVIDER_URL=${HYDRA_ADDRESS}
-      - OAUTH2_PROVIDER_OVERRIDE_RETURN_TO=true
-      - SECRETS_COOKIE=${KRATOS_COOKIE_SECRET}
-      - SECRETS_CIPHER=${KRATOS_CIPHER_SECRET}
-      - COURIER_SMTP_CONNECTION_URI=smtps://${SMTP_USER}:${SMTP_PASSWORD}@${SMTP_ADDRESS}:${SMTP_PORT}/?skip_ssl_verify=true
-    command: serve -c /etc/kratos/config/kratos.yml --dev --watch-courier
-    depends_on:
-      - kratos-db
-      - kratos-migrate
-    ports:
-      - "4433:4433" #public port
-      - "4434:4434" #admin port
+      - DSN=postgres://${HYDRA_DB_USER}:${HYDRA_DB_PASSWORD}@hydra-db:${HYDRA_DB_PORT}/${HYDRA_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+      - SECRETS_SYSTEM=${HYDRA_SYSTEM_SECRET}
+    restart: on-failure
+    command: migrate sql -e --yes
+    networks:
+      - app-tier
+  
+  keto:
+    container_name: keto
+    image: oryd/keto:v0.11.1-alpha.0
+    links:
+      - keto-db:keto-db
+    command: serve -c /etc/keto/config/keto.yml all
     volumes:
       - type: bind
         source: ../../config/auth
-        target: /etc/kratos/config
+        target: /etc/keto/config
+    ports:
+      - "4466:4466"
+      - "4467:4467"
+    depends_on:
+      - keto-migrate
+    environment:
+      - DSN=postgres://${KETO_DB_USER}:${KETO_DB_PASSWORD}@keto-db:${KETO_DB_PORT}/${KETO_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+    restart: on-failure
+    networks:
+      - app-tier
+
+  keto-migrate:
+    container_name: keto-migrate
+    image: oryd/keto:v0.12.0-alpha.0
+    links:
+      - keto-db:keto-db
+    volumes:
       - type: bind
-        source: ../../config/identity-schemas
-        target: /etc/kratos/identity-schemas
+        source: ../../config/auth
+        target: /home/ory
+    environment:
+      - LOG_LEVEL=debug
+      - DSN=postgres://${KETO_DB_USER}:${KETO_DB_PASSWORD}@keto-db:${KETO_DB_PORT}/${KETO_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+    command: ["migrate", "up", "-y"]
+    restart: on-failure
+    networks:
+      - app-tier
+
+  kratos-db:
+    <<: *postgres-common
+    container_name: kratos-db
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=${KRATOS_DB_USER}
+      - POSTGRES_PASSWORD=${KRATOS_DB_PASSWORD}
+      - POSTGRES_DB=${KRATOS_DB_NAME}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${KRATOS_DB_USER} -d ${KRATOS_DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  hydra-db:
+    <<: *postgres-common
+    container_name: hydra-db
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=${HYDRA_DB_USER}
+      - POSTGRES_PASSWORD=${HYDRA_DB_PASSWORD}
+      - POSTGRES_DB=${HYDRA_DB_NAME}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${HYDRA_DB_USER} -d ${HYDRA_DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  mailslurper: #simulate email verification steps
+    image: oryd/mailslurper:latest-smtps
+    ports:
+      - "4436:4436"
+      - "4437:4437"
     networks:
       - app-tier
 
