@@ -1,3 +1,18 @@
+## [1.8.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.7.0...v1.8.0-beta.1) (2024-06-05)
+
+
+### Features
+
+* add transaction templates ([a55b583](https://github.com/LerianStudio/midaz/commit/a55b5839944e385a94037c20aae5e8b9a415a503))
+* init transaction ([b696d05](https://github.com/LerianStudio/midaz/commit/b696d05af93b45841987cb56a6e3bd85fdc7ff90))
+
+
+### Bug Fixes
+
+* add field UseMetadata  to use on query on mongodb when not use metadata field remove limit and skip to get all :bug: ([fce6bfb](https://github.com/LerianStudio/midaz/commit/fce6bfb2e9132a14205a90dda6164c7eaf7e97f4))
+* make lint, sec and tests :bug: ([bb4621b](https://github.com/LerianStudio/midaz/commit/bb4621bc8a5a10a03f9312c9ca52a7cacdac6444))
+* update test and change QueryHeader path :bug: ([c8b539f](https://github.com/LerianStudio/midaz/commit/c8b539f4b049633e6e6ad7e76b4d990e22c943f6))
+
 ## [1.7.0](https://github.com/LerianStudio/midaz/compare/v1.6.0...v1.7.0) (2024-06-05)
 
 
