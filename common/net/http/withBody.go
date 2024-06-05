@@ -81,7 +81,11 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if len(diffFields) > 0 {
-		return BadRequest(c, fiber.Map{"code": "BAD_REQUEST", "message": "Incoming JSON fields do not match the request payload fields", "fields": diffFields})
+		return BadRequest(c, fiber.Map{
+			"code":    "BAD_REQUEST",
+			"message": "Incoming JSON fields do not match the request payload fields",
+			"fields":  diffFields,
+		})
 	}
 
 	if err := ValidateStruct(s); err != nil {
@@ -168,38 +172,6 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		}
 
 		return name
-	})
-
-	_ = v.RegisterTranslation("CPF", trans, func(ut ut.Translator) error {
-		return ut.Add("CPF", "{0} must be a valid Brazilian CPF", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("CPF", fe.Field())
-
-		return t
-	})
-
-	_ = v.RegisterTranslation("localPhoneNumber", trans, func(ut ut.Translator) error {
-		return ut.Add("localPhoneNumber", "{0} must be a valid phone number without the country code", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("localPhoneNumber", fe.Field())
-
-		return t
-	})
-
-	_ = v.RegisterTranslation("phoneNumber", trans, func(ut ut.Translator) error {
-		return ut.Add("phoneNumber", "{0} must be a valid phone number", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("phoneNumber", fe.Field())
-
-		return t
-	})
-
-	_ = v.RegisterTranslation("countryCode", trans, func(ut ut.Translator) error {
-		return ut.Add("countryCode", "{0} must be a valid countryCode registered in https://countrycode.org", true)
-	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("countryCode", fe.Field())
-
-		return t
 	})
 
 	return v, trans
