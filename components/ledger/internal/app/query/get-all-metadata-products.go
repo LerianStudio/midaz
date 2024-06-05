@@ -7,13 +7,14 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataProducts fetch all Products from the repository
-func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*r.Product, error) {
+func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving products")
 

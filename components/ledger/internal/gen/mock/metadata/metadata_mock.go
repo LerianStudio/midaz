@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	common "github.com/LerianStudio/midaz/common"
+	http "github.com/LerianStudio/midaz/common/net/http"
 	metadata "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -85,7 +85,7 @@ func (mr *MockRepositoryMockRecorder) FindByEntity(arg0, arg1, arg2 any) *gomock
 }
 
 // FindList mocks base method.
-func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 common.QueryHeader) ([]*metadata.Metadata, error) {
+func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 http.QueryHeader) ([]*metadata.Metadata, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindList", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*metadata.Metadata)
@@ -93,7 +93,7 @@ func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 common
 	return ret0, ret1
 }
 
-// FindList indicates an expected call of FindList.
+// FindList indicates an expected call of FindList.z
 func (mr *MockRepositoryMockRecorder) FindList(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), arg0, arg1, arg2)

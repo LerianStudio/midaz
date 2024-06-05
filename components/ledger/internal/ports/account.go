@@ -1,7 +1,6 @@
 package ports
 
 import (
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -53,7 +52,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID)
 
-	headerParams := common.ValidateParameters(c.Queries())
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,

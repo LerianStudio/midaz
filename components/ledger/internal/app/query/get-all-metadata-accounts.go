@@ -7,13 +7,14 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataAccounts fetch all Accounts from the repository
-func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID, portfolioID string, filter common.QueryHeader) ([]*a.Account, error) {
+func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID, portfolioID string, filter commonHTTP.QueryHeader) ([]*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving accounts")
 

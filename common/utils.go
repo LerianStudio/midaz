@@ -3,10 +3,7 @@ package common
 import (
 	"slices"
 	"strconv"
-	"strings"
 	"unicode"
-
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.
@@ -129,39 +126,4 @@ func ValidateCurrency(code string) error {
 	}
 
 	return nil
-}
-
-// QueryHeader entity from query parameter from get apis
-type QueryHeader struct {
-	Metadata *bson.M
-	Limit    int
-	Page     int
-}
-
-// ValidateParameters validate and return struct of default parameters
-func ValidateParameters(params map[string]string) *QueryHeader {
-	var metadata *bson.M
-
-	limit := 10
-
-	page := 1
-
-	for key, value := range params {
-		switch {
-		case strings.Contains(key, "metadata."):
-			metadata = &bson.M{key: value}
-		case strings.Contains(key, "limit"):
-			limit, _ = strconv.Atoi(value)
-		case strings.Contains(key, "page"):
-			page, _ = strconv.Atoi(value)
-		}
-	}
-
-	query := &QueryHeader{
-		Metadata: metadata,
-		Limit:    limit,
-		Page:     page,
-	}
-
-	return query
 }

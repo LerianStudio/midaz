@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
+
 	"github.com/LerianStudio/midaz/common/mmongo"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -57,7 +59,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 }
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
-func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter common.QueryHeader) ([]*m.Metadata, error) {
+func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter commonHTTP.QueryHeader) ([]*m.Metadata, error) {
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
 		return nil, err
@@ -65,9 +67,13 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
-	limit := int64(filter.Limit)
-	skip := int64(filter.Page*filter.Limit - filter.Limit)
-	opts := options.FindOptions{Limit: &limit, Skip: &skip}
+	opts := options.FindOptions{}
+
+	if filter.UseMetadata {
+		limit := int64(filter.Limit)
+		skip := int64(filter.Page*filter.Limit - filter.Limit)
+		opts = options.FindOptions{Limit: &limit, Skip: &skip}
+	}
 
 	cur, err := coll.Find(ctx, filter.Metadata, &opts)
 	if err != nil {

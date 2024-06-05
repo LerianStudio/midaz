@@ -3,7 +3,6 @@ package ports
 import (
 	"os"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -70,7 +69,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	organizationID := c.Params("organization_id")
 
-	headerParams := common.ValidateParameters(c.Queries())
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
