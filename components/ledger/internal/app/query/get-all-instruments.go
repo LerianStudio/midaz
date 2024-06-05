@@ -7,13 +7,14 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/google/uuid"
 )
 
 // GetAllInstruments fetch all Instrument from the repository
-func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID, ledgerID string, filter common.QueryHeader) ([]*i.Instrument, error) {
+func (uc *UseCase) GetAllInstruments(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*i.Instrument, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving instruments")
 

@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"testing"
 
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
@@ -19,7 +19,7 @@ import (
 // TestGetAllMetadataAccounts is responsible to test TestGetAllMetadataAccounts with success and error
 func TestGetAllMetadataAccounts(t *testing.T) {
 	collection := reflect.TypeOf(a.Account{}).Name()
-	filter := common.QueryHeader{
+	filter := commonHTTP.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
 		Page:     1,

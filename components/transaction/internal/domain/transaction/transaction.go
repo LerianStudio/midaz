@@ -38,6 +38,13 @@ func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
 
+// InputDSL is a struct design to encapsulate payload data.
+type InputDSL struct {
+	TransactionType     uuid.UUID      `json:"transactionType"`
+	TransactionTypeCode string         `json:"transactionTypeCode"`
+	Variables           map[string]any `json:"variables,omitempty"`
+}
+
 // Transaction is a struct designed to encapsulate response payload data.
 type Transaction struct {
 	ID                       string         `json:"id"`

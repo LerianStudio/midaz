@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"testing"
 
+	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
@@ -19,7 +19,7 @@ import (
 // TestGetAllMetadataProducts is responsible to test TestGetAllMetadataProducts with success and error
 func TestGetAllMetadataProducts(t *testing.T) {
 	collection := reflect.TypeOf(p.Product{}).Name()
-	filter := common.QueryHeader{
+	filter := commonHTTP.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
 		Page:     1,
