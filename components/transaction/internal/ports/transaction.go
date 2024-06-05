@@ -88,6 +88,7 @@ func (handler *TransactionHandler) ValidateTransaction(ctx *fiber.Ctx) error {
 	})
 }
 
+// ParserTransactionTemplate method responsible for validate transaction template
 func (handler *TransactionHandler) ParserTransactionTemplate(ctx *fiber.Ctx) error {
 	fileHeader, err := ctx.FormFile("dsl")
 	if err != nil {

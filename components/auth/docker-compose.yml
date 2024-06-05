@@ -177,7 +177,7 @@ services:
       timeout: 5s
       retries: 5
   
-  mailslurper: #simulate email verification steps
+  mailslurper:
     image: oryd/mailslurper:latest-smtps
     ports:
       - "4436:4436"
