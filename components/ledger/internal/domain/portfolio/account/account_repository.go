@@ -15,6 +15,7 @@ type Repository interface {
 	Find(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*Account, error)
 	FindByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, ids []uuid.UUID) ([]*Account, error)
+	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*Account, error)
 	Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, account *Account) (*Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error
 }
