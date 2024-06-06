@@ -5,17 +5,18 @@ package gen
 
 import (
 	"fmt"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
-	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	httpHandler "github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/google/wire"
@@ -60,10 +61,12 @@ var (
 		httpHandler.NewRouter,
 		service.NewServer,
 		postgres.NewTransactionPostgreSQLRepository,
+		postgres.NewOperationPostgreSQLRepository,
 		wire.Struct(new(ports.TransactionHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),
+		wire.Bind(new(o.Repository), new(*postgres.OperationPostgreSQLRepository)),
 	)
 
 	svcSet = wire.NewSet(

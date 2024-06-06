@@ -86,18 +86,18 @@ func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3 any) *gomock.C
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3, arg4 int) ([]*operation.Operation, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4, arg5 int) ([]*operation.Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].([]*operation.Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAll indicates an expected call of FindAll.
-func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 // ListByIDs mocks base method.

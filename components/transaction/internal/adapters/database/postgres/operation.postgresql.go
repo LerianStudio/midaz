@@ -96,7 +96,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *o
 }
 
 // FindAll retrieves Operations entities from the database.
-func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*o.Operation, error) {
+func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, limit, page int) ([]*o.Operation, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -108,6 +108,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		From(r.tableName).
 		Where(sqrl.Expr("organization_id = ?", organizationID)).
 		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Expr("transaction_id = ?", transactionID)).
 		Where(sqrl.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(uint64(limit)).

@@ -1,6 +1,8 @@
 package ports
 
 import (
+	"net/http"
+
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -9,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
-	"net/http"
 )
 
 type TransactionHandler struct {
