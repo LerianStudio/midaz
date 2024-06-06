@@ -1,15 +1,15 @@
 package ports
 
 import (
-	"net/http"
-
 	"github.com/LerianStudio/midaz/common/gold/transaction"
+	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
+	"net/http"
 )
 
 type TransactionHandler struct {
@@ -42,11 +42,24 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	tran := transaction.Parse(dsl)
+	parsed := transaction.Parse(dsl)
 
 	logger.Infof("Transaction parsed and validated")
 
-	return commonHTTP.Created(c, tran)
+	transactionParsed, ok := parsed.(gold.Transaction)
+	if !ok {
+		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
+	}
+
+	//status = {"CREATED", "APPROVED", "PRE_APPROVED", "SENT", "CANCELED", "DECLINED"}
+
+	entity, err := handler.Command.CreateTransaction(c.Context(), &transactionParsed)
+	if err != nil {
+		logger.Error("Failed to create transaction", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	return commonHTTP.Created(c, entity)
 }
 
 // CreateTransactionTemplate method that create transaction template
