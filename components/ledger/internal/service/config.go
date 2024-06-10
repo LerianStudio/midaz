@@ -1,7 +1,7 @@
 package service
 
 import (
-	common "github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common"
 )
 
 // Config is the top level configuration struct for the entire application.
@@ -25,7 +25,7 @@ type Config struct {
 	MongoDBPort       string `env:"MONGO_PORT"`
 }
 
-// NewConfig creates a instance of Config.
+// NewConfig creates an instance of Config.
 func NewConfig() *Config {
 	cfg := &Config{}
 
