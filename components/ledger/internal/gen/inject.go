@@ -5,8 +5,17 @@ package gen
 
 import (
 	"fmt"
+	"sync"
+
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmongo"
+	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -14,16 +23,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
-	"sync"
-
-	"github.com/LerianStudio/midaz/common/mmongo"
-
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/mzap"
-	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
-	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	"github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	httpHandler "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/google/wire"
@@ -68,6 +67,7 @@ var (
 		service.NewConfig,
 		httpHandler.NewRouter,
 		service.NewServer,
+		service.NewServerGRPC,
 		postgres.NewOrganizationPostgreSQLRepository,
 		postgres.NewLedgerPostgreSQLRepository,
 		postgres.NewInstrumentPostgreSQLRepository,
@@ -93,7 +93,7 @@ var (
 	)
 
 	svcSet = wire.NewSet(
-		wire.Struct(new(service.Service), "Server", "Logger"),
+		wire.Struct(new(service.Service), "Server", "ServerGRPC", "Logger"),
 	)
 )
 
