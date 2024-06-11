@@ -67,19 +67,18 @@ var (
 // InitLocalEnvConfig load a .env file to set up local environment vars
 // It's called once per application process.
 func InitLocalEnvConfig() *LocalEnvConfig {
-	version := GetenvOrDefault("VERSION", "NO-VERSION")
-	fmt.Println(console.Title("MIDAZ Version: \u001B[31m" + version + "\u001B[0m"))
-
 	fmt.Println(console.Title("InitLocalEnvConfig"))
 
+	version := GetenvOrDefault("VERSION", "NO-VERSION")
 	envName := GetenvOrDefault("ENV_NAME", "local")
 
-	fmt.Printf("ENVIRONMENT NAME \u001B[31m(%s)\u001B[0m\n", envName)
+	fmt.Printf("MIDAZ VERSION: \u001B[31m%s\u001B[0m\n", version)
+	fmt.Printf("ENVIRONMENT NAME: \u001B[31m(%s)\u001B[0m\n", envName)
 
 	if envName == "local" {
 		localEnvConfigOnce.Do(func() {
 			if err := godotenv.Load(); err != nil {
-				fmt.Println("Skipping .env file. Current env ", envName)
+				fmt.Println("Skipping \u001B[31m.env\u001B[0m file, using env", envName)
 
 				localEnvConfig = &LocalEnvConfig{
 					Initialized: false,
