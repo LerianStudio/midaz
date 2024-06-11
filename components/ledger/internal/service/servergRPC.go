@@ -2,11 +2,15 @@ package service
 
 import (
 	"fmt"
+	protoHandler "github.com/LerianStudio/midaz/components/ledger/internal/ports/grcp"
+	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
+	"google.golang.org/grpc/reflection"
+	"net"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"net"
 )
 
 // ServerGRPC represents the gRPC server for Ledger service.
@@ -26,28 +30,31 @@ func (s *ServerGRPC) ProtoAddress() string {
 func NewServerGRPC(cfg *Config, logger mlog.Logger) *ServerGRPC {
 	server := grpc.NewServer()
 
-	listener, err := net.Listen("tcp4", cfg.ProtoAddress)
+	listen, err := net.Listen("tcp4", cfg.ProtoAddress)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
 
+	reflection.Register(server)
+
+	accountService := protoHandler.NewAccountService()
+
+	proto.RegisterAccountServiceServer(server, accountService)
+
 	return &ServerGRPC{
-		listener:     &listener,
+		listener:     &listen,
 		server:       server,
 		protoAddress: cfg.ProtoAddress,
 		Logger:       logger,
 	}
 }
 
-// Run start gRPC server.
+// Run gRPC server.
 func (s *ServerGRPC) Run(l *common.Launcher) error {
 	err := s.server.Serve(*s.listener)
 	if err != nil {
 		return errors.Wrap(err, "failed to run the gRPC server")
 	}
-	info := s.server.GetServiceInfo()
-
-	fmt.Print(info)
 
 	return nil
 }

@@ -67,6 +67,9 @@ var (
 // InitLocalEnvConfig load a .env file to set up local environment vars
 // It's called once per application process.
 func InitLocalEnvConfig() *LocalEnvConfig {
+	version := GetenvOrDefault("VERSION", "NO-VERSION")
+	fmt.Println(console.Title("MIDAZ Version: \u001B[31m" + version + "\u001B[0m"))
+
 	fmt.Println(console.Title("InitLocalEnvConfig"))
 
 	envName := GetenvOrDefault("ENV_NAME", "local")
