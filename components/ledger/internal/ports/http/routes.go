@@ -16,7 +16,9 @@ import (
 
 // NewRouter registers routes to the Server.
 func NewRouter(ah *ports.AccountHandler, ph *ports.PortfolioHandler, lh *ports.LedgerHandler, ih *ports.InstrumentHandler, oh *ports.OrganizationHandler, rh *ports.ProductHandler) *fiber.App {
-	f := fiber.New()
+	f := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
+	})
 
 	_ = service.NewConfig()
 
