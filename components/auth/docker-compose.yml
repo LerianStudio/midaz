@@ -8,6 +8,27 @@ x-postgres-common:
     - app-tier
 
 services:
+  keto:
+    container_name: midaz-auth-keto
+    image: oryd/keto:v0.11.1-alpha.0
+    links:
+      - keto-db:keto-db
+    command: serve -c /etc/keto/config/keto.yml all
+    volumes:
+      - type: bind
+        source: ../../config/auth
+        target: /etc/keto/config
+    ports:
+      - "4466:4466"
+      - "4467:4467"
+    depends_on:
+      - keto-migrate
+    environment:
+      - DSN=postgres://${KETO_DB_USER}:${KETO_DB_PASSWORD}@keto-db:${KETO_DB_PORT}/${KETO_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+    restart: on-failure
+    networks:
+      - app-tier
+
   keto-db:
     <<: *postgres-common
     container_name: midaz-auth-keto-db
@@ -22,7 +43,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      
+
+  keto-migrate:
+    container_name: midaz-auth-keto-migrate
+    image: oryd/keto:v0.12.0-alpha.0
+    links:
+      - keto-db:keto-db
+    volumes:
+      - type: bind
+        source: ../../config/auth
+        target: /home/ory
+    environment:
+      - LOG_LEVEL=debug
+      - DSN=postgres://${KETO_DB_USER}:${KETO_DB_PASSWORD}@keto-db:${KETO_DB_PORT}/${KETO_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+    command: ["migrate", "up", "-y"]
+    restart: on-failure
+    networks:
+      - app-tier
+
   kratos:
     container_name: midaz-auth-kratos
     image: oryd/kratos:v1.1.0
@@ -51,6 +89,21 @@ services:
         target: /etc/kratos/identity-schemas
     networks:
       - app-tier
+
+  kratos-db:
+    <<: *postgres-common
+    container_name: midaz-auth-kratos-db
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=${KRATOS_DB_USER}
+      - POSTGRES_PASSWORD=${KRATOS_DB_PASSWORD}
+      - POSTGRES_DB=${KRATOS_DB_NAME}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${KRATOS_DB_USER} -d ${KRATOS_DB_NAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kratos-migrate:
     depends_on:
@@ -92,75 +145,6 @@ services:
         target: /etc/hydra/config
     networks:
       - app-tier
-  
-  hydra-migrate:
-    depends_on:
-      - hydra-db
-      - kratos-migrate
-    container_name: midaz-auth-hydra-migrate
-    image: oryd/hydra:v2.2.0
-    env_file:
-      - .env
-    environment:
-      - DSN=postgres://${HYDRA_DB_USER}:${HYDRA_DB_PASSWORD}@hydra-db:${HYDRA_DB_PORT}/${HYDRA_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
-      - SECRETS_SYSTEM=${HYDRA_SYSTEM_SECRET}
-    restart: on-failure
-    command: migrate sql -e --yes
-    networks:
-      - app-tier
-  
-  keto:
-    container_name: midaz-auth-keto
-    image: oryd/keto:v0.11.1-alpha.0
-    links:
-      - keto-db:keto-db
-    command: serve -c /etc/keto/config/keto.yml all
-    volumes:
-      - type: bind
-        source: ../../config/auth
-        target: /etc/keto/config
-    ports:
-      - "4466:4466"
-      - "4467:4467"
-    depends_on:
-      - keto-migrate
-    environment:
-      - DSN=postgres://${KETO_DB_USER}:${KETO_DB_PASSWORD}@keto-db:${KETO_DB_PORT}/${KETO_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
-    restart: on-failure
-    networks:
-      - app-tier
-
-  keto-migrate:
-    container_name: midaz-auth-keto-migrate
-    image: oryd/keto:v0.12.0-alpha.0
-    links:
-      - keto-db:keto-db
-    volumes:
-      - type: bind
-        source: ../../config/auth
-        target: /home/ory
-    environment:
-      - LOG_LEVEL=debug
-      - DSN=postgres://${KETO_DB_USER}:${KETO_DB_PASSWORD}@keto-db:${KETO_DB_PORT}/${KETO_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
-    command: ["migrate", "up", "-y"]
-    restart: on-failure
-    networks:
-      - app-tier
-
-  kratos-db:
-    <<: *postgres-common
-    container_name: midaz-auth-kratos-db
-    ports:
-      - "5434:5432"
-    environment:
-      - POSTGRES_USER=${KRATOS_DB_USER}
-      - POSTGRES_PASSWORD=${KRATOS_DB_PASSWORD}
-      - POSTGRES_DB=${KRATOS_DB_NAME}
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${KRATOS_DB_USER} -d ${KRATOS_DB_NAME}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   hydra-db:
     <<: *postgres-common
@@ -176,6 +160,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  hydra-migrate:
+    depends_on:
+      - hydra-db
+      - kratos-migrate
+    container_name: midaz-auth-hydra-migrate
+    image: oryd/hydra:v2.2.0
+    env_file:
+      - .env
+    environment:
+      - DSN=postgres://${HYDRA_DB_USER}:${HYDRA_DB_PASSWORD}@hydra-db:${HYDRA_DB_PORT}/${HYDRA_DB_NAME}?sslmode=disable&max_conns=20&max_idle_conns=4
+      - SECRETS_SYSTEM=${HYDRA_SYSTEM_SECRET}
+    restart: on-failure
+    command: migrate sql -e --yes
+    networks:
+      - app-tier
   
   # mailslurper:
   #   container_name: midaz-auth-mailslurper
