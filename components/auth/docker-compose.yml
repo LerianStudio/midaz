@@ -78,8 +78,8 @@ services:
       - kratos-db
       - kratos-migrate
     ports:
-      - "4433:4433" #public port
-      - "4434:4434" #admin port
+      - '4433:4433' # public
+      - '4434:4434' # admin
     volumes:
       - type: bind
         source: ../../config/auth
