@@ -32,33 +32,33 @@ x-redis-common:
     - app-tier
 
 services:
-  ledger:
-    container_name: midaz-ledger
-    build:
-      context: ../../
-      dockerfile: ./components/ledger/Dockerfile
-    env_file:
-      - .env
-    links:
-      - redis
-      - mongodb
-      - primary-ledger
-      - replica-ledger
-    ports:
-      - ${SERVER_PORT}:${SERVER_PORT}
-    volumes:
-      - .:/usr/src/app
-    depends_on:
-      redis:
-        condition: service_started
-      mongodb:
-        condition: service_healthy
-      primary-ledger:
-        condition: service_healthy
-      replica-ledger:
-        condition: service_healthy
-    networks:
-      - app-tier
+  # ledger:
+  #   container_name: midaz-ledger
+  #   build:
+  #     context: ../../
+  #     dockerfile: ./components/ledger/Dockerfile
+  #   env_file:
+  #     - .env
+  #   links:
+  #     - redis
+  #     - mongodb
+  #     - primary-ledger
+  #     - replica-ledger
+  #   ports:
+  #     - ${SERVER_PORT}:${SERVER_PORT}
+  #   volumes:
+  #     - .:/usr/src/app
+  #   depends_on:
+  #     redis:
+  #       condition: service_started
+  #     mongodb:
+  #       condition: service_healthy
+  #     primary-ledger:
+  #       condition: service_healthy
+  #     replica-ledger:
+  #       condition: service_healthy
+  #   networks:
+  #     - app-tier
 
   mongodb:
     <<: *mongodb-common
