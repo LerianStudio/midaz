@@ -41,7 +41,6 @@ services:
     volumes:
       - ./my-realm.json:/opt/keycloak/data/import/my-realm.json
 
-
 volumes:
   data:
 
