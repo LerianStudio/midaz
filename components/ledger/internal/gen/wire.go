@@ -5,6 +5,8 @@ package gen
 
 import (
 	"fmt"
+	"sync"
+
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
@@ -14,8 +16,8 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
-	"sync"
 
+	"github.com/LerianStudio/midaz/common/mauth"
 	"github.com/LerianStudio/midaz/common/mmongo"
 
 	"github.com/LerianStudio/midaz/common"
@@ -67,6 +69,7 @@ var (
 		setupMongoDBConnection,
 		service.NewConfig,
 		httpHandler.NewRouter,
+		mauth.NewAuthClient,
 		service.NewServer,
 		postgres.NewOrganizationPostgreSQLRepository,
 		postgres.NewLedgerPostgreSQLRepository,
