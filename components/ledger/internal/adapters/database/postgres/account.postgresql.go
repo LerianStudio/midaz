@@ -458,3 +458,56 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	return nil
 }
+
+// ListAccountsByIDs list Accounts entity from the database using the provided IDs.
+func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var accounts []*a.Account
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var acc a.AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.InstrumentCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.ProductID,
+			&acc.AvailableBalance,
+			&acc.OnHoldBalance,
+			&acc.BalanceScale,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.AllowSending,
+			&acc.AllowReceiving,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
