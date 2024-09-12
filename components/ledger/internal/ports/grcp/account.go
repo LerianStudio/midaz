@@ -2,29 +2,51 @@ package grcp
 
 import (
 	"context"
-	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
+	"github.com/google/uuid"
 )
 
 type AccountService struct {
 	proto.UnimplementedAccountServiceServer
+	Command *command.UseCase
+	Query   *query.UseCase
 }
 
 func NewAccountService() *AccountService {
 	return &AccountService{}
 }
 
-func (account *AccountService) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) (*proto.ManyAccountsResponse, error) {
+func (as *AccountService) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) (*proto.ManyAccountsResponse, error) {
+	logger := mlog.NewLoggerFromContext(ctx)
 
-	a := proto.Account{
-		ID:    uuid.NewString(),
-		Alias: "Teste",
+	uuids := make([]uuid.UUID, len(ids.Ids))
+	for i, id := range ids.Ids {
+		uuids[i] = uuid.MustParse(id.Id)
+	}
+
+	acc, err := as.Query.ListAccountsByIDs(ctx, uuids)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
+		return nil, err
 	}
 
 	var accounts []*proto.Account
-
-	accounts = append(accounts, &a)
+	for _, a := range acc {
+		ac := proto.Account{
+			ID:               a.ID,
+			Alias:            *a.Alias,
+			AvailableBalance: *a.Balance.Available,
+			OnHoldBalance:    *a.Balance.OnHold,
+			BalanceScale:     *a.Balance.Scale,
+			AllowSending:     a.Status.AllowSending,
+			AllowReceiving:   a.Status.AllowReceiving,
+		}
+		accounts = append(accounts, &ac)
+	}
 
 	response := proto.ManyAccountsResponse{
 		Accounts: accounts,

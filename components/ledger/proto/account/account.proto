@@ -15,9 +15,9 @@ message AccountAlias {
 message Account {
   string ID = 1;
   string alias = 2;
-  float  available_balance = 3;
-  float  on_hold_balance = 4;
-  float  balance_scale = 5;
+  double  available_balance = 3;
+  double  on_hold_balance = 4;
+  double  balance_scale = 5;
   bool   allow_sending= 6;
   bool   allow_receiving = 7;
 }
@@ -25,9 +25,9 @@ message Account {
 message UpdateRequest {
   string ID = 1;
   string alias = 2;
-  float  available_balance = 3;
-  float  on_hold_balance = 4;
-  float  balance_scale = 5;
+  double  available_balance = 3;
+  double  on_hold_balance = 4;
+  double  balance_scale = 5;
 }
 
 message ManyAccountsResponse {
