@@ -556,7 +556,7 @@ var file_proto_account_account_proto_rawDesc = []byte{
 	0x12, 0x12, 0x0a, 0x04, 0x70, 0x61, 0x67, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x04,
 	0x70, 0x61, 0x67, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x18, 0x04, 0x20,
 	0x01, 0x28, 0x03, 0x52, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74, 0x32, 0xa6, 0x02, 0x0a, 0x0e, 0x41,
-	0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x44, 0x0a,
+	0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x48, 0x61, 0x6e, 0x64, 0x6c, 0x65, 0x72, 0x12, 0x44, 0x0a,
 	0x08, 0x47, 0x65, 0x74, 0x42, 0x79, 0x49, 0x64, 0x73, 0x12, 0x17, 0x2e, 0x61, 0x63, 0x63, 0x6f,
 	0x75, 0x6e, 0x74, 0x2e, 0x4d, 0x61, 0x6e, 0x79, 0x41, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73,
 	0x49, 0x44, 0x1a, 0x1d, 0x2e, 0x61, 0x63, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x2e, 0x4d, 0x61, 0x6e,
@@ -605,14 +605,14 @@ var file_proto_account_account_proto_depIdxs = []int32{
 	2, // 0: account.ManyAccountsResponse.accounts:type_name -> account.Account
 	0, // 1: account.ManyAccountsID.ids:type_name -> account.AccountID
 	1, // 2: account.ManyAccountsAlias.alias:type_name -> account.AccountAlias
-	5, // 3: account.AccountService.GetByIds:input_type -> account.ManyAccountsID
-	6, // 4: account.AccountService.GetByAlias:input_type -> account.ManyAccountsAlias
-	3, // 5: account.AccountService.Update:input_type -> account.UpdateRequest
-	7, // 6: account.AccountService.GetByFilters:input_type -> account.GetByFiltersRequest
-	4, // 7: account.AccountService.GetByIds:output_type -> account.ManyAccountsResponse
-	4, // 8: account.AccountService.GetByAlias:output_type -> account.ManyAccountsResponse
-	2, // 9: account.AccountService.Update:output_type -> account.Account
-	4, // 10: account.AccountService.GetByFilters:output_type -> account.ManyAccountsResponse
+	5, // 3: account.AccountHandler.GetByIds:input_type -> account.ManyAccountsID
+	6, // 4: account.AccountHandler.GetByAlias:input_type -> account.ManyAccountsAlias
+	3, // 5: account.AccountHandler.Update:input_type -> account.UpdateRequest
+	7, // 6: account.AccountHandler.GetByFilters:input_type -> account.GetByFiltersRequest
+	4, // 7: account.AccountHandler.GetByIds:output_type -> account.ManyAccountsResponse
+	4, // 8: account.AccountHandler.GetByAlias:output_type -> account.ManyAccountsResponse
+	2, // 9: account.AccountHandler.Update:output_type -> account.Account
+	4, // 10: account.AccountHandler.GetByFilters:output_type -> account.ManyAccountsResponse
 	7, // [7:11] is the sub-list for method output_type
 	3, // [3:7] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name

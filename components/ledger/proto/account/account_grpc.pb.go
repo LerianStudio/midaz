@@ -19,204 +19,204 @@ import (
 const _ = grpc.SupportPackageIsVersion8
 
 const (
-	AccountService_GetByIds_FullMethodName     = "/account.AccountService/GetByIds"
-	AccountService_GetByAlias_FullMethodName   = "/account.AccountService/GetByAlias"
-	AccountService_Update_FullMethodName       = "/account.AccountService/Update"
-	AccountService_GetByFilters_FullMethodName = "/account.AccountService/GetByFilters"
+	AccountHandler_GetByIds_FullMethodName     = "/account.AccountHandler/GetByIds"
+	AccountHandler_GetByAlias_FullMethodName   = "/account.AccountHandler/GetByAlias"
+	AccountHandler_Update_FullMethodName       = "/account.AccountHandler/Update"
+	AccountHandler_GetByFilters_FullMethodName = "/account.AccountHandler/GetByFilters"
 )
 
-// AccountServiceClient is the client API for AccountService service.
+// AccountHandlerClient is the client API for AccountHandler service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type AccountServiceClient interface {
+type AccountHandlerClient interface {
 	GetByIds(ctx context.Context, in *ManyAccountsID, opts ...grpc.CallOption) (*ManyAccountsResponse, error)
 	GetByAlias(ctx context.Context, in *ManyAccountsAlias, opts ...grpc.CallOption) (*ManyAccountsResponse, error)
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Account, error)
 	GetByFilters(ctx context.Context, in *GetByFiltersRequest, opts ...grpc.CallOption) (*ManyAccountsResponse, error)
 }
 
-type accountServiceClient struct {
+type accountHandlerClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewAccountServiceClient(cc grpc.ClientConnInterface) AccountServiceClient {
-	return &accountServiceClient{cc}
+func NewAccountHandlerClient(cc grpc.ClientConnInterface) AccountHandlerClient {
+	return &accountHandlerClient{cc}
 }
 
-func (c *accountServiceClient) GetByIds(ctx context.Context, in *ManyAccountsID, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
+func (c *accountHandlerClient) GetByIds(ctx context.Context, in *ManyAccountsID, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ManyAccountsResponse)
-	err := c.cc.Invoke(ctx, AccountService_GetByIds_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, AccountHandler_GetByIds_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountServiceClient) GetByAlias(ctx context.Context, in *ManyAccountsAlias, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
+func (c *accountHandlerClient) GetByAlias(ctx context.Context, in *ManyAccountsAlias, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ManyAccountsResponse)
-	err := c.cc.Invoke(ctx, AccountService_GetByAlias_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, AccountHandler_GetByAlias_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountServiceClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Account, error) {
+func (c *accountHandlerClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Account, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Account)
-	err := c.cc.Invoke(ctx, AccountService_Update_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, AccountHandler_Update_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountServiceClient) GetByFilters(ctx context.Context, in *GetByFiltersRequest, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
+func (c *accountHandlerClient) GetByFilters(ctx context.Context, in *GetByFiltersRequest, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ManyAccountsResponse)
-	err := c.cc.Invoke(ctx, AccountService_GetByFilters_FullMethodName, in, out, cOpts...)
+	err := c.cc.Invoke(ctx, AccountHandler_GetByFilters_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// AccountServiceServer is the server API for AccountService service.
-// All implementations must embed UnimplementedAccountServiceServer
+// AccountHandlerServer is the server API for AccountHandler service.
+// All implementations must embed UnimplementedAccountHandlerServer
 // for forward compatibility
-type AccountServiceServer interface {
+type AccountHandlerServer interface {
 	GetByIds(context.Context, *ManyAccountsID) (*ManyAccountsResponse, error)
 	GetByAlias(context.Context, *ManyAccountsAlias) (*ManyAccountsResponse, error)
 	Update(context.Context, *UpdateRequest) (*Account, error)
 	GetByFilters(context.Context, *GetByFiltersRequest) (*ManyAccountsResponse, error)
-	mustEmbedUnimplementedAccountServiceServer()
+	mustEmbedUnimplementedAccountHandlerServer()
 }
 
-// UnimplementedAccountServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedAccountServiceServer struct {
+// UnimplementedAccountHandlerServer must be embedded to have forward compatible implementations.
+type UnimplementedAccountHandlerServer struct {
 }
 
-func (UnimplementedAccountServiceServer) GetByIds(context.Context, *ManyAccountsID) (*ManyAccountsResponse, error) {
+func (UnimplementedAccountHandlerServer) GetByIds(context.Context, *ManyAccountsID) (*ManyAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetByIds not implemented")
 }
-func (UnimplementedAccountServiceServer) GetByAlias(context.Context, *ManyAccountsAlias) (*ManyAccountsResponse, error) {
+func (UnimplementedAccountHandlerServer) GetByAlias(context.Context, *ManyAccountsAlias) (*ManyAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetByAlias not implemented")
 }
-func (UnimplementedAccountServiceServer) Update(context.Context, *UpdateRequest) (*Account, error) {
+func (UnimplementedAccountHandlerServer) Update(context.Context, *UpdateRequest) (*Account, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
 }
-func (UnimplementedAccountServiceServer) GetByFilters(context.Context, *GetByFiltersRequest) (*ManyAccountsResponse, error) {
+func (UnimplementedAccountHandlerServer) GetByFilters(context.Context, *GetByFiltersRequest) (*ManyAccountsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetByFilters not implemented")
 }
-func (UnimplementedAccountServiceServer) mustEmbedUnimplementedAccountServiceServer() {}
+func (UnimplementedAccountHandlerServer) mustEmbedUnimplementedAccountHandlerServer() {}
 
-// UnsafeAccountServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to AccountServiceServer will
+// UnsafeAccountHandlerServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AccountHandlerServer will
 // result in compilation errors.
-type UnsafeAccountServiceServer interface {
-	mustEmbedUnimplementedAccountServiceServer()
+type UnsafeAccountHandlerServer interface {
+	mustEmbedUnimplementedAccountHandlerServer()
 }
 
-func RegisterAccountServiceServer(s grpc.ServiceRegistrar, srv AccountServiceServer) {
-	s.RegisterService(&AccountService_ServiceDesc, srv)
+func RegisterAccountHandlerServer(s grpc.ServiceRegistrar, srv AccountHandlerServer) {
+	s.RegisterService(&AccountHandler_ServiceDesc, srv)
 }
 
-func _AccountService_GetByIds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _AccountHandler_GetByIds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ManyAccountsID)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).GetByIds(ctx, in)
+		return srv.(AccountHandlerServer).GetByIds(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountService_GetByIds_FullMethodName,
+		FullMethod: AccountHandler_GetByIds_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).GetByIds(ctx, req.(*ManyAccountsID))
+		return srv.(AccountHandlerServer).GetByIds(ctx, req.(*ManyAccountsID))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_GetByAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _AccountHandler_GetByAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ManyAccountsAlias)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).GetByAlias(ctx, in)
+		return srv.(AccountHandlerServer).GetByAlias(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountService_GetByAlias_FullMethodName,
+		FullMethod: AccountHandler_GetByAlias_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).GetByAlias(ctx, req.(*ManyAccountsAlias))
+		return srv.(AccountHandlerServer).GetByAlias(ctx, req.(*ManyAccountsAlias))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _AccountHandler_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpdateRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).Update(ctx, in)
+		return srv.(AccountHandlerServer).Update(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountService_Update_FullMethodName,
+		FullMethod: AccountHandler_Update_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).Update(ctx, req.(*UpdateRequest))
+		return srv.(AccountHandlerServer).Update(ctx, req.(*UpdateRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_GetByFilters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _AccountHandler_GetByFilters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetByFiltersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).GetByFilters(ctx, in)
+		return srv.(AccountHandlerServer).GetByFilters(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountService_GetByFilters_FullMethodName,
+		FullMethod: AccountHandler_GetByFilters_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).GetByFilters(ctx, req.(*GetByFiltersRequest))
+		return srv.(AccountHandlerServer).GetByFilters(ctx, req.(*GetByFiltersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// AccountService_ServiceDesc is the grpc.ServiceDesc for AccountService service.
+// AccountHandler_ServiceDesc is the grpc.ServiceDesc for AccountHandler service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var AccountService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "account.AccountService",
-	HandlerType: (*AccountServiceServer)(nil),
+var AccountHandler_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "account.AccountHandler",
+	HandlerType: (*AccountHandlerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "GetByIds",
-			Handler:    _AccountService_GetByIds_Handler,
+			Handler:    _AccountHandler_GetByIds_Handler,
 		},
 		{
 			MethodName: "GetByAlias",
-			Handler:    _AccountService_GetByAlias_Handler,
+			Handler:    _AccountHandler_GetByAlias_Handler,
 		},
 		{
 			MethodName: "Update",
-			Handler:    _AccountService_Update_Handler,
+			Handler:    _AccountHandler_Update_Handler,
 		},
 		{
 			MethodName: "GetByFilters",
-			Handler:    _AccountService_GetByFilters_Handler,
+			Handler:    _AccountHandler_GetByFilters_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
