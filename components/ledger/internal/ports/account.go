@@ -1,18 +1,22 @@
 package ports
 
 import (
+	"context"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
+	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
 type AccountHandler struct {
+	proto.UnimplementedAccountHandlerServer
 	Command *command.UseCase
 	Query   *query.UseCase
 }
@@ -162,4 +166,52 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
 
 	return commonHTTP.NoContent(c)
+}
+
+// GetByIds is a method that retrieves Account information by a given ids.
+func (handler *AccountHandler) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) (*proto.ManyAccountsResponse, error) {
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	uuids := make([]uuid.UUID, len(ids.Ids))
+	for i, id := range ids.Ids {
+		uuids[i] = uuid.MustParse(id.Id)
+	}
+
+	acc, err := handler.Query.ListAccountsByIDs(ctx, uuids)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
+		return nil, err
+	}
+
+	var accounts []*proto.Account
+	for _, a := range acc {
+		ac := proto.Account{
+			ID:               a.ID,
+			Alias:            *a.Alias,
+			AvailableBalance: *a.Balance.Available,
+			OnHoldBalance:    *a.Balance.OnHold,
+			BalanceScale:     *a.Balance.Scale,
+			AllowSending:     a.Status.AllowSending,
+			AllowReceiving:   a.Status.AllowReceiving,
+		}
+		accounts = append(accounts, &ac)
+	}
+
+	response := proto.ManyAccountsResponse{
+		Accounts: accounts,
+	}
+
+	return &response, nil
+}
+
+func (handler *AccountHandler) GetByAlias(ctx context.Context, alias *proto.ManyAccountsAlias) (*proto.ManyAccountsResponse, error) {
+	return nil, nil
+}
+
+func (handler *AccountHandler) Update(ctx context.Context, update *proto.UpdateRequest) (*proto.Account, error) {
+	return nil, nil
+}
+
+func (handler *AccountHandler) GetByFilters(ctx context.Context, filter *proto.GetByFiltersRequest) (*proto.ManyAccountsResponse, error) {
+	return nil, nil
 }
