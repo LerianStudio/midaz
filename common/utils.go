@@ -133,5 +133,6 @@ func SafeIntToUint64(val int) uint64 {
 	if val < 0 {
 		return uint64(1)
 	}
+
 	return uint64(val)
 }
