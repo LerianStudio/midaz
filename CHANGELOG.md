@@ -1,3 +1,37 @@
+## [1.9.0](https://github.com/LerianStudio/midaz/compare/v1.8.0...v1.9.0) (2024-09-16)
+
+
+### Bug Fixes
+
+* adjust cast of int to uint64 because gosec G115 :bug: ([d1d62fb](https://github.com/LerianStudio/midaz/commit/d1d62fb2f0e76a96dce841d6018abd40e3d88655))
+* Fixing the ory ports - creating organization and group namespace :bug: ([b4a72b4](https://github.com/LerianStudio/midaz/commit/b4a72b4f5aedc2b8763286ffcdad894af3094e01))
+* return statements should not be cuddled if block has more than two lines (wsl) :bug: ([136a780](https://github.com/LerianStudio/midaz/commit/136a780f27bb8f2604461efd058b8208029458ad))
+* updated go.mod and go.sum :bug: ([f8ef00c](https://github.com/LerianStudio/midaz/commit/f8ef00c1d41d68223cdc75780f8a1058cfefac48))
+
+## [1.9.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.3...v1.9.0-beta.4) (2024-09-16)
+
+
+### Bug Fixes
+
+* adjust cast of int to uint64 because gosec G115 :bug: ([d1d62fb](https://github.com/LerianStudio/midaz/commit/d1d62fb2f0e76a96dce841d6018abd40e3d88655))
+* return statements should not be cuddled if block has more than two lines (wsl) :bug: ([136a780](https://github.com/LerianStudio/midaz/commit/136a780f27bb8f2604461efd058b8208029458ad))
+
+## [1.9.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.2...v1.9.0-beta.3) (2024-09-16)
+
+
+### Bug Fixes
+
+* updated go.mod and go.sum :bug: ([f8ef00c](https://github.com/LerianStudio/midaz/commit/f8ef00c1d41d68223cdc75780f8a1058cfefac48))
+
+## [1.9.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.1...v1.9.0-beta.2) (2024-09-16)
+
+## [1.9.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.8.0...v1.9.0-beta.1) (2024-07-02)
+
+
+### Bug Fixes
+
+* Fixing the ory ports - creating organization and group namespace :bug: ([b4a72b4](https://github.com/LerianStudio/midaz/commit/b4a72b4f5aedc2b8763286ffcdad894af3094e01))
+
 ## [1.8.0](https://github.com/LerianStudio/midaz/compare/v1.7.0...v1.8.0) (2024-06-05)
 
 
