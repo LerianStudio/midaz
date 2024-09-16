@@ -93,7 +93,7 @@ func (m *MockRepository) FindList(arg0 context.Context, arg1 string, arg2 http.Q
 	return ret0, ret1
 }
 
-// FindList indicates an expected call of FindList.z
+// FindList indicates an expected call of FindList.
 func (mr *MockRepositoryMockRecorder) FindList(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), arg0, arg1, arg2)
