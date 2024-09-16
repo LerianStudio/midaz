@@ -1,3 +1,10 @@
+## [1.9.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.2...v1.9.0-beta.3) (2024-09-16)
+
+
+### Bug Fixes
+
+* updated go.mod and go.sum :bug: ([f8ef00c](https://github.com/LerianStudio/midaz/commit/f8ef00c1d41d68223cdc75780f8a1058cfefac48))
+
 ## [1.9.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.1...v1.9.0-beta.2) (2024-09-16)
 
 ## [1.9.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.8.0...v1.9.0-beta.1) (2024-07-02)
