@@ -1,12 +1,13 @@
-version: v0.11.1-alpha.0
+version: v0.8.0-alpha.2
 
 log:
   level: debug
 
 namespaces:
   - id: 0
-    name: keto-namespace
-
+    name: group
+  - id: 1
+    name: organization
 serve:
   read:
     host: 0.0.0.0
