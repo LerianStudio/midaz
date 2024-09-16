@@ -19,7 +19,7 @@ require (
 	github.com/zitadel/oidc/v3 v3.25.1
 	go.mongodb.org/mongo-driver v1.16.1
 	go.uber.org/mock v0.4.0
-	golang.org/x/oauth2 v0.21.0
+	golang.org/x/oauth2 v0.23.0
 )
 
 require (
