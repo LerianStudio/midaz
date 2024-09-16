@@ -1,3 +1,11 @@
+## [1.9.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.3...v1.9.0-beta.4) (2024-09-16)
+
+
+### Bug Fixes
+
+* adjust cast of int to uint64 because gosec G115 :bug: ([d1d62fb](https://github.com/LerianStudio/midaz/commit/d1d62fb2f0e76a96dce841d6018abd40e3d88655))
+* return statements should not be cuddled if block has more than two lines (wsl) :bug: ([136a780](https://github.com/LerianStudio/midaz/commit/136a780f27bb8f2604461efd058b8208029458ad))
+
 ## [1.9.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.9.0-beta.2...v1.9.0-beta.3) (2024-09-16)
 
 
