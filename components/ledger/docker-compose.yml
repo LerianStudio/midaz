@@ -108,6 +108,7 @@ services:
       PGPASSWORD: ${REPLICATION_PASSWORD}
     command: |
       bash -c "
+      rm -rf /var/lib/postgresql/data/*
       until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=primary-ledger --port=${DB_PORT}
       do
         echo 'Waiting for primary-ledger to connect...'
