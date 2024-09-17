@@ -49,7 +49,7 @@ message GetByFiltersRequest {
   int64 limit = 4;
 }
 
-service AccountHandler {
+service AccountProto {
   rpc GetByIds(ManyAccountsID) returns (ManyAccountsResponse) {}
   rpc GetByAlias(ManyAccountsAlias) returns (ManyAccountsResponse) {}
   rpc Update(UpdateRequest) returns (Account) {}

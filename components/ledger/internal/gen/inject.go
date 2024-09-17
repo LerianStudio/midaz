@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
+	portsGRPC "github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	httpHandler "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/google/wire"
@@ -64,10 +65,11 @@ var (
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
-		service.NewConfig,
-		httpHandler.NewRouter,
-		service.NewServer,
+		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
+		httpHandler.NewRouter,
+		service.NewConfig,
+		service.NewServer,
 		postgres.NewOrganizationPostgreSQLRepository,
 		postgres.NewLedgerPostgreSQLRepository,
 		postgres.NewInstrumentPostgreSQLRepository,
@@ -75,6 +77,7 @@ var (
 		postgres.NewProductPostgreSQLRepository,
 		postgres.NewAccountPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
+		wire.Struct(new(portsGRPC.AccountProto), "*"),
 		wire.Struct(new(ports.OrganizationHandler), "*"),
 		wire.Struct(new(ports.LedgerHandler), "*"),
 		wire.Struct(new(ports.InstrumentHandler), "*"),

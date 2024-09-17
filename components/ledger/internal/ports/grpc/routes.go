@@ -1,7 +1,6 @@
-package grcp
+package grpc
 
 import (
-	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
 	"google.golang.org/grpc"
@@ -9,11 +8,13 @@ import (
 )
 
 // NewRouterGRPC registers routes to the grpc.
-func NewRouterGRPC(accountHandler *ports.AccountHandler) *grpc.Server {
+func NewRouterGRPC(ap *AccountProto) *grpc.Server {
 	server := grpc.NewServer()
+
 	_ = service.NewConfig()
+
 	reflection.Register(server)
-	proto.RegisterAccountHandlerServer(server, accountHandler)
+	proto.RegisterAccountProtoServer(server, ap)
 
 	return server
 }

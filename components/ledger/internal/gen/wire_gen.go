@@ -24,6 +24,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
+	"github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/google/wire"
@@ -89,7 +90,12 @@ func InitializeService() *service.Service {
 	app := http.NewRouter(accountHandler, portfolioHandler, ledgerHandler, instrumentHandler, organizationHandler, productHandler)
 	logger := mzap.InitializeLogger()
 	server := service.NewServer(config, app, logger)
-	serverGRPC := service.NewServerGRPC(config, logger)
+	accountProto := &grpc.AccountProto{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+	grpcServer := grpc.NewRouterGRPC(accountProto)
+	serverGRPC := service.NewServerGRPC(config, grpcServer, logger)
 	serviceService := &service.Service{
 		Server:     server,
 		ServerGRPC: serverGRPC,
@@ -132,7 +138,7 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
-		setupMongoDBConnection, service.NewConfig, http.NewRouter, service.NewServer, service.NewServerGRPC, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewInstrumentPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, wire.Struct(new(ports.OrganizationHandler), "*"), wire.Struct(new(ports.LedgerHandler), "*"), wire.Struct(new(ports.InstrumentHandler), "*"), wire.Struct(new(ports.PortfolioHandler), "*"), wire.Struct(new(ports.ProductHandler), "*"), wire.Struct(new(ports.AccountHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(instrument.Repository), new(*postgres.InstrumentPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		setupMongoDBConnection, grpc.NewRouterGRPC, service.NewServerGRPC, http.NewRouter, service.NewConfig, service.NewServer, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewInstrumentPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, wire.Struct(new(grpc.AccountProto), "*"), wire.Struct(new(ports.OrganizationHandler), "*"), wire.Struct(new(ports.LedgerHandler), "*"), wire.Struct(new(ports.InstrumentHandler), "*"), wire.Struct(new(ports.PortfolioHandler), "*"), wire.Struct(new(ports.ProductHandler), "*"), wire.Struct(new(ports.AccountHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(instrument.Repository), new(*postgres.InstrumentPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "ServerGRPC", "Logger"))
