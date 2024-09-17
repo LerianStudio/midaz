@@ -108,15 +108,17 @@ services:
       PGPASSWORD: ${REPLICATION_PASSWORD}
     command: |
       bash -c "
-      until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=primary-ledger --port=${DB_PORT}
-      do
-        echo 'Waiting for primary-ledger to connect...'
-        sleep 1s
-      done
-      echo 'Backup done..., starting replica-ledger...'
-      chmod 0700 /var/lib/postgresql/data
-      # Ensure the port is set to 5433 for the replica
-      sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
+      if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
+        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=primary-ledger --port=${DB_PORT}
+        do
+          echo 'Waiting for primary-ledger to connect...'
+          sleep 1s
+        done
+        echo 'Backup done..., starting replica-ledger...'
+        chmod 0700 /var/lib/postgresql/data
+        # Ensure the port is set to 5433 for the replica
+        sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
+      fi
       exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
       "
     healthcheck:
