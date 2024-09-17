@@ -1,3 +1,5 @@
+## [1.9.1-beta.1](https://github.com/LerianStudio/midaz/compare/v1.9.0...v1.9.1-beta.1) (2024-09-17)
+
 ## [1.9.0](https://github.com/LerianStudio/midaz/compare/v1.8.0...v1.9.0) (2024-09-16)
 
 
