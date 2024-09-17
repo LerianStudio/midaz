@@ -22,9 +22,8 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
 	portsGRPC "github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
-	httpHandler "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
+	portsHTTP "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/google/wire"
 )
@@ -67,7 +66,7 @@ var (
 		setupMongoDBConnection,
 		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
-		httpHandler.NewRouter,
+		portsHTTP.NewRouter,
 		service.NewConfig,
 		service.NewServer,
 		postgres.NewOrganizationPostgreSQLRepository,
@@ -77,12 +76,12 @@ var (
 		postgres.NewProductPostgreSQLRepository,
 		postgres.NewAccountPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
-		wire.Struct(new(ports.OrganizationHandler), "*"),
-		wire.Struct(new(ports.LedgerHandler), "*"),
-		wire.Struct(new(ports.InstrumentHandler), "*"),
-		wire.Struct(new(ports.PortfolioHandler), "*"),
-		wire.Struct(new(ports.ProductHandler), "*"),
-		wire.Struct(new(ports.AccountHandler), "*"),
+		wire.Struct(new(portsHTTP.OrganizationHandler), "*"),
+		wire.Struct(new(portsHTTP.LedgerHandler), "*"),
+		wire.Struct(new(portsHTTP.InstrumentHandler), "*"),
+		wire.Struct(new(portsHTTP.PortfolioHandler), "*"),
+		wire.Struct(new(portsHTTP.ProductHandler), "*"),
+		wire.Struct(new(portsHTTP.AccountHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)),

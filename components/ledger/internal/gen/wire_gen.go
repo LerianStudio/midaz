@@ -23,7 +23,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
@@ -63,27 +62,27 @@ func InitializeService() *service.Service {
 		InstrumentRepo:   instrumentPostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
 	}
-	accountHandler := &ports.AccountHandler{
+	accountHandler := &http.AccountHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	portfolioHandler := &ports.PortfolioHandler{
+	portfolioHandler := &http.PortfolioHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	ledgerHandler := &ports.LedgerHandler{
+	ledgerHandler := &http.LedgerHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	instrumentHandler := &ports.InstrumentHandler{
+	instrumentHandler := &http.InstrumentHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	organizationHandler := &ports.OrganizationHandler{
+	organizationHandler := &http.OrganizationHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	productHandler := &ports.ProductHandler{
+	productHandler := &http.ProductHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
@@ -134,7 +133,7 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
-		setupMongoDBConnection, grpc.NewRouterGRPC, service.NewServerGRPC, http.NewRouter, service.NewConfig, service.NewServer, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewInstrumentPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, wire.Struct(new(ports.OrganizationHandler), "*"), wire.Struct(new(ports.LedgerHandler), "*"), wire.Struct(new(ports.InstrumentHandler), "*"), wire.Struct(new(ports.PortfolioHandler), "*"), wire.Struct(new(ports.ProductHandler), "*"), wire.Struct(new(ports.AccountHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(instrument.Repository), new(*postgres.InstrumentPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		setupMongoDBConnection, grpc.NewRouterGRPC, service.NewServerGRPC, http.NewRouter, service.NewConfig, service.NewServer, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewInstrumentPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, wire.Struct(new(http.OrganizationHandler), "*"), wire.Struct(new(http.LedgerHandler), "*"), wire.Struct(new(http.InstrumentHandler), "*"), wire.Struct(new(http.PortfolioHandler), "*"), wire.Struct(new(http.ProductHandler), "*"), wire.Struct(new(http.AccountHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(instrument.Repository), new(*postgres.InstrumentPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "ServerGRPC", "Logger"))
