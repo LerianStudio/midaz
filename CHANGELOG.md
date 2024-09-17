@@ -1,3 +1,11 @@
+## [1.10.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.9.1-beta.1...v1.10.0-beta.1) (2024-09-17)
+
+
+### Bug Fixes
+
+* add clean-up step for existing backup folder in PostgreSQL replica service in docker-compose ([28be466](https://github.com/LerianStudio/midaz/commit/28be466b7dda2f3dd100b73452c90d93ca574eda))
+* ensure pg_basebackup runs if directory or postgresql.conf file is missing ([9f9742e](https://github.com/LerianStudio/midaz/commit/9f9742e39fe223a7cda85252935ea0d1cbbf6b81))
+
 ## [1.9.1-beta.1](https://github.com/LerianStudio/midaz/compare/v1.9.0...v1.9.1-beta.1) (2024-09-17)
 
 ## [1.9.0](https://github.com/LerianStudio/midaz/compare/v1.8.0...v1.9.0) (2024-09-16)
