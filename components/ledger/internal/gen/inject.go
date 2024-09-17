@@ -77,7 +77,6 @@ var (
 		postgres.NewProductPostgreSQLRepository,
 		postgres.NewAccountPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
-		wire.Struct(new(portsGRPC.AccountProto), "*"),
 		wire.Struct(new(ports.OrganizationHandler), "*"),
 		wire.Struct(new(ports.LedgerHandler), "*"),
 		wire.Struct(new(ports.InstrumentHandler), "*"),
