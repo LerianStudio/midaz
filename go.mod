@@ -1,8 +1,7 @@
 module github.com/LerianStudio/midaz
 
 go 1.22
-
-toolchain go1.22.0
+toolchain go1.22.5
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
@@ -44,7 +43,7 @@ require (
 	go.opentelemetry.io/otel v1.29.0 // indirect
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
 	go.opentelemetry.io/otel/trace v1.29.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
+	golang.org/x/tools v0.24.0 // indirect
 )
 
 require (
@@ -74,7 +73,6 @@ require (
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/muhlemmer/gu v0.3.1 // indirect
-	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
@@ -98,7 +96,7 @@ require (
 	github.com/bxcodec/dbresolver/v2 v2.2.0
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/golang-migrate/migrate/v4 v4.17.1
+	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.6.0
 	github.com/iancoleman/strcase v0.3.0
