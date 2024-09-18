@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
@@ -30,24 +31,26 @@ func (ap *AccountProto) GetByIds(ctx context.Context, ids *proto.ManyAccountsID)
 	acc, err := ap.Query.ListAccountsByIDs(ctx, uuids)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
+
 		return nil, common.ValidationError{
 			Code:    "0001",
 			Message: "Failed to retrieve Accounts by ids for grpc",
 		}
 	}
 
-	var accounts []*proto.Account
-	for _, a := range acc {
-		ac := proto.Account{
-			Id:               a.ID,
-			Alias:            *a.Alias,
-			AvailableBalance: *a.Balance.Available,
-			OnHoldBalance:    *a.Balance.OnHold,
-			BalanceScale:     *a.Balance.Scale,
-			AllowSending:     a.Status.AllowSending,
-			AllowReceiving:   a.Status.AllowReceiving,
+	accounts := make([]*proto.Account, len(acc))
+
+	for _, ac := range acc {
+		account := proto.Account{
+			Id:               ac.ID,
+			Alias:            *ac.Alias,
+			AvailableBalance: *ac.Balance.Available,
+			OnHoldBalance:    *ac.Balance.OnHold,
+			BalanceScale:     *ac.Balance.Scale,
+			AllowSending:     ac.Status.AllowSending,
+			AllowReceiving:   ac.Status.AllowReceiving,
 		}
-		accounts = append(accounts, &ac)
+		accounts = append(accounts, &account)
 	}
 
 	response := proto.ManyAccountsResponse{
@@ -68,24 +71,26 @@ func (ap *AccountProto) GetByAlias(ctx context.Context, aliases *proto.ManyAccou
 	acc, err := ap.Query.ListAccountsByAlias(ctx, als)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
+
 		return nil, common.ValidationError{
 			Code:    "0001",
 			Message: "Failed to retrieve Accounts by aliases for grpc",
 		}
 	}
 
-	var accounts []*proto.Account
-	for _, a := range acc {
-		ac := proto.Account{
-			Id:               a.ID,
-			Alias:            *a.Alias,
-			AvailableBalance: *a.Balance.Available,
-			OnHoldBalance:    *a.Balance.OnHold,
-			BalanceScale:     *a.Balance.Scale,
-			AllowSending:     a.Status.AllowSending,
-			AllowReceiving:   a.Status.AllowReceiving,
+	accounts := make([]*proto.Account, len(acc))
+
+	for _, ac := range acc {
+		account := proto.Account{
+			Id:               ac.ID,
+			Alias:            *ac.Alias,
+			AvailableBalance: *ac.Balance.Available,
+			OnHoldBalance:    *ac.Balance.OnHold,
+			BalanceScale:     *ac.Balance.Scale,
+			AllowSending:     ac.Status.AllowSending,
+			AllowReceiving:   ac.Status.AllowReceiving,
 		}
-		accounts = append(accounts, &ac)
+		accounts = append(accounts, &account)
 	}
 
 	response := proto.ManyAccountsResponse{
@@ -100,6 +105,7 @@ func (ap *AccountProto) Update(ctx context.Context, update *proto.UpdateRequest)
 
 	if common.IsNilOrEmpty(&update.Id) {
 		logger.Errorf("Failed to update Accounts because id is empty")
+
 		return nil, common.ValidationError{
 			Code:    "0001",
 			Message: "Failed to update Accounts because id is empty",
@@ -115,6 +121,7 @@ func (ap *AccountProto) Update(ctx context.Context, update *proto.UpdateRequest)
 	acu, err := ap.Command.UpdateAccountByID(ctx, update.Id, &balance)
 	if err != nil {
 		logger.Errorf("Failed to update balance in Account by id for grpc, Error: %s", err.Error())
+
 		return nil, common.ValidationError{
 			Code:    "0002",
 			Message: "Failed to update balance in Account by id for grpc",

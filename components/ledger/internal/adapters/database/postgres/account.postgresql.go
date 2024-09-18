@@ -565,8 +565,8 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, a
 	return accounts, nil
 }
 
-// UpdateAccountById an update Account entity by ID only into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) UpdateAccountById(ctx context.Context, id uuid.UUID, account *a.Account) (*a.Account, error) {
+// UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
+func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id uuid.UUID, account *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -591,13 +591,11 @@ func (r *AccountPostgreSQLRepository) UpdateAccountById(ctx context.Context, id 
 	}
 
 	record.UpdatedAt = time.Now()
+
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 	args = append(args, record.UpdatedAt, id)
 
 	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-		//` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
-		//` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
-		//` AND portfolio_id = $` + strconv.Itoa(len(args)-1) +
 		` WHERE id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 

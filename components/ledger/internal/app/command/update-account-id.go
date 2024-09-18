@@ -22,7 +22,7 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, id string, balance *a.
 		Balance: *balance,
 	}
 
-	accountUpdated, err := uc.AccountRepo.UpdateAccountById(ctx, uuid.MustParse(id), account)
+	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, uuid.MustParse(id), account)
 	if err != nil {
 		logger.Errorf("Error updating account on repo by id: %v", err)
 

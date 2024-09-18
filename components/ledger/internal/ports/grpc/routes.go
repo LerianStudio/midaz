@@ -10,7 +10,7 @@ import (
 )
 
 // NewRouterGRPC registers routes to the grpc.
-func NewRouterGRPC(command *command.UseCase, query *query.UseCase) *grpc.Server {
+func NewRouterGRPC(cuc *command.UseCase, quc *query.UseCase) *grpc.Server {
 	server := grpc.NewServer()
 
 	_ = service.NewConfig()
@@ -18,8 +18,8 @@ func NewRouterGRPC(command *command.UseCase, query *query.UseCase) *grpc.Server 
 	reflection.Register(server)
 
 	ap := &AccountProto{
-		Command: command,
-		Query:   query,
+		Command: cuc,
+		Query:   quc,
 	}
 
 	proto.RegisterAccountProtoServer(server, ap)

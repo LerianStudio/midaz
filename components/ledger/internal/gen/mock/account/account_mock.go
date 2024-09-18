@@ -190,17 +190,17 @@ func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4, arg5 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-// UpdateAccountById mocks base method.
-func (m *MockRepository) UpdateAccountById(arg0 context.Context, arg1 uuid.UUID, arg2 *account.Account) (*account.Account, error) {
+// UpdateAccountByID mocks base method.
+func (m *MockRepository) UpdateAccountByID(arg0 context.Context, arg1 uuid.UUID, arg2 *account.Account) (*account.Account, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAccountById", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateAccountByID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*account.Account)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateAccountById indicates an expected call of UpdateAccountById.
-func (mr *MockRepositoryMockRecorder) UpdateAccountById(arg0, arg1, arg2 any) *gomock.Call {
+// UpdateAccountByID indicates an expected call of UpdateAccountByID.
+func (mr *MockRepositoryMockRecorder) UpdateAccountByID(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccountById", reflect.TypeOf((*MockRepository)(nil).UpdateAccountById), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccountByID", reflect.TypeOf((*MockRepository)(nil).UpdateAccountByID), arg0, arg1, arg2)
 }
