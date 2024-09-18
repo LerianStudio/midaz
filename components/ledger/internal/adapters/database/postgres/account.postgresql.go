@@ -511,3 +511,119 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, ids
 
 	return accounts, nil
 }
+
+// ListAccountsByAlias list Accounts entity from the database using the provided alias.
+func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, aliases []string) ([]*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var accounts []*a.Account
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE alias = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(aliases))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var acc a.AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.InstrumentCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.ProductID,
+			&acc.AvailableBalance,
+			&acc.OnHoldBalance,
+			&acc.BalanceScale,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.AllowSending,
+			&acc.AllowReceiving,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+// UpdateAccountById an update Account entity by ID only into Postgresql and returns the Account updated.
+func (r *AccountPostgreSQLRepository) UpdateAccountById(ctx context.Context, id uuid.UUID, account *a.Account) (*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	record := &a.AccountPostgreSQLModel{}
+	record.FromEntity(account)
+
+	var updates []string
+
+	var args []any
+
+	if !account.Balance.IsEmpty() {
+		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AvailableBalance)
+
+		updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.OnHoldBalance)
+
+		updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.BalanceScale)
+	}
+
+	record.UpdatedAt = time.Now()
+	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	args = append(args, record.UpdatedAt, id)
+
+	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+		//` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+		//` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+		//` AND portfolio_id = $` + strconv.Itoa(len(args)-1) +
+		` WHERE id = $` + strconv.Itoa(len(args)) +
+		` AND deleted_at IS NULL`
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
+		}
+
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	if rowsAffected == 0 {
+		return nil, common.EntityNotFoundError{
+			EntityType: reflect.TypeOf(a.Account{}).Name(),
+			Title:      "Entity not found.",
+			Code:       "0007",
+			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+		}
+	}
+
+	return record.ToEntity(), nil
+}

@@ -3,28 +3,27 @@ syntax = "proto3";
 option go_package = "./account";
 package account;
 
-
 message AccountID {
-  string id = 1;
+  string  id = 1;
 }
 
 message AccountAlias {
-  string alias = 1;
+  string  alias = 1;
 }
 
 message Account {
-  string ID = 1;
-  string alias = 2;
+  string  id = 1;
+  string  alias = 2;
   double  available_balance = 3;
   double  on_hold_balance = 4;
   double  balance_scale = 5;
-  bool   allow_sending= 6;
-  bool   allow_receiving = 7;
+  bool    allow_sending= 6;
+  bool    allow_receiving = 7;
 }
 
 message UpdateRequest {
-  string ID = 1;
-  string alias = 2;
+  string  id = 1;
+  string  alias = 2;
   double  available_balance = 3;
   double  on_hold_balance = 4;
   double  balance_scale = 5;
@@ -39,19 +38,11 @@ message ManyAccountsID {
 }
 
 message ManyAccountsAlias {
-  repeated AccountAlias alias = 1;
-}
-
-message GetByFiltersRequest {
-  string search = 1;
-  string category = 2;
-  int64 page = 3;
-  int64 limit = 4;
+  repeated AccountAlias aliases = 1;
 }
 
 service AccountProto {
   rpc GetByIds(ManyAccountsID) returns (ManyAccountsResponse) {}
   rpc GetByAlias(ManyAccountsAlias) returns (ManyAccountsResponse) {}
   rpc Update(UpdateRequest) returns (Account) {}
-  rpc GetByFilters(GetByFiltersRequest) returns (ManyAccountsResponse) {}
 }

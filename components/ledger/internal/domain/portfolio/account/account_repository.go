@@ -19,4 +19,6 @@ type Repository interface {
 	Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, account *Account) (*Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error
 	ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*Account, error)
+	ListAccountsByAlias(ctx context.Context, aliases []string) ([]*Account, error)
+	UpdateAccountById(ctx context.Context, id uuid.UUID, account *Account) (*Account, error)
 }

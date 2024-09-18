@@ -15,12 +15,13 @@ func NewRouterGRPC(command *command.UseCase, query *query.UseCase) *grpc.Server 
 
 	_ = service.NewConfig()
 
+	reflection.Register(server)
+
 	ap := &AccountProto{
 		Command: command,
 		Query:   query,
 	}
 
-	reflection.Register(server)
 	proto.RegisterAccountProtoServer(server, ap)
 
 	return server
