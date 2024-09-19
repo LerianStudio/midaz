@@ -115,6 +115,51 @@ func (mr *MockRepositoryMockRecorder) FindByAlias(arg0, arg1, arg2, arg3, arg4 a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), arg0, arg1, arg2, arg3, arg4)
 }
 
+// ListAccountsByAlias mocks base method.
+func (m *MockRepository) ListAccountsByAlias(arg0 context.Context, arg1 []string) ([]*account.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAccountsByAlias", arg0, arg1)
+	ret0, _ := ret[0].([]*account.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAccountsByAlias indicates an expected call of ListAccountsByAlias.
+func (mr *MockRepositoryMockRecorder) ListAccountsByAlias(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountsByAlias", reflect.TypeOf((*MockRepository)(nil).ListAccountsByAlias), arg0, arg1)
+}
+
+// ListAccountsByIDs mocks base method.
+func (m *MockRepository) ListAccountsByIDs(arg0 context.Context, arg1 []uuid.UUID) ([]*account.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAccountsByIDs", arg0, arg1)
+	ret0, _ := ret[0].([]*account.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAccountsByIDs indicates an expected call of ListAccountsByIDs.
+func (mr *MockRepositoryMockRecorder) ListAccountsByIDs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountsByIDs", reflect.TypeOf((*MockRepository)(nil).ListAccountsByIDs), arg0, arg1)
+}
+
+// ListByAlias mocks base method.
+func (m *MockRepository) ListByAlias(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 []string) ([]*account.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByAlias", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].([]*account.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByAlias indicates an expected call of ListByAlias.
+func (mr *MockRepositoryMockRecorder) ListByAlias(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAlias", reflect.TypeOf((*MockRepository)(nil).ListByAlias), arg0, arg1, arg2, arg3, arg4)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 []uuid.UUID) ([]*account.Account, error) {
 	m.ctrl.T.Helper()
@@ -143,4 +188,19 @@ func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3, arg4 uui
 func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+// UpdateAccountByID mocks base method.
+func (m *MockRepository) UpdateAccountByID(arg0 context.Context, arg1 uuid.UUID, arg2 *account.Account) (*account.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAccountByID", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*account.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAccountByID indicates an expected call of UpdateAccountByID.
+func (mr *MockRepositoryMockRecorder) UpdateAccountByID(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccountByID", reflect.TypeOf((*MockRepository)(nil).UpdateAccountByID), arg0, arg1, arg2)
 }

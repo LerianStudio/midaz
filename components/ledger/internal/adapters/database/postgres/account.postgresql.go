@@ -302,6 +302,60 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	return accounts, nil
 }
 
+// ListByAlias retrieves Accounts entities from the database using the provided alias.
+func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var accounts []*a.Account
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND alias = ANY($4) AND deleted_at IS NULL ORDER BY created_at DESC",
+		organizationID, ledgerID, portfolioID, pq.Array(alias))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var acc a.AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.InstrumentCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.ProductID,
+			&acc.AvailableBalance,
+			&acc.OnHoldBalance,
+			&acc.BalanceScale,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.AllowSending,
+			&acc.AllowReceiving,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, account *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
@@ -403,4 +457,171 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	return nil
+}
+
+// ListAccountsByIDs list Accounts entity from the database using the provided IDs.
+func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var accounts []*a.Account
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var acc a.AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.InstrumentCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.ProductID,
+			&acc.AvailableBalance,
+			&acc.OnHoldBalance,
+			&acc.BalanceScale,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.AllowSending,
+			&acc.AllowReceiving,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+// ListAccountsByAlias list Accounts entity from the database using the provided alias.
+func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, aliases []string) ([]*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var accounts []*a.Account
+
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE alias = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(aliases))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var acc a.AccountPostgreSQLModel
+		if err := rows.Scan(
+			&acc.ID,
+			&acc.Name,
+			&acc.ParentAccountID,
+			&acc.EntityID,
+			&acc.InstrumentCode,
+			&acc.OrganizationID,
+			&acc.LedgerID,
+			&acc.PortfolioID,
+			&acc.ProductID,
+			&acc.AvailableBalance,
+			&acc.OnHoldBalance,
+			&acc.BalanceScale,
+			&acc.Status,
+			&acc.StatusDescription,
+			&acc.AllowSending,
+			&acc.AllowReceiving,
+			&acc.Alias,
+			&acc.Type,
+			&acc.CreatedAt,
+			&acc.UpdatedAt,
+			&acc.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		accounts = append(accounts, acc.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
+// UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
+func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id uuid.UUID, account *a.Account) (*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	record := &a.AccountPostgreSQLModel{}
+	record.FromEntity(account)
+
+	var updates []string
+
+	var args []any
+
+	if !account.Balance.IsEmpty() {
+		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.AvailableBalance)
+
+		updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.OnHoldBalance)
+
+		updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.BalanceScale)
+	}
+
+	record.UpdatedAt = time.Now()
+
+	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	args = append(args, record.UpdatedAt, id)
+
+	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+		` WHERE id = $` + strconv.Itoa(len(args)) +
+		` AND deleted_at IS NULL`
+
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(a.Account{}).Name())
+		}
+
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	if rowsAffected == 0 {
+		return nil, common.EntityNotFoundError{
+			EntityType: reflect.TypeOf(a.Account{}).Name(),
+			Title:      "Entity not found.",
+			Code:       "0007",
+			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+		}
+	}
+
+	return record.ToEntity(), nil
 }
