@@ -127,3 +127,12 @@ func ValidateCurrency(code string) error {
 
 	return nil
 }
+
+// SafeIntToUint64 safe mode to converter int to uint64
+func SafeIntToUint64(val int) uint64 {
+	if val < 0 {
+		return uint64(1)
+	}
+
+	return uint64(val)
+}

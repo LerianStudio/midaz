@@ -125,8 +125,8 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		Where(sqrl.Expr("organization_id = ?", organizationID)).
 		Where(sqrl.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(uint64(limit)).
-		Offset(uint64((page - 1) * limit)).
+		Limit(common.SafeIntToUint64(limit)).
+		Offset(common.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(sqrl.Dollar)
 
 	query, args, err := findAll.ToSql()
