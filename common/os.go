@@ -69,14 +69,16 @@ var (
 func InitLocalEnvConfig() *LocalEnvConfig {
 	fmt.Println(console.Title("InitLocalEnvConfig"))
 
+	version := GetenvOrDefault("VERSION", "NO-VERSION")
 	envName := GetenvOrDefault("ENV_NAME", "local")
 
-	fmt.Printf("ENVIRONMENT NAME \u001B[31m(%s)\u001B[0m\n", envName)
+	fmt.Printf("MIDAZ VERSION: \u001B[31m%s\u001B[0m\n", version)
+	fmt.Printf("ENVIRONMENT NAME: \u001B[31m(%s)\u001B[0m\n", envName)
 
 	if envName == "local" {
 		localEnvConfigOnce.Do(func() {
 			if err := godotenv.Load(); err != nil {
-				fmt.Println("Skipping .env file. Current env ", envName)
+				fmt.Println("Skipping \u001B[31m.env\u001B[0m file, using env", envName)
 
 				localEnvConfig = &LocalEnvConfig{
 					Initialized: false,
