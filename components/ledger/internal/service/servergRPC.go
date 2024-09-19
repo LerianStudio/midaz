@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/LerianStudio/midaz/common"
@@ -35,7 +34,7 @@ func NewServerGRPC(cfg *Config, server *grpc.Server, logger mlog.Logger) *Server
 func (sgrpc *ServerGRPC) Run(l *common.Launcher) error {
 	listen, err := net.Listen("tcp4", sgrpc.protoAddress)
 	if err != nil {
-		fmt.Println(err.Error())
+		return errors.Wrap(err, "failed to listen tcp4 server")
 	}
 
 	err = sgrpc.server.Serve(listen)
