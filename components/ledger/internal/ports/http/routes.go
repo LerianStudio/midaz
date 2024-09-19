@@ -8,15 +8,16 @@ import (
 	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 // NewRouter registers routes to the Server.
-func NewRouter(ah *ports.AccountHandler, ph *ports.PortfolioHandler, lh *ports.LedgerHandler, ih *ports.InstrumentHandler, oh *ports.OrganizationHandler, rh *ports.ProductHandler) *fiber.App {
-	f := fiber.New()
+func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *InstrumentHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+	f := fiber.New(fiber.Config{
+		DisableStartupMessage: true,
+	})
 
 	_ = service.NewConfig()
 

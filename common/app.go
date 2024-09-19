@@ -45,7 +45,7 @@ func (l *Launcher) Add(appName string, a App) *Launcher {
 	return l
 }
 
-// Run run every application registered before with Run method.
+// Run every application registered before with Run method.
 func (l *Launcher) Run() {
 	count := len(l.apps)
 	l.wg.Add(count)

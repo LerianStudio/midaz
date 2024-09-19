@@ -5,26 +5,25 @@ package gen
 
 import (
 	"fmt"
+	"sync"
+
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmongo"
+	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/ports"
-	"sync"
-
-	"github.com/LerianStudio/midaz/common/mmongo"
-
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/mzap"
-	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
-	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	"github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	httpHandler "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
+	portsGRPC "github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
+	portsHTTP "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/google/wire"
 )
@@ -65,8 +64,10 @@ var (
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
+		portsGRPC.NewRouterGRPC,
+		service.NewServerGRPC,
+		portsHTTP.NewRouter,
 		service.NewConfig,
-		httpHandler.NewRouter,
 		service.NewServer,
 		postgres.NewOrganizationPostgreSQLRepository,
 		postgres.NewLedgerPostgreSQLRepository,
@@ -75,12 +76,12 @@ var (
 		postgres.NewProductPostgreSQLRepository,
 		postgres.NewAccountPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
-		wire.Struct(new(ports.OrganizationHandler), "*"),
-		wire.Struct(new(ports.LedgerHandler), "*"),
-		wire.Struct(new(ports.InstrumentHandler), "*"),
-		wire.Struct(new(ports.PortfolioHandler), "*"),
-		wire.Struct(new(ports.ProductHandler), "*"),
-		wire.Struct(new(ports.AccountHandler), "*"),
+		wire.Struct(new(portsHTTP.OrganizationHandler), "*"),
+		wire.Struct(new(portsHTTP.LedgerHandler), "*"),
+		wire.Struct(new(portsHTTP.InstrumentHandler), "*"),
+		wire.Struct(new(portsHTTP.PortfolioHandler), "*"),
+		wire.Struct(new(portsHTTP.ProductHandler), "*"),
+		wire.Struct(new(portsHTTP.AccountHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)),
@@ -93,7 +94,7 @@ var (
 	)
 
 	svcSet = wire.NewSet(
-		wire.Struct(new(service.Service), "Server", "Logger"),
+		wire.Struct(new(service.Service), "Server", "ServerGRPC", "Logger"),
 	)
 )
 

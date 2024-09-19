@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateAccountByID update an account from the repository by given id.
-func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, portfolioID, id string, uai *a.UpdateAccountInput) (*a.Account, error) {
+// UpdateAccount update an account from the repository by given id.
+func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, portfolioID, id string, uai *a.UpdateAccountInput) (*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update account: %v", uai)
 
