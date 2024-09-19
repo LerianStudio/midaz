@@ -1,3 +1,29 @@
+## [1.10.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.10.0-beta.1...v1.10.0-beta.2) (2024-09-19)
+
+
+### Features
+
+* add grpc port to midaz on 50051 to run togheter with fiber :sparkles: ([a9c4551](https://github.com/LerianStudio/midaz/commit/a9c45514be5239593b9a26d1838d140c372d3836))
+* add midaz version :sparkles: ([27c56aa](https://github.com/LerianStudio/midaz/commit/27c56aac4aaeffbdd6093a69dbc80e84ea9331ee))
+* add proto url, address :sparkles: ([c92ee9b](https://github.com/LerianStudio/midaz/commit/c92ee9bc2649a3c46963027e067c4eed4dddade4))
+* add version onn .env file :sparkles: ([fdfdac3](https://github.com/LerianStudio/midaz/commit/fdfdac3bded8767307d7f1e3d68a3c76e5803aa8))
+* create new method listbyalias to find accounts based on transaction dsl info :sparkles: ([113c00c](https://github.com/LerianStudio/midaz/commit/113c00c2b64f2577f01460b1e4a017d3750f16ea))
+* create new route and server grpc and remove old account class :sparkles: ([c5d9101](https://github.com/LerianStudio/midaz/commit/c5d91011efbc8f0dca1c32091747a36abe3d6039))
+* generate new query to search account by ids :sparkles: ([aa5d147](https://github.com/LerianStudio/midaz/commit/aa5d147151fdbc814a41e7ba58496f8c3bce2989))
+* grpc server starting with http sever togheter :sparkles: ([6d12e14](https://github.com/LerianStudio/midaz/commit/6d12e140d21b28fe70d2f339a05cba4744cbce60))
+* update account by id and get account by alias by grpc :sparkles: ([bf98e11](https://github.com/LerianStudio/midaz/commit/bf98e11eba0e8a33eddd52e1cde4226deb5af872))
+
+
+### Bug Fixes
+
+* add -d on docker compose up :bug: ([0322e13](https://github.com/LerianStudio/midaz/commit/0322e13cf0cbbc1693cd21352ccb6f142b71d835))
+* adjust grpc account service :bug: ([2679e9b](https://github.com/LerianStudio/midaz/commit/2679e9bfe2d94fcc201e5672cec1f86feca5eb95))
+* change print error to return error :bug: ([2e28f92](https://github.com/LerianStudio/midaz/commit/2e28f9251b91fcfcd77a33492219f27f0bedb5b0))
+* go sec and go lint :bug: ([8a91b07](https://github.com/LerianStudio/midaz/commit/8a91b0746257afe7f4c4dc1ad6ce367b6f019cba))
+* remove fiber print startup :bug: ([d47dd20](https://github.com/LerianStudio/midaz/commit/d47dd20ba5c888860b9c07fceb4e4ff2b432a167))
+* reorganize some class and update wire. :bug: ([af0836b](https://github.com/LerianStudio/midaz/commit/af0836b86395b840b895eea7f1c256b04c5c7d17))
+* update version place in log :bug: ([83980a8](https://github.com/LerianStudio/midaz/commit/83980a8aee40884cb317914c40d89e13c12f6a68))
+
 ## [1.10.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.9.1-beta.1...v1.10.0-beta.1) (2024-09-17)
 
 
