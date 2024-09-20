@@ -441,10 +441,10 @@
 			]
 		},
 		{
-			"name": "Instruments",
+			"name": "Assets",
 			"item": [
 				{
-					"name": "Instruments",
+					"name": "Assets",
 					"event": [
 						{
 							"listen": "test",
@@ -452,9 +452,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"instrument_id before: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
-									"    postman.setEnvironmentVariable(\"instrument_id\", jsonData.id);",
-									"    console.log(\"instrument_id after: \" + postman.getEnvironmentVariable(\"instrument_id\"));",
+									"    console.log(\"asset_id before: \" + postman.getEnvironmentVariable(\"asset_id\"));",
+									"    postman.setEnvironmentVariable(\"asset_id\", jsonData.id);",
+									"    console.log(\"asset_id after: \" + postman.getEnvironmentVariable(\"asset_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -467,7 +467,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Brazilian Real\",\n    //\"name\": \"{{$randomCurrencyName}}\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    //\"code\": \"{{$randomCurrencyCode}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste instrument 1\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Brazilian Real\",\n    //\"name\": \"{{$randomCurrencyName}}\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    //\"code\": \"{{$randomCurrencyCode}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste asset 1\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -475,7 +475,7 @@
 							}
 						},
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets",
 							"host": [
 								"{{url}}"
 							],
@@ -485,14 +485,14 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"instruments"
+								"assets"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Instruments",
+					"name": "Assets",
 					"event": [
 						{
 							"listen": "test",
@@ -510,7 +510,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Bitcoin\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"McGregor 2 BLOCKED INSTRUMENT\"\n    },\n    \"metadata\": {\n        \"chave\": \"jacare\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Bitcoin\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"McGregor 2 BLOCKED ASSET\"\n    },\n    \"metadata\": {\n        \"chave\": \"jacare\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -518,7 +518,7 @@
 							}
 						},
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments/{{instrument_id}}",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets/{{asset_id}}",
 							"host": [
 								"{{url}}"
 							],
@@ -528,20 +528,20 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"instruments",
-								"{{instrument_id}}"
+								"assets",
+								"{{asset_id}}"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Instruments",
+					"name": "Assets",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments?metadata.chave=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf&limit=2&page=1",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets?metadata.chave=bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf&limit=2&page=1",
 							"host": [
 								"{{url}}"
 							],
@@ -551,7 +551,7 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"instruments"
+								"assets"
 							],
 							"query": [
 								{
@@ -575,7 +575,7 @@
 					"response": []
 				},
 				{
-					"name": "Instruments by Id",
+					"name": "Assets by Id",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -587,7 +587,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments/{{instrument_id}}",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets/{{asset_id}}",
 							"host": [
 								"{{url}}"
 							],
@@ -597,8 +597,8 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"instruments",
-								"{{instrument_id}}"
+								"assets",
+								"{{asset_id}}"
 							]
 						}
 					},
@@ -614,7 +614,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/instruments/{{instrument_id}}",
+							"raw": "{{url}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets/{{asset_id}}",
 							"host": [
 								"{{url}}"
 							],
@@ -624,8 +624,8 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"instruments",
-								"{{instrument_id}}"
+								"assets",
+								"{{asset_id}}"
 							]
 						}
 					},
@@ -1053,7 +1053,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"instrumentCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
