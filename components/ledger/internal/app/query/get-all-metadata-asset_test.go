@@ -8,7 +8,7 @@ import (
 
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,9 +16,9 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllMetadataInstruments is responsible to test TestGetAllMetadataInstruments with success and error
-func TestGetAllMetadataInstruments(t *testing.T) {
-	collection := reflect.TypeOf(i.Instrument{}).Name()
+// TestGetAllMetadataAssets is responsible to test TestGetAllMetadataAssets with success and error
+func TestGetAllMetadataAssets(t *testing.T) {
+	collection := reflect.TypeOf(s.Asset{}).Name()
 	filter := commonHTTP.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,

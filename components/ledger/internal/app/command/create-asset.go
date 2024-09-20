@@ -8,18 +8,18 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/google/uuid"
 )
 
-// CreateInstrument creates a new instrument persists data in the repository.
-func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *i.CreateInstrumentInput) (*i.Instrument, error) {
+// CreateAsset creates a new asset persists data in the repository.
+func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *s.CreateAssetInput) (*s.Asset, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Trying to create instrument: %v", cii)
+	logger.Infof("Trying to create asset: %v", cii)
 
-	var status i.Status
+	var status s.Status
 	if cii.Status.IsEmpty() {
-		status = i.Status{
+		status = s.Status{
 			Code: "ACTIVE",
 		}
 	} else {
@@ -36,13 +36,13 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID, ledgerI
 		}
 	}
 
-	_, err := uc.InstrumentRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
+	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
-		logger.Errorf("Error creating instrument: %v", err)
+		logger.Errorf("Error creating asset: %v", err)
 		return nil, err
 	}
 
-	instrument := &i.Instrument{
+	asset := &s.Asset{
 		Name:           cii.Name,
 		Type:           cii.Type,
 		Code:           cii.Code,
@@ -53,9 +53,9 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID, ledgerI
 		UpdatedAt:      time.Now(),
 	}
 
-	inst, err := uc.InstrumentRepo.Create(ctx, instrument)
+	inst, err := uc.AssetRepo.Create(ctx, asset)
 	if err != nil {
-		logger.Errorf("Error creating instrument: %v", err)
+		logger.Errorf("Error creating asset: %v", err)
 		return nil, err
 	}
 
@@ -66,13 +66,13 @@ func (uc *UseCase) CreateInstrument(ctx context.Context, organizationID, ledgerI
 
 		meta := m.Metadata{
 			EntityID:   inst.ID,
-			EntityName: reflect.TypeOf(i.Instrument{}).Name(),
+			EntityName: reflect.TypeOf(s.Asset{}).Name(),
 			Data:       cii.Metadata,
 			CreatedAt:  time.Now(),
 			UpdatedAt:  time.Now(),
 		}
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(i.Instrument{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating instrument metadata: %v", err)
+		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(s.Asset{}).Name(), &meta); err != nil {
+			logger.Errorf("Error into creating asset metadata: %v", err)
 			return nil, err
 		}
 

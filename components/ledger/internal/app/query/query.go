@@ -5,7 +5,7 @@ import (
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
-	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 )
@@ -27,8 +27,8 @@ type UseCase struct {
 	// AccountRepo provides an abstraction on top of the account data source.
 	AccountRepo a.Repository
 
-	// InstrumentRepo provides an abstraction on top of the instrument data source.
-	InstrumentRepo i.Repository
+	// AssetRepo provides an abstraction on top of the asset data source.
+	AssetRepo s.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo m.Repository

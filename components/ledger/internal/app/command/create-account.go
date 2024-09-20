@@ -18,7 +18,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	logger.Infof("Trying to create account: %v", cai)
 
 	if common.IsNilOrEmpty(&cai.Name) {
-		cai.Name = cai.InstrumentCode + " " + cai.Type + " account"
+		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
 	if common.IsNilOrEmpty(cai.Alias) {
@@ -60,12 +60,12 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 			return nil, err
 		}
 
-		if acc.InstrumentCode != cai.InstrumentCode {
+		if acc.AssetCode != cai.AssetCode {
 			return nil, common.ValidationError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Title:      "Mismatched Instrument Code",
+				Title:      "Mismatched Asset Code",
 				Code:       "0030",
-				Message:    "The provided parent account ID is associated with a different instrument code than the one specified in your request. Please ensure the instrument code matches that of the parent account, or use a different parent account ID and try again.",
+				Message:    "The provided parent account ID is associated with a different asset code than the one specified in your request. Please ensure the asset code matches that of the parent account, or use a different parent account ID and try again.",
 			}
 		}
 	}
@@ -79,7 +79,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 
 	account := &a.Account{
 		ID:              uuid.New().String(),
-		InstrumentCode:  cai.InstrumentCode,
+		AssetCode:       cai.AssetCode,
 		Alias:           cai.Alias,
 		Name:            cai.Name,
 		Type:            cai.Type,
