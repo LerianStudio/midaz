@@ -1,1 +1,0 @@
-DROP TABLE IF EXISTS instrument_rate;
