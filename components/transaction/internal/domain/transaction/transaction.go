@@ -17,7 +17,7 @@ type TransactionPostgreSQLModel struct {
 	StatusDescription        *string
 	Amount                   *float64
 	AmountScale              *float64
-	InstrumentCode           string
+	AssetCode                string
 	ChartOfAccountsGroupName string
 	LedgerID                 string
 	OrganizationID           string
@@ -54,7 +54,7 @@ type Transaction struct {
 	Status                   Status         `json:"status"`
 	Amount                   *float64       `json:"amount"`
 	AmountScale              *float64       `json:"amountScale"`
-	InstrumentCode           string         `json:"InstrumentCode"`
+	AssetCode                string         `json:"AssetCode"`
 	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName"`
 	LedgerID                 string         `json:"ledgerId"`
 	OrganizationID           string         `json:"organizationId"`
@@ -79,7 +79,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		Status:                   status,
 		Amount:                   t.Amount,
 		AmountScale:              t.AmountScale,
-		InstrumentCode:           t.InstrumentCode,
+		AssetCode:                t.AssetCode,
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
@@ -106,7 +106,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		StatusDescription:        transaction.Status.Description,
 		Amount:                   transaction.Amount,
 		AmountScale:              transaction.AmountScale,
-		InstrumentCode:           transaction.InstrumentCode,
+		AssetCode:                transaction.AssetCode,
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,

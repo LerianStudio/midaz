@@ -27,12 +27,12 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 			Code:       "0029",
 			Message:    "The specified parent account ID does not exist. Please verify the ID is correct and attempt your request again.",
 		}
-	case "account_instrument_code_fkey":
+	case "account_asset_code_fkey":
 		return common.ValidationError{
 			EntityType: entityType,
-			Title:      "Instrument Code Not Found",
+			Title:      "Asset Code Not Found",
 			Code:       "0034",
-			Message:    "The provided instrument code does not exist in our records. Please verify the instrument code and try again.",
+			Message:    "The provided asset code does not exist in our records. Please verify the asset code and try again.",
 		}
 	case "account_portfolio_id_fkey":
 		return common.ValidationError{
@@ -48,14 +48,14 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 			Code:       "0036",
 			Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
 		}
-	case "account_ledger_id_fkey", "portfolio_ledger_id_fkey", "instrument_ledger_id_fkey", "product_ledger_id_fkey":
+	case "account_ledger_id_fkey", "portfolio_ledger_id_fkey", "asset_ledger_id_fkey", "product_ledger_id_fkey":
 		return common.ValidationError{
 			EntityType: entityType,
 			Title:      "Ledger ID Not Found",
 			Code:       "0037",
 			Message:    "The provided ledger ID does not exist in our records. Please verify the ledger ID and try again.",
 		}
-	case "account_organization_id_fkey", "ledger_organization_id_fkey", "instrument_organization_id_fkey", "portfolio_organization_id_fkey", "product_organization_id_fkey":
+	case "account_organization_id_fkey", "ledger_organization_id_fkey", "asset_organization_id_fkey", "portfolio_organization_id_fkey", "product_organization_id_fkey":
 		return common.ValidationError{
 			EntityType: entityType,
 			Title:      "Organization ID Not Found",

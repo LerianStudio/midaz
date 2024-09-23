@@ -1,7 +1,7 @@
-CREATE TABLE IF NOT EXISTS instrument_rate (
+CREATE TABLE IF NOT EXISTS asset_rate (
     id                                 UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
-    base_instrument_id                 UUID NOT NULL,
-    counter_instrument_id              UUID NOT NULL,
+    base_asset_id                      UUID NOT NULL,
+    counter_asset_id                   UUID NOT NULL,
     amount                             NUMERIC NOT NULL,
     scale                              NUMERIC NOT NULL,
     source                             TEXT NOT NULL,

@@ -115,7 +115,7 @@ services:
         condition: service_healthy
 
   mariadb:
-    container_name: trillina-mariadb
+    container_name: trillian-mariadb
     image: mariadb:latest
     environment:
       - MYSQL_DATABASE=${DATABASE}
@@ -128,7 +128,7 @@ services:
     restart: always
 
   adminer:
-    container_name: trillina-adminer
+    container_name: trillian-adminer
     image: adminer:latest
     restart: always
     ports:
