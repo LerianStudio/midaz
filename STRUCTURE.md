@@ -36,13 +36,13 @@ The project is structured into several key directories, each serving specific ro
 │   │   │   │   │   └── organization
 │   │   │   │   └── portfolio
 │   │   │   │       ├── account
-│   │   │   │       ├── instrument
+│   │   │   │       ├── asset
 │   │   │   │       ├── portfolio
 │   │   │   │       └── product
 │   │   │   ├── gen
 │   │   │   │   └── mock
 │   │   │   │       ├── account
-│   │   │   │       ├── instrument
+│   │   │   │       ├── asset
 │   │   │   │       ├── ledger
 │   │   │   │       ├── metadata
 │   │   │   │       ├── organization

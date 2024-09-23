@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     status_description                  TEXT,
     amount                              NUMERIC NOT NULL,
     amount_scale                        NUMERIC NOT NULL,
-    instrument_code                     TEXT NOT NULL,
+    asset_code                          TEXT NOT NULL,
     chart_of_accounts_group_name        TEXT NOT NULL,
     ledger_id                           UUID NOT NULL,
     organization_id                     UUID NOT NULL,

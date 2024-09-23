@@ -121,7 +121,7 @@ func ValidateCurrency(code string) error {
 		return ValidationError{
 			Code:    "0005",
 			Title:   "Currency Code Standard Compliance",
-			Message: "Currency-type instruments must adhere to the ISO-4217 standard. Please use a currency code that follows ISO-4217 guidelines.",
+			Message: "Currency-type assets must adhere to the ISO-4217 standard. Please use a currency code that follows ISO-4217 guidelines.",
 		}
 	}
 

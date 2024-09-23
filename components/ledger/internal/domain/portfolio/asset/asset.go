@@ -1,4 +1,4 @@
-package instrument
+package asset
 
 import (
 	"database/sql"
@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// InstrumentPostgreSQLModel represents the entity Instrument into SQL context in Database
-type InstrumentPostgreSQLModel struct {
+// AssetPostgreSQLModel represents the entity Asset into SQL context in Database
+type AssetPostgreSQLModel struct {
 	ID                string
 	Name              string
 	Type              string
@@ -23,8 +23,8 @@ type InstrumentPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// CreateInstrumentInput is a struct design to encapsulate request create payload data.
-type CreateInstrumentInput struct {
+// CreateAssetInput is a struct design to encapsulate request create payload data.
+type CreateAssetInput struct {
 	Name     string         `json:"name"`
 	Type     string         `json:"type"`
 	Code     string         `json:"code"`
@@ -32,15 +32,15 @@ type CreateInstrumentInput struct {
 	Metadata map[string]any `json:"metadata"`
 }
 
-// UpdateInstrumentInput is a struct design to encapsulate request update payload data.
-type UpdateInstrumentInput struct {
+// UpdateAssetInput is a struct design to encapsulate request update payload data.
+type UpdateAssetInput struct {
 	Name     string         `json:"name"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
 
-// Instrument is a struct designed to encapsulate payload data.
-type Instrument struct {
+// Asset is a struct designed to encapsulate payload data.
+type Asset struct {
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`
 	Type           string         `json:"type"`
@@ -65,14 +65,14 @@ func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
 
-// ToEntity converts an InstrumentPostgreSQLModel to entity response Instrument
-func (t *InstrumentPostgreSQLModel) ToEntity() *Instrument {
+// ToEntity converts an AssetPostgreSQLModel to entity response Asset
+func (t *AssetPostgreSQLModel) ToEntity() *Asset {
 	status := Status{
 		Code:        t.Status,
 		Description: t.StatusDescription,
 	}
 
-	instrument := &Instrument{
+	asset := &Asset{
 		ID:             t.ID,
 		Name:           t.Name,
 		Type:           t.Type,
@@ -86,29 +86,29 @@ func (t *InstrumentPostgreSQLModel) ToEntity() *Instrument {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
-		instrument.DeletedAt = &deletedAtCopy
+		asset.DeletedAt = &deletedAtCopy
 	}
 
-	return instrument
+	return asset
 }
 
-// FromEntity converts a request entity Instrument to InstrumentPostgreSQLModel
-func (t *InstrumentPostgreSQLModel) FromEntity(instrument *Instrument) {
-	*t = InstrumentPostgreSQLModel{
+// FromEntity converts a request entity Asset to AssetPostgreSQLModel
+func (t *AssetPostgreSQLModel) FromEntity(asset *Asset) {
+	*t = AssetPostgreSQLModel{
 		ID:                uuid.New().String(),
-		Name:              instrument.Name,
-		Type:              instrument.Type,
-		Code:              instrument.Code,
-		Status:            instrument.Status.Code,
-		StatusDescription: instrument.Status.Description,
-		LedgerID:          instrument.LedgerID,
-		OrganizationID:    instrument.OrganizationID,
-		CreatedAt:         instrument.CreatedAt,
-		UpdatedAt:         instrument.UpdatedAt,
+		Name:              asset.Name,
+		Type:              asset.Type,
+		Code:              asset.Code,
+		Status:            asset.Status.Code,
+		StatusDescription: asset.Status.Description,
+		LedgerID:          asset.LedgerID,
+		OrganizationID:    asset.OrganizationID,
+		CreatedAt:         asset.CreatedAt,
+		UpdatedAt:         asset.UpdatedAt,
 	}
 
-	if instrument.DeletedAt != nil {
-		deletedAtCopy := *instrument.DeletedAt
+	if asset.DeletedAt != nil {
+		deletedAtCopy := *asset.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

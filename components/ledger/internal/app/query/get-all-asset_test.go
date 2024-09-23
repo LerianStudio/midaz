@@ -5,15 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/instrument"
+	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
+	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/asset"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllInstrumentsError is responsible to test GetAllInstruments with success and error
-func TestGetAllInstruments(t *testing.T) {
+// TestGetAllAssetsError is responsible to test GetAllAssets with success and error
+func TestGetAllAssets(t *testing.T) {
 	ledgerID := uuid.New()
 	organizationID := uuid.New()
 	limit := 10
@@ -22,20 +22,20 @@ func TestGetAllInstruments(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockInstrumentRepo := mock.NewMockRepository(ctrl)
+	mockAssetRepo := mock.NewMockRepository(ctrl)
 
 	uc := UseCase{
-		InstrumentRepo: mockInstrumentRepo,
+		AssetRepo: mockAssetRepo,
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		instruments := []*i.Instrument{{}}
-		mockInstrumentRepo.
+		assets := []*s.Asset{{}}
+		mockAssetRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, page, limit).
-			Return(instruments, nil).
+			Return(assets, nil).
 			Times(1)
-		res, err := uc.InstrumentRepo.FindAll(context.TODO(), organizationID, ledgerID, page, limit)
+		res, err := uc.AssetRepo.FindAll(context.TODO(), organizationID, ledgerID, page, limit)
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -43,12 +43,12 @@ func TestGetAllInstruments(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
-		mockInstrumentRepo.
+		mockAssetRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, page, limit).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.InstrumentRepo.FindAll(context.TODO(), organizationID, ledgerID, page, limit)
+		res, err := uc.AssetRepo.FindAll(context.TODO(), organizationID, ledgerID, page, limit)
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

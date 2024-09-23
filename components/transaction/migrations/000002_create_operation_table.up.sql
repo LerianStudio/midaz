@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS operation (
     transaction_id                     UUID NOT NULL,
     description                        TEXT NOT NULL,
     type                               TEXT NOT NULL,
-    instrument_code                    TEXT NOT NULL,
+    asset_code                         TEXT NOT NULL,
     amount                             NUMERIC NOT NULL,
     amount_scale                       NUMERIC NOT NULL,
     available_balance                  NUMERIC NOT NULL,
