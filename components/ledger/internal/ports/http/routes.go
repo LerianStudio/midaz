@@ -5,7 +5,7 @@ import (
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
-	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
@@ -14,7 +14,7 @@ import (
 )
 
 // NewRouter registers routes to the Server.
-func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *InstrumentHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -42,12 +42,12 @@ func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *
 	f.Get("/v1/organizations/:organization_id/ledgers/:id", lh.GetLedgerByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:id", lh.DeleteLedgerByID)
 
-	// Instruments
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/instruments", lib.WithBody(new(i.CreateInstrumentInput), ih.CreateInstrument))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/instruments/:id", lib.WithBody(new(i.UpdateInstrumentInput), ih.UpdateInstrument))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/instruments", ih.GetAllInstruments)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/instruments/:id", ih.GetInstrumentByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/instruments/:id", ih.DeleteInstrumentByID)
+	// Assets
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", lib.WithBody(new(s.CreateAssetInput), ih.CreateAsset))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", lib.WithBody(new(s.UpdateAssetInput), ih.UpdateAsset))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", ih.GetAllAssets)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", ih.GetAssetByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", ih.DeleteAssetByID)
 
 	// Portfolios
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", lib.WithBody(new(p.CreatePortfolioInput), ph.CreatePortfolio))

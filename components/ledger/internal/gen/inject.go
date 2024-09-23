@@ -19,7 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
-	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	portsGRPC "github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
@@ -71,14 +71,14 @@ var (
 		service.NewServer,
 		postgres.NewOrganizationPostgreSQLRepository,
 		postgres.NewLedgerPostgreSQLRepository,
-		postgres.NewInstrumentPostgreSQLRepository,
+		postgres.NewAssetPostgreSQLRepository,
 		postgres.NewPortfolioPostgreSQLRepository,
 		postgres.NewProductPostgreSQLRepository,
 		postgres.NewAccountPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
 		wire.Struct(new(portsHTTP.OrganizationHandler), "*"),
 		wire.Struct(new(portsHTTP.LedgerHandler), "*"),
-		wire.Struct(new(portsHTTP.InstrumentHandler), "*"),
+		wire.Struct(new(portsHTTP.AssetHandler), "*"),
 		wire.Struct(new(portsHTTP.PortfolioHandler), "*"),
 		wire.Struct(new(portsHTTP.ProductHandler), "*"),
 		wire.Struct(new(portsHTTP.AccountHandler), "*"),
@@ -86,7 +86,7 @@ var (
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)),
 		wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)),
-		wire.Bind(new(instrument.Repository), new(*postgres.InstrumentPostgreSQLRepository)),
+		wire.Bind(new(asset.Repository), new(*postgres.AssetPostgreSQLRepository)),
 		wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)),
 		wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)),
 		wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)),

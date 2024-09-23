@@ -13,7 +13,7 @@ type AccountPostgreSQLModel struct {
 	Name              string
 	ParentAccountID   *string
 	EntityID          string
-	InstrumentCode    string
+	AssetCode         string
 	OrganizationID    string
 	LedgerID          string
 	PortfolioID       string
@@ -35,7 +35,7 @@ type AccountPostgreSQLModel struct {
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
 type CreateAccountInput struct {
-	InstrumentCode  string         `json:"instrumentCode"`
+	AssetCode       string         `json:"assetCode"`
 	Name            string         `json:"name"`
 	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
@@ -61,7 +61,7 @@ type Account struct {
 	Name            string         `json:"name"`
 	ParentAccountID *string        `json:"parentAccountId"`
 	EntityID        string         `json:"entityId"`
-	InstrumentCode  string         `json:"instrumentCode"`
+	AssetCode       string         `json:"assetCode"`
 	OrganizationID  string         `json:"organizationId"`
 	LedgerID        string         `json:"ledgerId"`
 	PortfolioID     string         `json:"portfolioId"`
@@ -121,7 +121,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *Account {
 		Name:            t.Name,
 		ParentAccountID: t.ParentAccountID,
 		EntityID:        t.EntityID,
-		InstrumentCode:  t.InstrumentCode,
+		AssetCode:       t.AssetCode,
 		OrganizationID:  t.OrganizationID,
 		LedgerID:        t.LedgerID,
 		PortfolioID:     t.PortfolioID,
@@ -150,7 +150,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 		Name:              account.Name,
 		ParentAccountID:   account.ParentAccountID,
 		EntityID:          account.EntityID,
-		InstrumentCode:    account.InstrumentCode,
+		AssetCode:         account.AssetCode,
 		OrganizationID:    account.OrganizationID,
 		LedgerID:          account.LedgerID,
 		PortfolioID:       account.PortfolioID,

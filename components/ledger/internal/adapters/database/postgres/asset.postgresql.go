@@ -12,24 +12,24 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	i "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/instrument"
+	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
-// InstrumentPostgreSQLRepository is a Postgresql-specific implementation of the InstrumentRepository.
-type InstrumentPostgreSQLRepository struct {
+// AssetPostgreSQLRepository is a Postgresql-specific implementation of the AssetRepository.
+type AssetPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
 	tableName  string
 }
 
-// NewInstrumentPostgreSQLRepository returns a new instance of InstrumentPostgreSQLRepository using the given Postgres connection.
-func NewInstrumentPostgreSQLRepository(pc *mpostgres.PostgresConnection) *InstrumentPostgreSQLRepository {
-	c := &InstrumentPostgreSQLRepository{
+// NewAssetPostgreSQLRepository returns a new instance of AssetPostgreSQLRepository using the given Postgres connection.
+func NewAssetPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AssetPostgreSQLRepository {
+	c := &AssetPostgreSQLRepository{
 		connection: pc,
-		tableName:  "instrument",
+		tableName:  "asset",
 	}
 
 	_, err := c.connection.GetDB()
@@ -40,17 +40,17 @@ func NewInstrumentPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Instru
 	return c
 }
 
-// Create a new instrument entity into Postgresql and returns it.
-func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument *i.Instrument) (*i.Instrument, error) {
+// Create a new asset entity into Postgresql and returns it.
+func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *s.Asset) (*s.Asset, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	record := &i.InstrumentPostgreSQLModel{}
-	record.FromEntity(instrument)
+	record := &s.AssetPostgreSQLModel{}
+	record.FromEntity(asset)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO instrument VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO asset VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
 		record.ID,
 		record.Name,
 		record.Type,
@@ -66,7 +66,7 @@ func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument 
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		return nil, err
@@ -79,7 +79,7 @@ func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument 
 
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(i.Instrument{}).Name(),
+			EntityType: reflect.TypeOf(s.Asset{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
@@ -89,14 +89,14 @@ func (r *InstrumentPostgreSQLRepository) Create(ctx context.Context, instrument 
 	return record.ToEntity(), nil
 }
 
-// FindByNameOrCode retrieves Instrument entities by nam or code from the database.
-func (r *InstrumentPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
+// FindByNameOrCode retrieves Asset entities by nam or code from the database.
+func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return false, err
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM instrument WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 OR code = $4 AND deleted_at IS NULL ORDER BY created_at DESC",
+	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 OR code = $4 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, name, code)
 	if err != nil {
 		return false, err
@@ -105,7 +105,7 @@ func (r *InstrumentPostgreSQLRepository) FindByNameOrCode(ctx context.Context, o
 
 	if rows.Next() {
 		return true, common.EntityConflictError{
-			EntityType: reflect.TypeOf(i.Instrument{}).Name(),
+			EntityType: reflect.TypeOf(s.Asset{}).Name(),
 			Code:       "0003",
 			Title:      "Invalid Data provided.",
 			Message:    "Invalid Data provided.",
@@ -115,14 +115,14 @@ func (r *InstrumentPostgreSQLRepository) FindByNameOrCode(ctx context.Context, o
 	return false, nil
 }
 
-// FindAll retrieves Instrument entities from the database.
-func (r *InstrumentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*i.Instrument, error) {
+// FindAll retrieves Asset entities from the database.
+func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*s.Asset, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	var instruments []*i.Instrument
+	var assets []*s.Asset
 
 	findAll := sqrl.Select("*").
 		From(r.tableName).
@@ -146,32 +146,32 @@ func (r *InstrumentPostgreSQLRepository) FindAll(ctx context.Context, organizati
 	defer rows.Close()
 
 	for rows.Next() {
-		var instrument i.InstrumentPostgreSQLModel
-		if err := rows.Scan(&instrument.ID, &instrument.Name, &instrument.Type, &instrument.Code, &instrument.Status, &instrument.StatusDescription,
-			&instrument.LedgerID, &instrument.OrganizationID, &instrument.CreatedAt, &instrument.UpdatedAt, &instrument.DeletedAt); err != nil {
+		var asset s.AssetPostgreSQLModel
+		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
+			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 			return nil, err
 		}
 
-		instruments = append(instruments, instrument.ToEntity())
+		assets = append(assets, asset.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return instruments, nil
+	return assets, nil
 }
 
-// ListByIDs retrieves Instruments entities from the database using the provided IDs.
-func (r *InstrumentPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*i.Instrument, error) {
+// ListByIDs retrieves Assets entities from the database using the provided IDs.
+func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*s.Asset, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	var instruments []*i.Instrument
+	var assets []*s.Asset
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM instrument WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
+	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -179,38 +179,38 @@ func (r *InstrumentPostgreSQLRepository) ListByIDs(ctx context.Context, organiza
 	defer rows.Close()
 
 	for rows.Next() {
-		var instrument i.InstrumentPostgreSQLModel
-		if err := rows.Scan(&instrument.ID, &instrument.Name, &instrument.Type, &instrument.Code, &instrument.Status, &instrument.StatusDescription,
-			&instrument.LedgerID, &instrument.OrganizationID, &instrument.CreatedAt, &instrument.UpdatedAt, &instrument.DeletedAt); err != nil {
+		var asset s.AssetPostgreSQLModel
+		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
+			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 			return nil, err
 		}
 
-		instruments = append(instruments, instrument.ToEntity())
+		assets = append(assets, asset.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return instruments, nil
+	return assets, nil
 }
 
-// Find retrieves an Instrument entity from the database using the provided ID.
-func (r *InstrumentPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*i.Instrument, error) {
+// Find retrieves an Asset entity from the database using the provided ID.
+func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*s.Asset, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	instrument := &i.InstrumentPostgreSQLModel{}
+	asset := &s.AssetPostgreSQLModel{}
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM instrument WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
+	row := db.QueryRowContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
-	if err := row.Scan(&instrument.ID, &instrument.Name, &instrument.Type, &instrument.Code, &instrument.Status, &instrument.StatusDescription,
-		&instrument.LedgerID, &instrument.OrganizationID, &instrument.CreatedAt, &instrument.UpdatedAt, &instrument.DeletedAt); err != nil {
+	if err := row.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
+		&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(i.Instrument{}).Name(),
+				EntityType: reflect.TypeOf(s.Asset{}).Name(),
 				Title:      "Entity not found.",
 				Code:       "0007",
 				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
@@ -220,29 +220,29 @@ func (r *InstrumentPostgreSQLRepository) Find(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	return instrument.ToEntity(), nil
+	return asset.ToEntity(), nil
 }
 
-// Update an Instrument entity into Postgresql and returns the Instrument updated.
-func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, instrument *i.Instrument) (*i.Instrument, error) {
+// Update an Asset entity into Postgresql and returns the Asset updated.
+func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *s.Asset) (*s.Asset, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	record := &i.InstrumentPostgreSQLModel{}
-	record.FromEntity(instrument)
+	record := &s.AssetPostgreSQLModel{}
+	record.FromEntity(asset)
 
 	var updates []string
 
 	var args []any
 
-	if instrument.Name != "" {
+	if asset.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Name)
 	}
 
-	if !instrument.Status.IsEmpty() {
+	if !asset.Status.IsEmpty() {
 		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Status)
 
@@ -256,7 +256,7 @@ func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizatio
 
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
-	query := `UPDATE instrument SET ` + strings.Join(updates, ", ") +
+	query := `UPDATE asset SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
@@ -266,7 +266,7 @@ func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizatio
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(i.Instrument{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		return nil, err
@@ -279,7 +279,7 @@ func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizatio
 
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(i.Instrument{}).Name(),
+			EntityType: reflect.TypeOf(s.Asset{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
@@ -289,14 +289,14 @@ func (r *InstrumentPostgreSQLRepository) Update(ctx context.Context, organizatio
 	return record.ToEntity(), nil
 }
 
-// Delete removes an Instrument entity from the database using the provided IDs.
-func (r *InstrumentPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+// Delete removes an Asset entity from the database using the provided IDs.
+func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}
 
-	result, err := db.ExecContext(ctx, `UPDATE instrument SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
+	result, err := db.ExecContext(ctx, `UPDATE asset SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
 	if err != nil {
 		return err
@@ -309,7 +309,7 @@ func (r *InstrumentPostgreSQLRepository) Delete(ctx context.Context, organizatio
 
 	if rowsAffected == 0 {
 		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(i.Instrument{}).Name(),
+			EntityType: reflect.TypeOf(s.Asset{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
