@@ -16,7 +16,7 @@ services:
     ports:
       - ${CASDOOR_PORT}:${CASDOOR_PORT}
     volumes:
-      - ./artifacts/init_data.json:/init_data.json
+      - ./setup/init_data.json:/init_data.json
     depends_on:
       casdoor-db:
         condition: service_healthy
