@@ -558,7 +558,15 @@
       ]
     }
   ],
-  "providers": [],
+  "providers": [
+    {
+      "owner": "lerian",
+      "name": "sendgrid_provider",
+      "displayName": "SendGrid Provider",
+      "category": "Email",
+      "type": "SendGrid"
+    }
+  ],
   "certs": [
     {
       "owner": "admin",
