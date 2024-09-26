@@ -15,14 +15,6 @@ info:
 	@echo "make auth COMMAND=\"any\"                                                                                                            "
 	@echo "                                                                                                                                       "
 	@echo "This command will run the specified command inside the auth container. Replace \"any\" with the desired command you want to execute. "
-	@echo "                                                                                                                                       "
-	@echo "## App commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"wire\"                                 Generates all project code to connect components using Wire."
-	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
-	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
-	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
-	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -38,21 +30,6 @@ info:
 	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
 	@echo "  COMMAND=\"auth-api\"                             Starts an interactive Bash shell session inside the running auth container defined in docker-compose.yml."
 	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the auth container, logging in as the postgres user."
-
-gen:
-	@go generate ./...
-
-run:
-	@go run internal/main.go .env
-
-test:
-	@go test -v ./...
-
-cover-html:
-	@go tool cover -html=$(artifacts_dir)/coverage.out -o $(artifacts_dir)/coverage.html
-
-tidy:
-	@go mod tidy
 
 # Docker Compose Commands
 build:

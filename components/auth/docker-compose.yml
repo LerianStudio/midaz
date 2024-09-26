@@ -10,7 +10,7 @@ x-postgres-common:
 services:
   casdoor:
     container_name: casdoor
-    image: casbin/casdoor:v1.705.0
+    image: casbin/casdoor:latest
     env_file:
       - .env
     ports:
