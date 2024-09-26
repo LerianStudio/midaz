@@ -1,3 +1,7 @@
+## [1.11.1-beta.2](https://github.com/LerianStudio/midaz/compare/v1.11.1-beta.1...v1.11.1-beta.2) (2024-09-26)
+
+## [1.11.1-beta.1](https://github.com/LerianStudio/midaz/compare/v1.11.0...v1.11.1-beta.1) (2024-09-26)
+
 ## [1.11.0](https://github.com/LerianStudio/midaz/compare/v1.10.1...v1.11.0) (2024-09-23)
 
 ## [1.11.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.10.1...v1.11.0-beta.1) (2024-09-23)
