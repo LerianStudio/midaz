@@ -5,3 +5,4 @@
 .idea
 *.iml
 components/ledger/_docker-compose.yml
+components/auth/setup/init_data.json

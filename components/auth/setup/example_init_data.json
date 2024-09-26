@@ -1,0 +1,781 @@
+{
+  "organizations": [
+    {
+      "owner": "admin",
+      "name": "lerian",
+      "displayName": "Lerian",
+      "websiteUrl": "https://lerian.studio/",
+      "logo": "https://tinyurl.com/lerian-logo",
+      "favicon": "https://framerusercontent.com/images/YIgCZu3L9aPWs8t9TOdUfHaRC0Q.svg",
+      "passwordType": "plain",
+      "passwordSalt": "BjXSuMnkJNCzOyo09DX133mIYR9kE0MDtsfoGUX2mNQDWhpfCItNxMBZV5dm5/+N\nncwh0vZtCLYRlMxzI1f71A==",
+      "passwordOptions": [
+        "AtLeast6",
+        "Aa123",
+        "SpecialChar",
+        "NoRepeat"
+      ],
+      "countryCodes": [
+        "US",
+        "GB",
+        "ES",
+        "FR",
+        "DE",
+        "CN",
+        "JP",
+        "KR",
+        "VN",
+        "ID",
+        "SG",
+        "IN",
+        "IT",
+        "MY",
+        "TR",
+        "DZ",
+        "IL",
+        "PH",
+        "NL",
+        "PL",
+        "FI",
+        "SE",
+        "UA",
+        "KZ",
+        "CZ",
+        "SK"
+      ],
+      "defaultAvatar": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToK_-LT9HmxfBNTsC0A8wfvjtfxKh3GjexbQ&s",
+      "defaultApplication": "app-midaz",
+      "tags": [],
+      "languages": [
+        "en",
+        "zh",
+        "es",
+        "fr",
+        "de",
+        "id",
+        "ja",
+        "ko",
+        "ru",
+        "vi",
+        "it",
+        "ms",
+        "tr",
+        "ar",
+        "he",
+        "nl",
+        "pl",
+        "fi",
+        "sv",
+        "uk",
+        "kk",
+        "fa",
+        "cs",
+        "sk"
+      ],
+      "masterPassword": "",
+      "defaultPassword": "",
+      "initScore": 2000,
+      "enableSoftDeletion": true,
+      "isProfilePublic": true,
+      "mfaItems": [
+        {
+          "name": "email",
+          "rule": "Optional"
+        }
+      ],
+      "accountItems": [
+        {
+          "name": "ID",
+          "visible": true,
+          "viewRule": "Admin",
+          "modifyRule": "Immutable"
+        },
+        {
+          "name": "Display name",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self"
+        },
+        {
+          "name": "Organization",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self"
+        },
+        {
+          "name": "Roles",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self"
+        },
+        {
+          "name": "Permissions",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self"
+        },
+        {
+          "name": "User type",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "Email",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Phone",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Country code",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Country/Region",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Location",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Address",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Homepage",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Tag",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "Signup application",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "API key",
+          "visible": false,
+          "viewRule": "",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Groups",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "Roles",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Immutable",
+          "regex": ""
+        },
+        {
+          "name": "Permissions",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Immutable",
+          "regex": ""
+        },
+        {
+          "name": "3rd-party logins",
+          "visible": true,
+          "viewRule": "Self",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+
+        {
+          "name": "Is admin",
+          "visible": true,
+          "viewRule": "Admin",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "Is forbidden",
+          "visible": true,
+          "viewRule": "Admin",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "Is deleted",
+          "visible": true,
+          "viewRule": "Admin",
+          "modifyRule": "Admin",
+          "regex": ""
+        },
+        {
+          "name": "Multi-factor authentication",
+          "visible": true,
+          "viewRule": "Self",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "WebAuthn credentials",
+          "visible": true,
+          "viewRule": "Self",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "Managed accounts",
+          "visible": true,
+          "viewRule": "Self",
+          "modifyRule": "Self",
+          "regex": ""
+        },
+        {
+          "name": "MFA accounts",
+          "visible": true,
+          "viewRule": "Self",
+          "modifyRule": "Self",
+          "regex": ""
+        }
+      ]
+    }
+  ],
+  "applications": [
+    {
+      "owner": "admin",
+      "name": "app-midaz",
+      "displayName": "Midaz",
+      "logo": "https://tinyurl.com/lerian-logo",
+      "homepageUrl": "https://lerian.studio/midaz",
+      "organization": "lerian",
+      "cert": "cert-built-in",
+      "enablePassword": true,
+      "enableSignUp": true,
+      "clientId": "9670e0ca55a29a466d31",
+      "clientSecret": "dd03f916cacf4a98c6a413d9c38ba102dce436a9",
+      "providers": [],
+      "signinMethods": [
+        {
+          "name": "Password",
+          "displayName": "Password",
+          "rule": "All"
+        },
+        {
+          "name": "Verification code",
+          "displayName": "Verification code",
+          "rule": "All"
+        },
+        {
+          "name": "WebAuthn",
+          "displayName": "WebAuthn",
+          "rule": "None"
+        }
+      ],
+      "signupItems": [
+        {
+          "name": "ID",
+          "visible": false,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "Random"
+        },
+        {
+          "name": "Username",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "None"
+        },
+        {
+          "name": "Display name",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "None"
+        },
+        {
+          "name": "Password",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "None"
+        },
+        {
+          "name": "Confirm password",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "None"
+        },
+        {
+          "name": "Email",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "Normal"
+        },
+        {
+          "name": "Agreement",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "None"
+        },
+        {
+          "name": "Signup button",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": "",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "None"
+        },
+        {
+          "name": "Providers",
+          "visible": true,
+          "required": true,
+          "prompted": false,
+          "type": "",
+          "customCss": ".provider-img {\n width: 30px;\n margin: 5px;\n }\n .provider-big-img {\n margin-bottom: 10px;\n }\n ",
+          "label": "",
+          "placeholder": "",
+          "options": null,
+          "regex": "",
+          "rule": "small"
+        }
+      ],
+      "grantTypes": [
+        "authorization_code",
+        "password",
+        "client_credentials",
+        "refresh_token"
+      ],
+      "redirectUris": [
+        "http://localhost:9000/callback"
+      ],
+      "tokenFormat": "JWT-Custom",
+      "tokenFields": [
+        "Owner",
+        "Id",
+        "Type",
+        "DisplayName",
+        "Email"
+      ],
+      "expireInHours": 2,
+      "refreshExpireInHours": 168,
+      "failedSigninLimit": 5,
+      "failedSigninFrozenTime": 15
+    }
+  ],
+  "users": [
+    {
+      "owner": "lerian",
+      "name": "user_john",
+      "type": "normal-user",
+      "password": "Leriand@123",
+      "displayName": "John",
+      "avatar": "",
+      "email": "john@example.com",
+      "phone": "32276407018",
+      "countryCode": "US",
+      "address": [],
+      "affiliation": "",
+      "tag": "",
+      "score": 2000,
+      "ranking": 1,
+      "isAdmin": true,
+      "isForbidden": false,
+      "isDeleted": false,
+      "signupApplication": "app-midaz",
+      "createdIp": "",
+      "groups": [
+        "lerian/group_admin",
+        "lerian/group_developer"
+      ]
+    },
+    {
+      "owner": "lerian",
+      "name": "user_kate",
+      "type": "normal-user",
+      "password": "Leriand@123",
+      "displayName": "Kate",
+      "avatar": "",
+      "email": "kate@example.com",
+      "phone": "32276407019",
+      "countryCode": "US",
+      "address": [],
+      "affiliation": "",
+      "tag": "",
+      "score": 2000,
+      "ranking": 1,
+      "isAdmin": true,
+      "isForbidden": false,
+      "isDeleted": false,
+      "signupApplication": "app-midaz",
+      "createdIp": "",
+      "groups": [
+        "lerian/group_admin",
+        "lerian/group_developer"
+      ]
+    },
+    {
+      "owner": "lerian",
+      "name": "user_lisa",
+      "type": "normal-user",
+      "password": "Leriand@123",
+      "displayName": "Lisa",
+      "avatar": "",
+      "email": "lisa@example.com",
+      "phone": "32276407017",
+      "countryCode": "US",
+      "address": [],
+      "affiliation": "",
+      "tag": "",
+      "score": 2000,
+      "ranking": 1,
+      "isAdmin": true,
+      "isForbidden": false,
+      "isDeleted": false,
+      "signupApplication": "app-midaz",
+      "createdIp": "",
+      "groups": [
+        "lerian/group_admin"
+      ]
+    },
+    {
+      "owner": "lerian",
+      "name": "user_bob",
+      "type": "normal-user",
+      "password": "Leriand@123",
+      "displayName": "Bob",
+      "avatar": "",
+      "email": "bob@example.com",
+      "phone": "32276407016",
+      "countryCode": "US",
+      "address": [],
+      "affiliation": "",
+      "tag": "",
+      "score": 2000,
+      "ranking": 1,
+      "isAdmin": false,
+      "isForbidden": false,
+      "isDeleted": false,
+      "signupApplication": "app-midaz",
+      "createdIp": "",
+      "groups": [
+        "lerian/group_developer"
+      ]
+    },
+    {
+      "owner": "lerian",
+      "name": "user_mike",
+      "type": "normal-user",
+      "password": "Leriand@123",
+      "displayName": "Mike",
+      "avatar": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToK_-LT9HmxfBNTsC0A8wfvjtfxKh3GjexbQ&s",
+      "email": "mike@example.com",
+      "phone": "32276407015",
+      "countryCode": "US",
+      "address": [],
+      "affiliation": "",
+      "tag": "",
+      "score": 2000,
+      "ranking": 1,
+      "isAdmin": false,
+      "isForbidden": false,
+      "isDeleted": false,
+      "signupApplication": "app-midaz",
+      "createdIp": "",
+      "groups": [
+        "lerian/group_user"
+      ]
+    }
+  ],
+  "providers": [
+    {
+      "owner": "lerian",
+      "name": "sendgrid_provider",
+      "displayName": "SendGrid Provider",
+      "category": "Email",
+      "type": "SendGrid"
+    }
+  ],
+  "certs": [
+    {
+      "owner": "admin",
+      "name": "cert-built-in",
+      "displayName": "Built-in Cert",
+      "scope": "JWT",
+      "type": "x509",
+      "cryptoAlgorithm": "RS256",
+      "bitSize": 4096,
+      "expireInYears": 20,
+      "certificate": "",
+      "privateKey": ""
+    }
+  ],
+  "models": [
+    {
+      "owner": "lerian",
+      "name": "api-model",
+      "modelText": "[request_definition]\nr = sub, dom, obj, act\n\n[policy_definition]\np = sub, dom, obj, act\n\n[role_definition]\ng = _, _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub, r.dom) && r.dom == p.dom && ( r.obj == p.obj || p.obj == '*' ) && (r.act == p.act || p.act == '*')",
+      "displayName": "API Model"
+    }
+  ],
+  "permissions": [
+    {
+      "owner": "lerian",
+      "name": "admin-api-permission",
+      "displayName": "Admin API Permission",
+      "isEnabled": true,
+      "model": "lerian/api-model",
+      "roles": [
+        "lerian/admin_role"
+      ],
+      "users": [
+        "lerian/user_john",
+        "lerian/user_kate",
+        "lerian/user_lisa"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "*"
+      ],
+      "actions": [
+        "GET",
+        "POST",
+        "UPDATE",
+        "DELETE",
+        "PATCH"
+      ],
+      "domains": [
+        "*"
+      ],
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
+    },
+    {
+      "owner": "lerian",
+      "name": "developer-api-permission",
+      "displayName": "Developer API Permission",
+      "isEnabled": true,
+      "model": "lerian/api-model",
+      "roles": [
+        "lerian/developer_role"
+      ],
+      "users": [
+        "lerian/user_john",
+        "lerian/user_kate",
+        "lerian/user_bob"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "*"
+      ],
+      "actions": [
+        "GET",
+        "POST",
+        "PATCH"
+      ],
+      "domains": [
+        "*"
+      ],
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
+    },
+    {
+      "owner": "lerian",
+      "name": "user-api-permission",
+      "displayName": "User API Permission",
+      "isEnabled": true,
+      "model": "lerian/api-model",
+      "roles": [
+        "lerian/user_role"
+      ],
+      "users": [
+        "lerian/user_mike"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "*"
+      ],
+      "actions": [
+        "GET"
+      ],
+      "domains": [
+        "*"
+      ],
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
+    }
+  ],
+  "resources": [],
+  "roles": [
+    {
+      "displayName": "Admin Role",
+      "isEnabled": true,
+      "name": "admin_role",
+      "owner": "lerian",
+      "roles": [],
+      "users": [
+        "lerian/user_john",
+        "lerian/user_kate",
+        "lerian/user_lisa"
+      ]
+    },
+    {
+      "displayName": "Developer Role",
+      "isEnabled": true,
+      "name": "developer_role",
+      "owner": "lerian",
+      "roles": [],
+      "users": [
+        "lerian/user_john",
+        "lerian/user_kate",
+        "lerian/user_bob"
+      ]
+    },
+    {
+      "displayName": "User Role",
+      "isEnabled": true,
+      "name": "user_role",
+      "owner": "lerian",
+      "roles": [],
+      "users": [
+        "lerian/user_mike"
+      ]
+    }
+  ],
+  "syncers": [],
+  "tokens": [],
+  "groups": [
+    {
+      "owner": "lerian",
+      "name": "group_admin",
+      "displayName": "Admin",
+      "manager": "",
+      "contactEmail": "",
+      "type": "",
+      "parent_id": "",
+      "isTopGroup": true,
+      "title": "",
+      "key": "",
+      "children": [],
+      "isEnabled": true
+    },
+    {
+      "owner": "lerian",
+      "name": "group_developer",
+      "displayName": "Developer",
+      "manager": "",
+      "contactEmail": "",
+      "type": "",
+      "parent_id": "",
+      "isTopGroup": false,
+      "title": "",
+      "key": "",
+      "children": [],
+      "isEnabled": true
+    },
+    {
+      "owner": "lerian",
+      "name": "group_user",
+      "displayName": "User",
+      "manager": "",
+      "contactEmail": "",
+      "type": "",
+      "parent_id": "",
+      "isTopGroup": false,
+      "title": "",
+      "key": "",
+      "children": [],
+      "isEnabled": true
+    }
+  ],
+  "adapters": [],
+  "enforcers": []
+}
