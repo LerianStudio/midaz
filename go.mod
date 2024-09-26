@@ -21,7 +21,7 @@ require (
 	go.uber.org/mock v0.4.0
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/grpc v1.64.1
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.34.2
 )
 
 require (
