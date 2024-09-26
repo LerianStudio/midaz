@@ -2,12 +2,12 @@
   "organizations": [
     {
       "owner": "admin",
-      "name": "<your_organization_name>",
-      "displayName": "<your_organization_displayed_name>",
-      "websiteUrl": "<your_organization_website>",
-      "logo": "<your_organization_logo_link>",
-      "favicon": "<your_organization_favicon_link>",
-      "passwordType": "bcrypt",
+      "name": "lerian",
+      "displayName": "Lerian",
+      "websiteUrl": "https://lerian.studio/",
+      "logo": "https://tinyurl.com/lerian-logo",
+      "favicon": "https://framerusercontent.com/images/YIgCZu3L9aPWs8t9TOdUfHaRC0Q.svg",
+      "passwordType": "plain",
       "passwordSalt": "BjXSuMnkJNCzOyo09DX133mIYR9kE0MDtsfoGUX2mNQDWhpfCItNxMBZV5dm5/+N\nncwh0vZtCLYRlMxzI1f71A==",
       "passwordOptions": [
         "AtLeast6",
@@ -44,7 +44,7 @@
         "SK"
       ],
       "defaultAvatar": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToK_-LT9HmxfBNTsC0A8wfvjtfxKh3GjexbQ&s",
-      "defaultApplication": "<your_application_name>",
+      "defaultApplication": "app-midaz",
       "tags": [],
       "languages": [
         "en",
@@ -98,6 +98,18 @@
         },
         {
           "name": "Organization",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self"
+        },
+        {
+          "name": "Roles",
+          "visible": true,
+          "viewRule": "Public",
+          "modifyRule": "Self"
+        },
+        {
+          "name": "Permissions",
           "visible": true,
           "viewRule": "Public",
           "modifyRule": "Self"
@@ -207,6 +219,7 @@
           "modifyRule": "Self",
           "regex": ""
         },
+
         {
           "name": "Is admin",
           "visible": true,
@@ -262,11 +275,11 @@
   "applications": [
     {
       "owner": "admin",
-      "name": "<your_application_name>",
-      "displayName": "<your_application_displayed_name>",
-      "logo": "<your_application_logo_link>>",
-      "homepageUrl": "",
-      "organization": "<your_organization_name>",
+      "name": "app-midaz",
+      "displayName": "Midaz",
+      "logo": "https://tinyurl.com/lerian-logo",
+      "homepageUrl": "https://lerian.studio/midaz",
+      "organization": "lerian",
       "cert": "cert-built-in",
       "enablePassword": true,
       "enableSignUp": true,
@@ -359,7 +372,7 @@
         {
           "name": "Email",
           "visible": true,
-          "required": false,
+          "required": true,
           "prompted": false,
           "type": "",
           "customCss": "",
@@ -413,9 +426,7 @@
         "authorization_code",
         "password",
         "client_credentials",
-        "refresh_token",
-        "token",
-        "id_token"
+        "refresh_token"
       ],
       "redirectUris": [
         "http://localhost:9000/callback"

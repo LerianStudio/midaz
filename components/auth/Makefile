@@ -36,7 +36,7 @@ build:
 	@docker-compose -f docker-compose.yml build $(c)
 
 up:
-	@docker-compose -f docker-compose.yml up $(c)
+	@docker-compose -f docker-compose.yml up $(c) -d
 
 start:
 	@docker-compose -f docker-compose.yml start $(c)
