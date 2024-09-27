@@ -1,10 +1,10 @@
 package grpc
 
 import (
+	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
-	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )

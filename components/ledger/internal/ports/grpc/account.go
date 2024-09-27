@@ -5,11 +5,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/common"
+	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
-	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
 )
 
 // AccountProto struct contains an account use case for managing account related operations.
@@ -23,7 +23,7 @@ type AccountProto struct {
 func (ap *AccountProto) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) (*proto.ManyAccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	uuids := make([]uuid.UUID, len(ids.Ids))
+	var uuids []uuid.UUID
 	for i, id := range ids.Ids {
 		uuids[i] = uuid.MustParse(id.Id)
 	}
@@ -54,7 +54,7 @@ func (ap *AccountProto) GetByIds(ctx context.Context, ids *proto.ManyAccountsID)
 func (ap *AccountProto) GetByAlias(ctx context.Context, aliases *proto.ManyAccountsAlias) (*proto.ManyAccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	als := make([]string, len(aliases.Aliases))
+	var als []string
 	for i, alias := range aliases.Aliases {
 		als[i] = alias.Alias
 	}

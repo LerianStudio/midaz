@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
+	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/google/uuid"
 )
 
