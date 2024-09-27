@@ -1,3 +1,29 @@
+## [1.12.0](https://github.com/LerianStudio/midaz/compare/v1.11.0...v1.12.0) (2024-09-27)
+
+
+### Features
+
+* create auth postman collections and environments ([206ffb1](https://github.com/LerianStudio/midaz/commit/206ffb14845f78a98180d72eafc02c4b281b43a1))
+* create casdoor base infrastructure ✨ ([1d10d20](https://github.com/LerianStudio/midaz/commit/1d10d20a52df2d4f7e95b752eecd513c56565dca))
+
+
+### Bug Fixes
+
+* update postman and environments :bug: ([3f4d97e](https://github.com/LerianStudio/midaz/commit/3f4d97e7d3692ad30d8f0fe2dda55ddb44fd5e8b))
+
+## [1.12.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.11.1-beta.2...v1.12.0-beta.1) (2024-09-27)
+
+
+### Features
+
+* create auth postman collections and environments ([206ffb1](https://github.com/LerianStudio/midaz/commit/206ffb14845f78a98180d72eafc02c4b281b43a1))
+* create casdoor base infrastructure ✨ ([1d10d20](https://github.com/LerianStudio/midaz/commit/1d10d20a52df2d4f7e95b752eecd513c56565dca))
+
+
+### Bug Fixes
+
+* update postman and environments :bug: ([3f4d97e](https://github.com/LerianStudio/midaz/commit/3f4d97e7d3692ad30d8f0fe2dda55ddb44fd5e8b))
+
 ## [1.11.1-beta.2](https://github.com/LerianStudio/midaz/compare/v1.11.1-beta.1...v1.11.1-beta.2) (2024-09-26)
 
 ## [1.11.1-beta.1](https://github.com/LerianStudio/midaz/compare/v1.11.0...v1.11.1-beta.1) (2024-09-26)
