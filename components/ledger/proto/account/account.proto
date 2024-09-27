@@ -11,22 +11,47 @@ message AccountAlias {
   string  alias = 1;
 }
 
+message Balance {
+  double  available = 1;
+  double  on_hold = 2;
+  double  scale = 3;
+}
+
+message Metadata {
+  map<string, string> value = 1;
+}
+
+message Status {
+  string  code = 1;
+  string  description = 2;
+  bool    allow_sending= 3;
+  bool    allow_receiving = 4;
+}
+
 message Account {
-  string  id = 1;
-  string  alias = 2;
-  double  available_balance = 3;
-  double  on_hold_balance = 4;
-  double  balance_scale = 5;
-  bool    allow_sending= 6;
-  bool    allow_receiving = 7;
+  string   id = 1;
+  string   name = 2;
+  string   parent_account_id = 3;
+  string   entity_id = 4;
+  string   asset_code = 5;
+  string   organization_id = 6;
+  string   ledger_id = 7;
+  string   portfolio_id = 8;
+  string   product_id = 9;
+  Balance  balance = 10;
+  Status   status = 11;
+  string   alias = 12;
+  string   type = 13;
+  string   created_at = 14;
+  string   updated_at = 15;
+  string   deleted_at = 16;
+  Metadata metadata = 17;
 }
 
 message UpdateRequest {
-  string  id = 1;
-  string  alias = 2;
-  double  available_balance = 3;
-  double  on_hold_balance = 4;
-  double  balance_scale = 5;
+  string   id = 1;
+  string   alias = 2;
+  Balance  balance = 3;
 }
 
 message ManyAccountsResponse {

@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -9,7 +10,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	proto "github.com/LerianStudio/midaz/components/ledger/proto/account"
-	"github.com/google/uuid"
 )
 
 // AccountProto struct contains an account use case for managing account related operations.
@@ -38,19 +38,10 @@ func (ap *AccountProto) GetByIds(ctx context.Context, ids *proto.ManyAccountsID)
 		}
 	}
 
-	accounts := make([]*proto.Account, len(acc))
+	var accounts []*proto.Account
 
 	for _, ac := range acc {
-		account := proto.Account{
-			Id:               ac.ID,
-			Alias:            *ac.Alias,
-			AvailableBalance: *ac.Balance.Available,
-			OnHoldBalance:    *ac.Balance.OnHold,
-			BalanceScale:     *ac.Balance.Scale,
-			AllowSending:     ac.Status.AllowSending,
-			AllowReceiving:   ac.Status.AllowReceiving,
-		}
-		accounts = append(accounts, &account)
+		accounts = append(accounts, ac.ToProto())
 	}
 
 	response := proto.ManyAccountsResponse{
@@ -64,8 +55,8 @@ func (ap *AccountProto) GetByAlias(ctx context.Context, aliases *proto.ManyAccou
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	als := make([]string, len(aliases.Aliases))
-	for i, aA := range aliases.Aliases {
-		als[i] = aA.Alias
+	for i, alias := range aliases.Aliases {
+		als[i] = alias.Alias
 	}
 
 	acc, err := ap.Query.ListAccountsByAlias(ctx, als)
@@ -78,19 +69,10 @@ func (ap *AccountProto) GetByAlias(ctx context.Context, aliases *proto.ManyAccou
 		}
 	}
 
-	accounts := make([]*proto.Account, len(acc))
+	var accounts []*proto.Account
 
 	for _, ac := range acc {
-		account := proto.Account{
-			Id:               ac.ID,
-			Alias:            *ac.Alias,
-			AvailableBalance: *ac.Balance.Available,
-			OnHoldBalance:    *ac.Balance.OnHold,
-			BalanceScale:     *ac.Balance.Scale,
-			AllowSending:     ac.Status.AllowSending,
-			AllowReceiving:   ac.Status.AllowReceiving,
-		}
-		accounts = append(accounts, &account)
+		accounts = append(accounts, ac.ToProto())
 	}
 
 	response := proto.ManyAccountsResponse{
@@ -113,9 +95,9 @@ func (ap *AccountProto) Update(ctx context.Context, update *proto.UpdateRequest)
 	}
 
 	balance := a.Balance{
-		Available: &update.AvailableBalance,
-		OnHold:    &update.OnHoldBalance,
-		Scale:     &update.BalanceScale,
+		Available: &update.Balance.Available,
+		OnHold:    &update.Balance.OnHold,
+		Scale:     &update.Balance.Scale,
 	}
 
 	acu, err := ap.Command.UpdateAccountByID(ctx, update.Id, &balance)
@@ -128,13 +110,5 @@ func (ap *AccountProto) Update(ctx context.Context, update *proto.UpdateRequest)
 		}
 	}
 
-	account := proto.Account{
-		Id:               acu.ID,
-		Alias:            update.Alias,
-		AvailableBalance: *acu.Balance.Available,
-		OnHoldBalance:    *acu.Balance.OnHold,
-		BalanceScale:     *acu.Balance.Scale,
-	}
-
-	return &account, nil
+	return acu.ToProto(), nil
 }
