@@ -5,6 +5,8 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mgrpc"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -51,17 +53,27 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 	}
 }
 
+func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
+	addr := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
+
+	return &mgrpc.GRPCConnection{
+		Addr: addr,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
+		setupGRPCConnection,
 		service.NewConfig,
 		httpHandler.NewRouter,
 		service.NewServer,
 		postgres.NewTransactionPostgreSQLRepository,
 		postgres.NewOperationPostgreSQLRepository,
+		grpc.NewAccountGRPC,
 		wire.Struct(new(ports.TransactionHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),

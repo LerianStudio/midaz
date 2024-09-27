@@ -9,10 +9,12 @@ package gen
 import (
 	"fmt"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mgrpc"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
@@ -82,9 +84,18 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 	}
 }
 
+func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
+	addr := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
+
+	return &mgrpc.GRPCConnection{
+		Addr: addr,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
-		setupMongoDBConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)),
+		setupMongoDBConnection,
+		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, grpc.NewAccountGRPC, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))
