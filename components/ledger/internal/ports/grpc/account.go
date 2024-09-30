@@ -24,8 +24,8 @@ func (ap *AccountProto) GetByIds(ctx context.Context, ids *proto.ManyAccountsID)
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	var uuids []uuid.UUID
-	for i, id := range ids.Ids {
-		uuids[i] = uuid.MustParse(id.Id)
+	for _, id := range ids.Ids {
+		uuids = append(uuids, uuid.MustParse(id.Id))
 	}
 
 	acc, err := ap.Query.ListAccountsByIDs(ctx, uuids)
@@ -55,8 +55,8 @@ func (ap *AccountProto) GetByAlias(ctx context.Context, aliases *proto.ManyAccou
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	var als []string
-	for i, alias := range aliases.Aliases {
-		als[i] = alias.Alias
+	for _, alias := range aliases.Aliases {
+		als = append(als, alias.Alias)
 	}
 
 	acc, err := ap.Query.ListAccountsByAlias(ctx, als)
