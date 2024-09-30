@@ -22,15 +22,15 @@ func (c *GRPCConnection) Connect() error {
 		log.Fatal("Failed to connect on gRPC", zap.Error(err))
 		return nil
 	}
-	defer conn.Close()
+
 	fmt.Println("Connected to gRPC ✅ ")
 
 	c.Conn = conn
 	return nil
 }
 
-// getNewClient returns a connection to gRPC, reconnect it if necessary.
-func (c *GRPCConnection) getNewClient() (*grpc.ClientConn, error) {
+// GetNewClient returns a connection to gRPC, reconnect it if necessary.
+func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
 	if c.Conn == nil {
 		if err := c.Connect(); err != nil {
 			log.Printf("ERRCONECT %s", err)
