@@ -2,32 +2,40 @@ package grpc
 
 import (
 	"context"
+
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	"google.golang.org/grpc"
 )
 
-// AccountGRPC is a gRPC implementation of the account.proto.
-type AccountGRPC struct {
-	conn *grpc.ClientConn
+// AccountGRPCRepository is a gRPC implementation of the account.proto
+type AccountGRPCRepository struct {
+	conn *mgrpc.GRPCConnection
 }
 
-func NewAccountGRPC(c mgrpc.GRPCConnection) *AccountGRPC {
-	err := c.Connect()
+// NewAccountGRPC returns a new instance of AccountGRPCRepository using the given gRPC connection.
+func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
+	agrpc := &AccountGRPCRepository{
+		conn: c,
+	}
+
+	_, err := c.GetNewClient()
 	if err != nil {
 		panic("Failed to connect gRPC")
 	}
 
-	return &AccountGRPC{
-		conn: c.Conn,
-	}
+	return agrpc
 }
 
-func (a *AccountGRPC) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) *proto.ManyAccountsResponse {
-	account := proto.NewAccountProtoClient(a.conn)
+func (a *AccountGRPCRepository) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) (*proto.ManyAccountsResponse, error) {
+	conn, err := a.conn.GetNewClient()
+	if err != nil {
+		return nil, err
+	}
 
-	aliasD := &proto.AccountAlias{Alias: "@wallet_97666534"}
-	aliasC := &proto.AccountAlias{Alias: "@wallet_86555196"}
+	account := proto.NewAccountProtoClient(conn)
+
+	aliasD := &proto.AccountAlias{Alias: "@wallet_21712486"}
+	aliasC := &proto.AccountAlias{Alias: "@wallet_27744039"}
 	aliases := []*proto.AccountAlias{aliasD, aliasC}
 	manyAccountsAlias := proto.ManyAccountsAlias{
 		Aliases: aliases,
@@ -35,24 +43,32 @@ func (a *AccountGRPC) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) *
 
 	manyAccountsResponse, _ := account.GetByAlias(ctx, &manyAccountsAlias)
 
-	return manyAccountsResponse
+	return manyAccountsResponse, nil
 }
 
-func (a *AccountGRPC) GetByAlias(ctx context.Context, ids *proto.ManyAccountsAlias) *proto.ManyAccountsResponse {
-	account := proto.NewAccountProtoClient(a.conn)
+func (a *AccountGRPCRepository) GetByAlias(ctx context.Context, ids *proto.ManyAccountsAlias) (*proto.ManyAccountsResponse, error) {
+	conn, err := a.conn.GetNewClient()
+	if err != nil {
+		return nil, err
+	}
 
-	aliasD := &proto.AccountAlias{Alias: "@wallet_97666534"}
-	aliasC := &proto.AccountAlias{Alias: "@wallet_86555196"}
+	account := proto.NewAccountProtoClient(conn)
+
+	aliasD := &proto.AccountAlias{Alias: "@wallet_74571295"}
+	aliasC := &proto.AccountAlias{Alias: "@wallet_62552967"}
 	aliases := []*proto.AccountAlias{aliasD, aliasC}
 	manyAccountsAlias := proto.ManyAccountsAlias{
 		Aliases: aliases,
 	}
 
-	manyAccountsResponse, _ := account.GetByAlias(ctx, &manyAccountsAlias)
+	manyAccountsResponse, err := account.GetByAlias(ctx, &manyAccountsAlias)
+	if err != nil {
+		return nil, err
+	}
 
-	return manyAccountsResponse
+	return manyAccountsResponse, nil
 }
 
-func (a *AccountGRPC) Update(ctx context.Context, account *proto.UpdateRequest) *proto.Account {
-	return nil
+func (a *AccountGRPCRepository) Update(ctx context.Context, account *proto.UpdateRequest) (*proto.Account, error) {
+	return nil, nil
 }

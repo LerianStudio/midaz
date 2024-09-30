@@ -1,6 +1,7 @@
 package command
 
 import (
+	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 )
 
@@ -8,4 +9,7 @@ import (
 type UseCase struct {
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo t.Repository
+
+	// AccountGRPCRepo provides an abstraction on top of the account grpc.
+	AccountGRPCRepo a.Repository
 }

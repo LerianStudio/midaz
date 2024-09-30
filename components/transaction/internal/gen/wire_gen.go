@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	"github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
@@ -33,11 +34,15 @@ func InitializeService() *service.Service {
 	config := service.NewConfig()
 	postgresConnection := setupPostgreSQLConnection(config)
 	transactionPostgreSQLRepository := postgres.NewTransactionPostgreSQLRepository(postgresConnection)
+	grpcConnection := setupGRPCConnection(config)
+	accountGRPCRepository := grpc.NewAccountGRPC(grpcConnection)
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
+		AccountGRPCRepo: accountGRPCRepository,
 	}
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
+		AccountGRPCRepo: accountGRPCRepository,
 	}
 	transactionHandler := &ports.TransactionHandler{
 		Command: useCase,
@@ -95,7 +100,7 @@ func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
-		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, grpc.NewAccountGRPC, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)),
+		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, grpc.NewAccountGRPC, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))
