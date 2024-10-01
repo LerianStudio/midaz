@@ -3,14 +3,6 @@ syntax = "proto3";
 option go_package = "./account";
 package account;
 
-message AccountID {
-  string  id = 1;
-}
-
-message AccountAlias {
-  string  alias = 1;
-}
-
 message Balance {
   double  available = 1;
   double  on_hold = 2;
@@ -48,26 +40,24 @@ message Account {
   Metadata metadata = 17;
 }
 
-message UpdateRequest {
-  string   id = 1;
-  string   alias = 2;
-  Balance  balance = 3;
-}
-
-message ManyAccountsResponse {
+message AccountsResponse {
   repeated Account accounts = 1;
 }
 
-message ManyAccountsID {
-  repeated AccountID ids = 1;
+message AccountsRequest {
+  repeated Account accounts = 1;
 }
 
-message ManyAccountsAlias {
-  repeated AccountAlias aliases = 1;
+message AccountsID {
+  repeated string ids = 1;
+}
+
+message AccountsAlias {
+  repeated string aliases = 1;
 }
 
 service AccountProto {
-  rpc GetByIds(ManyAccountsID) returns (ManyAccountsResponse) {}
-  rpc GetByAlias(ManyAccountsAlias) returns (ManyAccountsResponse) {}
-  rpc Update(UpdateRequest) returns (Account) {}
+  rpc GetAccountsByIds(AccountsID) returns (AccountsResponse) {}
+  rpc GetAccountsByAliases(AccountsAlias) returns (AccountsResponse) {}
+  rpc UpdateAccounts(AccountsRequest) returns (AccountsResponse) {}
 }
