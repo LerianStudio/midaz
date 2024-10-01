@@ -26,7 +26,8 @@ func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
 	return agrpc
 }
 
-func (a *AccountGRPCRepository) GetByIds(ctx context.Context, ids *proto.ManyAccountsID) (*proto.ManyAccountsResponse, error) {
+// GetAccountsByIds returns a grpc accounts on ledger bi given ids.
+func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, ids []string) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -34,19 +35,20 @@ func (a *AccountGRPCRepository) GetByIds(ctx context.Context, ids *proto.ManyAcc
 
 	account := proto.NewAccountProtoClient(conn)
 
-	aliasD := &proto.AccountAlias{Alias: "@wallet_21712486"}
-	aliasC := &proto.AccountAlias{Alias: "@wallet_27744039"}
-	aliases := []*proto.AccountAlias{aliasD, aliasC}
-	manyAccountsAlias := proto.ManyAccountsAlias{
-		Aliases: aliases,
+	accountsID := &proto.AccountsID{
+		Ids: ids,
 	}
 
-	manyAccountsResponse, _ := account.GetByAlias(ctx, &manyAccountsAlias)
+	accountsResponse, err := account.GetAccountsByIds(ctx, accountsID)
+	if err != nil {
+		return nil, err
+	}
 
-	return manyAccountsResponse, nil
+	return accountsResponse, nil
 }
 
-func (a *AccountGRPCRepository) GetByAlias(ctx context.Context, ids *proto.ManyAccountsAlias) (*proto.ManyAccountsResponse, error) {
+// GetAccountsByAlias returns a grpc accounts on ledger bi given aliases.
+func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, aliases []string) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -54,21 +56,19 @@ func (a *AccountGRPCRepository) GetByAlias(ctx context.Context, ids *proto.ManyA
 
 	account := proto.NewAccountProtoClient(conn)
 
-	aliasD := &proto.AccountAlias{Alias: "@wallet_74571295"}
-	aliasC := &proto.AccountAlias{Alias: "@wallet_62552967"}
-	aliases := []*proto.AccountAlias{aliasD, aliasC}
-	manyAccountsAlias := proto.ManyAccountsAlias{
+	accountsAlias := &proto.AccountsAlias{
 		Aliases: aliases,
 	}
 
-	manyAccountsResponse, err := account.GetByAlias(ctx, &manyAccountsAlias)
+	accountsResponse, err := account.GetAccountsByAliases(ctx, accountsAlias)
 	if err != nil {
 		return nil, err
 	}
 
-	return manyAccountsResponse, nil
+	return accountsResponse, nil
 }
 
-func (a *AccountGRPCRepository) Update(ctx context.Context, account *proto.UpdateRequest) (*proto.Account, error) {
+// UpdateAccounts update a grpc accounts on ledger.
+func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, accounts []*proto.Account) (*proto.AccountsResponse, error) {
 	return nil, nil
 }

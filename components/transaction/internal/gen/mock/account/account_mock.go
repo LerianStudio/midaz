@@ -40,47 +40,47 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 	return m.recorder
 }
 
-// GetByAlias mocks base method.
-func (m *MockRepository) GetByAlias(arg0 context.Context, arg1 *account.ManyAccountsAlias) (*account.ManyAccountsResponse, error) {
+// GetAccountsByAlias mocks base method.
+func (m *MockRepository) GetAccountsByAlias(arg0 context.Context, arg1 []string) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetByAlias", arg0, arg1)
-	ret0, _ := ret[0].(*account.ManyAccountsResponse)
+	ret := m.ctrl.Call(m, "GetAccountsByAlias", arg0, arg1)
+	ret0, _ := ret[0].(*account.AccountsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetByAlias indicates an expected call of GetByAlias.
-func (mr *MockRepositoryMockRecorder) GetByAlias(arg0, arg1 any) *gomock.Call {
+// GetAccountsByAlias indicates an expected call of GetAccountsByAlias.
+func (mr *MockRepositoryMockRecorder) GetAccountsByAlias(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByAlias", reflect.TypeOf((*MockRepository)(nil).GetByAlias), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountsByAlias", reflect.TypeOf((*MockRepository)(nil).GetAccountsByAlias), arg0, arg1)
 }
 
-// GetByIds mocks base method.
-func (m *MockRepository) GetByIds(arg0 context.Context, arg1 *account.ManyAccountsID) (*account.ManyAccountsResponse, error) {
+// GetAccountsByIds mocks base method.
+func (m *MockRepository) GetAccountsByIds(arg0 context.Context, arg1 []string) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetByIds", arg0, arg1)
-	ret0, _ := ret[0].(*account.ManyAccountsResponse)
+	ret := m.ctrl.Call(m, "GetAccountsByIds", arg0, arg1)
+	ret0, _ := ret[0].(*account.AccountsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetByIds indicates an expected call of GetByIds.
-func (mr *MockRepositoryMockRecorder) GetByIds(arg0, arg1 any) *gomock.Call {
+// GetAccountsByIds indicates an expected call of GetAccountsByIds.
+func (mr *MockRepositoryMockRecorder) GetAccountsByIds(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByIds", reflect.TypeOf((*MockRepository)(nil).GetByIds), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountsByIds", reflect.TypeOf((*MockRepository)(nil).GetAccountsByIds), arg0, arg1)
 }
 
-// Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1 *account.UpdateRequest) (*account.Account, error) {
+// UpdateAccounts mocks base method.
+func (m *MockRepository) UpdateAccounts(arg0 context.Context, arg1 []*account.Account) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", arg0, arg1)
-	ret0, _ := ret[0].(*account.Account)
+	ret := m.ctrl.Call(m, "UpdateAccounts", arg0, arg1)
+	ret0, _ := ret[0].(*account.AccountsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(arg0, arg1 any) *gomock.Call {
+// UpdateAccounts indicates an expected call of UpdateAccounts.
+func (mr *MockRepositoryMockRecorder) UpdateAccounts(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccounts", reflect.TypeOf((*MockRepository)(nil).UpdateAccounts), arg0, arg1)
 }

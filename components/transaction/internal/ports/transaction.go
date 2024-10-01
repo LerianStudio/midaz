@@ -54,7 +54,7 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 
 	//status = {"CREATED", "APPROVED", "PRE_APPROVED", "SENT", "CANCELED", "DECLINED"}
 
-	ret, err := handler.Query.AccountGRPCRepo.GetByAlias(c.Context(), nil)
+	ret, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), nil)
 	if err != nil {
 		logger.Error("Failed to get account gRPC on Ledger", err.Error())
 		return commonHTTP.WithError(c, err)
