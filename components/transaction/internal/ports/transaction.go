@@ -22,6 +22,9 @@ type TransactionHandler struct {
 func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+
 	dsl, err := commonHTTP.GetFileFromHeader(c)
 	if err != nil {
 		logger.Error("Failed to validate and parse transaction", err.Error())
@@ -52,9 +55,16 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
 	}
 
-	//status = {"CREATED", "APPROVED", "PRE_APPROVED", "SENT", "CANCELED", "DECLINED"}
+	var alias []string
+	for _, from := range transactionParsed.Send.Source.From {
+		alias = append(alias, from.Account)
+	}
 
-	ret, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), nil)
+	for _, to := range transactionParsed.Distribute.To {
+		alias = append(alias, to.Account)
+	}
+
+	ret, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), alias)
 	if err != nil {
 		logger.Error("Failed to get account gRPC on Ledger", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -64,7 +74,7 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		logger.Infof("Account %s founded on Ledger", ac.Alias)
 	}
 
-	entity, err := handler.Command.CreateTransaction(c.Context(), &transactionParsed)
+	entity, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &transactionParsed)
 	if err != nil {
 		logger.Error("Failed to create transaction", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -92,6 +102,13 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 // RevertTransaction method that revert transaction created before
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	return commonHTTP.Created(c, logger)
+}
+
+// GetTransaction method that get transaction created before
+func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
 	return commonHTTP.Created(c, logger)

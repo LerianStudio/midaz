@@ -2,6 +2,7 @@ package query
 
 import (
 	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
+	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 )
 
@@ -12,4 +13,7 @@ type UseCase struct {
 
 	// AccountGRPCRepo provides an abstraction on top of the account grpc.
 	AccountGRPCRepo a.Repository
+
+	// MetadataRepo provides an abstraction on top of the metadata data source.
+	MetadataRepo m.Repository
 }
