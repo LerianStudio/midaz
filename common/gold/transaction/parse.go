@@ -35,9 +35,9 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 		pending = v.VisitPending(ctx.Pending().(*parser.PendingContext)).(bool)
 	}
 
-	var metadata []model.Metadata
+	var metadata map[string]any
 	if ctx.Metadata() != nil {
-		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).([]model.Metadata)
+		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
 	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(model.Send)
@@ -86,14 +86,14 @@ func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccoun
 }
 
 func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
-	metas := make([]model.Metadata, 0, len(ctx.AllPair()))
+	metadata := make(map[string]any, len(ctx.AllPair()))
 
 	for _, pair := range ctx.AllPair() {
-		meta := v.VisitPair(pair.(*parser.PairContext)).(model.Metadata)
-		metas = append(metas, meta)
+		m := v.VisitPair(pair.(*parser.PairContext)).(model.Metadata)
+		metadata[m.Key] = m.Value
 	}
 
-	return metas
+	return metadata
 }
 
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
@@ -220,9 +220,9 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
 	}
 
-	var metadata []model.Metadata
+	var metadata map[string]any
 	if ctx.Metadata() != nil {
-		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).([]model.Metadata)
+		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
 	var amount model.Amount
@@ -262,9 +262,9 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
 	}
 
-	var metadata []model.Metadata
+	var metadata map[string]any
 	if ctx.Metadata() != nil {
-		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).([]model.Metadata)
+		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
 	var amount model.Amount
