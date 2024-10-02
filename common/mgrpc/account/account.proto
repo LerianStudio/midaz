@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+option go_package = "./account";
+package account;
+
+message Balance {
+  double  available = 1;
+  double  on_hold = 2;
+  double  scale = 3;
+}
+
+message Metadata {
+  map<string, string> value = 1;
+}
+
+message Status {
+  string  code = 1;
+  string  description = 2;
+  bool    allow_sending= 3;
+  bool    allow_receiving = 4;
+}
+
+message Account {
+  string   id = 1;
+  string   name = 2;
+  string   parent_account_id = 3;
+  string   entity_id = 4;
+  string   asset_code = 5;
+  string   organization_id = 6;
+  string   ledger_id = 7;
+  string   portfolio_id = 8;
+  string   product_id = 9;
+  Balance  balance = 10;
+  Status   status = 11;
+  string   alias = 12;
+  string   type = 13;
+  string   created_at = 14;
+  string   updated_at = 15;
+  string   deleted_at = 16;
+  Metadata metadata = 17;
+}
+
+message AccountsResponse {
+  repeated Account accounts = 1;
+}
+
+message AccountsRequest {
+  repeated Account accounts = 1;
+}
+
+message AccountsID {
+  repeated string ids = 1;
+}
+
+message AccountsAlias {
+  repeated string aliases = 1;
+}
+
+service AccountProto {
+  rpc GetAccountsByIds(AccountsID) returns (AccountsResponse) {}
+  rpc GetAccountsByAliases(AccountsAlias) returns (AccountsResponse) {}
+  rpc UpdateAccounts(AccountsRequest) returns (AccountsResponse) {}
+}

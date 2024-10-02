@@ -55,6 +55,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    command: mongod --port ${MONGO_PORT}
     ports:
       - ${MONGO_PORT}:${MONGO_PORT}
     volumes:
@@ -175,3 +176,5 @@ volumes:
 
 networks:
   app-tier:
+    driver: bridge
+    name: app-tier

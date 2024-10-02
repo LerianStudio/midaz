@@ -23,6 +23,8 @@ type Config struct {
 	MongoDBUser       string `env:"MONGO_USER"`
 	MongoDBPassword   string `env:"MONGO_PASSWORD"`
 	MongoDBPort       string `env:"MONGO_PORT"`
+	LedgerGRPCAddr    string `env:"LEDGER_GRPC_ADDR"`
+	LedgerGRPCPort    string `env:"LEDGER_GRPC_PORT"`
 }
 
 // NewConfig creates an instance of Config.

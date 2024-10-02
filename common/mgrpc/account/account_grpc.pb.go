@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.0
-// source: proto/account/account.proto
+// source: common/mgrpc/account/account.proto
 
 package account
 
@@ -19,18 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountProto_GetByIds_FullMethodName   = "/account.AccountProto/GetByIds"
-	AccountProto_GetByAlias_FullMethodName = "/account.AccountProto/GetByAlias"
-	AccountProto_Update_FullMethodName     = "/account.AccountProto/Update"
+	AccountProto_GetAccountsByIds_FullMethodName     = "/account.AccountProto/GetAccountsByIds"
+	AccountProto_GetAccountsByAliases_FullMethodName = "/account.AccountProto/GetAccountsByAliases"
+	AccountProto_UpdateAccounts_FullMethodName       = "/account.AccountProto/UpdateAccounts"
 )
 
 // AccountProtoClient is the client API for AccountProto service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccountProtoClient interface {
-	GetByIds(ctx context.Context, in *ManyAccountsID, opts ...grpc.CallOption) (*ManyAccountsResponse, error)
-	GetByAlias(ctx context.Context, in *ManyAccountsAlias, opts ...grpc.CallOption) (*ManyAccountsResponse, error)
-	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Account, error)
+	GetAccountsByIds(ctx context.Context, in *AccountsID, opts ...grpc.CallOption) (*AccountsResponse, error)
+	GetAccountsByAliases(ctx context.Context, in *AccountsAlias, opts ...grpc.CallOption) (*AccountsResponse, error)
+	UpdateAccounts(ctx context.Context, in *AccountsRequest, opts ...grpc.CallOption) (*AccountsResponse, error)
 }
 
 type accountProtoClient struct {
@@ -41,30 +41,30 @@ func NewAccountProtoClient(cc grpc.ClientConnInterface) AccountProtoClient {
 	return &accountProtoClient{cc}
 }
 
-func (c *accountProtoClient) GetByIds(ctx context.Context, in *ManyAccountsID, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
+func (c *accountProtoClient) GetAccountsByIds(ctx context.Context, in *AccountsID, opts ...grpc.CallOption) (*AccountsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ManyAccountsResponse)
-	err := c.cc.Invoke(ctx, AccountProto_GetByIds_FullMethodName, in, out, cOpts...)
+	out := new(AccountsResponse)
+	err := c.cc.Invoke(ctx, AccountProto_GetAccountsByIds_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountProtoClient) GetByAlias(ctx context.Context, in *ManyAccountsAlias, opts ...grpc.CallOption) (*ManyAccountsResponse, error) {
+func (c *accountProtoClient) GetAccountsByAliases(ctx context.Context, in *AccountsAlias, opts ...grpc.CallOption) (*AccountsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ManyAccountsResponse)
-	err := c.cc.Invoke(ctx, AccountProto_GetByAlias_FullMethodName, in, out, cOpts...)
+	out := new(AccountsResponse)
+	err := c.cc.Invoke(ctx, AccountProto_GetAccountsByAliases_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *accountProtoClient) Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*Account, error) {
+func (c *accountProtoClient) UpdateAccounts(ctx context.Context, in *AccountsRequest, opts ...grpc.CallOption) (*AccountsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Account)
-	err := c.cc.Invoke(ctx, AccountProto_Update_FullMethodName, in, out, cOpts...)
+	out := new(AccountsResponse)
+	err := c.cc.Invoke(ctx, AccountProto_UpdateAccounts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,9 +75,9 @@ func (c *accountProtoClient) Update(ctx context.Context, in *UpdateRequest, opts
 // All implementations must embed UnimplementedAccountProtoServer
 // for forward compatibility.
 type AccountProtoServer interface {
-	GetByIds(context.Context, *ManyAccountsID) (*ManyAccountsResponse, error)
-	GetByAlias(context.Context, *ManyAccountsAlias) (*ManyAccountsResponse, error)
-	Update(context.Context, *UpdateRequest) (*Account, error)
+	GetAccountsByIds(context.Context, *AccountsID) (*AccountsResponse, error)
+	GetAccountsByAliases(context.Context, *AccountsAlias) (*AccountsResponse, error)
+	UpdateAccounts(context.Context, *AccountsRequest) (*AccountsResponse, error)
 	mustEmbedUnimplementedAccountProtoServer()
 }
 
@@ -88,14 +88,14 @@ type AccountProtoServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAccountProtoServer struct{}
 
-func (UnimplementedAccountProtoServer) GetByIds(context.Context, *ManyAccountsID) (*ManyAccountsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetByIds not implemented")
+func (UnimplementedAccountProtoServer) GetAccountsByIds(context.Context, *AccountsID) (*AccountsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccountsByIds not implemented")
 }
-func (UnimplementedAccountProtoServer) GetByAlias(context.Context, *ManyAccountsAlias) (*ManyAccountsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetByAlias not implemented")
+func (UnimplementedAccountProtoServer) GetAccountsByAliases(context.Context, *AccountsAlias) (*AccountsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAccountsByAliases not implemented")
 }
-func (UnimplementedAccountProtoServer) Update(context.Context, *UpdateRequest) (*Account, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+func (UnimplementedAccountProtoServer) UpdateAccounts(context.Context, *AccountsRequest) (*AccountsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateAccounts not implemented")
 }
 func (UnimplementedAccountProtoServer) mustEmbedUnimplementedAccountProtoServer() {}
 func (UnimplementedAccountProtoServer) testEmbeddedByValue()                      {}
@@ -118,56 +118,56 @@ func RegisterAccountProtoServer(s grpc.ServiceRegistrar, srv AccountProtoServer)
 	s.RegisterService(&AccountProto_ServiceDesc, srv)
 }
 
-func _AccountProto_GetByIds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ManyAccountsID)
+func _AccountProto_GetAccountsByIds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountsID)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountProtoServer).GetByIds(ctx, in)
+		return srv.(AccountProtoServer).GetAccountsByIds(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountProto_GetByIds_FullMethodName,
+		FullMethod: AccountProto_GetAccountsByIds_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountProtoServer).GetByIds(ctx, req.(*ManyAccountsID))
+		return srv.(AccountProtoServer).GetAccountsByIds(ctx, req.(*AccountsID))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountProto_GetByAlias_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ManyAccountsAlias)
+func _AccountProto_GetAccountsByAliases_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountsAlias)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountProtoServer).GetByAlias(ctx, in)
+		return srv.(AccountProtoServer).GetAccountsByAliases(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountProto_GetByAlias_FullMethodName,
+		FullMethod: AccountProto_GetAccountsByAliases_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountProtoServer).GetByAlias(ctx, req.(*ManyAccountsAlias))
+		return srv.(AccountProtoServer).GetAccountsByAliases(ctx, req.(*AccountsAlias))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountProto_Update_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateRequest)
+func _AccountProto_UpdateAccounts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AccountsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountProtoServer).Update(ctx, in)
+		return srv.(AccountProtoServer).UpdateAccounts(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountProto_Update_FullMethodName,
+		FullMethod: AccountProto_UpdateAccounts_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountProtoServer).Update(ctx, req.(*UpdateRequest))
+		return srv.(AccountProtoServer).UpdateAccounts(ctx, req.(*AccountsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -180,18 +180,18 @@ var AccountProto_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AccountProtoServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetByIds",
-			Handler:    _AccountProto_GetByIds_Handler,
+			MethodName: "GetAccountsByIds",
+			Handler:    _AccountProto_GetAccountsByIds_Handler,
 		},
 		{
-			MethodName: "GetByAlias",
-			Handler:    _AccountProto_GetByAlias_Handler,
+			MethodName: "GetAccountsByAliases",
+			Handler:    _AccountProto_GetAccountsByAliases_Handler,
 		},
 		{
-			MethodName: "Update",
-			Handler:    _AccountProto_Update_Handler,
+			MethodName: "UpdateAccounts",
+			Handler:    _AccountProto_UpdateAccounts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/account/account.proto",
+	Metadata: "common/mgrpc/account/account.proto",
 }

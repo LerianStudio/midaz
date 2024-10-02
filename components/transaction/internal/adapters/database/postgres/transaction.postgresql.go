@@ -48,12 +48,13 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	record := &t.TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
 		record.Template,
 		record.Status,
+		record.StatusDescription,
 		record.Amount,
 		record.AmountScale,
 		record.AssetCode,
