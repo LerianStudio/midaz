@@ -12,12 +12,14 @@ import (
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	adapter "github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
+	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
@@ -52,6 +54,7 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 
 	return &mmongo.MongoConnection{
 		ConnectionStringSource: connStrSource,
+		Database:               cfg.MongoDBName,
 	}
 }
 
@@ -75,6 +78,7 @@ var (
 		service.NewServer,
 		postgres.NewTransactionPostgreSQLRepository,
 		postgres.NewOperationPostgreSQLRepository,
+		mongodb.NewMetadataMongoDBRepository,
 		grpc.NewAccountGRPC,
 		wire.Struct(new(ports.TransactionHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
@@ -82,6 +86,7 @@ var (
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),
 		wire.Bind(new(o.Repository), new(*postgres.OperationPostgreSQLRepository)),
 		wire.Bind(new(a.Repository), new(*adapter.AccountGRPCRepository)),
+		wire.Bind(new(m.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(

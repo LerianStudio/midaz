@@ -81,5 +81,5 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		tran.Metadata = transaction.Metadata
 	}
 
-	return nil, nil
+	return tran, nil
 }
