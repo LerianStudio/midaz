@@ -31,12 +31,12 @@ type Source struct {
 }
 
 type FromTo struct {
-	Account     string     `json:"account,omitempty"`
-	Amount      *Amount    `json:"amount,omitempty"`
-	Share       *Share     `json:"share,omitempty"`
-	Remaining   string     `json:"remaining,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Metadata    []Metadata `json:"metadata,omitempty"`
+	Account     string         `json:"account,omitempty"`
+	Amount      *Amount        `json:"amount,omitempty"`
+	Share       *Share         `json:"share,omitempty"`
+	Remaining   string         `json:"remaining,omitempty"`
+	Description string         `json:"description,omitempty"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 type Distribute struct {
@@ -46,11 +46,11 @@ type Distribute struct {
 }
 
 type Transaction struct {
-	ChartOfAccountsGroupName string     `json:"chartOfAccountsGroupName"`
-	Description              string     `json:"description,omitempty"`
-	Code                     string     `json:"code,omitempty"`
-	Pending                  bool       `json:"pending,omitempty"`
-	Metadata                 []Metadata `json:"metadata,omitempty"`
-	Send                     Send       `json:"send,omitempty"`
-	Distribute               Distribute `json:"distribute,omitempty"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName"`
+	Description              string         `json:"description,omitempty"`
+	Code                     string         `json:"code,omitempty"`
+	Pending                  bool           `json:"pending,omitempty"`
+	Metadata                 map[string]any `json:"metadata,omitempty"`
+	Send                     Send           `json:"send,omitempty"`
+	Distribute               Distribute     `json:"distribute,omitempty"`
 }

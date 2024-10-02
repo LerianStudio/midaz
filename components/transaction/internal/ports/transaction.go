@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common/gold/transaction"
+	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
@@ -20,6 +21,9 @@ type TransactionHandler struct {
 // CreateTransaction method that create transaction
 func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
 
 	dsl, err := commonHTTP.GetFileFromHeader(c)
 	if err != nil {
@@ -42,11 +46,41 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	tran := transaction.Parse(dsl)
+	parsed := transaction.Parse(dsl)
 
 	logger.Infof("Transaction parsed and validated")
 
-	return commonHTTP.Created(c, tran)
+	transactionParsed, ok := parsed.(gold.Transaction)
+	if !ok {
+		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
+	}
+
+	alias := make([]string, len(transactionParsed.Send.Source.From)+len(transactionParsed.Distribute.To))
+	for _, from := range transactionParsed.Send.Source.From {
+		alias = append(alias, from.Account)
+	}
+
+	for _, to := range transactionParsed.Distribute.To {
+		alias = append(alias, to.Account)
+	}
+
+	ret, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), alias)
+	if err != nil {
+		logger.Error("Failed to get account gRPC on Ledger", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	for _, ac := range ret.Accounts {
+		logger.Infof("Account %s founded on Ledger", ac.Alias)
+	}
+
+	entity, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &transactionParsed)
+	if err != nil {
+		logger.Error("Failed to create transaction", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	return commonHTTP.Created(c, entity)
 }
 
 // CreateTransactionTemplate method that create transaction template
@@ -68,6 +102,13 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 // RevertTransaction method that revert transaction created before
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	return commonHTTP.Created(c, logger)
+}
+
+// GetTransaction method that get transaction created before
+func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
 	return commonHTTP.Created(c, logger)

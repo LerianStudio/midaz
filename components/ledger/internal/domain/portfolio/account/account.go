@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/google/uuid"
 )
 
@@ -172,4 +173,53 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 		deletedAtCopy := *account.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
+}
+
+// ToProto converts entity Account to a response protobuf proto
+func (e *Account) ToProto() *proto.Account {
+	status := proto.Status{
+		Code:           e.Status.Code,
+		Description:    *e.Status.Description,
+		AllowSending:   e.Status.AllowSending,
+		AllowReceiving: e.Status.AllowReceiving,
+	}
+
+	balance := proto.Balance{
+		Available: *e.Balance.Available,
+		OnHold:    *e.Balance.OnHold,
+		Scale:     *e.Balance.Scale,
+	}
+
+	account := &proto.Account{
+		Id:             e.ID,
+		Name:           e.Name,
+		EntityId:       e.EntityID,
+		AssetCode:      e.AssetCode,
+		OrganizationId: e.OrganizationID,
+		LedgerId:       e.LedgerID,
+		PortfolioId:    e.PortfolioID,
+		ProductId:      *e.ProductID,
+		Balance:        &balance,
+		Status:         &status,
+		Alias:          *e.Alias,
+		Type:           e.Type,
+	}
+
+	if e.ParentAccountID != nil {
+		account.ParentAccountId = *e.ParentAccountID
+	}
+
+	if e.DeletedAt != nil {
+		account.DeletedAt = e.DeletedAt.String()
+	}
+
+	if !e.UpdatedAt.IsZero() {
+		account.UpdatedAt = e.UpdatedAt.String()
+	}
+
+	if !e.CreatedAt.IsZero() {
+		account.CreatedAt = e.CreatedAt.String()
+	}
+
+	return account
 }

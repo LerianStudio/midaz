@@ -25,8 +25,7 @@ func NewRouter(th *ports.TransactionHandler) *fiber.App {
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", th.CreateTransaction)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", th.CommitTransaction)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", th.RevertTransaction)
-
-	// f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", nil)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", th.GetTransaction)
 
 	// Transactions Templates
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates", lib.WithBody(new(t.InputDSL), th.CreateTransactionTemplate))

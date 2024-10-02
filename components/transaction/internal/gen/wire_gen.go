@@ -9,12 +9,18 @@ package gen
 import (
 	"fmt"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mgrpc"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	"github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
+	"github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
+	"github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
@@ -30,11 +36,19 @@ func InitializeService() *service.Service {
 	config := service.NewConfig()
 	postgresConnection := setupPostgreSQLConnection(config)
 	transactionPostgreSQLRepository := postgres.NewTransactionPostgreSQLRepository(postgresConnection)
+	grpcConnection := setupGRPCConnection(config)
+	accountGRPCRepository := grpc.NewAccountGRPC(grpcConnection)
+	mongoConnection := setupMongoDBConnection(config)
+	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
+		AccountGRPCRepo: accountGRPCRepository,
+		MetadataRepo:    metadataMongoDBRepository,
 	}
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
+		AccountGRPCRepo: accountGRPCRepository,
+		MetadataRepo:    metadataMongoDBRepository,
 	}
 	transactionHandler := &ports.TransactionHandler{
 		Command: useCase,
@@ -78,12 +92,22 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 
 	return &mmongo.MongoConnection{
 		ConnectionStringSource: connStrSource,
+		Database:               cfg.MongoDBName,
+	}
+}
+
+func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
+	addr := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
+
+	return &mgrpc.GRPCConnection{
+		Addr: addr,
 	}
 }
 
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
-		setupMongoDBConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)),
+		setupMongoDBConnection,
+		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))
