@@ -5,17 +5,24 @@ package gen
 
 import (
 	"fmt"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
-	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mgrpc"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
+	adapter "github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
+	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	httpHandler "github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/google/wire"
@@ -47,6 +54,15 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 
 	return &mmongo.MongoConnection{
 		ConnectionStringSource: connStrSource,
+		Database:               cfg.MongoDBName,
+	}
+}
+
+func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
+	addr := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
+
+	return &mgrpc.GRPCConnection{
+		Addr: addr,
 	}
 }
 
@@ -56,14 +72,21 @@ var (
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
+		setupGRPCConnection,
 		service.NewConfig,
 		httpHandler.NewRouter,
 		service.NewServer,
 		postgres.NewTransactionPostgreSQLRepository,
+		postgres.NewOperationPostgreSQLRepository,
+		mongodb.NewMetadataMongoDBRepository,
+		grpc.NewAccountGRPC,
 		wire.Struct(new(ports.TransactionHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),
+		wire.Bind(new(o.Repository), new(*postgres.OperationPostgreSQLRepository)),
+		wire.Bind(new(a.Repository), new(*adapter.AccountGRPCRepository)),
+		wire.Bind(new(m.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(
