@@ -26,6 +26,7 @@ func (c *GRPCConnection) Connect() error {
 	fmt.Println("Connected to gRPC ✅ ")
 
 	c.Conn = conn
+
 	return nil
 }
 

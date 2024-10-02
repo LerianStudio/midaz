@@ -2,15 +2,15 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common"
-	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	"reflect"
 	"strconv"
 	"time"
 
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mlog"
+	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/google/uuid"
 )

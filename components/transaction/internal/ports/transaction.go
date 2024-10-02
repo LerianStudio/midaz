@@ -55,7 +55,7 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
 	}
 
-	var alias []string
+	alias := make([]string, len(transactionParsed.Send.Source.From)+len(transactionParsed.Distribute.To))
 	for _, from := range transactionParsed.Send.Source.From {
 		alias = append(alias, from.Account)
 	}

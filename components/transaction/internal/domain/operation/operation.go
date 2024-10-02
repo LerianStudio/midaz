@@ -2,8 +2,9 @@ package operation
 
 import (
 	"database/sql"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -145,34 +146,34 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 }
 
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
-func (t *OperationPostgreSQLModel) FromEntity(Operation *Operation) {
+func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	*t = OperationPostgreSQLModel{
 		ID:                    uuid.New().String(),
-		TransactionID:         Operation.TransactionID,
-		Description:           Operation.Description,
-		Type:                  Operation.Type,
-		InstrumentCode:        Operation.InstrumentCode,
-		ChartOfAccounts:       Operation.ChartOfAccounts,
-		Amount:                Operation.Amount.Amount,
-		AmountScale:           Operation.Amount.Scale,
-		BalanceScale:          Operation.Balance.Scale,
-		OnHoldBalance:         Operation.Balance.OnHold,
-		AvailableBalance:      Operation.Balance.Available,
-		BalanceScaleAfter:     Operation.BalanceAfter.Scale,
-		AvailableBalanceAfter: Operation.BalanceAfter.Available,
-		OnHoldBalanceAfter:    Operation.BalanceAfter.Scale,
-		Status:                Operation.Status.Code,
-		StatusDescription:     Operation.Status.Description,
-		AccountID:             Operation.AccountID,
-		AccountAlias:          Operation.AccountAlias,
-		LedgerID:              Operation.LedgerID,
-		OrganizationID:        Operation.OrganizationID,
-		CreatedAt:             Operation.CreatedAt,
-		UpdatedAt:             Operation.UpdatedAt,
+		TransactionID:         operation.TransactionID,
+		Description:           operation.Description,
+		Type:                  operation.Type,
+		InstrumentCode:        operation.InstrumentCode,
+		ChartOfAccounts:       operation.ChartOfAccounts,
+		Amount:                operation.Amount.Amount,
+		AmountScale:           operation.Amount.Scale,
+		BalanceScale:          operation.Balance.Scale,
+		OnHoldBalance:         operation.Balance.OnHold,
+		AvailableBalance:      operation.Balance.Available,
+		BalanceScaleAfter:     operation.BalanceAfter.Scale,
+		AvailableBalanceAfter: operation.BalanceAfter.Available,
+		OnHoldBalanceAfter:    operation.BalanceAfter.Scale,
+		Status:                operation.Status.Code,
+		StatusDescription:     operation.Status.Description,
+		AccountID:             operation.AccountID,
+		AccountAlias:          operation.AccountAlias,
+		LedgerID:              operation.LedgerID,
+		OrganizationID:        operation.OrganizationID,
+		CreatedAt:             operation.CreatedAt,
+		UpdatedAt:             operation.UpdatedAt,
 	}
 
-	if Operation.DeletedAt != nil {
-		deletedAtCopy := *Operation.DeletedAt
+	if operation.DeletedAt != nil {
+		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

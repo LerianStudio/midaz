@@ -177,7 +177,6 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 
 // ToProto converts entity Account to a response protobuf proto
 func (e *Account) ToProto() *proto.Account {
-
 	status := proto.Status{
 		Code:           e.Status.Code,
 		Description:    *e.Status.Description,
@@ -213,9 +212,11 @@ func (e *Account) ToProto() *proto.Account {
 	if e.DeletedAt != nil {
 		account.DeletedAt = e.DeletedAt.String()
 	}
+
 	if !e.UpdatedAt.IsZero() {
 		account.UpdatedAt = e.UpdatedAt.String()
 	}
+
 	if !e.CreatedAt.IsZero() {
 		account.CreatedAt = e.CreatedAt.String()
 	}

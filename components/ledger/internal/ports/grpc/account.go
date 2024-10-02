@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/common"
@@ -23,7 +24,7 @@ type AccountProto struct {
 func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.AccountsID) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	var uuids []uuid.UUID
+	uuids := make([]uuid.UUID, len(ids.GetIds()))
 	for _, id := range ids.GetIds() {
 		uuids = append(uuids, uuid.MustParse(id))
 	}
@@ -38,7 +39,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 		}
 	}
 
-	var accounts []*proto.Account
+	accounts := make([]*proto.Account, len(acc))
 
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
@@ -65,7 +66,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 		}
 	}
 
-	var accounts []*proto.Account
+	accounts := make([]*proto.Account, len(acc))
 
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
@@ -82,10 +83,9 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.AccountsRequest) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	var accounts []*proto.Account
+	accounts := make([]*proto.Account, len(update.GetAccounts()))
 
 	for _, account := range update.GetAccounts() {
-
 		if common.IsNilOrEmpty(&account.Id) {
 			logger.Errorf("Failed to update Accounts because id is empty")
 
@@ -112,7 +112,6 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 		}
 
 		accounts = append(accounts, acu.ToProto())
-
 	}
 
 	response := proto.AccountsResponse{
