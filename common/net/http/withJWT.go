@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"strings"
 	"sync"
 	"time"
@@ -37,10 +38,6 @@ type OAuth2JWTToken struct {
 	Domain   string
 	Scope    string
 	ScopeSet map[string]bool
-}
-
-type AuthServer interface {
-	CheckPermission(sub, domain, obj, act string) bool
 }
 
 type TokenParser struct {
@@ -146,20 +143,27 @@ func (p *JWKProvider) Fetch(ctx context.Context) (jwk.Set, error) {
 
 // JWTMiddleware represents a middleware which protects endpoint using JWT tokens.
 type JWTMiddleware struct {
+	connection *mcasdoor.CasdoorConnection
 	JWK        *JWKProvider
-	AuthServer AuthServer
 }
 
 // NewJWTMiddleware create an instance of JWTMiddleware
 // It uses JWK cache duration of 1 hour.
-func NewJWTMiddleware(jwkURI string, authServer AuthServer) *JWTMiddleware {
-	return &JWTMiddleware{
+func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
+	c := &JWTMiddleware{
+		connection: cc,
 		JWK: &JWKProvider{
-			URI:           jwkURI,
+			URI:           cc.JWKUri,
 			CacheDuration: jwkDefaultDuration,
 		},
-		AuthServer: authServer,
 	}
+
+	_, err := c.connection.GetClient()
+	if err != nil {
+		panic("Failed to connect on Casddor")
+	}
+
+	return c
 }
 
 // Protect protects any endpoint using JWT tokens.
@@ -264,7 +268,12 @@ func (m *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 }
 
 // WithPermission verify if a requester has the required permission to access an endpoint.
-func (m *JWTMiddleware) WithPermission(resource string) fiber.Handler {
+func (jwtm *JWTMiddleware) WithPermission(resource string) fiber.Handler {
+	client, err := jwtm.connection.GetClient()
+	if err != nil {
+		panic("Failed to connect on Casddor")
+	}
+
 	return func(c *fiber.Ctx) error {
 		parser := TokenParser{
 			ParseToken: (&CasdoorTokenParser{}).ParseToken,
@@ -274,15 +283,10 @@ func (m *JWTMiddleware) WithPermission(resource string) fiber.Handler {
 			return Unauthorized(c, "INVALID_PERMISSION", "Unauthorized")
 		}
 
-		authorized := false
-
-		sub := t.Sub
-		domain := t.Domain
-		obj := resource
-		act := c.Method()
-
-		if m.AuthServer.CheckPermission(sub, domain, obj, act) {
-			authorized = true
+		println(t.Sub)
+		authorized, err := client.Enforce("", "", "", "", "", nil)
+		if err != nil {
+			panic("Failed to connect on Casddor")
 		}
 
 		if authorized || len(resource) == 0 {

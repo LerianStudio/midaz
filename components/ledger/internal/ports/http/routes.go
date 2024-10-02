@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common/mcasdoor"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -8,25 +9,19 @@ import (
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-// NewRouter registers routes to the Server.
-func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+// NewRouter registerNewRouters routes to the Server.
+func NewRouter(cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
 
-	config := service.NewConfig()
-
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
-
-	jwt := lib.NewJWTMiddleware(config.JWKAddress)
-
-	// -- Routes --
+	jwt := lib.NewJWTMiddleware(cc)
 
 	// Organizations
 	orgRoutes := f.Group("/v1/organizations", jwt.Protect(), jwt.WithPermission("organization"))

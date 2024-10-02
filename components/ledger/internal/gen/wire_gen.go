@@ -27,9 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
-	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/google/wire"
-	"log"
 	"sync"
 )
 
@@ -38,6 +36,7 @@ import (
 // InitializeService the setup the dependencies and returns a new *service.Service instance
 func InitializeService() *service.Service {
 	config := service.NewConfig()
+	casdoorConnection := setupCasdoorConnection(config)
 	postgresConnection := setupPostgreSQLConnection(config)
 	organizationPostgreSQLRepository := postgres.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := postgres.NewLedgerPostgreSQLRepository(postgresConnection)
@@ -89,7 +88,7 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	app := http.NewRouter(accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
+	app := http.NewRouter(casdoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 	logger := mzap.InitializeLogger()
 	server := service.NewServer(config, app, logger)
 	grpcServer := grpc.NewRouterGRPC(useCase, queryUseCase)
@@ -134,23 +133,17 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 	}
 }
 
-func setupCasdoorConnection(cfg *service.Config) (*mcasdoor.CasdoorConnection, error) {
-	cert, err := mcasdoor.LoadCertificate()
-	if err != nil {
-		log.Fatalf("failed to load casdoor certificate: %v", err)
-		return nil, err
+func setupCasdoorConnection(cfg *service.Config) *mcasdoor.CasdoorConnection {
+	casdoor := &mcasdoor.CasdoorConnection{
+		JWKUri:           cfg.JWKAddress,
+		Endpoint:         cfg.CasdoorAddress,
+		ClientId:         cfg.CasdoorClientId,
+		ClientSecret:     cfg.CasdoorClientSecret,
+		OrganizationName: cfg.CasdoorOrganizationName,
+		ApplicationName:  cfg.CasdoorApplicationName,
 	}
 
-	return &mcasdoor.CasdoorConnection{
-		Conf: &casdoorsdk.AuthConfig{
-			Endpoint:         cfg.CasdoorAddress,
-			ClientId:         cfg.CasdoorClientId,
-			ClientSecret:     cfg.CasdoorClientSecret,
-			Certificate:      string(cert),
-			OrganizationName: cfg.CasdoorOrganizationName,
-			ApplicationName:  cfg.CasdoorApplicationName,
-		},
-	}, nil
+	return casdoor
 }
 
 var (
