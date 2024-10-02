@@ -1,3 +1,36 @@
+## [1.13.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.12.0...v1.13.0-beta.1) (2024-10-02)
+
+
+### Features
+
+* create grpc account in adapter :sparkles: ([78dbddb](https://github.com/LerianStudio/midaz/commit/78dbddb255c0dd73c74e32c4a049d59af88f6a04))
+* create operation postgres crud to use with transaction ([0b541a4](https://github.com/LerianStudio/midaz/commit/0b541a48086bc8336085bee3e71606bd1b55d13f))
+* create transaction constant :sparkles: ([4f5a03b](https://github.com/LerianStudio/midaz/commit/4f5a03b920961e33a76d96ead2c05500f97020f8))
+* implements transaction api using grcp to get account on ledger :sparkles: ([7b19915](https://github.com/LerianStudio/midaz/commit/7b199150850a41d5a1bb80b725d7bc8db296e10a))
+
+
+### Bug Fixes
+
+* account proto class updated with all fields. :bug: ([0f00bb7](https://github.com/LerianStudio/midaz/commit/0f00bb79be7fb9ec20723c4f56cd607e6ef144ad))
+* add lib :bug: ([55f0aa0](https://github.com/LerianStudio/midaz/commit/55f0aa0fea1b40cce38da9d35e296e66daf15d5c))
+* adjust account proto in common to improve requests and responses on ledger :bug: ([844d994](https://github.com/LerianStudio/midaz/commit/844d9949171b04860fc14eef888a0d2732c63bb2))
+* adjust to slice to use append instead use index. :bug: ([990c426](https://github.com/LerianStudio/midaz/commit/990c426f87a485790c6c586aadd35b5ac71bf32f))
+* create transaction  on postgresql :bug: ([688a16c](https://github.com/LerianStudio/midaz/commit/688a16cc5eb56b99b071b1f21e6e43c6f8758b01))
+* insert grpc address and port in environment :bug: ([7813ae3](https://github.com/LerianStudio/midaz/commit/7813ae3dc6df15e7cf5a56c344676e76e930297b))
+* insert ledger grpc address and port into transaction .env :bug: ([4be3771](https://github.com/LerianStudio/midaz/commit/4be377158d02369b317f478ccf333ea043bd4573))
+* make sec, format, tidy and lint :bug: ([11b9d97](https://github.com/LerianStudio/midaz/commit/11b9d973c405f839a9fc64bcbe1e5a6828345260))
+* mongdb connection and wire to save metadata of transaction :bug: ([05f19a5](https://github.com/LerianStudio/midaz/commit/05f19a55ae0b4b241101a865fc464eff203fc5b6))
+* remove account http api reference :bug: ([8189389](https://github.com/LerianStudio/midaz/commit/8189389fe7d39dd3dd182c79923a4d1e593dd944))
+* remove defer because command always be executed before the connection is even used. :bug: ([a5e4d36](https://github.com/LerianStudio/midaz/commit/a5e4d3612123a24ddcb3eec0741116e48f294a1f))
+* remove exemples of dsl gold :bug: ([1daa033](https://github.com/LerianStudio/midaz/commit/1daa03307fbb105d95fdad20cecc37d092bf9838))
+* rename .env.exemple to .env.example and update go.sum :bug: ([b6a2a2d](https://github.com/LerianStudio/midaz/commit/b6a2a2dd8fba36b808fd4efc09cdcc3b53d5e708))
+* some operation adjust :bug: ([0ab9fa3](https://github.com/LerianStudio/midaz/commit/0ab9fa3b0248e0a0c9a6d1f25b5e5dcfd0bd1d65))
+* update convert uint64 make sec alert :bug: ([3779924](https://github.com/LerianStudio/midaz/commit/3779924a809686cb28f9013aa71f6b6611f063e6))
+* update docker compose ledger and transaction to add bridge to use grpc call account :bug: ([4115eb1](https://github.com/LerianStudio/midaz/commit/4115eb1e3522751b875c9bab5ad679d8d8912332))
+* update grpc accounts proto reference on transaction and some adjusts to improve readable :bug: ([9930082](https://github.com/LerianStudio/midaz/commit/99300826c63355d9bb8b419d0ff1931fcc63e83a))
+* update grpc accounts proto reference on transaction and some adjusts to improve readable pt. 2 :bug: ([11e5c71](https://github.com/LerianStudio/midaz/commit/11e5c71576980b9059444a9708abcf430ede85bd))
+* update inject and wire :bug: ([8026c16](https://github.com/LerianStudio/midaz/commit/8026c1653921062738a9a6f3f64ca9907c811daf))
+
 ## [1.12.0](https://github.com/LerianStudio/midaz/compare/v1.11.0...v1.12.0) (2024-09-27)
 
 
