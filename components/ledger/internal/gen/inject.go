@@ -5,6 +5,9 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mcasdoor"
+	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
+	"log"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -58,12 +61,41 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 	}
 }
 
+func setupCasdoorConnection(cfg *service.Config) (*mcasdoor.CasdoorConnection, error) {
+	cert, err := mcasdoor.LoadCertificate()
+	if err != nil {
+		log.Fatalf("failed to load casdoor certificate: %v", err)
+		return nil, err
+	}
+
+	return &mcasdoor.CasdoorConnection{
+		Conf: &casdoorsdk.AuthConfig{
+			Endpoint:         cfg.CasdoorAddress,
+			ClientId:         cfg.CasdoorClientId,
+			ClientSecret:     cfg.CasdoorClientSecret,
+			Certificate:      string(cert),
+			OrganizationName: cfg.CasdoorOrganizationName,
+			ApplicationName:  cfg.CasdoorApplicationName,
+		},
+	}, nil
+}
+
+func setupJWTMiddleware(cfg *service.Config) (*http.JWTMiddleware, error) {
+	casdoorConn, err := setupCasdoorConnection(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return http.NewJWTMiddleware(cfg.JWKAddress, authServer), nil
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
+		setupCasdoorConnection,
 		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
 		portsHTTP.NewRouter,

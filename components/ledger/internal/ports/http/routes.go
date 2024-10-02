@@ -19,56 +19,62 @@ func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *
 		DisableStartupMessage: true,
 	})
 
-	_ = service.NewConfig()
+	config := service.NewConfig()
 
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
 
-	// jwt := lib.NewJWTMiddleware(config.JWKAddress)
+	jwt := lib.NewJWTMiddleware(config.JWKAddress)
 
 	// -- Routes --
 
 	// Organizations
-	f.Post("/v1/organizations", lib.WithBody(new(o.CreateOrganizationInput), oh.CreateOrganization))
-	f.Patch("/v1/organizations/:id", lib.WithBody(new(o.UpdateOrganizationInput), oh.UpdateOrganization))
-	f.Get("/v1/organizations", oh.GetAllOrganizations)
-	f.Get("/v1/organizations/:id", oh.GetOrganizationByID)
-	f.Delete("/v1/organizations/:id", oh.DeleteOrganizationByID)
+	orgRoutes := f.Group("/v1/organizations", jwt.Protect(), jwt.WithPermission("organization"))
+	orgRoutes.Post("/", lib.WithBody(new(o.CreateOrganizationInput), oh.CreateOrganization))
+	orgRoutes.Patch("/:id", lib.WithBody(new(o.UpdateOrganizationInput), oh.UpdateOrganization))
+	orgRoutes.Get("/", oh.GetAllOrganizations)
+	orgRoutes.Get("/:id", oh.GetOrganizationByID)
+	orgRoutes.Delete("/:id", oh.DeleteOrganizationByID)
 
 	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", lib.WithBody(new(l.CreateLedgerInput), lh.CreateLedger))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:id", lib.WithBody(new(l.UpdateLedgerInput), lh.UpdateLedger))
-	f.Get("/v1/organizations/:organization_id/ledgers", lh.GetAllLedgers)
-	f.Get("/v1/organizations/:organization_id/ledgers/:id", lh.GetLedgerByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:id", lh.DeleteLedgerByID)
+	ledgerRoutes := f.Group("/v1/organizations/:organization_id/ledgers", jwt.Protect())
+	ledgerRoutes.Post("/", lib.WithBody(new(l.CreateLedgerInput), lh.CreateLedger))
+	ledgerRoutes.Patch("/:id", lib.WithBody(new(l.UpdateLedgerInput), lh.UpdateLedger))
+	ledgerRoutes.Get("/", lh.GetAllLedgers)
+	ledgerRoutes.Get("/:id", lh.GetLedgerByID)
+	ledgerRoutes.Delete("/:id", lh.DeleteLedgerByID)
 
 	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", lib.WithBody(new(s.CreateAssetInput), ih.CreateAsset))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", lib.WithBody(new(s.UpdateAssetInput), ih.UpdateAsset))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", ih.GetAllAssets)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", ih.GetAssetByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", ih.DeleteAssetByID)
+	assetRoutes := f.Group("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.Protect())
+	assetRoutes.Post("/", lib.WithBody(new(s.CreateAssetInput), ih.CreateAsset))
+	assetRoutes.Patch("/:id", lib.WithBody(new(s.UpdateAssetInput), ih.UpdateAsset))
+	assetRoutes.Get("/", ih.GetAllAssets)
+	assetRoutes.Get("/:id", ih.GetAssetByID)
+	assetRoutes.Delete("/:id", ih.DeleteAssetByID)
 
 	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", lib.WithBody(new(p.CreatePortfolioInput), ph.CreatePortfolio))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", lib.WithBody(new(p.UpdatePortfolioInput), ph.UpdatePortfolio))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", ph.GetAllPortfolios)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", ph.GetPortfolioByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", ph.DeletePortfolioByID)
+	portfolioRoutes := f.Group("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.Protect())
+	portfolioRoutes.Post("/", lib.WithBody(new(p.CreatePortfolioInput), ph.CreatePortfolio))
+	portfolioRoutes.Patch("/:id", lib.WithBody(new(p.UpdatePortfolioInput), ph.UpdatePortfolio))
+	portfolioRoutes.Get("/", ph.GetAllPortfolios)
+	portfolioRoutes.Get("/:id", ph.GetPortfolioByID)
+	portfolioRoutes.Delete("/:id", ph.DeletePortfolioByID)
 
 	// Product
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/products", lib.WithBody(new(r.CreateProductInput), rh.CreateProduct))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", lib.WithBody(new(r.UpdateProductInput), rh.UpdateProduct))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products", rh.GetAllProducts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", rh.GetProductByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", rh.DeleteProductByID)
+	productRoutes := f.Group("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.Protect())
+	productRoutes.Post("/", lib.WithBody(new(r.CreateProductInput), rh.CreateProduct))
+	productRoutes.Patch("/:id", lib.WithBody(new(r.UpdateProductInput), rh.UpdateProduct))
+	productRoutes.Get("/", rh.GetAllProducts)
+	productRoutes.Get("/:id", rh.GetProductByID)
+	productRoutes.Delete("/:id", rh.DeleteProductByID)
 
 	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", ah.GetAllAccounts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", ah.GetAccountByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", ah.DeleteAccountByID)
+	accountRoutes := f.Group("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.Protect())
+	accountRoutes.Post("/", lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
+	accountRoutes.Patch("/:id", lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
+	accountRoutes.Get("/", ah.GetAllAccounts)
+	accountRoutes.Get("/:id", ah.GetAccountByID)
+	accountRoutes.Delete("/:id", ah.DeleteAccountByID)
 
 	// Health
 	f.Get("/health", lib.Ping)

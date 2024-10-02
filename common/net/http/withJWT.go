@@ -34,42 +34,60 @@ type OAuth2JWTToken struct {
 	Groups   []string
 	Sub      string
 	Username *string
+	Domain   string
 	Scope    string
 	ScopeSet map[string]bool
 }
 
-// TokenFromContext extracts a JWT token from context.
-func TokenFromContext(c *fiber.Ctx) (*OAuth2JWTToken, error) {
-	if tokenValue := c.Locals(string(TokenContextValue("token"))); tokenValue != nil {
-		if token, ok := tokenValue.(*jwt.Token); ok {
-			if claims, ok := token.Claims.(jwt.MapClaims); ok {
-				t := &OAuth2JWTToken{
-					Token:  token,
-					Claims: claims,
-					Sub:    claims["sub"].(string),
-				}
-				if username, found := claims["username"].(string); found {
-					t.Username = &username
-				}
+type AuthServer interface {
+	CheckPermission(sub, domain, obj, act string) bool
+}
 
-				if scope, found := claims["scope"].(string); found {
-					t.Scope = scope
-					t.ScopeSet = make(map[string]bool)
+type TokenParser struct {
+	ParseToken func(*jwt.Token) (*OAuth2JWTToken, error)
+}
 
-					for _, s := range strings.Split(scope, " ") {
-						t.ScopeSet[s] = true
-					}
-				}
+type CasdoorTokenParser struct{}
 
-				if groups, found := claims["cognito:groups"].([]any); found {
-					t.Groups = convertGroups(groups)
-				}
+func (p *CasdoorTokenParser) ParseToken(token *jwt.Token) (*OAuth2JWTToken, error) {
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		t := &OAuth2JWTToken{
+			Token:  token,
+			Claims: claims,
+			Sub:    claims["sub"].(string),
+		}
+		if username, found := claims["name"].(string); found {
+			t.Username = &username
+		}
 
-				return t, nil
+		if domain, found := claims["signupApplication"].(string); found {
+			t.Domain = domain
+		}
+
+		if scope, found := claims["scope"].(string); found {
+			t.Scope = scope
+			t.ScopeSet = make(map[string]bool)
+
+			for _, s := range strings.Split(scope, " ") {
+				t.ScopeSet[s] = true
 			}
 		}
-	}
 
+		if groups, found := claims["groups"].([]any); found {
+			t.Groups = convertGroups(groups)
+		}
+
+		return t, nil
+	}
+	return nil, errors.New("invalid JWT token")
+}
+
+func TokenFromContext(c *fiber.Ctx, parser TokenParser) (*OAuth2JWTToken, error) {
+	if tokenValue := c.Locals(string(TokenContextValue("token"))); tokenValue != nil {
+		if token, ok := tokenValue.(*jwt.Token); ok {
+			return parser.ParseToken(token)
+		}
+	}
 	return nil, errors.New("invalid JWT token")
 }
 
@@ -128,17 +146,19 @@ func (p *JWKProvider) Fetch(ctx context.Context) (jwk.Set, error) {
 
 // JWTMiddleware represents a middleware which protects endpoint using JWT tokens.
 type JWTMiddleware struct {
-	JWK *JWKProvider
+	JWK        *JWKProvider
+	AuthServer AuthServer
 }
 
 // NewJWTMiddleware create an instance of JWTMiddleware
 // It uses JWK cache duration of 1 hour.
-func NewJWTMiddleware(jwkURI string) *JWTMiddleware {
+func NewJWTMiddleware(jwkURI string, authServer AuthServer) *JWTMiddleware {
 	return &JWTMiddleware{
 		JWK: &JWKProvider{
 			URI:           jwkURI,
 			CacheDuration: jwkDefaultDuration,
 		},
+		AuthServer: authServer,
 	}
 }
 
@@ -196,6 +216,15 @@ func (m *JWTMiddleware) Protect() fiber.Handler {
 		}
 
 		if token.Valid {
+			// Check if the token is expired
+			if claims, ok := token.Claims.(jwt.MapClaims); ok {
+				if exp, ok := claims["exp"].(float64); ok {
+					if time.Unix(int64(exp), 0).Before(time.Now()) {
+						return Unauthorized(c, "INVALID_TOKEN", "Token is expired")
+					}
+				}
+			}
+
 			l.Debug("Token ok")
 			c.Locals(string(TokenContextValue("token")), token)
 
@@ -209,7 +238,10 @@ func (m *JWTMiddleware) Protect() fiber.Handler {
 // WithScope verify if a requester has the required scope to access an endpoint.
 func (m *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		t, err := TokenFromContext(c)
+		parser := TokenParser{
+			ParseToken: (&CasdoorTokenParser{}).ParseToken,
+		}
+		t, err := TokenFromContext(c, parser)
 		if err != nil {
 			return Unauthorized(c, "INVALID_SCOPE", "Unauthorized")
 		}
@@ -224,6 +256,37 @@ func (m *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 		}
 
 		if authorized || len(scopes) == 0 {
+			return c.Next()
+		}
+
+		return Forbidden(c, "Insufficient privileges")
+	}
+}
+
+// WithPermission verify if a requester has the required permission to access an endpoint.
+func (m *JWTMiddleware) WithPermission(resource string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		parser := TokenParser{
+			ParseToken: (&CasdoorTokenParser{}).ParseToken,
+		}
+		t, err := TokenFromContext(c, parser)
+		if err != nil {
+			return Unauthorized(c, "INVALID_PERMISSION", "Unauthorized")
+		}
+
+		authorized := false
+
+		sub := t.Sub
+		domain := t.Domain
+		obj := resource
+		act := c.Method()
+
+		if m.AuthServer.CheckPermission(sub, domain, obj, act) {
+			authorized = true
+		}
+
+		if authorized || len(resource) == 0 {
+
 			return c.Next()
 		}
 
