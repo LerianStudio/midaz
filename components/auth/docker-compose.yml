@@ -26,15 +26,16 @@ services:
   casdoor-db:
     <<: *postgres-common
     container_name: casdoor-db
-    env_file:
-      - .env
     ports:
       - ${CASDOOR_DB_PORT}:${CASDOOR_DB_PORT}
     environment:
-      - PGPORT=${CASDOOR_DB_PORT}
-      - POSTGRES_USER=${CASDOOR_DB_USER}
-      - POSTGRES_PASSWORD=${CASDOOR_DB_PASSWORD}
-      - POSTGRES_DB=${CASDOOR_DB_NAME}
+      PGPORT: ${CASDOOR_DB_PORT}
+      POSTGRES_USER: ${CASDOOR_DB_USER}
+      POSTGRES_PASSWORD: ${CASDOOR_DB_PASSWORD}
+      POSTGRES_DB: ${CASDOOR_DB_NAME}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - ./setup/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${CASDOOR_DB_USER} -d ${CASDOOR_DB_NAME} -p ${CASDOOR_DB_PORT}" ]
       interval: 10s

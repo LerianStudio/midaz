@@ -300,7 +300,6 @@
           "provider": {
             "owner": "admin",
             "name": "provider_captcha_default",
-            "createdTime": "2024-09-26T19:37:25Z",
             "displayName": "Captcha Default",
             "category": "Captcha",
             "type": "Default",
@@ -350,7 +349,6 @@
           "provider": {
             "owner": "lerian",
             "name": "sendgrid_provider",
-            "createdTime": "",
             "displayName": "SendGrid Provider",
             "category": "Email",
             "type": "SendGrid",
@@ -547,7 +545,10 @@
         "Id",
         "Type",
         "DisplayName",
-        "Email"
+        "Email",
+        "Roles",
+        "Permissions",
+        "Groups"
       ],
       "expireInHours": 2,
       "refreshExpireInHours": 168,
@@ -683,7 +684,6 @@
     {
       "owner": "lerian",
       "name": "sendgrid_provider",
-      "createdTime": "",
       "displayName": "SendGrid Provider",
       "category": "Email",
       "type": "SendGrid",
@@ -770,15 +770,12 @@
         "*"
       ],
       "actions": [
-        "GET",
-        "POST",
-        "UPDATE",
-        "DELETE",
-        "PATCH"
-      ],
-      "domains": [
         "*"
       ],
+      "domains": [
+        "app-midaz"
+      ],
+      "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
@@ -805,11 +802,13 @@
       "actions": [
         "GET",
         "POST",
-        "PATCH"
+        "PATCH",
+        "PUT"
       ],
       "domains": [
-        "*"
+        "app-midaz"
       ],
+      "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
@@ -835,8 +834,9 @@
         "GET"
       ],
       "domains": [
-        "*"
+        "app-midaz"
       ],
+      "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
@@ -926,6 +926,26 @@
       "isEnabled": true
     }
   ],
-  "adapters": [],
-  "enforcers": []
+  "adapters": [
+    {
+      "owner": "lerian",
+      "name": "lerian-adapter",
+      "table": "casbin_lerian_rule",
+      "useSameDb": true
+    }
+  ],
+  "enforcers": [
+    {
+      "owner": "lerian",
+      "name": "lerian-enforcer",
+      "displayName": "Lerian Enforcer",
+      "description": "",
+      "model": "lerian/api-model",
+      "adapter": "lerian/lerian-adapter",
+      "modelCfg": {
+        "g": "_, _, _",
+        "p": "sub, dom, obj, act"
+      }
+    }
+  ]
 }
