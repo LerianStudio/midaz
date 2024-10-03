@@ -9,6 +9,7 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
 )
@@ -55,32 +56,64 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
 	}
 
-	alias := make([]string, len(transactionParsed.Send.Source.From)+len(transactionParsed.Distribute.To))
-	for _, from := range transactionParsed.Send.Source.From {
-		alias = append(alias, from.Account)
+	from := transactionParsed.Send.Source.From
+	source := make([]string, len(from))
+	for _, fr := range from {
+		source = append(source, fr.Account)
 	}
 
-	for _, to := range transactionParsed.Distribute.To {
-		alias = append(alias, to.Account)
+	to := transactionParsed.Distribute.To
+	destination := make([]string, len(to))
+	for _, ot := range to {
+		destination = append(destination, ot.Account)
 	}
+	alias := make([]string, len(source)+len(destination))
+	alias = append(alias, source...)
+	alias = append(alias, destination...)
 
-	ret, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), alias)
+	//if common.IsUUID() {
+	//	gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c.Context(), uuids)
+	//} esle {
+	gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), alias)
 	if err != nil {
 		logger.Error("Failed to get account gRPC on Ledger", err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	for _, ac := range ret.Accounts {
-		logger.Infof("Account %s founded on Ledger", ac.Alias)
-	}
-
-	entity, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &transactionParsed)
+	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &transactionParsed)
 	if err != nil {
 		logger.Error("Failed to create transaction", err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	return commonHTTP.Created(c, entity)
+	tran.Source = source
+	tran.Destination = destination
+
+	e := make(chan error)
+	result := make(chan []*o.Operation)
+	go handler.Command.CreateOperation(c.Context(), gRPCAccounts, tran, from, result, e)
+	select {
+	case of := <-result:
+		for _, fo := range of {
+			logger.Info(fo.ID)
+		}
+	case err := <-e:
+		logger.Error("Failed to create FROM operation: ", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	go handler.Command.CreateOperation(c.Context(), gRPCAccounts, tran, to, result, e)
+	select {
+	case to := <-result:
+		for _, ot := range to {
+			logger.Info(ot.ID)
+		}
+	case err := <-e:
+		logger.Error("Failed to create TO operation: ", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	return commonHTTP.Created(c, tran)
 }
 
 // CreateTransactionTemplate method that create transaction template
