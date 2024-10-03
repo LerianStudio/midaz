@@ -44,3 +44,5 @@ services:
 
 networks:
   app-tier:
+    driver: bridge
+    name: app-tier

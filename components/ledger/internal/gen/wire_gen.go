@@ -137,10 +137,11 @@ func setupCasdoorConnection(cfg *service.Config) *mcasdoor.CasdoorConnection {
 	casdoor := &mcasdoor.CasdoorConnection{
 		JWKUri:           cfg.JWKAddress,
 		Endpoint:         cfg.CasdoorAddress,
-		ClientId:         cfg.CasdoorClientId,
+		ClientID:         cfg.CasdoorClientID,
 		ClientSecret:     cfg.CasdoorClientSecret,
 		OrganizationName: cfg.CasdoorOrganizationName,
 		ApplicationName:  cfg.CasdoorApplicationName,
+		EnforcerName:     cfg.CasdoorEnforcerName,
 	}
 
 	return casdoor

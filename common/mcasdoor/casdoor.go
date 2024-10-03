@@ -4,8 +4,9 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"log"
+
+	"go.uber.org/zap"
 
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 )
@@ -15,11 +16,12 @@ var jwtPKCertificate []byte
 
 type CasdoorConnection struct {
 	Endpoint         string
-	ClientId         string
+	ClientID         string
 	ClientSecret     string
 	Certificate      string
 	OrganizationName string
 	ApplicationName  string
+	EnforcerName     string
 	JWKUri           string
 	Connected        bool
 	Client           *casdoorsdk.Client
@@ -31,14 +33,15 @@ func (cc *CasdoorConnection) Connect() error {
 	if len(jwtPKCertificate) == 0 {
 		err := errors.New("public Key Certificate isn't load")
 		log.Fatal("public Key Certificate isn't load", zap.Error(err))
+
 		return err
 	}
 
 	conf := &casdoorsdk.AuthConfig{
 		Endpoint:         cc.Endpoint,
-		ClientId:         cc.ClientId,
+		ClientId:         cc.ClientID,
 		ClientSecret:     cc.ClientSecret,
-		Certificate:      string(jwtPKCertificate[:]),
+		Certificate:      string(jwtPKCertificate),
 		OrganizationName: cc.OrganizationName,
 		ApplicationName:  cc.ApplicationName,
 	}
@@ -46,6 +49,7 @@ func (cc *CasdoorConnection) Connect() error {
 	client := casdoorsdk.NewClientWithConf(conf)
 	if client != nil {
 		fmt.Println("Connected to casdoor ✅ ")
+
 		cc.Connected = true
 	}
 
@@ -58,9 +62,9 @@ func (cc *CasdoorConnection) GetClient() (*casdoorsdk.Client, error) {
 	if cc.Client == nil {
 		if err := cc.Connect(); err != nil {
 			log.Printf("ERRCONECT %s", err)
+
 			return nil, err
 		}
-
 	}
 
 	return cc.Client, nil

@@ -25,10 +25,11 @@ type Config struct {
 	MongoDBPassword         string `env:"MONGO_PASSWORD"`
 	MongoDBPort             string `env:"MONGO_PORT"`
 	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientId         string `env:"CASDOOR_CLIENT_ID"`
+	CasdoorClientID         string `env:"CASDOOR_CLIENT_ID"`
 	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
 	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
+	CasdoorEnforcerName     string `env:"CASDOOR_ENFORCER_NAME"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
 }
 

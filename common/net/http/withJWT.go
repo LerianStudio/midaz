@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/LerianStudio/midaz/common/mcasdoor"
+	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/gofiber/fiber/v2"
@@ -35,7 +37,7 @@ type OAuth2JWTToken struct {
 	Groups   []string
 	Sub      string
 	Username *string
-	Domain   string
+	Owner    string
 	Scope    string
 	ScopeSet map[string]bool
 }
@@ -57,8 +59,8 @@ func (p *CasdoorTokenParser) ParseToken(token *jwt.Token) (*OAuth2JWTToken, erro
 			t.Username = &username
 		}
 
-		if domain, found := claims["signupApplication"].(string); found {
-			t.Domain = domain
+		if owner, found := claims["owner"].(string); found {
+			t.Owner = owner
 		}
 
 		if scope, found := claims["scope"].(string); found {
@@ -76,6 +78,7 @@ func (p *CasdoorTokenParser) ParseToken(token *jwt.Token) (*OAuth2JWTToken, erro
 
 		return t, nil
 	}
+
 	return nil, errors.New("invalid JWT token")
 }
 
@@ -85,6 +88,7 @@ func TokenFromContext(c *fiber.Ctx, parser TokenParser) (*OAuth2JWTToken, error)
 			return parser.ParseToken(token)
 		}
 	}
+
 	return nil, errors.New("invalid JWT token")
 }
 
@@ -107,6 +111,49 @@ func getTokenHeader(c *fiber.Ctx) string {
 	}
 
 	return ""
+}
+
+func parseToken(tokenString string, keySet jwk.Set) (*jwt.Token, error) {
+	return jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+
+		kid, ok := token.Header["kid"].(string)
+		if !ok {
+			return nil, errors.New("kid header not found")
+		}
+
+		key, ok := keySet.LookupKeyID(kid)
+		if !ok {
+			return nil, errors.New("the provided token doesn't belongs to the required trusted issuer, check the identity server you logged in")
+		}
+
+		var raw any
+
+		if err := key.Raw(&raw); err != nil {
+			return nil, err
+		}
+
+		return raw, nil
+	})
+}
+
+func validateToken(token *jwt.Token) error {
+	if !token.Valid {
+		return errors.New("invalid token")
+	}
+
+	// Check if the token is expired
+	if claims, ok := token.Claims.(jwt.MapClaims); ok {
+		if exp, ok := claims["exp"].(float64); ok {
+			if time.Unix(int64(exp), 0).Before(time.Now()) {
+				return errors.New("token is expired")
+			}
+		}
+	}
+
+	return nil
 }
 
 // JWKProvider manages cryptographic public keys issued by an authorization server
@@ -167,7 +214,7 @@ func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
 }
 
 // Protect protects any endpoint using JWT tokens.
-func (m *JWTMiddleware) Protect() fiber.Handler {
+func (jwtm *JWTMiddleware) Protect() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		l := mlog.NewLoggerFromContext(c.UserContext())
 		l.Debug("JWTMiddleware:Protect")
@@ -180,10 +227,9 @@ func (m *JWTMiddleware) Protect() fiber.Handler {
 			return Unauthorized(c, "INVALID_REQUEST", "Must provide a token")
 		}
 
-		// TODO: Need to be cached
-		l.Debugf("Get JWK keys using %s", m.JWK.URI)
+		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
 
-		keySet, err := m.JWK.Fetch(context.Background())
+		keySet, err := jwtm.JWK.Fetch(context.Background())
 		if err != nil {
 			msg := fmt.Sprint("Couldn't now load JWK keys from source: ", err.Error())
 			l.Error(msg)
@@ -191,60 +237,31 @@ func (m *JWTMiddleware) Protect() fiber.Handler {
 			return InternalServerError(c, msg)
 		}
 
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-
-			kid, ok := token.Header["kid"].(string)
-			if !ok {
-				return nil, errors.New("kid header not found")
-			}
-
-			key, ok := keySet.LookupKeyID(kid)
-			if !ok {
-				return nil, errors.New("the provided token doesn't belongs to the required trusted issuer, check the identity server you logged in")
-			}
-
-			var raw any
-
-			if err := key.Raw(&raw); err != nil {
-				return nil, err
-			}
-
-			return raw, nil
-		})
+		token, err := parseToken(tokenString, keySet)
 		if err != nil {
 			l.Error(err.Error())
 			return Unauthorized(c, "AUTH_SERVER_ERROR", err.Error())
 		}
 
-		if token.Valid {
-			// Check if the token is expired
-			if claims, ok := token.Claims.(jwt.MapClaims); ok {
-				if exp, ok := claims["exp"].(float64); ok {
-					if time.Unix(int64(exp), 0).Before(time.Now()) {
-						return Unauthorized(c, "INVALID_TOKEN", "Token is expired")
-					}
-				}
-			}
-
-			l.Debug("Token ok")
-			c.Locals(string(TokenContextValue("token")), token)
-
-			return c.Next()
+		if err := validateToken(token); err != nil {
+			l.Error(err.Error())
+			return Unauthorized(c, "INVALID_TOKEN", err.Error())
 		}
 
-		return Unauthorized(c, "INVALID_TOKEN", "Invalid token")
+		l.Debug("Token ok")
+		c.Locals(string(TokenContextValue("token")), token)
+
+		return c.Next()
 	}
 }
 
 // WithScope verify if a requester has the required scope to access an endpoint.
-func (m *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
+func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		parser := TokenParser{
 			ParseToken: (&CasdoorTokenParser{}).ParseToken,
 		}
+
 		t, err := TokenFromContext(c, parser)
 		if err != nil {
 			return Unauthorized(c, "INVALID_SCOPE", "Unauthorized")
@@ -269,30 +286,44 @@ func (m *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 
 // WithPermission verify if a requester has the required permission to access an endpoint.
 func (jwtm *JWTMiddleware) WithPermission(resource string) fiber.Handler {
-	client, err := jwtm.connection.GetClient()
-	if err != nil {
-		panic("Failed to connect on Casddor")
-	}
-
 	return func(c *fiber.Ctx) error {
-		parser := TokenParser{
-			ParseToken: (&CasdoorTokenParser{}).ParseToken,
-		}
-		t, err := TokenFromContext(c, parser)
-		if err != nil {
-			return Unauthorized(c, "INVALID_PERMISSION", "Unauthorized")
-		}
+		l := mlog.NewLoggerFromContext(c.UserContext())
+		l.Debug("JWTMiddleware:WithPermission")
 
-		println(t.Sub)
-		authorized, err := client.Enforce("", "", "", "", "", nil)
+		client, err := jwtm.connection.GetClient()
 		if err != nil {
+			l.Error(err.Error())
 			panic("Failed to connect on Casddor")
 		}
 
-		if authorized || len(resource) == 0 {
+		parser := TokenParser{
+			ParseToken: (&CasdoorTokenParser{}).ParseToken,
+		}
 
+		t, err := TokenFromContext(c, parser)
+		if err != nil {
+			l.Error(err.Error())
+			return Unauthorized(c, "INVALID_PERMISSION", "Unauthorized")
+		}
+
+		enforcer := fmt.Sprintf("%s/%s", t.Owner, jwtm.connection.EnforcerName)
+		casbinReq := casdoorsdk.CasbinRequest{
+			t.Username,
+			resource,
+			c.Method(),
+		}
+
+		authorized, err := client.Enforce("", "", "", enforcer, "", casbinReq)
+		if err != nil {
+			l.Error(err.Error())
+			panic("Failed to enforce permission")
+		}
+
+		if authorized || len(resource) == 0 {
 			return c.Next()
 		}
+
+		l.Debug("Unauthorized")
 
 		return Forbidden(c, "Insufficient privileges")
 	}
