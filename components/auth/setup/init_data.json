@@ -542,13 +542,9 @@
       "tokenFormat": "JWT-Custom",
       "tokenFields": [
         "Owner",
-        "Id",
         "Type",
-        "DisplayName",
-        "Email",
-        "Roles",
-        "Permissions",
-        "Groups"
+        "Name",
+        "DisplayName"
       ],
       "expireInHours": 2,
       "refreshExpireInHours": 168,
@@ -746,7 +742,7 @@
     {
       "owner": "lerian",
       "name": "api-model",
-      "modelText": "[request_definition]\nr = sub, dom, obj, act\n\n[policy_definition]\np = sub, dom, obj, act\n\n[role_definition]\ng = _, _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub, r.dom) && r.dom == p.dom && ( r.obj == p.obj || p.obj == '*' ) && (r.act == p.act || p.act == '*')",
+      "modelText": "[request_definition]\nr = sub, obj, act\n\n[policy_definition]\np = sub, obj, act\n\n[role_definition]\ng = _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub) && ( r.obj == p.obj || p.obj == '*' ) && (r.act == p.act || p.act == '*')",
       "displayName": "API Model"
     }
   ],
@@ -772,9 +768,7 @@
       "actions": [
         "*"
       ],
-      "domains": [
-        "app-midaz"
-      ],
+      "domains": [],
       "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
@@ -805,9 +799,7 @@
         "PATCH",
         "PUT"
       ],
-      "domains": [
-        "app-midaz"
-      ],
+      "domains": [],
       "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
@@ -833,9 +825,7 @@
       "actions": [
         "GET"
       ],
-      "domains": [
-        "app-midaz"
-      ],
+      "domains": [],
       "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
@@ -943,8 +933,8 @@
       "model": "lerian/api-model",
       "adapter": "lerian/lerian-adapter",
       "modelCfg": {
-        "g": "_, _, _",
-        "p": "sub, dom, obj, act"
+        "g": "_, _",
+        "p": "sub, obj, act"
       }
     }
   ]
