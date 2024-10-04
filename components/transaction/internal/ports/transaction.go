@@ -14,6 +14,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// TransactionHandler struct that handle transaction
 type TransactionHandler struct {
 	Command *command.UseCase
 	Query   *query.UseCase
@@ -144,5 +145,17 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	return commonHTTP.Created(c, logger)
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	transactionID := c.Params("transaction_id")
+
+	tran, err := handler.Command.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID)
+
+	return commonHTTP.OK(c, tran)
 }

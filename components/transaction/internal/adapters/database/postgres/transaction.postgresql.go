@@ -211,6 +211,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.Description,
 		&transaction.Template,
 		&transaction.Status,
+		&transaction.StatusDescription,
 		&transaction.Amount,
 		&transaction.AmountScale,
 		&transaction.AssetCode,
