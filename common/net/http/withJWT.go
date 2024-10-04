@@ -2,11 +2,15 @@ package http
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
@@ -16,6 +20,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/patrickmn/go-cache"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -113,8 +118,22 @@ func getTokenHeader(c *fiber.Ctx) string {
 	return ""
 }
 
+func getTokenHeaderFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+
+	authHeader, ok := md["authorization"]
+	if !ok || len(authHeader) == 0 {
+		return ""
+	}
+
+	return strings.TrimPrefix(authHeader[0], "Bearer ")
+}
+
 func parseToken(tokenString string, keySet jwk.Set) (*jwt.Token, error) {
-	return jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -129,22 +148,26 @@ func parseToken(tokenString string, keySet jwk.Set) (*jwt.Token, error) {
 			return nil, errors.New("the provided token doesn't belongs to the required trusted issuer, check the identity server you logged in")
 		}
 
-		var raw any
+		var tokenString any
 
-		if err := key.Raw(&raw); err != nil {
+		if err := key.Raw(&tokenString); err != nil {
 			return nil, err
 		}
 
-		return raw, nil
+		return tokenString, nil
 	})
-}
-
-func validateToken(token *jwt.Token) error {
-	if !token.Valid {
-		return errors.New("invalid token")
+	if err != nil {
+		return nil, err
 	}
 
-	// Check if the token is expired
+	if !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	return token, nil
+}
+
+func validateTokenExpiration(token *jwt.Token) error {
 	if claims, ok := token.Claims.(jwt.MapClaims); ok {
 		if exp, ok := claims["exp"].(float64); ok {
 			if time.Unix(int64(exp), 0).Before(time.Now()) {
@@ -213,39 +236,51 @@ func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
 	return c
 }
 
-// Protect protects any endpoint using JWT tokens.
-func (jwtm *JWTMiddleware) Protect() fiber.Handler {
+// ProtectHTTP protects any endpoint using JWT tokens.
+func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		l := mlog.NewLoggerFromContext(c.UserContext())
-		l.Debug("JWTMiddleware:Protect")
+		l.Debug("JWTMiddleware:ProtectHTTP")
 
 		l.Debug("Read token from header")
 
 		tokenString := getTokenHeader(c)
 
 		if len(tokenString) == 0 {
-			return Unauthorized(c, "INVALID_REQUEST", "Must provide a token")
+			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
+			l.Error(msg.Error())
+
+			return Unauthorized(c, "0041", "Token Missing", "A valid token must be provided in the request header. Please include a token and try again.")
 		}
 
 		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
 
 		keySet, err := jwtm.JWK.Fetch(context.Background())
 		if err != nil {
-			msg := fmt.Sprint("Couldn't now load JWK keys from source: ", err.Error())
-			l.Error(msg)
+			msg := errors.Wrap(err, "Couldn't load JWK keys from source")
+			l.Error(msg.Error())
 
-			return InternalServerError(c, msg)
+			return UnprocessableEntity(
+				c,
+				"0046",
+				"JWK Fetch Error",
+				"The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.",
+			)
 		}
 
 		token, err := parseToken(tokenString, keySet)
 		if err != nil {
-			l.Error(err.Error())
-			return Unauthorized(c, "AUTH_SERVER_ERROR", err.Error())
+			msg := errors.Wrap(err, "Couldn't parse token")
+			l.Error(msg.Error())
+
+			return Unauthorized(c, "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
 		}
 
-		if err := validateToken(token); err != nil {
-			l.Error(err.Error())
-			return Unauthorized(c, "INVALID_TOKEN", err.Error())
+		if err := validateTokenExpiration(token); err != nil {
+			msg := errors.Wrap(err, "Token Expired")
+			l.Error(msg.Error())
+
+			return Unauthorized(c, "0043", "Token Expired", "The provided token has expired. Please provide a valid token and try again.")
 		}
 
 		l.Debug("Token ok")
@@ -258,13 +293,19 @@ func (jwtm *JWTMiddleware) Protect() fiber.Handler {
 // WithScope verify if a requester has the required scope to access an endpoint.
 func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		l := mlog.NewLoggerFromContext(c.UserContext())
+		l.Debug("JWTMiddleware:WithScope")
+
 		parser := TokenParser{
 			ParseToken: (&CasdoorTokenParser{}).ParseToken,
 		}
 
 		t, err := TokenFromContext(c, parser)
 		if err != nil {
-			return Unauthorized(c, "INVALID_SCOPE", "Unauthorized")
+			msg := errors.Wrap(err, "Couldn't parse token")
+			l.Error(msg.Error())
+
+			return Unauthorized(c, "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
 		}
 
 		authorized := false
@@ -280,20 +321,25 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 			return c.Next()
 		}
 
-		return Forbidden(c, "Insufficient privileges")
+		return Forbidden(
+			c,
+			"0044",
+			"Insufficient Privileges",
+			"You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
+		)
 	}
 }
 
-// WithPermission verify if a requester has the required permission to access an endpoint.
-func (jwtm *JWTMiddleware) WithPermission(resource string) fiber.Handler {
+// WithPermissionHTTP verify if a requester has the required permission to access an endpoint.
+func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		l := mlog.NewLoggerFromContext(c.UserContext())
-		l.Debug("JWTMiddleware:WithPermission")
+		l.Debug("JWTMiddleware:WithPermissionHTTP")
 
 		client, err := jwtm.connection.GetClient()
 		if err != nil {
 			l.Error(err.Error())
-			panic("Failed to connect on Casddor")
+			panic("Failed to connect on Casdoor")
 		}
 
 		parser := TokenParser{
@@ -302,8 +348,15 @@ func (jwtm *JWTMiddleware) WithPermission(resource string) fiber.Handler {
 
 		t, err := TokenFromContext(c, parser)
 		if err != nil {
-			l.Error(err.Error())
-			return Unauthorized(c, "INVALID_PERMISSION", "Unauthorized")
+			msg := errors.Wrap(err, "Couldn't parse token")
+			l.Error(msg.Error())
+
+			return Unauthorized(
+				c,
+				"0042",
+				"Invalid Token",
+				"The provided token is invalid or malformed. Please provide a valid token and try again.",
+			)
 		}
 
 		enforcer := fmt.Sprintf("%s/%s", t.Owner, jwtm.connection.EnforcerName)
@@ -315,8 +368,15 @@ func (jwtm *JWTMiddleware) WithPermission(resource string) fiber.Handler {
 
 		authorized, err := client.Enforce("", "", "", enforcer, "", casbinReq)
 		if err != nil {
-			l.Error(err.Error())
-			panic("Failed to enforce permission")
+			msg := errors.Wrap(err, "Failed to enforce permission")
+			l.Error(msg.Error())
+
+			return UnprocessableEntity(
+				c,
+				"0045",
+				"Permission Enforcement Error",
+				"The enforcer is not configured properly. Please contact your administrator if you believe this is an error.",
+			)
 		}
 
 		if authorized || len(resource) == 0 {
@@ -325,6 +385,144 @@ func (jwtm *JWTMiddleware) WithPermission(resource string) fiber.Handler {
 
 		l.Debug("Unauthorized")
 
-		return Forbidden(c, "Insufficient privileges")
+		return Forbidden(
+			c,
+			"0044",
+			"Insufficient Privileges",
+			"You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
+		)
 	}
+}
+
+// ProtectGrpc protects any gRPC endpoint using JWT tokens.
+func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req any,
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (any, error) {
+		l := mlog.NewLoggerFromContext(ctx)
+		l.Debug("JWTMiddleware:ProtectGrpc")
+
+		tokenString := getTokenHeaderFromContext(ctx)
+
+		if len(tokenString) == 0 {
+			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
+			l.Error(msg.Error())
+
+			resp := fmt.Sprintf("%s - %s: %s", "0041", "Token Missing", "A valid token must be provided in the request header. Please include a token and try again.")
+
+			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+		}
+
+		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
+
+		keySet, err := jwtm.JWK.Fetch(context.Background())
+		if err != nil {
+			msg := errors.Wrap(err, "Couldn't load JWK keys from source")
+			l.Error(msg.Error())
+
+			resp := fmt.Sprintf("%s - %s: %s", "0046", "JWK Fetch Error", "The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.")
+
+			return nil, status.Errorf(codes.FailedPrecondition, "%s", resp)
+		}
+
+		token, err := parseToken(tokenString, keySet)
+		if err != nil {
+			msg := errors.Wrap(err, "Couldn't parse token")
+			l.Error(msg.Error())
+
+			resp := fmt.Sprintf("%s - %s: %s", "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
+
+			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+		}
+
+		if err := validateTokenExpiration(token); err != nil {
+			msg := errors.Wrap(err, "Token Expired")
+			l.Error(msg.Error())
+
+			resp := fmt.Sprintf("%s - %s: %s", "0043", "Token Expired", "The provided token has expired. Please provide a valid token and try again.")
+
+			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+		}
+
+		ctx = context.WithValue(ctx, TokenContextValue("token"), token)
+
+		return handler(ctx, req)
+	}
+}
+
+// WithPermissionGrpc verify if a requester has the required permission to access an endpoint.
+func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req any,
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (any, error) {
+		l := mlog.NewLoggerFromContext(ctx)
+		l.Debug("JWTMiddleware:WithPermissionGrpc")
+
+		client, err := jwtm.connection.GetClient()
+		if err != nil {
+			l.Error(err.Error())
+			panic("Failed to connect on Casdoor")
+		}
+
+		token, err := jwtm.getTokenFromContext(ctx)
+		if err != nil {
+			msg := errors.Wrap(err, "Couldn't parse token")
+			l.Error(msg.Error())
+
+			resp := fmt.Sprintf("%s - %s: %s", "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
+
+			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+		}
+
+		enforcer := fmt.Sprintf("%s/%s", token.Owner, jwtm.connection.EnforcerName)
+		casbinReq := casdoorsdk.CasbinRequest{
+			token.Username,
+			"*",
+			"*",
+		}
+
+		authorized, err := client.Enforce("", "", "", enforcer, "", casbinReq)
+		if err != nil {
+			msg := errors.Wrap(err, "Failed to enforce permission")
+			l.Error(msg.Error())
+
+			resp := fmt.Sprintf("%s - %s: %s", "0045", "Permission Enforcement Error", "The enforcer is not configured properly. Please contact your administrator if you believe this is an error.")
+
+			return nil, status.Errorf(codes.FailedPrecondition, "%s", resp)
+		}
+
+		if !authorized {
+			l.Debug("Unauthorized")
+
+			resp := fmt.Sprintf("%s - %s: %s", "0044", "Insufficient Privileges", "You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.")
+
+			return nil, status.Errorf(codes.PermissionDenied, "%s", resp)
+		}
+
+		return handler(ctx, req)
+	}
+}
+
+func (jwtm *JWTMiddleware) getTokenFromContext(ctx context.Context) (*OAuth2JWTToken, error) {
+	tokenValue := ctx.Value(TokenContextValue("token"))
+	if tokenValue == nil {
+		return nil, errors.New("token not found in context")
+	}
+
+	token, ok := tokenValue.(*jwt.Token)
+	if !ok {
+		return nil, errors.New("invalid token type")
+	}
+
+	parser := TokenParser{
+		ParseToken: (&CasdoorTokenParser{}).ParseToken,
+	}
+
+	return parser.ParseToken(token)
 }

@@ -31,8 +31,8 @@ func (cc *CasdoorConnection) Connect() error {
 	fmt.Println("Connecting to casdoor...")
 
 	if len(jwtPKCertificate) == 0 {
-		err := errors.New("public Key Certificate isn't load")
-		log.Fatal("public Key Certificate isn't load", zap.Error(err))
+		err := errors.New("public key certificate isn't load")
+		log.Fatal("public key certificate isn't load", zap.Error(err))
 
 		return err
 	}

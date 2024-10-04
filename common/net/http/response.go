@@ -6,18 +6,20 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Unauthorized sends an HTTP 401 Unauthorized response with a custom code and message.
-func Unauthorized(c *fiber.Ctx, code string, message string) error {
+// Unauthorized sends an HTTP 401 Unauthorized response with a custom code, title and message.
+func Unauthorized(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
 		"code":    code,
+		"title":   title,
 		"message": message,
 	})
 }
 
-// Forbidden sends an HTTP 403 Forbidden response with a custom message.
-func Forbidden(c *fiber.Ctx, message string) error {
+// Forbidden sends an HTTP 403 Forbidden response with a custom code, title and message.
+func Forbidden(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusForbidden).JSON(fiber.Map{
-		"code":    http.StatusForbidden,
+		"code":    code,
+		"title":   title,
 		"message": message,
 	})
 }
@@ -82,9 +84,10 @@ func NotImplemented(c *fiber.Ctx, message string) error {
 }
 
 // UnprocessableEntity sends an HTTP 422 Unprocessable Entity response with a custom code and message.
-func UnprocessableEntity(c *fiber.Ctx, code, message string) error {
+func UnprocessableEntity(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
 		"code":    code,
+		"title":   title,
 		"message": message,
 	})
 }

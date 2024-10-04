@@ -91,7 +91,7 @@ func InitializeService() *service.Service {
 	app := http.NewRouter(casdoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 	logger := mzap.InitializeLogger()
 	server := service.NewServer(config, app, logger)
-	grpcServer := grpc.NewRouterGRPC(useCase, queryUseCase)
+	grpcServer := grpc.NewRouterGRPC(casdoorConnection, useCase, queryUseCase)
 	serverGRPC := service.NewServerGRPC(config, grpcServer, logger)
 	serviceService := &service.Service{
 		Server:     server,
