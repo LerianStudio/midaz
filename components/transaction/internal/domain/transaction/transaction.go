@@ -65,7 +65,7 @@ type Transaction struct {
 	UpdatedAt                time.Time      `json:"updatedAt"`
 	DeletedAt                *time.Time     `json:"deletedAt"`
 	Metadata                 map[string]any `json:"metadata,omitempty"`
-	Operation                []*o.Operation `json:"operation"`
+	Operations               []*o.Operation `json:"operations"`
 }
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
