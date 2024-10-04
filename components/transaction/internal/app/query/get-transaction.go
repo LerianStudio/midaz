@@ -2,10 +2,11 @@ package query
 
 import (
 	"context"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetTransactionByID gets data in the repository.
