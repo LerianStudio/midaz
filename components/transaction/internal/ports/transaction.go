@@ -1,10 +1,13 @@
 package ports
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
+	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
@@ -52,36 +55,33 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 
 	logger.Infof("Transaction parsed and validated")
 
-	transactionParsed, ok := parsed.(gold.Transaction)
+	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
 		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
 	}
 
-	from := transactionParsed.Send.Source.From
-	source := make([]string, len(from))
-	for _, fr := range from {
-		source = append(source, fr.Account)
+	source := make([]string, len(parserDSL.Send.Source.From))
+
+	for i, fr := range parserDSL.Send.Source.From {
+		source[i] = fr.Account
 	}
 
-	to := transactionParsed.Distribute.To
-	destination := make([]string, len(to))
-	for _, ot := range to {
-		destination = append(destination, ot.Account)
+	destination := make([]string, len(parserDSL.Distribute.To))
+
+	for i, ot := range parserDSL.Distribute.To {
+		destination[i] = ot.Account
 	}
-	alias := make([]string, len(source)+len(destination))
-	alias = append(alias, source...)
+
+	var alias []string
 	alias = append(alias, destination...)
+	alias = append(alias, source...)
 
-	//if common.IsUUID() {
-	//	gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c.Context(), uuids)
-	//} esle {
-	gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c.Context(), alias)
+	accounts, err := handler.processAccounts(c.Context(), logger, alias)
 	if err != nil {
-		logger.Error("Failed to get account gRPC on Ledger", err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &transactionParsed)
+	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &parserDSL)
 	if err != nil {
 		logger.Error("Failed to create transaction", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -92,27 +92,19 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 
 	e := make(chan error)
 	result := make(chan []*o.Operation)
-	go handler.Command.CreateOperation(c.Context(), gRPCAccounts, tran, from, result, e)
+
+	var operations []*o.Operation
+
+	go handler.Command.CreateOperation(c.Context(), accounts, tran, &parserDSL, result, e)
 	select {
-	case of := <-result:
-		for _, fo := range of {
-			logger.Info(fo.ID)
-		}
+	case ops := <-result:
+		operations = append(operations, ops...)
 	case err := <-e:
-		logger.Error("Failed to create FROM operation: ", err.Error())
+		logger.Error("Failed to create operations: ", err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	go handler.Command.CreateOperation(c.Context(), gRPCAccounts, tran, to, result, e)
-	select {
-	case to := <-result:
-		for _, ot := range to {
-			logger.Info(ot.ID)
-		}
-	case err := <-e:
-		logger.Error("Failed to create TO operation: ", err.Error())
-		return commonHTTP.WithError(c, err)
-	}
+	tran.Operations = operations
 
 	return commonHTTP.Created(c, tran)
 }
@@ -149,7 +141,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	transactionID := c.Params("transaction_id")
 
-	tran, err := handler.Command.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID, err.Error())
 		return commonHTTP.WithError(c, err)
@@ -158,4 +150,43 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID)
 
 	return commonHTTP.OK(c, tran)
+}
+
+// ProcessAccounts is a function that split alias and isd, call the properly function and return Accounts
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, input []string) ([]*account.Account, error) {
+	var ids []string
+
+	var alias []string
+
+	for _, item := range input {
+		if common.IsUUID(item) {
+			ids = append(ids, item)
+		} else {
+			alias = append(alias, item)
+		}
+	}
+
+	var accounts []*account.Account
+
+	if len(ids) > 0 {
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, ids)
+		if err != nil {
+			logger.Error("Failed to get account gRPC by ids on Ledger", err.Error())
+			return nil, err
+		}
+
+		accounts = append(accounts, gRPCAccounts.GetAccounts()...)
+	}
+
+	if len(alias) > 0 {
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, alias)
+		if err != nil {
+			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
+			return nil, err
+		}
+
+		accounts = append(accounts, gRPCAccounts.GetAccounts()...)
+	}
+
+	return accounts, nil
 }

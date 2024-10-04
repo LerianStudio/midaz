@@ -38,16 +38,19 @@ func InitializeService() *service.Service {
 	transactionPostgreSQLRepository := postgres.NewTransactionPostgreSQLRepository(postgresConnection)
 	grpcConnection := setupGRPCConnection(config)
 	accountGRPCRepository := grpc.NewAccountGRPC(grpcConnection)
+	operationPostgreSQLRepository := postgres.NewOperationPostgreSQLRepository(postgresConnection)
 	mongoConnection := setupMongoDBConnection(config)
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
+		OperationRepo:   operationPostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 	}
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
+		OperationRepo:   operationPostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 	}
 	transactionHandler := &ports.TransactionHandler{
