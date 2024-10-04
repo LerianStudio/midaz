@@ -1,3 +1,10 @@
+## [1.14.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.13.0...v1.14.0-beta.1) (2024-10-04)
+
+
+### Features
+
+* implement get transaction by id :sparkles: ([a9f1935](https://github.com/LerianStudio/midaz/commit/a9f193516313d16e8ed349b7f469001a479fa40a))
+
 ## [1.13.0](https://github.com/LerianStudio/midaz/compare/v1.12.0...v1.13.0) (2024-10-02)
 
 
