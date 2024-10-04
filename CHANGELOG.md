@@ -1,3 +1,27 @@
+## [1.14.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.14.0-beta.1...v1.14.0-beta.2) (2024-10-04)
+
+
+### Features
+
+* adjusts to create operations based on transaction in dsl :sparkles: ([7ca7f04](https://github.com/LerianStudio/midaz/commit/7ca7f04f3e651d584223b0956b60751e89ecc671))
+* insert operations on database after insert transaction :sparkles: ([cc03f5e](https://github.com/LerianStudio/midaz/commit/cc03f5ed7c2e09437d6faa7e0bac9aae73ceda9e))
+
+
+### Bug Fixes
+
+* add chartofaccounts in dsl struct :bug: ([92325c2](https://github.com/LerianStudio/midaz/commit/92325c23dfcc5c707f7048d94dd7f6147373169a))
+* insert import reflect :bug: ([f1574e6](https://github.com/LerianStudio/midaz/commit/f1574e660a1ac0d4f833daaddc345d1e72609257))
+* remove db scan position :bug: ([0129bd0](https://github.com/LerianStudio/midaz/commit/0129bd09ec839881813cf8bbc1aed492d73d20da))
+* update slice operation to operations :bug: ([0954fe9](https://github.com/LerianStudio/midaz/commit/0954fe9f9766c8437e222526baa45add2163da2d))
+* update subcomands version :bug: ([483348c](https://github.com/LerianStudio/midaz/commit/483348c83b6b56858887cb1c8d49142d25b1cdec))
+
+## [1.14.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.13.0...v1.14.0-beta.1) (2024-10-04)
+
+
+### Features
+
+* implement get transaction by id :sparkles: ([a9f1935](https://github.com/LerianStudio/midaz/commit/a9f193516313d16e8ed349b7f469001a479fa40a))
+
 ## [1.13.0](https://github.com/LerianStudio/midaz/compare/v1.12.0...v1.13.0) (2024-10-02)
 
 
