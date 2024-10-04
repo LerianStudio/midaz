@@ -116,7 +116,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ledgerID := c.Params("ledger_id")
 	transactionID := c.Params("transaction_id")
 
-	tran, err := handler.Command.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
+	tran, err := handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID, err.Error())
 		return commonHTTP.WithError(c, err)
