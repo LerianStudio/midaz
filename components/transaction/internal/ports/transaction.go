@@ -6,11 +6,13 @@ import (
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // TransactionHandler struct that handle transaction
@@ -108,6 +110,30 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	return commonHTTP.Created(c, logger)
 }
 
+// UpdateTransaction method that patch transaction created before
+func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	transactionID := c.Params("transaction_id")
+
+	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID, ledgerID, transactionID)
+
+	payload := p.(*t.UpdateTransactionInput)
+	logger.Infof("Request to update an Transaction with details: %#v", payload)
+
+	trans, err := handler.Command.UpdateTransaction(c.Context(), organizationID, ledgerID, transactionID, payload)
+	if err != nil {
+		logger.Errorf("Failed to update TRansaction with ID: %s, Error: %s", transactionID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID, ledgerID, transactionID)
+
+	return commonHTTP.OK(c, trans)
+}
+
 // GetTransaction method that get transaction created before
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
@@ -125,4 +151,51 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID)
 
 	return commonHTTP.OK(c, tran)
+}
+
+func (handler *TransactionHandler) GetAllTTransactions(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
+
+	pagination := mpostgres.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
+		logger.Infof("Initiating retrieval of all Transactions by metadata")
+
+		trans, err := handler.Query.GetAllMetadataTransactions(ctx, organizationID, ledgerID, *headerParams)
+		if err != nil {
+			logger.Errorf("Failed to retrieve all Transactions, Error: %s", err.Error())
+			return commonHTTP.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Transactions by metadata")
+
+		pagination.SetItems(trans)
+
+		return commonHTTP.OK(c, pagination)
+	}
+
+	logger.Infof("Initiating retrieval of all Transactions ")
+
+	headerParams.Metadata = &bson.M{}
+
+	trans, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
+	if err != nil {
+		logger.Errorf("Failed to retrieve all Transactions, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved all Transactions")
+
+	pagination.SetItems(trans)
+
+	return commonHTTP.OK(c, pagination)
 }
