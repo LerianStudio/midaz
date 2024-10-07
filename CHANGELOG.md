@@ -1,3 +1,21 @@
+## [1.14.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.14.0-beta.2...v1.14.0-beta.3) (2024-10-07)
+
+
+### Features
+
+* add authorization to Postman requests and implement new transaction route wip :sparkles: ([91afb3f](https://github.com/LerianStudio/midaz/commit/91afb3f26c6d4912a669120ab074f14011b88d10))
+* add default enforcer adapter and token fields on casdoor init json also add init sql file to casdoor db :sparkles: ([6bb997b](https://github.com/LerianStudio/midaz/commit/6bb997b7ef3b564be1869d1ffef1e142f6236c7d))
+* add permission check to ledger :sparkles: ([352a6c2](https://github.com/LerianStudio/midaz/commit/352a6c295aa57e0ebc4c9df52a36ce8beb6db811))
+* add permission check to the ledger grpc routes :sparkles: ([1e4a81f](https://github.com/LerianStudio/midaz/commit/1e4a81f14a3187c0b9de88017a2bb25262494bf5))
+* add permission check to the ledger routes :sparkles: ([4ce5162](https://github.com/LerianStudio/midaz/commit/4ce5162df5c06018bb9552168fb02c250768cad5))
+
+
+### Bug Fixes
+
+* fix lint name and import sorting issues :bug: ([aeb2a87](https://github.com/LerianStudio/midaz/commit/aeb2a8788ef0af33958ffd8de0c58b7f54d9d6a6))
+* update proto address and port from ledger and transaction env example :bug: ([95a4f6a](https://github.com/LerianStudio/midaz/commit/95a4f6ac11d37029d4926dcad4026bc6139b5268))
+* validate omitempty from productId for create and update account :bug: ([a6fd703](https://github.com/LerianStudio/midaz/commit/a6fd703f9b5e8ecd4a08fabe2731e387b1206139))
+
 ## [1.14.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.14.0-beta.1...v1.14.0-beta.2) (2024-10-04)
 
 
