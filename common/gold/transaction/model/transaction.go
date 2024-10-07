@@ -31,12 +31,13 @@ type Source struct {
 }
 
 type FromTo struct {
-	Account     string         `json:"account,omitempty"`
-	Amount      *Amount        `json:"amount,omitempty"`
-	Share       *Share         `json:"share,omitempty"`
-	Remaining   string         `json:"remaining,omitempty"`
-	Description string         `json:"description,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	Account         string         `json:"account,omitempty"`
+	Amount          *Amount        `json:"amount,omitempty"`
+	Share           *Share         `json:"share,omitempty"`
+	Remaining       string         `json:"remaining,omitempty"`
+	Description     string         `json:"description,omitempty"`
+	ChartOfAccounts string         `json:"chartOfAccountsG"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 type Distribute struct {
