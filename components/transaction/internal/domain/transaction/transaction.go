@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/google/uuid"
 )
 
@@ -54,14 +55,17 @@ type Transaction struct {
 	Status                   Status         `json:"status"`
 	Amount                   *float64       `json:"amount"`
 	AmountScale              *float64       `json:"amountScale"`
-	AssetCode                string         `json:"AssetCode"`
+	AssetCode                string         `json:"assetCode"`
 	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName"`
+	Source                   []string       `json:"source"`
+	Destination              []string       `json:"destination"`
 	LedgerID                 string         `json:"ledgerId"`
 	OrganizationID           string         `json:"organizationId"`
 	CreatedAt                time.Time      `json:"createdAt"`
 	UpdatedAt                time.Time      `json:"updatedAt"`
 	DeletedAt                *time.Time     `json:"deletedAt"`
 	Metadata                 map[string]any `json:"metadata,omitempty"`
+	Operations               []*o.Operation `json:"operations"`
 }
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
@@ -118,4 +122,10 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		deletedAtCopy := *transaction.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
+}
+
+// UpdateTransactionInput is a struct design to encapsulate payload data.
+type UpdateTransactionInput struct {
+	Description string         `json:"description"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
