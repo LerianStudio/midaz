@@ -1,19 +1,24 @@
 package grpc
 
 import (
+	"github.com/LerianStudio/midaz/common/mcasdoor"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
+	lib "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
 
 // NewRouterGRPC registers routes to the grpc.
-func NewRouterGRPC(cuc *command.UseCase, quc *query.UseCase) *grpc.Server {
-	server := grpc.NewServer()
-
-	_ = service.NewConfig()
+func NewRouterGRPC(cc *mcasdoor.CasdoorConnection, cuc *command.UseCase, quc *query.UseCase) *grpc.Server {
+	jwt := lib.NewJWTMiddleware(cc)
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			jwt.ProtectGrpc(),
+			jwt.WithPermissionGrpc(),
+		),
+	)
 
 	reflection.Register(server)
 

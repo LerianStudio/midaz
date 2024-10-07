@@ -54,11 +54,11 @@ func WithError(c *fiber.Ctx, err error) error {
 			Fields:  nil,
 		})
 	case common.UnprocessableOperationError:
-		return UnprocessableEntity(c, e.Code, e.Message)
+		return UnprocessableEntity(c, e.Code, e.Title, e.Message)
 	case common.UnauthorizedError:
-		return Unauthorized(c, e.Code, e.Error())
+		return Unauthorized(c, e.Code, e.Title, e.Message)
 	case common.ForbiddenError:
-		return Forbidden(c, e.Message)
+		return Forbidden(c, e.Code, e.Title, e.Message)
 	case *ValidationError, ValidationError:
 		return BadRequest(c, e)
 	case ResponseError:

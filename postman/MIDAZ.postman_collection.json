@@ -1,12 +1,482 @@
 {
 	"info": {
-		"_postman_id": "59972e10-0141-431a-bd48-f7c9ad5489d9",
+		"_postman_id": "7cde297a-6e54-4ff3-94e4-8e6b96341e32",
 		"name": "MIDAZ",
 		"description": "# 🚀 Get started here\n\nThis template guides you through CRUD operations (GET, POST, PUT, DELETE), variables, and tests.\n\n## 🔖 **How to use this template**\n\n#### **Step 1: Send requests**\n\nRESTful APIs allow you to perform CRUD operations using the POST, GET, PUT, and DELETE HTTP methods.\n\nThis collection contains each of these [request](https://learning.postman.com/docs/sending-requests/requests/) types. Open each request and click \"Send\" to see what happens.\n\n#### **Step 2: View responses**\n\nObserve the response tab for status code (200 OK), response time, and size.\n\n#### **Step 3: Send new Body data**\n\nUpdate or add new data in \"Body\" in the POST request. Typically, Body data is also used in PUT request.\n\n```\n{\n    \"name\": \"Add your name in the body\"\n}\n\n ```\n\n#### **Step 4: Update the variable**\n\nVariables enable you to store and reuse values in Postman. We have created a [variable](https://learning.postman.com/docs/sending-requests/variables/) called `base_url` with the sample request [https://postman-api-learner.glitch.me](https://postman-api-learner.glitch.me). Replace it with your API endpoint to customize this collection.\n\n#### **Step 5: Add tests in the \"Tests\" tab**\n\nTests help you confirm that your API is working as expected. You can write test scripts in JavaScript and view the output in the \"Test Results\" tab.\n\n<img src=\"https://content.pstmn.io/b5f280a7-4b09-48ec-857f-0a7ed99d7ef8/U2NyZWVuc2hvdCAyMDIzLTAzLTI3IGF0IDkuNDcuMjggUE0ucG5n\">\n\n## 💪 Pro tips\n\n- Use folders to group related requests and organize the collection.\n- Add more [scripts](https://learning.postman.com/docs/writing-scripts/intro-to-scripts/) in \"Tests\" to verify if the API works as expected and execute workflows.\n    \n\n## 💡Related templates\n\n[API testing basics](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=e9a37a28-055b-49cd-8c7e-97494a21eb54&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)  \n[API documentation](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=e9c28f47-1253-44af-a2f3-20dce4da1f18&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)  \n[Authorization methods](https://go.postman.co/redirect/workspace?type=personal&collectionTemplateId=31a9a6ed-4cdf-4ced-984c-d12c9aec1c27&sourceTemplateId=ddb19591-3097-41cf-82af-c84273e56719)",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "38753084"
+		"_exporter_id": "6901587"
 	},
 	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login",
+					"item": [
+						{
+							"name": "Authorization Code Grant",
+							"item": [
+								{
+									"name": "Login",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													""
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										},
+										{
+											"listen": "prerequest",
+											"script": {
+												"exec": [
+													"postman.setEnvironmentVariable(\"access_token\", pm.request.auth.oauth2.get(\"accessToken\"));"
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"auth": {
+											"type": "oauth2",
+											"oauth2": [
+												{
+													"key": "clientSecret",
+													"value": "{{client_secret}}",
+													"type": "string"
+												},
+												{
+													"key": "clientId",
+													"value": "{{client_id}}",
+													"type": "string"
+												},
+												{
+													"key": "tokenName",
+													"value": "access_token",
+													"type": "string"
+												},
+												{
+													"key": "accessTokenUrl",
+													"value": "{{url_auth}}/api/login/oauth/access_token",
+													"type": "string"
+												},
+												{
+													"key": "authUrl",
+													"value": "{{url_auth}}/login/oauth/authorize",
+													"type": "string"
+												},
+												{
+													"key": "grant_type",
+													"value": "authorization_code",
+													"type": "string"
+												},
+												{
+													"key": "useBrowser",
+													"value": false,
+													"type": "boolean"
+												},
+												{
+													"key": "state",
+													"value": "{{$randomUUID}}",
+													"type": "string"
+												},
+												{
+													"key": "scope",
+													"value": "openid",
+													"type": "string"
+												},
+												{
+													"key": "redirect_uri",
+													"value": "http://localhost:9000/callback",
+													"type": "string"
+												},
+												{
+													"key": "refreshRequestParams",
+													"value": [],
+													"type": "any"
+												},
+												{
+													"key": "tokenRequestParams",
+													"value": [],
+													"type": "any"
+												},
+												{
+													"key": "authRequestParams",
+													"value": [],
+													"type": "any"
+												},
+												{
+													"key": "challengeAlgorithm",
+													"value": "S256",
+													"type": "string"
+												},
+												{
+													"key": "addTokenTo",
+													"value": "queryParams",
+													"type": "string"
+												},
+												{
+													"key": "client_authentication",
+													"value": "header",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"url": {
+											"raw": "<check-auth-tab>",
+											"host": [
+												"<check-auth-tab>"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "Implicit Grant",
+							"item": [
+								{
+									"name": "Login",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													""
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										},
+										{
+											"listen": "prerequest",
+											"script": {
+												"exec": [
+													"postman.setEnvironmentVariable(\"access_token\", pm.request.auth.oauth2.get(\"accessToken\"));"
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"auth": {
+											"type": "oauth2",
+											"oauth2": [
+												{
+													"key": "clientId",
+													"value": "{{client_id}}",
+													"type": "string"
+												},
+												{
+													"key": "authUrl",
+													"value": "{{url_auth}}/login/oauth/authorize",
+													"type": "string"
+												},
+												{
+													"key": "tokenName",
+													"value": "token",
+													"type": "string"
+												},
+												{
+													"key": "useBrowser",
+													"value": false,
+													"type": "boolean"
+												},
+												{
+													"key": "state",
+													"value": "{{$randomUUID}}",
+													"type": "string"
+												},
+												{
+													"key": "scope",
+													"value": "openid",
+													"type": "string"
+												},
+												{
+													"key": "redirect_uri",
+													"value": "http://localhost:9000/callback",
+													"type": "string"
+												},
+												{
+													"key": "grant_type",
+													"value": "implicit",
+													"type": "string"
+												},
+												{
+													"key": "refreshRequestParams",
+													"value": [],
+													"type": "any"
+												},
+												{
+													"key": "tokenRequestParams",
+													"value": [],
+													"type": "any"
+												},
+												{
+													"key": "authRequestParams",
+													"value": [],
+													"type": "any"
+												},
+												{
+													"key": "challengeAlgorithm",
+													"value": "S256",
+													"type": "string"
+												},
+												{
+													"key": "addTokenTo",
+													"value": "queryParams",
+													"type": "string"
+												},
+												{
+													"key": "client_authentication",
+													"value": "header",
+													"type": "string"
+												}
+											]
+										},
+										"method": "POST",
+										"header": [],
+										"url": {
+											"raw": "<check-auth-tab>",
+											"host": [
+												"<check-auth-tab>"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "Resource Owner Password Credentials Grant",
+							"item": [
+								{
+									"name": "Login",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"var jsonData = pm.response.json();",
+													"pm.environment.set(\"access_token\", jsonData.access_token);"
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"grant_type\": \"password\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\",\n    \"username\": \"user_john\",\n    \"password\": \"Leriand@123\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{url_auth}}/api/login/oauth/access_token",
+											"host": [
+												"{{url_auth}}"
+											],
+											"path": [
+												"api",
+												"login",
+												"oauth",
+												"access_token"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "Client Credentials Grant",
+							"item": [
+								{
+									"name": "Login",
+									"event": [
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"var jsonData = pm.response.json();",
+													"pm.environment.set(\"access_token\", jsonData.access_token);"
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"grant_type\": \"client_credentials\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{url_auth}}/api/login/oauth/access_token",
+											"host": [
+												"{{url_auth}}"
+											],
+											"path": [
+												"api",
+												"login",
+												"oauth",
+												"access_token"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						},
+						{
+							"name": "Refresh Token",
+							"item": [
+								{
+									"name": "Login",
+									"event": [
+										{
+											"listen": "prerequest",
+											"script": {
+												"exec": [
+													""
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										},
+										{
+											"listen": "test",
+											"script": {
+												"exec": [
+													"var jsonData = pm.response.json();",
+													"pm.environment.set(\"access_token\", jsonData.access_token);"
+												],
+												"type": "text/javascript",
+												"packages": {}
+											}
+										}
+									],
+									"request": {
+										"method": "POST",
+										"header": [],
+										"body": {
+											"mode": "raw",
+											"raw": "{\n    \"grant_type\": \"refresh_token\",\n    \"refresh_token\": \"{{access_token}}\",\n    \"scope\": \"profile\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\"\n}",
+											"options": {
+												"raw": {
+													"language": "json"
+												}
+											}
+										},
+										"url": {
+											"raw": "{{url_auth}}/api/login/oauth/refresh_token",
+											"host": [
+												"{{url_auth}}"
+											],
+											"path": [
+												"api",
+												"login",
+												"oauth",
+												"refresh_token"
+											]
+										}
+									},
+									"response": []
+								}
+							]
+						}
+					]
+				},
+				{
+					"name": "Token Introspection",
+					"item": [
+						{
+							"name": "Verify Token",
+							"event": [
+								{
+									"listen": "prerequest",
+									"script": {
+										"exec": [
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "basic",
+									"basic": [
+										{
+											"key": "password",
+											"value": "{{client_secret}}",
+											"type": "string"
+										},
+										{
+											"key": "username",
+											"value": "{{client_id}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "text"
+										},
+										{
+											"key": "token_type_hint",
+											"value": "access_token",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{url_auth}}/api/login/oauth/introspect",
+									"host": [
+										"{{url_auth}}"
+									],
+									"path": [
+										"api",
+										"login",
+										"oauth",
+										"introspect"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
 		{
 			"name": "Organizations",
 			"item": [
@@ -230,6 +700,38 @@
 					},
 					"response": []
 				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
 			]
 		},
 		{
@@ -439,6 +941,38 @@
 					},
 					"response": []
 				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
 			]
 		},
 		{
@@ -605,6 +1139,38 @@
 						}
 					},
 					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
 				}
 			]
 		},
@@ -799,6 +1365,38 @@
 						}
 					},
 					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
 				}
 			]
 		},
@@ -1001,6 +1599,38 @@
 					},
 					"response": []
 				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				}
 			]
 		},
 		{
@@ -1030,7 +1660,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"DEBIT\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1231,6 +1861,38 @@
 						}
 					},
 					"response": []
+				}
+			],
+			"auth": {
+				"type": "bearer",
+				"bearer": [
+					{
+						"key": "token",
+						"value": "{{access_token}}",
+						"type": "string"
+					}
+				]
+			},
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"type": "text/javascript",
+						"packages": {},
+						"exec": [
+							""
+						]
+					}
 				}
 			]
 		},
@@ -1673,456 +2335,6 @@
 						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
 					},
 					"response": []
-				}
-			]
-		},
-		{
-			"name": "Auth",
-			"item": [
-				{
-					"name": "Login",
-					"item": [
-						{
-							"name": "Authorization Code Grant",
-							"item": [
-								{
-									"name": "Login",
-									"event": [
-										{
-											"listen": "test",
-											"script": {
-												"exec": [
-													"postman.setEnvironmentVariable(\"access_token\", pm.request.auth.oauth2.get(\"accessToken\"));"
-												],
-												"type": "text/javascript",
-												"packages": {}
-											}
-										}
-									],
-									"request": {
-										"auth": {
-											"type": "oauth2",
-											"oauth2": [
-												{
-													"key": "clientSecret",
-													"value": "{{client_secret}}",
-													"type": "string"
-												},
-												{
-													"key": "clientId",
-													"value": "{{client_id}}",
-													"type": "string"
-												},
-												{
-													"key": "tokenName",
-													"value": "access_token",
-													"type": "string"
-												},
-												{
-													"key": "accessTokenUrl",
-													"value": "{{url_auth}}/api/login/oauth/access_token",
-													"type": "string"
-												},
-												{
-													"key": "authUrl",
-													"value": "{{url_auth}}/login/oauth/authorize",
-													"type": "string"
-												},
-												{
-													"key": "grant_type",
-													"value": "authorization_code",
-													"type": "string"
-												},
-												{
-													"key": "useBrowser",
-													"value": false,
-													"type": "boolean"
-												},
-												{
-													"key": "state",
-													"value": "{{$randomUUID}}",
-													"type": "string"
-												},
-												{
-													"key": "scope",
-													"value": "openid",
-													"type": "string"
-												},
-												{
-													"key": "redirect_uri",
-													"value": "http://localhost:9000/callback",
-													"type": "string"
-												},
-												{
-													"key": "refreshRequestParams",
-													"value": [],
-													"type": "any"
-												},
-												{
-													"key": "tokenRequestParams",
-													"value": [],
-													"type": "any"
-												},
-												{
-													"key": "authRequestParams",
-													"value": [],
-													"type": "any"
-												},
-												{
-													"key": "challengeAlgorithm",
-													"value": "S256",
-													"type": "string"
-												},
-												{
-													"key": "addTokenTo",
-													"value": "queryParams",
-													"type": "string"
-												},
-												{
-													"key": "client_authentication",
-													"value": "header",
-													"type": "string"
-												}
-											]
-										},
-										"method": "POST",
-										"header": [],
-										"url": {
-											"raw": "<check-auth-tab>",
-											"host": [
-												"<check-auth-tab>"
-											]
-										}
-									},
-									"response": []
-								}
-							]
-						},
-						{
-							"name": "Implicit Grant",
-							"item": [
-								{
-									"name": "Login",
-									"event": [
-										{
-											"listen": "test",
-											"script": {
-												"exec": [
-													"postman.setEnvironmentVariable(\"access_token\", pm.request.auth.oauth2.get(\"accessToken\"));"
-												],
-												"type": "text/javascript",
-												"packages": {}
-											}
-										}
-									],
-									"request": {
-										"auth": {
-											"type": "oauth2",
-											"oauth2": [
-												{
-													"key": "clientId",
-													"value": "{{client_id}}",
-													"type": "string"
-												},
-												{
-													"key": "authUrl",
-													"value": "{{url_auth}}/login/oauth/authorize",
-													"type": "string"
-												},
-												{
-													"key": "tokenName",
-													"value": "token",
-													"type": "string"
-												},
-												{
-													"key": "useBrowser",
-													"value": false,
-													"type": "boolean"
-												},
-												{
-													"key": "state",
-													"value": "{{$randomUUID}}",
-													"type": "string"
-												},
-												{
-													"key": "scope",
-													"value": "openid",
-													"type": "string"
-												},
-												{
-													"key": "redirect_uri",
-													"value": "http://localhost:9000/callback",
-													"type": "string"
-												},
-												{
-													"key": "grant_type",
-													"value": "implicit",
-													"type": "string"
-												},
-												{
-													"key": "refreshRequestParams",
-													"value": [],
-													"type": "any"
-												},
-												{
-													"key": "tokenRequestParams",
-													"value": [],
-													"type": "any"
-												},
-												{
-													"key": "authRequestParams",
-													"value": [],
-													"type": "any"
-												},
-												{
-													"key": "challengeAlgorithm",
-													"value": "S256",
-													"type": "string"
-												},
-												{
-													"key": "addTokenTo",
-													"value": "queryParams",
-													"type": "string"
-												},
-												{
-													"key": "client_authentication",
-													"value": "header",
-													"type": "string"
-												}
-											]
-										},
-										"method": "POST",
-										"header": [],
-										"url": {
-											"raw": "<check-auth-tab>",
-											"host": [
-												"<check-auth-tab>"
-											]
-										}
-									},
-									"response": []
-								}
-							]
-						},
-						{
-							"name": "Resource Owner Password Credentials Grant",
-							"item": [
-								{
-									"name": "Login",
-									"event": [
-										{
-											"listen": "test",
-											"script": {
-												"exec": [
-													"var jsonData = pm.response.json();",
-													"pm.environment.set(\"access_token\", jsonData.access_token);"
-												],
-												"type": "text/javascript",
-												"packages": {}
-											}
-										}
-									],
-									"request": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\n    \"grant_type\": \"password\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\",\n    \"username\": \"user_john\",\n    \"password\": \"Leriand@123\"\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{url_auth}}/api/login/oauth/access_token",
-											"host": [
-												"{{url_auth}}"
-											],
-											"path": [
-												"api",
-												"login",
-												"oauth",
-												"access_token"
-											]
-										}
-									},
-									"response": []
-								}
-							]
-						},
-						{
-							"name": "Client Credentials Grant",
-							"item": [
-								{
-									"name": "Login",
-									"event": [
-										{
-											"listen": "test",
-											"script": {
-												"exec": [
-													"var jsonData = pm.response.json();",
-													"pm.environment.set(\"access_token\", jsonData.access_token);"
-												],
-												"type": "text/javascript",
-												"packages": {}
-											}
-										}
-									],
-									"request": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\n    \"grant_type\": \"client_credentials\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\"\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{url_auth}}/api/login/oauth/access_token",
-											"host": [
-												"{{url_auth}}"
-											],
-											"path": [
-												"api",
-												"login",
-												"oauth",
-												"access_token"
-											]
-										}
-									},
-									"response": []
-								}
-							]
-						},
-						{
-							"name": "Refresh Token",
-							"item": [
-								{
-									"name": "Login",
-									"event": [
-										{
-											"listen": "prerequest",
-											"script": {
-												"exec": [
-													""
-												],
-												"type": "text/javascript",
-												"packages": {}
-											}
-										},
-										{
-											"listen": "test",
-											"script": {
-												"exec": [
-													"var jsonData = pm.response.json();",
-													"pm.environment.set(\"access_token\", jsonData.access_token);"
-												],
-												"type": "text/javascript",
-												"packages": {}
-											}
-										}
-									],
-									"request": {
-										"method": "POST",
-										"header": [],
-										"body": {
-											"mode": "raw",
-											"raw": "{\n    \"grant_type\": \"refresh_token\",\n    \"refresh_token\": \"{{access_token}}\",\n    \"scope\": \"profile\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\"\n}",
-											"options": {
-												"raw": {
-													"language": "json"
-												}
-											}
-										},
-										"url": {
-											"raw": "{{url_auth}}/api/login/oauth/refresh_token",
-											"host": [
-												"{{url_auth}}"
-											],
-											"path": [
-												"api",
-												"login",
-												"oauth",
-												"refresh_token"
-											]
-										}
-									},
-									"response": []
-								}
-							]
-						}
-					]
-				},
-				{
-					"name": "Token Introspection",
-					"item": [
-						{
-							"name": "Verify Token",
-							"event": [
-								{
-									"listen": "prerequest",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"auth": {
-									"type": "basic",
-									"basic": [
-										{
-											"key": "password",
-											"value": "{{client_secret}}",
-											"type": "string"
-										},
-										{
-											"key": "username",
-											"value": "{{client_id}}",
-											"type": "string"
-										}
-									]
-								},
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "token",
-											"value": "{{access_token}}",
-											"type": "text"
-										},
-										{
-											"key": "token_type_hint",
-											"value": "access_token",
-											"type": "text"
-										}
-									]
-								},
-								"url": {
-									"raw": "{{url_auth}}/api/login/oauth/introspect",
-									"host": [
-										"{{url_auth}}"
-									],
-									"path": [
-										"api",
-										"login",
-										"oauth",
-										"introspect"
-									]
-								}
-							},
-							"response": []
-						}
-					]
 				}
 			]
 		}
