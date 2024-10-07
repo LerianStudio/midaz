@@ -148,9 +148,15 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 	payload := p.(*t.UpdateTransactionInput)
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
-	trans, err := handler.Command.UpdateTransaction(c.Context(), organizationID, ledgerID, transactionID, payload)
+	_, err := handler.Command.UpdateTransaction(c.Context(), organizationID, ledgerID, transactionID, payload)
 	if err != nil {
-		logger.Errorf("Failed to update TRansaction with ID: %s, Error: %s", transactionID, err.Error())
+		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", transactionID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	trans, err := handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID, err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
