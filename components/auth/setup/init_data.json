@@ -808,6 +808,33 @@
     },
     {
       "owner": "lerian",
+      "name": "grpc-api-permission",
+      "displayName": "GRPC API Permission",
+      "isEnabled": true,
+      "model": "lerian/api-model",
+      "roles": [
+        "lerian/grpc_role"
+      ],
+      "users": [
+        "lerian/user_john",
+        "lerian/user_bob"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "account.AccountProto"
+      ],
+      "actions": [
+        "*"
+      ],
+      "domains": [],
+      "effect": "Allow",
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
+    },
+    {
+      "owner": "lerian",
       "name": "user-api-permission",
       "displayName": "User API Permission",
       "isEnabled": true,
@@ -856,6 +883,17 @@
       "users": [
         "lerian/user_john",
         "lerian/user_kate",
+        "lerian/user_bob"
+      ]
+    },
+    {
+      "displayName": "GRPC Role",
+      "isEnabled": true,
+      "name": "grpc_role",
+      "owner": "lerian",
+      "roles": [],
+      "users": [
+        "lerian/user_john",
         "lerian/user_bob"
       ]
     },

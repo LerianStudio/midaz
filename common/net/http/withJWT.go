@@ -3,6 +3,8 @@ package http
 import (
 	"context"
 	"fmt"
+	"github.com/LerianStudio/midaz/common"
+	"google.golang.org/grpc/status"
 	"strings"
 	"sync"
 	"time"
@@ -10,7 +12,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
@@ -167,18 +168,6 @@ func parseToken(tokenString string, keySet jwk.Set) (*jwt.Token, error) {
 	return token, nil
 }
 
-func validateTokenExpiration(token *jwt.Token) error {
-	if claims, ok := token.Claims.(jwt.MapClaims); ok {
-		if exp, ok := claims["exp"].(float64); ok {
-			if time.Unix(int64(exp), 0).Before(time.Now()) {
-				return errors.New("token is expired")
-			}
-		}
-	}
-
-	return nil
-}
-
 // JWKProvider manages cryptographic public keys issued by an authorization server
 // See https://tools.ietf.org/html/rfc7517
 // It's used to verify JSON Web Tokens which was signed using RS256 signing algorithm.
@@ -262,7 +251,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 
 			return UnprocessableEntity(
 				c,
-				"0046",
+				"0045",
 				"JWK Fetch Error",
 				"The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.",
 			)
@@ -273,14 +262,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			return Unauthorized(c, "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
-		}
-
-		if err := validateTokenExpiration(token); err != nil {
-			msg := errors.Wrap(err, "Token Expired")
-			l.Error(msg.Error())
-
-			return Unauthorized(c, "0043", "Token Expired", "The provided token has expired. Please provide a valid token and try again.")
+			return Unauthorized(c, "0042", "Invalid Token", "The provided token is expired, invalid or malformed. Please provide a valid token and try again.")
 		}
 
 		l.Debug("Token ok")
@@ -305,7 +287,7 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			return Unauthorized(c, "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
+			return Unauthorized(c, "0042", "Invalid Token", "The provided token is expired, invalid or malformed. Please provide a valid token and try again.")
 		}
 
 		authorized := false
@@ -323,7 +305,7 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 
 		return Forbidden(
 			c,
-			"0044",
+			"0043",
 			"Insufficient Privileges",
 			"You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
 		)
@@ -355,7 +337,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 				c,
 				"0042",
 				"Invalid Token",
-				"The provided token is invalid or malformed. Please provide a valid token and try again.",
+				"The provided token is expired, invalid or malformed. Please provide a valid token and try again.",
 			)
 		}
 
@@ -373,7 +355,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 
 			return UnprocessableEntity(
 				c,
-				"0045",
+				"0044",
 				"Permission Enforcement Error",
 				"The enforcer is not configured properly. Please contact your administrator if you believe this is an error.",
 			)
@@ -387,7 +369,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 
 		return Forbidden(
 			c,
-			"0044",
+			"0043",
 			"Insufficient Privileges",
 			"You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
 		)
@@ -411,9 +393,13 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
 			l.Error(msg.Error())
 
-			resp := fmt.Sprintf("%s - %s: %s", "0041", "Token Missing", "A valid token must be provided in the request header. Please include a token and try again.")
+			e := common.UnauthorizedError{
+				Code:    "0041",
+				Title:   "Token Missing",
+				Message: "A valid token must be provided in the request header. Please include a token and try again.",
+			}
 
-			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
 
 		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
@@ -423,9 +409,13 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Couldn't load JWK keys from source")
 			l.Error(msg.Error())
 
-			resp := fmt.Sprintf("%s - %s: %s", "0046", "JWK Fetch Error", "The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.")
+			e := common.FailedPreconditionError{
+				Code:    "0045",
+				Title:   "JWK Fetch Error",
+				Message: "The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.",
+			}
 
-			return nil, status.Errorf(codes.FailedPrecondition, "%s", resp)
+			return nil, jwtm.errorHandlingGrpc(codes.FailedPrecondition, e)
 		}
 
 		token, err := parseToken(tokenString, keySet)
@@ -433,18 +423,13 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			resp := fmt.Sprintf("%s - %s: %s", "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
+			e := common.UnauthorizedError{
+				Code:    "0042",
+				Title:   "Invalid Token",
+				Message: "The provided token is expired, invalid or malformed. Please provide a valid token and try again.",
+			}
 
-			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
-		}
-
-		if err := validateTokenExpiration(token); err != nil {
-			msg := errors.Wrap(err, "Token Expired")
-			l.Error(msg.Error())
-
-			resp := fmt.Sprintf("%s - %s: %s", "0043", "Token Expired", "The provided token has expired. Please provide a valid token and try again.")
-
-			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
 
 		ctx = context.WithValue(ctx, TokenContextValue("token"), token)
@@ -475,15 +460,20 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			resp := fmt.Sprintf("%s - %s: %s", "0042", "Invalid Token", "The provided token is invalid or malformed. Please provide a valid token and try again.")
+			e := common.UnauthorizedError{
+				Code:    "0042",
+				Title:   "Invalid Token",
+				Message: "The provided token is expired, invalid or malformed. Please provide a valid token and try again.",
+			}
 
-			return nil, status.Errorf(codes.Unauthenticated, "%s", resp)
+			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
 
 		enforcer := fmt.Sprintf("%s/%s", token.Owner, jwtm.connection.EnforcerName)
+
 		casbinReq := casdoorsdk.CasbinRequest{
 			token.Username,
-			"*",
+			jwtm.extractMethod(info.FullMethod),
 			"*",
 		}
 
@@ -492,17 +482,25 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Failed to enforce permission")
 			l.Error(msg.Error())
 
-			resp := fmt.Sprintf("%s - %s: %s", "0045", "Permission Enforcement Error", "The enforcer is not configured properly. Please contact your administrator if you believe this is an error.")
+			e := common.FailedPreconditionError{
+				Code:    "0044",
+				Title:   "Permission Enforcement Error",
+				Message: "The enforcer is not configured properly. Please contact your administrator if you believe this is an error.",
+			}
 
-			return nil, status.Errorf(codes.FailedPrecondition, "%s", resp)
+			return nil, jwtm.errorHandlingGrpc(codes.FailedPrecondition, e)
 		}
 
 		if !authorized {
 			l.Debug("Unauthorized")
 
-			resp := fmt.Sprintf("%s - %s: %s", "0044", "Insufficient Privileges", "You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.")
+			e := common.ForbiddenError{
+				Code:    "0043",
+				Title:   "Insufficient Privileges",
+				Message: "You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
+			}
 
-			return nil, status.Errorf(codes.PermissionDenied, "%s", resp)
+			return nil, jwtm.errorHandlingGrpc(codes.PermissionDenied, e)
 		}
 
 		return handler(ctx, req)
@@ -525,4 +523,18 @@ func (jwtm *JWTMiddleware) getTokenFromContext(ctx context.Context) (*OAuth2JWTT
 	}
 
 	return parser.ParseToken(token)
+}
+
+func (jwtm *JWTMiddleware) errorHandlingGrpc(code codes.Code, e any) error {
+	jsonStringError, err := common.StructToJsonString(e)
+	if err != nil {
+		return status.Error(codes.Internal, "Failed to marshal error response")
+	}
+
+	return status.Error(code, jsonStringError)
+}
+
+func (jwtm *JWTMiddleware) extractMethod(s string) string {
+	method := strings.Split(s, "/")[1]
+	return method
 }
