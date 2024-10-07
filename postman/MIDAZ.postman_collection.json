@@ -1580,7 +1580,7 @@
 					"response": []
 				},
 				{
-					"name": "Transactions",
+					"name": "Transaction by id",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -1599,6 +1599,78 @@
 								"{{transaction_id}}"
 							]
 						}
+					},
+					"response": []
+				},
+				{
+					"name": "Transactions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "transactions",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"transaction_id before: \" + postman.getEnvironmentVariable(\"transaction_id\"));",
+									"    postman.setEnvironmentVariable(\"transaction_id\", jsonData.id);",
+									"    console.log(\"transaction_id after: \" + postman.getEnvironmentVariable(\"transaction_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"transactions",
+								"{{transaction_id}}"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
 					},
 					"response": []
 				}
