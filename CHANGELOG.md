@@ -1,3 +1,16 @@
+## [1.14.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.14.0-beta.3...v1.14.0-beta.4) (2024-10-07)
+
+
+### Features
+
+* Implement UpdateTransaction and GetAllTTransactions :sparkles: ([d2c0e5d](https://github.com/LerianStudio/midaz/commit/d2c0e5d0a729f67973e8328220fe12e6ab2ffdc3))
+
+
+### Bug Fixes
+
+* load transaction after patch :bug: ([456f880](https://github.com/LerianStudio/midaz/commit/456f88076c703a55d28ac3178382134afefadbe2))
+* rename get-transaction to get-id-transaction filename :bug: ([96cda1f](https://github.com/LerianStudio/midaz/commit/96cda1f8e7910a27aa9195bcc77317660347367a))
+
 ## [1.14.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.14.0-beta.2...v1.14.0-beta.3) (2024-10-07)
 
 
