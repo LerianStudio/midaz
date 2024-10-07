@@ -70,6 +70,6 @@ transaction:
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
 all-services:
-	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
+	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
