@@ -1,0 +1,55 @@
+package command
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/components/transaction/internal/app"
+	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	"github.com/google/uuid"
+)
+
+// UpdateTransaction update an transaction from the repository by given id.
+func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID string, uti *t.UpdateTransactionInput) (*t.Transaction, error) {
+	logger := mlog.NewLoggerFromContext(ctx)
+	logger.Infof("Trying to update transaction: %v", uti)
+
+	trans := &t.Transaction{
+		Description: uti.Description,
+	}
+
+	transUpdated, err := uc.TransactionRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(transactionID), trans)
+	if err != nil {
+		logger.Errorf("Error updating transaction on repo by id: %v", err)
+
+		if errors.Is(err, app.ErrDatabaseItemNotFound) {
+			return nil, common.EntityNotFoundError{
+				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
+				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID),
+				Code:       "TRANSACTION_NOT_FOUND",
+				Err:        err,
+			}
+		}
+
+		return nil, err
+	}
+
+	if len(uti.Metadata) > 0 {
+		if err := common.CheckMetadataKeyAndValueLength(100, uti.Metadata); err != nil {
+			return nil, err
+		}
+
+		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(t.Transaction{}).Name(), transactionID, uti.Metadata)
+		if err != nil {
+			return nil, err
+		}
+
+		transUpdated.Metadata = uti.Metadata
+	}
+
+	return transUpdated, nil
+}
