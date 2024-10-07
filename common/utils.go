@@ -145,8 +145,8 @@ func IsUUID(s string) bool {
 	return r.MatchString(s)
 }
 
-// StructToJsonString convert a struct to json string
-func StructToJsonString(s any) (string, error) {
+// StructToJSONString convert a struct to json string
+func StructToJSONString(s any) (string, error) {
 	jsonByte, err := json.Marshal(s)
 	if err != nil {
 		return "", err

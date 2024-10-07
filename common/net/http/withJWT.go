@@ -3,11 +3,12 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/LerianStudio/midaz/common"
-	"google.golang.org/grpc/status"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
+	"google.golang.org/grpc/status"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -526,7 +527,7 @@ func (jwtm *JWTMiddleware) getTokenFromContext(ctx context.Context) (*OAuth2JWTT
 }
 
 func (jwtm *JWTMiddleware) errorHandlingGrpc(code codes.Code, e any) error {
-	jsonStringError, err := common.StructToJsonString(e)
+	jsonStringError, err := common.StructToJSONString(e)
 	if err != nil {
 		return status.Error(codes.Internal, "Failed to marshal error response")
 	}
