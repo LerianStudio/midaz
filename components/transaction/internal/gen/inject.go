@@ -22,7 +22,6 @@ import (
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	httpHandler "github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/google/wire"
@@ -80,7 +79,7 @@ var (
 		postgres.NewOperationPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
 		grpc.NewAccountGRPC,
-		wire.Struct(new(ports.TransactionHandler), "*"),
+		wire.Struct(new(httpHandler.TransactionHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),
