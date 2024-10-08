@@ -39,8 +39,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 		}
 	}
 
-	accounts := make([]*proto.Account, len(acc))
-
+	var accounts []*proto.Account
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
 	}
@@ -66,8 +65,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 		}
 	}
 
-	accounts := make([]*proto.Account, len(acc))
-
+	var accounts []*proto.Account
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
 	}
@@ -83,8 +81,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.AccountsRequest) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	accounts := make([]*proto.Account, len(update.GetAccounts()))
-
+	var accounts []*proto.Account
 	for _, account := range update.GetAccounts() {
 		if common.IsNilOrEmpty(&account.Id) {
 			logger.Errorf("Failed to update Accounts because id is empty")
