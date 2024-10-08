@@ -2,9 +2,6 @@ package http
 
 import (
 	"context"
-	"net/http"
-	"strings"
-
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
@@ -13,9 +10,11 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
+	"net/http"
 )
 
 // TransactionHandler struct that handle transaction
@@ -82,10 +81,19 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	err = handler.validateAccounts(parserDSL, accounts)
+	err = v.ValidateAccounts(parserDSL, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
+
+	_, err = v.ValidateSendSourceAndDistribute(parserDSL)
+	if err != nil {
+		logger.Error("Validation failed:", err.Error())
+		return commonHTTP.WithError(c, err)
+	} //else {
+	//logger.Error("Transactions are valid:")
+	//return commonHTTP.Accepted(c, response)
+	//}
 
 	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &parserDSL)
 	if err != nil {
@@ -156,41 +164,6 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID)
 
 	return commonHTTP.OK(c, tran)
-}
-
-func (handler *TransactionHandler) validateAccounts(parserDSL gold.Transaction, accounts []*account.Account) error {
-	for _, a := range accounts {
-
-		if a.Balance.Available == 0 {
-			return common.ValidationError{
-				Code:    "0025",
-				Title:   "Insuficient balance",
-				Message: strings.ReplaceAll("The account {Id} has insufficient balance. Try again sending the amount minor or equal to the available balance.", "{Id}", a.Id),
-			}
-		}
-
-		for _, source := range parserDSL.Send.Source.From {
-			if a.Id == source.Account || a.Alias == source.Account && !a.Status.AllowSending {
-				return common.ValidationError{
-					Code:    "0019",
-					Title:   "Transaction Participation Error",
-					Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
-				}
-			}
-		}
-
-		for _, distribute := range parserDSL.Distribute.To {
-			if a.Id == distribute.Account || a.Alias == distribute.Account && !a.Status.AllowReceiving {
-				return common.ValidationError{
-					Code:    "0019",
-					Title:   "Transaction Participation Error",
-					Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 // ProcessAccounts is a function that split alias and isd, call the properly function and return Accounts
