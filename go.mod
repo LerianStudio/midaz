@@ -18,7 +18,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 	github.com/zitadel/oidc/v3 v3.30.0
-	go.mongodb.org/mongo-driver v1.17.0
+	go.mongodb.org/mongo-driver v1.17.1
 	go.uber.org/mock v0.4.0
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/grpc v1.67.0
