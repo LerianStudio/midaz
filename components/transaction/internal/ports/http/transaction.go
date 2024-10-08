@@ -1,8 +1,9 @@
-package ports
+package http
 
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
@@ -27,47 +28,47 @@ type TransactionHandler struct {
 func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
+	_ = commonHTTP.ValidateParameters(c.Queries())
+
 	organizationID := c.Params("organization_id")
 	ledgerID := c.Params("ledger_id")
 
 	dsl, err := commonHTTP.GetFileFromHeader(c)
 	if err != nil {
-		logger.Error("Failed to validate and parse transaction", err.Error())
-		return commonHTTP.WithError(c, err)
+		logger.Error("Failed to get file from Header: ", err.Error())
+
+		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
 	errListener := transaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		var err []fiber.Map
-		for _, e := range errListener.Errors {
-			err = append(err, fiber.Map{
-				"line":    e.Line,
-				"column":  e.Column,
-				"message": e.Message,
-				"source":  errListener.Source,
-			})
+		err := common.ValidationError{
+			Code:    "0017",
+			Title:   "Invalid Script Error",
+			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
 		}
 
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
 	parsed := transaction.Parse(dsl)
-
-	logger.Infof("Transaction parsed and validated")
-
 	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
-		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
+		err := common.ValidationError{
+			Code:    "0017",
+			Title:   "Invalid Script Error",
+			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
+		}
+
+		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
 	source := make([]string, len(parserDSL.Send.Source.From))
-
 	for i, fr := range parserDSL.Send.Source.From {
 		source[i] = fr.Account
 	}
 
 	destination := make([]string, len(parserDSL.Distribute.To))
-
 	for i, ot := range parserDSL.Distribute.To {
 		destination[i] = ot.Account
 	}
@@ -77,6 +78,11 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	alias = append(alias, source...)
 
 	accounts, err := handler.processAccounts(c.Context(), logger, alias)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	err = handler.validateAccounts(parserDSL, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -150,6 +156,41 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID)
 
 	return commonHTTP.OK(c, tran)
+}
+
+func (handler *TransactionHandler) validateAccounts(parserDSL gold.Transaction, accounts []*account.Account) error {
+	for _, a := range accounts {
+
+		if a.Balance.Available == 0 {
+			return common.ValidationError{
+				Code:    "0025",
+				Title:   "Insuficient balance",
+				Message: strings.ReplaceAll("The account {Id} has insufficient balance. Try again sending the amount minor or equal to the available balance.", "{Id}", a.Id),
+			}
+		}
+
+		for _, source := range parserDSL.Send.Source.From {
+			if a.Id == source.Account || a.Alias == source.Account && !a.Status.AllowSending {
+				return common.ValidationError{
+					Code:    "0019",
+					Title:   "Transaction Participation Error",
+					Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
+				}
+			}
+		}
+
+		for _, distribute := range parserDSL.Distribute.To {
+			if a.Id == distribute.Account || a.Alias == distribute.Account && !a.Status.AllowReceiving {
+				return common.ValidationError{
+					Code:    "0019",
+					Title:   "Transaction Participation Error",
+					Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // ProcessAccounts is a function that split alias and isd, call the properly function and return Accounts
