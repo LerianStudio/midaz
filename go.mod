@@ -17,7 +17,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
-	github.com/zitadel/oidc/v3 v3.30.0
+	github.com/zitadel/oidc/v3 v3.30.1
 	go.mongodb.org/mongo-driver v1.17.1
 	go.uber.org/mock v0.4.0
 	golang.org/x/oauth2 v0.23.0
@@ -43,7 +43,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/swaggo/swag v1.16.3 // indirect
-	github.com/zitadel/logging v0.6.0 // indirect
+	github.com/zitadel/logging v0.6.1 // indirect
 	github.com/zitadel/schema v1.3.0 // indirect
 	go.opentelemetry.io/otel v1.29.0 // indirect
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect
