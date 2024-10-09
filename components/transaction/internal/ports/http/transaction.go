@@ -2,6 +2,9 @@ package http
 
 import (
 	"context"
+	"net/http"
+	"strconv"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
@@ -14,7 +17,6 @@ import (
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
-	"net/http"
 )
 
 // TransactionHandler struct that handle transaction
@@ -62,38 +64,21 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	source := make([]string, len(parserDSL.Send.Source.From))
-	for i, fr := range parserDSL.Send.Source.From {
-		source[i] = fr.Account
-	}
-
-	destination := make([]string, len(parserDSL.Distribute.To))
-	for i, ot := range parserDSL.Distribute.To {
-		destination[i] = ot.Account
-	}
-
-	var alias []string
-	alias = append(alias, destination...)
-	alias = append(alias, source...)
-
-	accounts, err := handler.processAccounts(c.Context(), logger, alias)
-	if err != nil {
-		return commonHTTP.WithError(c, err)
-	}
-
-	err = v.ValidateAccounts(parserDSL, accounts)
-	if err != nil {
-		return commonHTTP.WithError(c, err)
-	}
-
-	_, err = v.ValidateSendSourceAndDistribute(parserDSL)
+	validate, err := v.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
 		logger.Error("Validation failed:", err.Error())
 		return commonHTTP.WithError(c, err)
-	} //else {
-	//logger.Error("Transactions are valid:")
-	//return commonHTTP.Accepted(c, response)
-	//}
+	}
+
+	accounts, err := handler.getAccounts(c.Context(), logger, validate.Aliases)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	err = v.ValidateAccounts(*validate, accounts)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
 
 	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &parserDSL)
 	if err != nil {
@@ -101,20 +86,25 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	tran.Source = source
-	tran.Destination = destination
+	tran.Source = validate.Sources
+	tran.Destination = validate.Destinations
 
 	e := make(chan error)
 	result := make(chan []*o.Operation)
 
 	var operations []*o.Operation
 
-	go handler.Command.CreateOperation(c.Context(), accounts, tran, &parserDSL, result, e)
+	go handler.Command.CreateOperation(c.Context(), accounts, tran.ID, &parserDSL, *validate, result, e)
 	select {
 	case ops := <-result:
 		operations = append(operations, ops...)
 	case err := <-e:
 		logger.Error("Failed to create operations: ", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	err = handler.processAccounts(c.Context(), logger, *validate, accounts)
+	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -166,17 +156,16 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, tran)
 }
 
-// ProcessAccounts is a function that split alias and isd, call the properly function and return Accounts
-func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, input []string) ([]*account.Account, error) {
+// getAccounts is a function that split aliases and ids, call the properly function and return Accounts
+func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, input []string) ([]*account.Account, error) {
 	var ids []string
-
-	var alias []string
+	var aliases []string
 
 	for _, item := range input {
 		if common.IsUUID(item) {
 			ids = append(ids, item)
 		} else {
-			alias = append(alias, item)
+			aliases = append(aliases, item)
 		}
 	}
 
@@ -192,8 +181,8 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		accounts = append(accounts, gRPCAccounts.GetAccounts()...)
 	}
 
-	if len(alias) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, alias)
+	if len(aliases) > 0 {
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, aliases)
 		if err != nil {
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 			return nil, err
@@ -203,4 +192,69 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 	}
 
 	return accounts, nil
+}
+
+// processAccounts is a function that adjust balance on Accounts
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, accounts []*account.Account) error {
+	for _, account := range accounts {
+		balance := account.Balance
+
+		for _, fo := range validate.From {
+			value, err := strconv.ParseFloat(fo.Value, 64)
+			if err != nil {
+				logger.Errorf("Error converting value string to float64: %v", err)
+				return err
+			}
+
+			scale, err := strconv.ParseFloat(fo.Scale, 64)
+			if err != nil {
+				logger.Errorf("Error converting scale string to float64: %v", err)
+				return err
+			}
+
+			ba := balance.Available - value
+			if balance.Scale < scale {
+				balance.Scale = scale
+			}
+
+			balance.Available = ba
+		}
+
+		for _, to := range validate.To {
+			value, err := strconv.ParseFloat(to.Value, 64)
+			if err != nil {
+				logger.Errorf("Error converting value string to float64: %v", err)
+				return err
+			}
+
+			scale, err := strconv.ParseFloat(to.Scale, 64)
+			if err != nil {
+				logger.Errorf("Error converting scale string to float64: %v", err)
+				return err
+			}
+
+			ba := balance.Available + value
+			if balance.Scale < scale {
+				balance.Scale = scale
+			}
+
+			balance.Available = ba
+		}
+
+		account.Balance = balance
+
+	}
+
+	/*
+		acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, accounts)
+		if err != nil {
+			logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
+			return err
+		}
+
+		for _, a := range acc.Accounts {
+			logger.Infof(a.UpdatedAt)
+		}
+	*/
+	return nil
 }

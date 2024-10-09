@@ -1,7 +1,6 @@
 package account
 
 import (
-	"fmt"
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"math"
@@ -13,19 +12,23 @@ import (
 
 // Response return struct with total and per-account amounts
 type Response struct {
-	Total  float64            `json:"total"`
-	FromTo map[string]float64 `json:"fromTo"`
+	Total  float64
+	SD     []string
+	FromTo map[string]gold.Amount
 }
 
-// ResponseSendSourceAndDistribute return struct with total send and per-accounts
-type ResponseSendSourceAndDistribute struct {
-	Total float64            `json:"total"`
-	From  map[string]float64 `json:"from"`
-	To    map[string]float64 `json:"to"`
+// Responses return struct with total send and per-accounts
+type Responses struct {
+	Total        float64
+	From         map[string]gold.Amount
+	To           map[string]gold.Amount
+	Sources      []string
+	Destinations []string
+	Aliases      []string
 }
 
 // ValidateAccounts function with some validates in accounts and DSL operations
-func ValidateAccounts(parserDSL gold.Transaction, accounts []*account.Account) error {
+func ValidateAccounts(validate Responses, accounts []*account.Account) error {
 	for _, acc := range accounts {
 
 		if acc.Balance.Available == 0 {
@@ -36,8 +39,8 @@ func ValidateAccounts(parserDSL gold.Transaction, accounts []*account.Account) e
 			}
 		}
 
-		for _, source := range parserDSL.Send.Source.From {
-			if acc.Id == source.Account || acc.Alias == source.Account && !acc.Status.AllowSending {
+		for key := range validate.From {
+			if acc.Id == key || acc.Alias == key && !acc.Status.AllowSending {
 				return common.ValidationError{
 					Code:    "0019",
 					Title:   "Transaction Participation Error",
@@ -46,8 +49,8 @@ func ValidateAccounts(parserDSL gold.Transaction, accounts []*account.Account) e
 			}
 		}
 
-		for _, distribute := range parserDSL.Distribute.To {
-			if acc.Id == distribute.Account || acc.Alias == distribute.Account && !acc.Status.AllowReceiving {
+		for key := range validate.To {
+			if acc.Id == key || acc.Alias == key && !acc.Status.AllowReceiving {
 				return common.ValidationError{
 					Code:    "0019",
 					Title:   "Transaction Participation Error",
@@ -74,20 +77,25 @@ func TranslateScale(value, scale string) (float64, error) {
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
-func calculateTotal(fromTos []gold.FromTo, totalSend float64, result chan *Response, e chan error) {
+func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, result chan *Response, e chan error) {
 	total := 0.0
 	remaining := totalSend
 	response := Response{
 		Total:  0.0,
-		FromTo: make(map[string]float64),
+		FromTo: make(map[string]gold.Amount),
+		SD:     make([]string, 0),
 	}
 
 	for _, ft := range fromTos {
+
 		if ft.Remaining != "" {
 			continue
 		}
 
-		var amount float64
+		amount := gold.Amount{
+			Scale: "0",
+			Asset: asset,
+		}
 
 		if ft.Share != nil {
 			share := ft.Share.Percentage
@@ -96,7 +104,7 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, result chan *Respo
 				of = 100
 			}
 			shareValue := totalSend * (float64(share) / float64(of))
-			amount = shareValue
+			amount.Value = strconv.FormatFloat(shareValue, 'f', 2, 64)
 			total += shareValue
 			remaining -= shareValue
 		}
@@ -106,21 +114,34 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, result chan *Respo
 			if err != nil {
 				e <- err
 			}
-			amount = amountValue
+
+			if !common.IsNilOrEmpty(&ft.Amount.Asset) {
+				amount.Asset = ft.Amount.Asset
+			}
+
+			amount.Scale = ft.Amount.Scale
+			amount.Value = strconv.FormatFloat(amountValue, 'f', 2, 64)
 			total += amountValue
 			remaining -= amountValue
 		}
 
+		response.SD = append(response.SD, ft.Account)
 		response.FromTo[ft.Account] = amount
 	}
 
 	for i, source := range fromTos {
 		if source.Remaining != "" {
 			total += remaining
-			response.FromTo[source.Account] = remaining
-			fromTos[i].Amount = &gold.Amount{
-				Value: fmt.Sprintf("%.6f", remaining),
+
+			amount := gold.Amount{
+				Value: strconv.FormatFloat(remaining, 'f', 2, 64),
+				Scale: "0",
+				Asset: asset,
 			}
+
+			response.SD = append(response.SD, source.Account)
+			response.FromTo[source.Account] = amount
+			fromTos[i].Amount = &amount
 
 			break
 		}
@@ -131,11 +152,14 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, result chan *Respo
 }
 
 // ValidateSendSourceAndDistribute Validate send and distribute totals
-func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*ResponseSendSourceAndDistribute, error) {
-	response := &ResponseSendSourceAndDistribute{
-		Total: 0.0,
-		From:  make(map[string]float64),
-		To:    make(map[string]float64),
+func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, error) {
+	response := &Responses{
+		Total:        0.0,
+		From:         make(map[string]gold.Amount),
+		To:           make(map[string]gold.Amount),
+		Sources:      make([]string, 0),
+		Destinations: make([]string, 0),
+		Aliases:      make([]string, 0),
 	}
 
 	totalSend, err := TranslateScale(transaction.Send.Value, transaction.Send.Scale)
@@ -149,20 +173,24 @@ func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*ResponseSen
 	sourcesTotal := 0.0
 	destinationsTotal := 0.0
 
-	go calculateTotal(transaction.Send.Source.From, totalSend, result, e)
+	go calculateTotal(transaction.Send.Source.From, totalSend, transaction.Send.Asset, result, e)
 	select {
 	case from := <-result:
 		sourcesTotal = from.Total
 		response.From = from.FromTo
+		response.Sources = from.SD
+		response.Aliases = append(response.Aliases, from.SD...)
 	case err := <-e:
 		return nil, err
 	}
 
-	go calculateTotal(transaction.Distribute.To, totalSend, result, e)
+	go calculateTotal(transaction.Distribute.To, totalSend, transaction.Send.Asset, result, e)
 	select {
 	case from := <-result:
 		destinationsTotal = from.Total
 		response.To = from.FromTo
+		response.Destinations = from.SD
+		response.Aliases = append(response.Aliases, from.SD...)
 	case err := <-e:
 		return nil, err
 	}

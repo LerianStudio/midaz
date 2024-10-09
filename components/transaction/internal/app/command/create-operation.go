@@ -10,14 +10,14 @@ import (
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/common/mlog"
+	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
-	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/google/uuid"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
-func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transaction *t.Transaction, dsl *gold.Transaction, result chan []*o.Operation, err chan error) {
+func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *gold.Transaction, validate v.Responses, result chan []*o.Operation, err chan error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create new oeprations")
 
@@ -30,31 +30,89 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 	for _, acc := range accounts {
 		for _, ft := range fromTo {
 			if ft.Account == acc.Id || ft.Account == acc.Alias {
-				logger.Infof("Creating operation for acc %s", acc.Id)
+				logger.Infof("Creating operation for account id: %s", acc.Id)
 
-				amount, err, done := validateAndChangeBalance(ft, logger, err, dsl)
-				if done {
-					return
-				}
+				var amount o.Amount
+				var balance o.Balance
+				var balanceAfter o.Balance
 
-				balance := o.Balance{
-					Available: &acc.Balance.Available,
-					OnHold:    &acc.Balance.OnHold,
-					Scale:     &acc.Balance.Scale,
-				}
+				if ft.IsFrom {
+					value, er := strconv.ParseFloat(validate.From[ft.Account].Value, 64)
+					if er != nil {
+						logger.Errorf("Error converting FROM value string to float64: %v", er)
+						err <- er
+					}
 
-				balanceAfter := o.Balance{
-					Available: &acc.Balance.Available,
-					OnHold:    &acc.Balance.OnHold,
-					Scale:     &acc.Balance.Scale,
+					scale, er := strconv.ParseFloat(validate.From[ft.Account].Scale, 64)
+					if er != nil {
+						logger.Errorf("Error converting FROM scale string to float64: %v", er)
+						err <- er
+					}
+
+					amount = o.Amount{
+						Amount: &value,
+						Scale:  &scale,
+					}
+
+					balance = o.Balance{
+						Available: &acc.Balance.Available,
+						OnHold:    &acc.Balance.OnHold,
+						Scale:     &acc.Balance.Scale,
+					}
+
+					ba := acc.Balance.Available - value
+					if acc.Balance.Scale < scale {
+						acc.Balance.Scale = scale
+					}
+
+					balanceAfter = o.Balance{
+						Available: &ba,
+						OnHold:    &acc.Balance.OnHold,
+						Scale:     &acc.Balance.Scale,
+					}
+
+				} else {
+					value, er := strconv.ParseFloat(validate.To[ft.Account].Value, 64)
+					if er != nil {
+						logger.Errorf("Error converting TO value string to float64: %v", er)
+						err <- er
+					}
+
+					scale, er := strconv.ParseFloat(validate.To[ft.Account].Scale, 64)
+					if er != nil {
+						logger.Errorf("Error converting TO scale string to float64: %v", er)
+						err <- er
+					}
+
+					amount = o.Amount{
+						Amount: &value,
+						Scale:  &scale,
+					}
+
+					balance = o.Balance{
+						Available: &acc.Balance.Available,
+						OnHold:    &acc.Balance.OnHold,
+						Scale:     &acc.Balance.Scale,
+					}
+
+					baf := acc.Balance.Available + value
+					if acc.Balance.Scale < scale {
+						acc.Balance.Scale = scale
+					}
+
+					balanceAfter = o.Balance{
+						Available: &baf,
+						OnHold:    &acc.Balance.OnHold,
+						Scale:     &acc.Balance.Scale,
+					}
 				}
 
 				save := &o.Operation{
 					ID:              uuid.New().String(),
-					TransactionID:   transaction.ID,
-					Description:     transaction.Description,
+					TransactionID:   transactionID,
+					Description:     ft.Description,
 					Type:            acc.Type,
-					InstrumentCode:  dsl.Send.Asset,
+					AssetCode:       dsl.Send.Asset,
 					ChartOfAccounts: ft.ChartOfAccounts,
 					Amount:          amount,
 					Balance:         balance,
@@ -109,56 +167,4 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 	}
 
 	result <- operations
-}
-
-func validateAndChangeBalance(ft gold.FromTo, logger mlog.Logger, err chan error, dsl *gold.Transaction) (o.Amount, chan error, bool) {
-	var amount o.Amount
-
-	value := ft.Amount.Value
-
-	if !common.IsNilOrEmpty(&value) {
-		a, er := strconv.ParseFloat(ft.Amount.Value, 64)
-		if er != nil {
-			logger.Errorf("Error converting amount string to float64: %v", er)
-			err <- er
-
-			return o.Amount{}, nil, true
-		}
-
-		s, er := strconv.ParseFloat(ft.Amount.Scale, 64)
-		if er != nil {
-			logger.Errorf("Error converting scale string to float64: %v", er)
-			err <- er
-
-			return o.Amount{}, nil, true
-		}
-
-		amount = o.Amount{
-			Amount: &a,
-			Scale:  &s,
-		}
-	} else {
-		a, er := strconv.ParseFloat(dsl.Send.Value, 64)
-		if er != nil {
-			logger.Errorf("Error converting amount string to float64: %v", er)
-			err <- er
-
-			return o.Amount{}, nil, true
-		}
-
-		s, er := strconv.ParseFloat(dsl.Send.Scale, 64)
-		if er != nil {
-			logger.Errorf("Error converting scale string to float64: %v", er)
-			err <- er
-
-			return o.Amount{}, nil, true
-		}
-
-		amount = o.Amount{
-			Amount: &a,
-			Scale:  &s,
-		}
-	}
-
-	return amount, err, false
 }
