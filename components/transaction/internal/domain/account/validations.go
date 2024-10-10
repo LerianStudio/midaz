@@ -1,6 +1,7 @@
 package account
 
 import (
+	"fmt"
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"math"
@@ -69,11 +70,92 @@ func TranslateScale(value, scale string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	s, err := strconv.Atoi(scale)
 	if err != nil {
 		return 0, err
 	}
+
 	return v * math.Pow(10, float64(-s)), nil
+}
+
+// FindScaleForPercentage Function to find the scale for a percentage of a value
+func FindScaleForPercentage(value float64, asset string, share, of float64) (gold.Amount, float64) {
+	shareValue := value * share / of
+
+	scale := int(math.Ceil(-math.Log10(shareValue)))
+
+	normalizedValue := shareValue * math.Pow(10, float64(scale))
+
+	amount := gold.Amount{
+		Asset: asset,
+		Value: fmt.Sprintf("%.0f", normalizedValue),
+		Scale: strconv.Itoa(scale),
+	}
+
+	return amount, shareValue
+}
+
+// CalculateRemainingFromSend Function to calculate the remaining value when previous values are known
+func CalculateRemainingFromSend(asset string, remainingValue float64) gold.Amount {
+	remainingScale := int(math.Ceil(-math.Log10(remainingValue)))
+	normalizedRemainingValue := remainingValue * math.Pow(10, float64(remainingScale))
+
+	acc := gold.Amount{
+		Asset: asset,
+		Value: fmt.Sprintf("%.0f", normalizedRemainingValue),
+		Scale: strconv.Itoa(remainingScale),
+	}
+
+	return acc
+}
+
+// OperateAmounts Function to sum or sub two amounts and normalize the scale
+func OperateAmounts(aone, atwo gold.Amount, operation string) (*gold.Amount, error) {
+
+	vone, err := TranslateScale(aone.Value, aone.Scale)
+	if err != nil {
+		return nil, err
+	}
+
+	vtwo, err := TranslateScale(atwo.Value, atwo.Scale)
+	if err != nil {
+		return nil, err
+	}
+
+	var total float64
+
+	switch operation {
+	case "add":
+		total = vone + vtwo
+	case "sub":
+		total = vone - vtwo
+	default:
+		return nil, fmt.Errorf("unsupported operation: %s", operation)
+	}
+
+	sone, err := strconv.Atoi(aone.Scale)
+	if err != nil {
+		return nil, err
+	}
+
+	stwo, err := strconv.Atoi(atwo.Scale)
+	if err != nil {
+		return nil, err
+	}
+
+	finalScale := sone
+	if stwo < sone {
+		finalScale = stwo
+	}
+
+	normalizedValue := total * math.Pow(10, float64(finalScale))
+
+	return &gold.Amount{
+		Asset: aone.Asset,
+		Value: fmt.Sprintf("%.0f", normalizedValue),
+		Scale: strconv.Itoa(finalScale),
+	}, nil
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
@@ -87,7 +169,6 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 	}
 
 	for _, ft := range fromTos {
-
 		if ft.Remaining != "" {
 			continue
 		}
@@ -97,19 +178,24 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 			Asset: asset,
 		}
 
-		if ft.Share != nil {
+		if ft.Share.Percentage != 0 {
 			share := ft.Share.Percentage
 			of := ft.Share.PercentageOfPercentage
 			if of == 0 {
 				of = 100
 			}
-			shareValue := totalSend * (float64(share) / float64(of))
+
+			_, shareValue := FindScaleForPercentage(totalSend, asset, float64(share), float64(of))
+			//amount = acc
+
+			shareValue = totalSend * (float64(share) / float64(of))
 			amount.Value = strconv.FormatFloat(shareValue, 'f', 2, 64)
+
 			total += shareValue
 			remaining -= shareValue
 		}
 
-		if ft.Amount.Value != "" && ft.Amount.Scale != "" {
+		if !common.IsNilOrEmpty(&ft.Amount.Value) && !common.IsNilOrEmpty(&ft.Amount.Scale) {
 			amountValue, err := TranslateScale(ft.Amount.Value, ft.Amount.Scale)
 			if err != nil {
 				e <- err
@@ -133,11 +219,7 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 		if source.Remaining != "" {
 			total += remaining
 
-			amount := gold.Amount{
-				Value: strconv.FormatFloat(remaining, 'f', 2, 64),
-				Scale: "0",
-				Asset: asset,
-			}
+			amount := CalculateRemainingFromSend(asset, remaining)
 
 			response.SD = append(response.SD, source.Account)
 			response.FromTo[source.Account] = amount
