@@ -179,8 +179,9 @@ func newValidator() (*validator.Validate, ut.Translator) {
 
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) ValidationError {
 	return ValidationError{
-		Code:    "400",
-		Message: "Malformed request.",
+		Code:    "0047",
+		Title:   "Bad Request",
+		Message: "The server could not understand the request due to malformed syntax. Please check the listed fields and try again.",
 		Fields:  fields(err, trans),
 	}
 }

@@ -65,7 +65,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
 				Title:      "Mismatched Asset Code",
 				Code:       "0030",
-				Message:    "The provided parent account ID is associated with a different asset code than the one specified in your request. Please ensure the asset code matches that of the parent account, or use a different parent account ID and try again.",
+				Message:    "The parent account ID you provided is associated with a different asset code than the one specified in your request. Please make sure the asset code matches that of the parent account, or use a different parent account ID and try again.",
 			}
 		}
 	}

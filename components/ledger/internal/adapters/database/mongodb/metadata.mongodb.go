@@ -145,6 +145,9 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return common.EntityNotFoundError{
 				EntityType: collection,
+				Code:       "0007",
+				Title:      "Entity Not Found",
+				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 				Err:        err,
 			}
 		}

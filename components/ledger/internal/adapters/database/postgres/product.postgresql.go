@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -78,9 +79,9 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -104,9 +105,9 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	if rows.Next() {
 		return true, common.EntityConflictError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity found.",
-			Code:       "0008",
-			Message:    "Entity was found matching by the provided Name. Ensure the another Name is being used for the entity you are attempting to manage.",
+			Code:       "0015",
+			Title:      "Duplicate Product Name Error",
+			Message:    fmt.Sprintf("A product with the name %s already exists for this ledger ID %s. Please try again with a different ledger or name.", name, ledgerID),
 		}
 	}
 
@@ -141,9 +142,9 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	if err != nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 	defer rows.Close()
@@ -214,9 +215,9 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Title:      "Entity not found.",
+				Title:      "Entity Not Found",
 				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 			}
 		}
 
@@ -283,9 +284,9 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -313,9 +314,9 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		return common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 

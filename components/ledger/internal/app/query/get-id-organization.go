@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -25,8 +24,9 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id string) (*o.Organ
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    fmt.Sprintf("Organization with id %s was not found", id),
-				Code:       "ORGANIZATION_NOT_FOUND",
+				Code:       "0038",
+				Title:      "Organization ID Not Found",
+				Message:    "The provided organization ID does not exist in our records. Please verify the organization ID and try again.",
 				Err:        err,
 			}
 		}

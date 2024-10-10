@@ -95,15 +95,17 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
 		return "", common.ValidationError{
-			Code:    "0001",
-			Message: fmt.Sprintf("This type o file: %s can't be parsed", fileHeader.Filename),
+			Code:    "0048",
+			Title:   "Invalid DSL File Format",
+			Message: fmt.Sprintf("The submitted DSL file %s is in an incorrect format. Please ensure that the file follows the expected structure and syntax.", fileHeader.Filename),
 		}
 	}
 
 	if fileHeader.Size == 0 {
 		return "", common.ValidationError{
-			Code:    "0001",
-			Message: fmt.Sprintf("This file: %s is empty", fileHeader.Filename),
+			Code:    "0049",
+			Title:   "Empty DSL File",
+			Message: fmt.Sprintf("The submitted DSL file %s is empty. Please provide a valid file with content.", fileHeader.Filename),
 		}
 	}
 

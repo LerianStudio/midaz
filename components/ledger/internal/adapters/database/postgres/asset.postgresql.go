@@ -80,16 +80,16 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *s.Asset) 
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
 	return record.ToEntity(), nil
 }
 
-// FindByNameOrCode retrieves Asset entities by nam or code from the database.
+// FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -107,8 +107,8 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return true, common.EntityConflictError{
 			EntityType: reflect.TypeOf(s.Asset{}).Name(),
 			Code:       "0003",
-			Title:      "Invalid Data provided.",
-			Message:    "Invalid Data provided.",
+			Title:      "Asset Name or Code Duplicate",
+			Message:    "An asset with the same name or code already exists in your ledger. Please modify the name or code of your new asset.",
 		}
 	}
 
@@ -211,9 +211,9 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(s.Asset{}).Name(),
-				Title:      "Entity not found.",
+				Title:      "Entity Not Found",
 				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 			}
 		}
 
@@ -280,9 +280,9 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -310,9 +310,9 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	if rowsAffected == 0 {
 		return common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 

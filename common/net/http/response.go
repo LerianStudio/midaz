@@ -59,18 +59,20 @@ func RangeNotSatisfiable(c *fiber.Ctx) error {
 	return c.SendStatus(http.StatusRequestedRangeNotSatisfiable)
 }
 
-// NotFound sends an HTTP 404 Not Found response with a custom code and message.
-func NotFound(c *fiber.Ctx, code, message string) error {
+// NotFound sends an HTTP 404 Not Found response with a custom code, title and message.
+func NotFound(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusNotFound).JSON(fiber.Map{
 		"code":    code,
+		"title":   title,
 		"message": message,
 	})
 }
 
-// Conflict sends an HTTP 409 Conflict response with a custom code and message.
-func Conflict(c *fiber.Ctx, code, message string) error {
+// Conflict sends an HTTP 409 Conflict response with a custom code, title and message.
+func Conflict(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusConflict).JSON(fiber.Map{
 		"code":    code,
+		"title":   title,
 		"message": message,
 	})
 }
@@ -79,11 +81,12 @@ func Conflict(c *fiber.Ctx, code, message string) error {
 func NotImplemented(c *fiber.Ctx, message string) error {
 	return c.Status(http.StatusNotImplemented).JSON(fiber.Map{
 		"code":    http.StatusNotImplemented,
+		"title":   "Not Implemented",
 		"message": message,
 	})
 }
 
-// UnprocessableEntity sends an HTTP 422 Unprocessable Entity response with a custom code and message.
+// UnprocessableEntity sends an HTTP 422 Unprocessable Entity response with a custom code, title and message.
 func UnprocessableEntity(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusUnprocessableEntity).JSON(fiber.Map{
 		"code":    code,
@@ -92,11 +95,12 @@ func UnprocessableEntity(c *fiber.Ctx, code, title, message string) error {
 	})
 }
 
-// InternalServerError sends an HTTP 500 Internal Server Error response with a custom message.
-func InternalServerError(c *fiber.Ctx, message string) error {
+// InternalServerError sends an HTTP 500 Internal Server Error response
+func InternalServerError(c *fiber.Ctx) error {
 	return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-		"code":    "INTERNAL_SERVER_ERROR",
-		"message": message,
+		"code":    "0046",
+		"title":   "Internal Server Error",
+		"message": "The server encountered an unexpected error. Please try again later or contact support.",
 	})
 }
 

@@ -85,6 +85,9 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(o.Organization{}).Name(),
+			Title:      "Entity Not Found",
+			Code:       "0007",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -165,9 +168,9 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(o.Organization{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -192,9 +195,9 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Title:      "Entity not found.",
+				Title:      "Entity Not Found",
 				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 			}
 		}
 
@@ -325,9 +328,9 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	if rowsAffected == 0 {
 		return common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(o.Organization{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 

@@ -95,9 +95,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -210,9 +210,9 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Title:      "Entity not found.",
+				Title:      "Entity Not Found",
 				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 			}
 		}
 
@@ -239,9 +239,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	if rows.Next() {
 		return true, common.EntityConflictError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Alias has been taken",
+			Title:      "Alias Unavailability Error",
 			Code:       "0020",
-			Message:    fmt.Sprintf("The alias %s has been taken already. Please, inform another one.", alias),
+			Message:    fmt.Sprintf("The alias %s is already in use. Please choose a different alias and try again.", alias),
 		}
 	}
 
@@ -430,9 +430,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -450,9 +450,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 		organizationID, ledgerID, portfolioID, id); err != nil {
 		return common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 
@@ -617,9 +617,9 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id 
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
+			Title:      "Entity Not Found",
 			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		}
 	}
 

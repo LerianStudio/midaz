@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -24,8 +23,9 @@ func (uc *UseCase) DeleteProductByID(ctx context.Context, organizationID, ledger
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Message:    fmt.Sprintf("Product with id %s was not found", id),
-				Code:       "PRODUCT_NOT_FOUND",
+				Code:       "0036",
+				Title:      "Product ID Not Found",
+				Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
 				Err:        err,
 			}
 		}

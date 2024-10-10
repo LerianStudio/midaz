@@ -1,15 +1,16 @@
 package http
 
 import (
+	"errors"
 	"github.com/LerianStudio/midaz/common"
 	"github.com/gofiber/fiber/v2"
 )
 
 // ResponseError is a struct used to return errors to the client.
 type ResponseError struct {
-	Code    int     `json:"code,omitempty"`
-	Message string  `json:"message,omitempty"`
-	Origin  *string `json:"origin,omitempty"`
+	Code    int    `json:"code,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 // Error returns the message of the ResponseError.
@@ -44,12 +45,13 @@ type FieldValidations map[string]string
 func WithError(c *fiber.Ctx, err error) error {
 	switch e := err.(type) {
 	case common.EntityNotFoundError:
-		return NotFound(c, e.Code, e.Message)
+		return NotFound(c, e.Code, e.Title, e.Message)
 	case common.EntityConflictError:
-		return Conflict(c, e.Code, e.Message)
+		return Conflict(c, e.Code, e.Title, e.Message)
 	case common.ValidationError:
 		return BadRequest(c, ValidationError{
 			Code:    e.Code,
+			Title:   e.Title,
 			Message: e.Message,
 			Fields:  nil,
 		})
@@ -62,9 +64,11 @@ func WithError(c *fiber.Ctx, err error) error {
 	case *ValidationError, ValidationError:
 		return BadRequest(c, e)
 	case ResponseError:
-		rErr, _ := err.(ResponseError)
+		var rErr ResponseError
+		_ = errors.As(err, &rErr)
+
 		return JSONResponseError(c, rErr)
 	default:
-		return InternalServerError(c, e.Error())
+		return InternalServerError(c)
 	}
 }

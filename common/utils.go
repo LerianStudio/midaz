@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -24,7 +25,9 @@ func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 	for k, v := range metadata {
 		if len(k) > limit {
 			return ValidationError{
-				Message: "Error the key: " + k + " must be less than 100 characters",
+				Code:    "0050",
+				Title:   "Metadata Key Length Exceeded",
+				Message: fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of 100 characters. Please use a shorter key.", k),
 			}
 		}
 
@@ -42,7 +45,9 @@ func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 
 		if len(value) > limit {
 			return ValidationError{
-				Message: "Error the value: " + value + " must be less than 100 characters",
+				Code:    "0051",
+				Title:   "Metadata Value Length Exceeded",
+				Message: fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of 100 characters. Please use a shorter value.", value),
 			}
 		}
 	}
@@ -88,7 +93,7 @@ func ValidateType(t string) error {
 		return ValidationError{
 			Code:    "0040",
 			Title:   "Invalid Type",
-			Message: "The provided type is not valid. Accepted types are: currency, crypto, commodities, or others. Please provide a valid type.",
+			Message: "The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type.",
 		}
 	}
 
@@ -114,7 +119,7 @@ func ValidateCurrency(code string) error {
 			return ValidationError{
 				Code:    "0004",
 				Title:   "Code Uppercase Requirement",
-				Message: "The code must be in uppercase. Please send the code in uppercase format.",
+				Message: "The code must be in uppercase. Please ensure that the code is in uppercase format and try again.",
 			}
 		}
 	}
@@ -123,7 +128,7 @@ func ValidateCurrency(code string) error {
 		return ValidationError{
 			Code:    "0005",
 			Title:   "Currency Code Standard Compliance",
-			Message: "Currency-type assets must adhere to the ISO-4217 standard. Please use a currency code that follows ISO-4217 guidelines.",
+			Message: "Currency-type assets must comply with the ISO-4217 standard. Please use a currency code that conforms to ISO-4217 guidelines.",
 		}
 	}
 

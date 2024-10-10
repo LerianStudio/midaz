@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -25,8 +24,9 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Message:    fmt.Sprintf("Portfolio with id %s was not found", id),
-				Code:       "PORTFOLIO_NOT_FOUND",
+				Code:       "0035",
+				Title:      "Portfolio ID Not Found",
+				Message:    "The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again.",
 				Err:        err,
 			}
 		}

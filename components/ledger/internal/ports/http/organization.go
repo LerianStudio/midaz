@@ -146,7 +146,8 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		return commonHTTP.BadRequest(c, &fiber.Map{
 			"code":    "0008",
-			"message": "Action not allowed.",
+			"title":   "Action Not Permitted",
+			"message": "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
 		})
 	}
 

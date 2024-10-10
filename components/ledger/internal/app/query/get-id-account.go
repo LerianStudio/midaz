@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -25,8 +24,9 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID,
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    fmt.Sprintf("Account with id %s was not found", id),
-				Code:       "ACCOUNT_NOT_FOUND",
+				Code:       "0052",
+				Title:      "Account ID Not Found",
+				Message:    "The provided account ID does not exist in our records. Please verify the account ID and try again.",
 				Err:        err,
 			}
 		}
