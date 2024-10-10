@@ -9,7 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func NewRouter(th *ports.TransactionHandler) *fiber.App {
+func NewRouter(th *ports.TransactionHandler, oh *ports.OperationHandler) *fiber.App {
 	f := fiber.New()
 
 	_ = service.NewConfig()
@@ -36,8 +36,7 @@ func NewRouter(th *ports.TransactionHandler) *fiber.App {
 	// f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates/:code", nil)
 
 	// Operations
-
-	// f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", nil)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", oh.GetAllOperationsByAccount)
 	// f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", nil)
 	// f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", nil)
 

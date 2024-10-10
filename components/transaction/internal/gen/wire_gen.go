@@ -57,7 +57,11 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	app := http.NewRouter(transactionHandler)
+	operationHandler := &ports.OperationHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+	app := http.NewRouter(transactionHandler, operationHandler)
 	logger := mzap.InitializeLogger()
 	server := service.NewServer(config, app, logger)
 	serviceService := &service.Service{
@@ -110,7 +114,7 @@ func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
-		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, wire.Struct(new(ports.TransactionHandler), "*"), wire.Struct(new(ports.OperationHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))

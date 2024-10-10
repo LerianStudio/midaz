@@ -353,3 +353,75 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 	return nil
 }
+
+// FindAllByAccount retrieves Operations entities from the database using the provided account ID.
+func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, limit, page int) ([]*o.Operation, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var operations []*o.Operation
+
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Expr("account_id = ?", accountID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(common.SafeIntToUint64(limit)).
+		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var operation o.OperationPostgreSQLModel
+		if err := rows.Scan(
+			&operation.ID,
+			&operation.TransactionID,
+			&operation.Description,
+			&operation.Type,
+			&operation.InstrumentCode,
+			&operation.Amount,
+			&operation.AmountScale,
+			&operation.AvailableBalance,
+			&operation.BalanceScale,
+			&operation.OnHoldBalance,
+			&operation.AvailableBalanceAfter,
+			&operation.OnHoldBalanceAfter,
+			&operation.BalanceScaleAfter,
+			&operation.Status,
+			&operation.StatusDescription,
+			&operation.AccountID,
+			&operation.AccountAlias,
+			&operation.PortfolioID,
+			&operation.ChartOfAccounts,
+			&operation.OrganizationID,
+			&operation.LedgerID,
+			&operation.CreatedAt,
+			&operation.UpdatedAt,
+			&operation.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		operations = append(operations, operation.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return operations, nil
+}
