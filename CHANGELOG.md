@@ -1,3 +1,15 @@
+## [1.15.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.14.1...v1.15.0-beta.1) (2024-10-10)
+
+
+### Features
+
+* implement get operations by account :sparkles: ([1a75922](https://github.com/LerianStudio/midaz/commit/1a7592273ef8e11382c37ff1f78ee921007ef319))
+
+
+### Bug Fixes
+
+* rename OperationHandler alias :bug: ([866c122](https://github.com/LerianStudio/midaz/commit/866c1222ce1ce14e6524495e9a98f986c334027a))
+
 ## [1.14.1](https://github.com/LerianStudio/midaz/compare/v1.14.0...v1.14.1) (2024-10-10)
 
 ## [1.14.1-beta.4](https://github.com/LerianStudio/midaz/compare/v1.14.1-beta.3...v1.14.1-beta.4) (2024-10-08)
