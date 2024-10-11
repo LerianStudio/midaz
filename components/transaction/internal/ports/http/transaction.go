@@ -2,9 +2,6 @@ package http
 
 import (
 	"context"
-	"net/http"
-	"strconv"
-
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
@@ -17,6 +14,7 @@ import (
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
+	"net/http"
 )
 
 // TransactionHandler struct that handle transaction
@@ -196,52 +194,37 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 
 // processAccounts is a function that adjust balance on Accounts
 func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, accounts []*account.Account) error {
-	for _, account := range accounts {
-		balance := account.Balance
+	for _, acc := range accounts {
+		var balance account.Balance
 
 		for _, fo := range validate.From {
-			value, err := strconv.ParseFloat(fo.Value, 64)
+			_, b, err := v.OperateAmounts(fo, acc.Balance, "sub")
 			if err != nil {
-				logger.Errorf("Error converting value string to float64: %v", err)
 				return err
 			}
 
-			scale, err := strconv.ParseFloat(fo.Scale, 64)
-			if err != nil {
-				logger.Errorf("Error converting scale string to float64: %v", err)
-				return err
+			balance = account.Balance{
+				Available: *b.Available,
+				Scale:     *b.Scale,
+				OnHold:    *b.OnHold,
 			}
 
-			ba := balance.Available - value
-			if balance.Scale < scale {
-				balance.Scale = scale
-			}
-
-			balance.Available = ba
 		}
 
 		for _, to := range validate.To {
-			value, err := strconv.ParseFloat(to.Value, 64)
+			_, b, err := v.OperateAmounts(to, acc.Balance, "add")
 			if err != nil {
-				logger.Errorf("Error converting value string to float64: %v", err)
 				return err
 			}
 
-			scale, err := strconv.ParseFloat(to.Scale, 64)
-			if err != nil {
-				logger.Errorf("Error converting scale string to float64: %v", err)
-				return err
+			balance = account.Balance{
+				Available: *b.Available,
+				Scale:     *b.Scale,
+				OnHold:    *b.OnHold,
 			}
-
-			ba := balance.Available + value
-			if balance.Scale < scale {
-				balance.Scale = scale
-			}
-
-			balance.Available = ba
 		}
 
-		account.Balance = balance
+		acc.Balance = &balance
 
 	}
 
@@ -256,5 +239,6 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 			logger.Infof(a.UpdatedAt)
 		}
 	*/
+
 	return nil
 }
