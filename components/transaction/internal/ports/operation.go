@@ -36,7 +36,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	trans, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
+	operations, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Operations by account, Error: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -44,7 +44,39 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved all Operations by account")
 
-	pagination.SetItems(trans)
+	pagination.SetItems(operations)
+
+	return commonHTTP.OK(c, pagination)
+}
+
+func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
+
+	pagination := mpostgres.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	logger.Infof("Initiating retrieval of all Operations by portfolio")
+
+	headerParams.Metadata = &bson.M{}
+
+	operations, err := handler.Query.GetAllOperationsByPortfolio(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+	if err != nil {
+		logger.Errorf("Failed to retrieve all Operations by portfolio, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved all Operations by portfolio")
+
+	pagination.SetItems(operations)
 
 	return commonHTTP.OK(c, pagination)
 }
