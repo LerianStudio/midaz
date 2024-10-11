@@ -37,6 +37,7 @@ func NewRouter(th *ports.TransactionHandler, oh *ports.OperationHandler) *fiber.
 
 	// Operations
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", oh.GetAllOperationsByAccount)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", oh.GetAllOperationsByPortfolio)
 	// f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", nil)
 	// f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", nil)
 
