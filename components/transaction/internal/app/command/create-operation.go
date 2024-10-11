@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"reflect"
-	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
@@ -32,79 +31,28 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 			if ft.Account == acc.Id || ft.Account == acc.Alias {
 				logger.Infof("Creating operation for account id: %s", acc.Id)
 
+				balance := o.Balance{
+					Available: &acc.Balance.Available,
+					OnHold:    &acc.Balance.OnHold,
+					Scale:     &acc.Balance.Scale,
+				}
+
 				var amount o.Amount
-				var balance o.Balance
 				var balanceAfter o.Balance
-
 				if ft.IsFrom {
-					value, er := strconv.ParseFloat(validate.From[ft.Account].Value, 64)
+					a, b, er := v.OperateAmounts(validate.From[ft.Account], acc.Balance, "sub")
 					if er != nil {
-						logger.Errorf("Error converting FROM value string to float64: %v", er)
 						err <- er
 					}
-
-					scale, er := strconv.ParseFloat(validate.From[ft.Account].Scale, 64)
-					if er != nil {
-						logger.Errorf("Error converting FROM scale string to float64: %v", er)
-						err <- er
-					}
-
-					amount = o.Amount{
-						Amount: &value,
-						Scale:  &scale,
-					}
-
-					balance = o.Balance{
-						Available: &acc.Balance.Available,
-						OnHold:    &acc.Balance.OnHold,
-						Scale:     &acc.Balance.Scale,
-					}
-
-					ba := acc.Balance.Available - value
-					if acc.Balance.Scale < scale {
-						acc.Balance.Scale = scale
-					}
-
-					balanceAfter = o.Balance{
-						Available: &ba,
-						OnHold:    &acc.Balance.OnHold,
-						Scale:     &acc.Balance.Scale,
-					}
-
+					amount = a
+					balanceAfter = b
 				} else {
-					value, er := strconv.ParseFloat(validate.To[ft.Account].Value, 64)
+					a, b, er := v.OperateAmounts(validate.To[ft.Account], acc.Balance, "add")
 					if er != nil {
-						logger.Errorf("Error converting TO value string to float64: %v", er)
 						err <- er
 					}
-
-					scale, er := strconv.ParseFloat(validate.To[ft.Account].Scale, 64)
-					if er != nil {
-						logger.Errorf("Error converting TO scale string to float64: %v", er)
-						err <- er
-					}
-
-					amount = o.Amount{
-						Amount: &value,
-						Scale:  &scale,
-					}
-
-					balance = o.Balance{
-						Available: &acc.Balance.Available,
-						OnHold:    &acc.Balance.OnHold,
-						Scale:     &acc.Balance.Scale,
-					}
-
-					baf := acc.Balance.Available + value
-					if acc.Balance.Scale < scale {
-						acc.Balance.Scale = scale
-					}
-
-					balanceAfter = o.Balance{
-						Available: &baf,
-						OnHold:    &acc.Balance.OnHold,
-						Scale:     &acc.Balance.Scale,
-					}
+					amount = a
+					balanceAfter = b
 				}
 
 				save := &o.Operation{
