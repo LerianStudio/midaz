@@ -1,3 +1,10 @@
+## [1.15.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.1...v1.15.0-beta.2) (2024-10-11)
+
+
+### Features
+
+* implement get operations by portfolio :sparkles: ([966e5c5](https://github.com/LerianStudio/midaz/commit/966e5c5f198381081a9f3a403c7e74c007f80785))
+
 ## [1.15.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.14.1...v1.15.0-beta.1) (2024-10-10)
 
 
