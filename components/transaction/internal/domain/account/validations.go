@@ -65,6 +65,57 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	return nil
 }
 
+// UpdateAccounts function with some updates values in accounts and
+func UpdateAccounts(operation string, fromTo map[string]gold.Amount, accounts []*a.Account, result chan []*a.Account, e chan error) {
+	for _, acc := range accounts {
+
+		for key := range fromTo {
+
+			if acc.Id == key || acc.Alias == key {
+				_, b, err := OperateAmounts(fromTo[key], acc.Balance, operation)
+				if err != nil {
+					e <- err
+				}
+
+				balance := a.Balance{
+					Available: *b.Available,
+					Scale:     *b.Scale,
+					OnHold:    *b.OnHold,
+				}
+
+				status := a.Status{
+					Code:           acc.Status.Code,
+					Description:    acc.Status.Description,
+					AllowSending:   acc.Status.AllowSending,
+					AllowReceiving: acc.Status.AllowReceiving,
+				}
+
+				result <- []*a.Account{
+					{
+						Id:              acc.Id,
+						Alias:           acc.Alias,
+						Name:            acc.Name,
+						ParentAccountId: acc.ParentAccountId,
+						EntityId:        acc.EntityId,
+						OrganizationId:  acc.OrganizationId,
+						LedgerId:        acc.LedgerId,
+						PortfolioId:     acc.PortfolioId,
+						ProductId:       acc.ProductId,
+						AssetCode:       acc.AssetCode,
+						Balance:         &balance,
+						Status:          &status,
+						Type:            acc.Type,
+						CreatedAt:       acc.CreatedAt,
+						UpdatedAt:       acc.UpdatedAt,
+					},
+				}
+
+				break
+			}
+		}
+	}
+}
+
 // Scale func scale: (V * 10^-S)
 func Scale(v, s float64) float64 {
 	return v * math.Pow(10, -s)
