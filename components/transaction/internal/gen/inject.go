@@ -5,6 +5,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -79,7 +80,7 @@ var (
 		postgres.NewOperationPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
 		grpc.NewAccountGRPC,
-		wire.Struct(new(httpHandler.TransactionHandler), "*"),
+		wire.Struct(new(ports.TransactionHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),

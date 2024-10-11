@@ -3,12 +3,13 @@ package http
 import (
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func NewRouter(th *TransactionHandler) *fiber.App {
+func NewRouter(th *ports.TransactionHandler) *fiber.App {
 	f := fiber.New()
 
 	_ = service.NewConfig()
