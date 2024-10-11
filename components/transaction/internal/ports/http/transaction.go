@@ -194,51 +194,36 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 
 // processAccounts is a function that adjust balance on Accounts
 func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, accounts []*account.Account) error {
-	for _, acc := range accounts {
-		var balance account.Balance
 
-		for _, fo := range validate.From {
-			_, b, err := v.OperateAmounts(fo, acc.Balance, "sub")
-			if err != nil {
-				return err
-			}
+	e := make(chan error)
+	result := make(chan []*account.Account)
 
-			balance = account.Balance{
-				Available: *b.Available,
-				Scale:     *b.Scale,
-				OnHold:    *b.OnHold,
-			}
-
-		}
-
-		for _, to := range validate.To {
-			_, b, err := v.OperateAmounts(to, acc.Balance, "add")
-			if err != nil {
-				return err
-			}
-
-			balance = account.Balance{
-				Available: *b.Available,
-				Scale:     *b.Scale,
-				OnHold:    *b.OnHold,
-			}
-		}
-
-		acc.Balance = &balance
-
+	var update []*account.Account
+	go v.UpdateAccounts("sub", validate.From, accounts, result, e)
+	select {
+	case r := <-result:
+		update = append(update, r...)
+	case err := <-e:
+		return err
 	}
 
-	/*
-		acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, accounts)
-		if err != nil {
-			logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
-			return err
-		}
+	go v.UpdateAccounts("add", validate.To, accounts, result, e)
+	select {
+	case r := <-result:
+		update = append(update, r...)
+	case err := <-e:
+		return err
+	}
 
-		for _, a := range acc.Accounts {
-			logger.Infof(a.UpdatedAt)
-		}
-	*/
+	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, update)
+	if err != nil {
+		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
+		return err
+	}
+
+	for _, a := range acc.Accounts {
+		logger.Infof(a.UpdatedAt)
+	}
 
 	return nil
 }
