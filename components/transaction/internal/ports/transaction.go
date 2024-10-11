@@ -54,6 +54,7 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	}
 
 	parsed := transaction.Parse(dsl)
+
 	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
 		err := common.ValidationError{
@@ -237,6 +238,7 @@ func (handler *TransactionHandler) GetAllTTransactions(c *fiber.Ctx) error {
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
 func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, input []string) ([]*account.Account, error) {
 	var ids []string
+
 	var aliases []string
 
 	for _, item := range input {
@@ -274,11 +276,11 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 
 // processAccounts is a function that adjust balance on Accounts
 func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, accounts []*account.Account) error {
-
 	e := make(chan error)
 	result := make(chan []*account.Account)
 
 	var update []*account.Account
+
 	go v.UpdateAccounts("sub", validate.From, accounts, result, e)
 	select {
 	case r := <-result:

@@ -37,22 +37,9 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					Scale:     &acc.Balance.Scale,
 				}
 
-				var amount o.Amount
-				var balanceAfter o.Balance
-				if ft.IsFrom {
-					a, b, er := v.OperateAmounts(validate.From[ft.Account], acc.Balance, "sub")
-					if er != nil {
-						err <- er
-					}
-					amount = a
-					balanceAfter = b
-				} else {
-					a, b, er := v.OperateAmounts(validate.To[ft.Account], acc.Balance, "add")
-					if er != nil {
-						err <- er
-					}
-					amount = a
-					balanceAfter = b
+				amount, balanceAfter, er := v.ValidateFromToOperation(ft, validate, acc)
+				if er != nil {
+					err <- er
 				}
 
 				save := &o.Operation{
@@ -77,16 +64,13 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 				operation, er := uc.OperationRepo.Create(ctx, save)
 				if er != nil {
 					logger.Errorf("Error creating operation: %v", er)
-					err <- er
 
-					return
+					err <- er
 				}
 
 				if ft.Metadata != nil {
 					if er = common.CheckMetadataKeyAndValueLength(100, ft.Metadata); er != nil {
 						err <- er
-
-						return
 					}
 
 					meta := m.Metadata{
@@ -99,9 +83,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 
 					if er = uc.MetadataRepo.Create(ctx, reflect.TypeOf(o.Operation{}).Name(), &meta); er != nil {
 						logger.Errorf("Error into creating operation metadata: %v", er)
-						err <- er
 
-						return
+						err <- er
 					}
 
 					operation.Metadata = ft.Metadata

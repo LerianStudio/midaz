@@ -32,7 +32,6 @@ type Responses struct {
 // ValidateAccounts function with some validates in accounts and DSL operations
 func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	for _, acc := range accounts {
-
 		if acc.Balance.Available == 0 {
 			return common.ValidationError{
 				Code:    "0025",
@@ -65,12 +64,39 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	return nil
 }
 
+// ValidateFromToOperation func that validate operate balance amount
+func ValidateFromToOperation(ft gold.FromTo, validate Responses, acc *a.Account) (o.Amount, o.Balance, error) {
+	amount := o.Amount{}
+
+	balanceAfter := o.Balance{}
+
+	if ft.IsFrom {
+		amt, ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, "sub")
+		if err != nil {
+			return amount, balanceAfter, err
+		}
+
+		amount = amt
+
+		balanceAfter = ba
+	} else {
+		amt, ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, "add")
+		if err != nil {
+			return amount, balanceAfter, err
+		}
+
+		amount = amt
+
+		balanceAfter = ba
+	}
+
+	return amount, balanceAfter, nil
+}
+
 // UpdateAccounts function with some updates values in accounts and
 func UpdateAccounts(operation string, fromTo map[string]gold.Amount, accounts []*a.Account, result chan []*a.Account, e chan error) {
 	for _, acc := range accounts {
-
 		for key := range fromTo {
-
 			if acc.Id == key || acc.Alias == key {
 				_, b, err := OperateAmounts(fromTo[key], acc.Balance, operation)
 				if err != nil {
@@ -144,6 +170,7 @@ func TranslateScale(value, scale string) (float64, error) {
 // FindScaleForPercentage Function to find the scale for a percentage of a value
 func FindScaleForPercentage(value float64, share gold.Share) (gold.Amount, float64) {
 	sh := share.Percentage
+
 	of := share.PercentageOfPercentage
 	if of == 0 {
 		of = 100
@@ -192,6 +219,7 @@ func OperateAmounts(amount gold.Amount, balance *a.Balance, operation string) (o
 	}
 
 	var total float64
+
 	switch operation {
 	case "sub":
 		total = Scale(balance.Available, balance.Scale) - Scale(value, scale)
@@ -235,10 +263,12 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 
 		if fromTos[i].Share.Percentage != 0 {
 			amt, shareValue := FindScaleForPercentage(totalSend, *fromTos[i].Share)
+
 			amount.Value = amt.Value
 			amount.Scale = amt.Scale
 
 			total += shareValue
+
 			remaining -= shareValue
 		}
 
@@ -250,11 +280,13 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 
 			amount.Scale = fromTos[i].Amount.Scale
 			amount.Value = strconv.FormatFloat(amountValue, 'f', 2, 64)
+
 			if !common.IsNilOrEmpty(&fromTos[i].Amount.Asset) {
 				amount.Asset = fromTos[i].Amount.Asset
 			}
 
 			total += amountValue
+
 			remaining -= amountValue
 		}
 
@@ -295,12 +327,15 @@ func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, 
 	if err != nil {
 		return nil, err
 	}
+
 	response.Total = totalSend
 
 	e := make(chan error)
 	result := make(chan *Response)
-	sourcesTotal := 0.0
-	destinationsTotal := 0.0
+
+	var sourcesTotal float64
+
+	var destinationsTotal float64
 
 	go calculateTotal(transaction.Send.Source.From, totalSend, transaction.Send.Asset, result, e)
 	select {
