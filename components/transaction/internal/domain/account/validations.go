@@ -224,8 +224,8 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 		SD:     make([]string, 0),
 	}
 
-	for _, ft := range fromTos {
-		if ft.Remaining != "" {
+	for i := range fromTos {
+		if fromTos[i].Remaining != "" {
 			continue
 		}
 
@@ -233,8 +233,8 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 			Asset: asset,
 		}
 
-		if ft.Share.Percentage != 0 {
-			amt, shareValue := FindScaleForPercentage(totalSend, *ft.Share)
+		if fromTos[i].Share.Percentage != 0 {
+			amt, shareValue := FindScaleForPercentage(totalSend, *fromTos[i].Share)
 			amount.Value = amt.Value
 			amount.Scale = amt.Scale
 
@@ -242,24 +242,24 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 			remaining -= shareValue
 		}
 
-		if !common.IsNilOrEmpty(&ft.Amount.Value) && !common.IsNilOrEmpty(&ft.Amount.Scale) {
-			amountValue, err := TranslateScale(ft.Amount.Value, ft.Amount.Scale)
+		if !common.IsNilOrEmpty(&fromTos[i].Amount.Value) && !common.IsNilOrEmpty(&fromTos[i].Amount.Scale) {
+			amountValue, err := TranslateScale(fromTos[i].Amount.Value, fromTos[i].Amount.Scale)
 			if err != nil {
 				e <- err
 			}
 
-			amount.Scale = ft.Amount.Scale
+			amount.Scale = fromTos[i].Amount.Scale
 			amount.Value = strconv.FormatFloat(amountValue, 'f', 2, 64)
-			if !common.IsNilOrEmpty(&ft.Amount.Asset) {
-				amount.Asset = ft.Amount.Asset
+			if !common.IsNilOrEmpty(&fromTos[i].Amount.Asset) {
+				amount.Asset = fromTos[i].Amount.Asset
 			}
 
 			total += amountValue
 			remaining -= amountValue
 		}
 
-		response.SD = append(response.SD, ft.Account)
-		response.FromTo[ft.Account] = amount
+		response.SD = append(response.SD, fromTos[i].Account)
+		response.FromTo[fromTos[i].Account] = amount
 	}
 
 	for i, source := range fromTos {

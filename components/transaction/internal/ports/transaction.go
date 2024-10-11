@@ -2,7 +2,6 @@ package ports
 
 import (
 	"context"
-	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common"
@@ -14,6 +13,7 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
