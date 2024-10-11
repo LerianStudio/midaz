@@ -82,6 +82,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	var accounts []*proto.Account
+	uuids := make([]uuid.UUID, 0)
 	for _, account := range update.GetAccounts() {
 		if common.IsNilOrEmpty(&account.Id) {
 			logger.Errorf("Failed to update Accounts because id is empty")
@@ -98,7 +99,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			Scale:     &account.Balance.Scale,
 		}
 
-		acu, err := ap.Command.UpdateAccountByID(ctx, account.Id, &balance)
+		_, err := ap.Command.UpdateAccountByID(ctx, account.Id, &balance)
 		if err != nil {
 			logger.Errorf("Failed to update balance in Account by id for grpc, Error: %s", err.Error())
 
@@ -108,7 +109,21 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			}
 		}
 
-		accounts = append(accounts, acu.ToProto())
+		uuids = append(uuids, uuid.MustParse(account.Id))
+	}
+
+	acc, err := ap.Query.ListAccountsByIDs(ctx, uuids)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
+
+		return nil, common.ValidationError{
+			Code:    "0001",
+			Message: "Failed to retrieve Accounts by ids for grpc",
+		}
+	}
+
+	for _, ac := range acc {
+		accounts = append(accounts, ac.ToProto())
 	}
 
 	response := proto.AccountsResponse{
