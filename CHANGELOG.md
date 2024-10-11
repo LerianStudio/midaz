@@ -1,3 +1,25 @@
+## [1.15.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.2...v1.15.0-beta.3) (2024-10-11)
+
+
+### Features
+
+* add new funcs to solve some problems separately :sparkles: ([c88dd61](https://github.com/LerianStudio/midaz/commit/c88dd6163837534d330211f9233262a986f6ac15))
+* create a func process account on handler to update accounts :sparkles: ([67ba62b](https://github.com/LerianStudio/midaz/commit/67ba62bf124584cf47caae1bae9c4729294d0ac3))
+* create func on validate to adjust values to send to update :sparkles: ([8ffe1ce](https://github.com/LerianStudio/midaz/commit/8ffe1ce51a9c408fbcbe2625900b3a3a85cd91fe))
+* create some validations func to scale, undoscale and so on... :sparkles: ([3471f2b](https://github.com/LerianStudio/midaz/commit/3471f2b9cb34c20573695a23e746dfc27bfd6fe5))
+* dsl validations nuances to sources and distribute :sparkles: ([07452a7](https://github.com/LerianStudio/midaz/commit/07452a79f724399c8f3f42a8181ec7de4532032c))
+* implement new validations to accounts and dsl and save on operations :sparkles: ([53b7a3a](https://github.com/LerianStudio/midaz/commit/53b7a3a673ff7d3fcdb2eee3498239a1d20e3c29))
+* implement update account method; change name account to client when get new account proto client; :sparkles: ([5aae505](https://github.com/LerianStudio/midaz/commit/5aae5050878c28bce20937240dea0ed5efe1cbf0))
+
+
+### Bug Fixes
+
+* add field boolean to help to know if is from or to struct :bug: ([898fa5d](https://github.com/LerianStudio/midaz/commit/898fa5dbe14352a3381dfc9c58e9d95b2e15b1c4))
+* go lint :bug: ([b692801](https://github.com/LerianStudio/midaz/commit/b692801bbb49b4492db0863a05774fa66a2a2746))
+* golang sec G601 (CWE-118): Implicit memory aliasing in for loop. (Confidence: MEDIUM, Severity: MEDIUM) :bug: ([9517777](https://github.com/LerianStudio/midaz/commit/9517777b5a37364718351be3824477175ffadafd))
+* merge develop :bug: ([cdaf00d](https://github.com/LerianStudio/midaz/commit/cdaf00d73368bf410cd757e66970d90115a6b258))
+* update some validate erros. :bug: ([623b4d9](https://github.com/LerianStudio/midaz/commit/623b4d9ebdeb436cdab03faa740e906132b7122a))
+
 ## [1.15.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.1...v1.15.0-beta.2) (2024-10-11)
 
 
