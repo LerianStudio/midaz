@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common/mcasdoor"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -8,67 +9,61 @@ import (
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/service"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-// NewRouter registers routes to the Server.
-func NewRouter(ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+// NewRouter registerNewRouters routes to the Server.
+func NewRouter(cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
 
-	_ = service.NewConfig()
-
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
-
-	// jwt := lib.NewJWTMiddleware(config.JWKAddress)
-
-	// -- Routes --
+	jwt := lib.NewJWTMiddleware(cc)
 
 	// Organizations
-	f.Post("/v1/organizations", lib.WithBody(new(o.CreateOrganizationInput), oh.CreateOrganization))
-	f.Patch("/v1/organizations/:id", lib.WithBody(new(o.UpdateOrganizationInput), oh.UpdateOrganization))
-	f.Get("/v1/organizations", oh.GetAllOrganizations)
-	f.Get("/v1/organizations/:id", oh.GetOrganizationByID)
-	f.Delete("/v1/organizations/:id", oh.DeleteOrganizationByID)
+	f.Post("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.WithBody(new(o.CreateOrganizationInput), oh.CreateOrganization))
+	f.Patch("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.WithBody(new(o.UpdateOrganizationInput), oh.UpdateOrganization))
+	f.Get("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.GetAllOrganizations)
+	f.Get("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.GetOrganizationByID)
+	f.Delete("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.DeleteOrganizationByID)
 
 	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", lib.WithBody(new(l.CreateLedgerInput), lh.CreateLedger))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:id", lib.WithBody(new(l.UpdateLedgerInput), lh.UpdateLedger))
-	f.Get("/v1/organizations/:organization_id/ledgers", lh.GetAllLedgers)
-	f.Get("/v1/organizations/:organization_id/ledgers/:id", lh.GetLedgerByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:id", lh.DeleteLedgerByID)
+	f.Post("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.WithBody(new(l.CreateLedgerInput), lh.CreateLedger))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.WithBody(new(l.UpdateLedgerInput), lh.UpdateLedger))
+	f.Get("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lh.GetAllLedgers)
+	f.Get("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lh.GetLedgerByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lh.DeleteLedgerByID)
 
 	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", lib.WithBody(new(s.CreateAssetInput), ih.CreateAsset))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", lib.WithBody(new(s.UpdateAssetInput), ih.UpdateAsset))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", ih.GetAllAssets)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", ih.GetAssetByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", ih.DeleteAssetByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.WithBody(new(s.CreateAssetInput), ih.CreateAsset))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.WithBody(new(s.UpdateAssetInput), ih.UpdateAsset))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), ih.GetAllAssets)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), ih.GetAssetByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), ih.DeleteAssetByID)
 
 	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", lib.WithBody(new(p.CreatePortfolioInput), ph.CreatePortfolio))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", lib.WithBody(new(p.UpdatePortfolioInput), ph.UpdatePortfolio))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", ph.GetAllPortfolios)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", ph.GetPortfolioByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", ph.DeletePortfolioByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.WithBody(new(p.CreatePortfolioInput), ph.CreatePortfolio))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.WithBody(new(p.UpdatePortfolioInput), ph.UpdatePortfolio))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), ph.GetAllPortfolios)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), ph.GetPortfolioByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), ph.DeletePortfolioByID)
 
 	// Product
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/products", lib.WithBody(new(r.CreateProductInput), rh.CreateProduct))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", lib.WithBody(new(r.UpdateProductInput), rh.UpdateProduct))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products", rh.GetAllProducts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", rh.GetProductByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", rh.DeleteProductByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), lib.WithBody(new(r.CreateProductInput), rh.CreateProduct))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), lib.WithBody(new(r.UpdateProductInput), rh.UpdateProduct))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), rh.GetAllProducts)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), rh.GetProductByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), rh.DeleteProductByID)
 
 	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", ah.GetAllAccounts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", ah.GetAccountByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", ah.DeleteAccountByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), ah.GetAllAccounts)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), ah.GetAccountByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), ah.DeleteAccountByID)
 
 	// Health
 	f.Get("/health", lib.Ping)

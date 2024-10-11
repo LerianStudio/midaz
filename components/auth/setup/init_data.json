@@ -300,7 +300,6 @@
           "provider": {
             "owner": "admin",
             "name": "provider_captcha_default",
-            "createdTime": "2024-09-26T19:37:25Z",
             "displayName": "Captcha Default",
             "category": "Captcha",
             "type": "Default",
@@ -350,7 +349,6 @@
           "provider": {
             "owner": "lerian",
             "name": "sendgrid_provider",
-            "createdTime": "",
             "displayName": "SendGrid Provider",
             "category": "Email",
             "type": "SendGrid",
@@ -544,10 +542,9 @@
       "tokenFormat": "JWT-Custom",
       "tokenFields": [
         "Owner",
-        "Id",
         "Type",
-        "DisplayName",
-        "Email"
+        "Name",
+        "DisplayName"
       ],
       "expireInHours": 2,
       "refreshExpireInHours": 168,
@@ -683,7 +680,6 @@
     {
       "owner": "lerian",
       "name": "sendgrid_provider",
-      "createdTime": "",
       "displayName": "SendGrid Provider",
       "category": "Email",
       "type": "SendGrid",
@@ -746,7 +742,7 @@
     {
       "owner": "lerian",
       "name": "api-model",
-      "modelText": "[request_definition]\nr = sub, dom, obj, act\n\n[policy_definition]\np = sub, dom, obj, act\n\n[role_definition]\ng = _, _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub, r.dom) && r.dom == p.dom && ( r.obj == p.obj || p.obj == '*' ) && (r.act == p.act || p.act == '*')",
+      "modelText": "[request_definition]\nr = sub, obj, act\n\n[policy_definition]\np = sub, obj, act\n\n[role_definition]\ng = _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub) && ( r.obj == p.obj || p.obj == '*' ) && (r.act == p.act || p.act == '*')",
       "displayName": "API Model"
     }
   ],
@@ -770,15 +766,10 @@
         "*"
       ],
       "actions": [
-        "GET",
-        "POST",
-        "UPDATE",
-        "DELETE",
-        "PATCH"
-      ],
-      "domains": [
         "*"
       ],
+      "domains": [],
+      "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
@@ -805,11 +796,38 @@
       "actions": [
         "GET",
         "POST",
-        "PATCH"
+        "PATCH",
+        "PUT"
       ],
-      "domains": [
+      "domains": [],
+      "effect": "Allow",
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
+    },
+    {
+      "owner": "lerian",
+      "name": "grpc-api-permission",
+      "displayName": "GRPC API Permission",
+      "isEnabled": true,
+      "model": "lerian/api-model",
+      "roles": [
+        "lerian/grpc_role"
+      ],
+      "users": [
+        "lerian/user_john",
+        "lerian/user_bob"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "account.AccountProto"
+      ],
+      "actions": [
         "*"
       ],
+      "domains": [],
+      "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
@@ -834,9 +852,8 @@
       "actions": [
         "GET"
       ],
-      "domains": [
-        "*"
-      ],
+      "domains": [],
+      "effect": "Allow",
       "submitter": "admin",
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
@@ -866,6 +883,17 @@
       "users": [
         "lerian/user_john",
         "lerian/user_kate",
+        "lerian/user_bob"
+      ]
+    },
+    {
+      "displayName": "GRPC Role",
+      "isEnabled": true,
+      "name": "grpc_role",
+      "owner": "lerian",
+      "roles": [],
+      "users": [
+        "lerian/user_john",
         "lerian/user_bob"
       ]
     },
@@ -926,6 +954,26 @@
       "isEnabled": true
     }
   ],
-  "adapters": [],
-  "enforcers": []
+  "adapters": [
+    {
+      "owner": "lerian",
+      "name": "lerian-adapter",
+      "table": "casbin_lerian_rule",
+      "useSameDb": true
+    }
+  ],
+  "enforcers": [
+    {
+      "owner": "lerian",
+      "name": "lerian-enforcer",
+      "displayName": "Lerian Enforcer",
+      "description": "",
+      "model": "lerian/api-model",
+      "adapter": "lerian/lerian-adapter",
+      "modelCfg": {
+        "g": "_, _",
+        "p": "sub, obj, act"
+      }
+    }
+  ]
 }

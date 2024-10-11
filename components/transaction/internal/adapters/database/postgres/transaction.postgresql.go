@@ -124,6 +124,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.Description,
 			&transaction.Template,
 			&transaction.Status,
+			&transaction.StatusDescription,
 			&transaction.Amount,
 			&transaction.AmountScale,
 			&transaction.AssetCode,
@@ -250,6 +251,11 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	var updates []string
 
 	var args []any
+
+	if transaction.Description != "" {
+		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Description)
+	}
 
 	record.UpdatedAt = time.Now()
 

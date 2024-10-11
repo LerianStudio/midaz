@@ -107,11 +107,11 @@ func (e EntityConflictError) Unwrap() error {
 
 // UnauthorizedError indicates an operation that couldn't be performant because there's no user authenticated.
 type UnauthorizedError struct {
-	EntityType string
-	Title      string
-	Message    string
-	Code       string
-	Err        error
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 func (e UnauthorizedError) Error() string {
@@ -120,11 +120,11 @@ func (e UnauthorizedError) Error() string {
 
 // ForbiddenError indicates an operation that couldn't be performant because the authenticated user has no sufficient privileges.
 type ForbiddenError struct {
-	EntityType string
-	Title      string
-	Message    string
-	Code       string
-	Err        error
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 func (e ForbiddenError) Error() string {
@@ -154,5 +154,18 @@ type HTTPError struct {
 }
 
 func (e HTTPError) Error() string {
+	return e.Message
+}
+
+// FailedPreconditionError indicates a precondition failed during an operation.
+type FailedPreconditionError struct {
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
+}
+
+func (e FailedPreconditionError) Error() string {
 	return e.Message
 }

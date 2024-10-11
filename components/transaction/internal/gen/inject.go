@@ -81,6 +81,7 @@ var (
 		mongodb.NewMetadataMongoDBRepository,
 		grpc.NewAccountGRPC,
 		wire.Struct(new(ports.TransactionHandler), "*"),
+		wire.Struct(new(ports.OperationHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),

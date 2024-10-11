@@ -5,6 +5,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -58,12 +59,27 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 	}
 }
 
+func setupCasdoorConnection(cfg *service.Config) *mcasdoor.CasdoorConnection {
+	casdoor := &mcasdoor.CasdoorConnection{
+		JWKUri:           cfg.JWKAddress,
+		Endpoint:         cfg.CasdoorAddress,
+		ClientID:         cfg.CasdoorClientID,
+		ClientSecret:     cfg.CasdoorClientSecret,
+		OrganizationName: cfg.CasdoorOrganizationName,
+		ApplicationName:  cfg.CasdoorApplicationName,
+		EnforcerName:     cfg.CasdoorEnforcerName,
+	}
+
+	return casdoor
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
+		setupCasdoorConnection,
 		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
 		portsHTTP.NewRouter,

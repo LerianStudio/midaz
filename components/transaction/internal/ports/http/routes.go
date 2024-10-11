@@ -9,7 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func NewRouter(th *ports.TransactionHandler) *fiber.App {
+func NewRouter(th *ports.TransactionHandler, oh *ports.OperationHandler) *fiber.App {
 	f := fiber.New()
 
 	_ = service.NewConfig()
@@ -23,9 +23,11 @@ func NewRouter(th *ports.TransactionHandler) *fiber.App {
 
 	// Transactions
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", th.CreateTransaction)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", lib.WithBody(new(t.UpdateTransactionInput), th.UpdateTransaction))
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", th.CommitTransaction)
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", th.RevertTransaction)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", th.GetTransaction)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", th.GetAllTTransactions)
 
 	// Transactions Templates
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates", lib.WithBody(new(t.InputDSL), th.CreateTransactionTemplate))
@@ -34,8 +36,8 @@ func NewRouter(th *ports.TransactionHandler) *fiber.App {
 	// f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/transaction-templates/:code", nil)
 
 	// Operations
-
-	// f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", nil)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", oh.GetAllOperationsByAccount)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", oh.GetAllOperationsByPortfolio)
 	// f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", nil)
 	// f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", nil)
 
