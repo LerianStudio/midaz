@@ -33,13 +33,13 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, ids []stri
 		return nil, err
 	}
 
-	account := proto.NewAccountProtoClient(conn)
+	client := proto.NewAccountProtoClient(conn)
 
 	accountsID := &proto.AccountsID{
 		Ids: ids,
 	}
 
-	accountsResponse, err := account.GetAccountsByIds(ctx, accountsID)
+	accountsResponse, err := client.GetAccountsByIds(ctx, accountsID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,13 +54,13 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, aliases 
 		return nil, err
 	}
 
-	account := proto.NewAccountProtoClient(conn)
+	client := proto.NewAccountProtoClient(conn)
 
 	accountsAlias := &proto.AccountsAlias{
 		Aliases: aliases,
 	}
 
-	accountsResponse, err := account.GetAccountsByAliases(ctx, accountsAlias)
+	accountsResponse, err := client.GetAccountsByAliases(ctx, accountsAlias)
 	if err != nil {
 		return nil, err
 	}
@@ -70,5 +70,21 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, aliases 
 
 // UpdateAccounts update a grpc accounts on ledger.
 func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, accounts []*proto.Account) (*proto.AccountsResponse, error) {
-	return nil, nil
+	conn, err := a.conn.GetNewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	client := proto.NewAccountProtoClient(conn)
+
+	accountsRequest := &proto.AccountsRequest{
+		Accounts: accounts,
+	}
+
+	accountsResponse, err := client.UpdateAccounts(ctx, accountsRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return accountsResponse, nil
 }
