@@ -34,8 +34,9 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
 
 		return nil, common.ValidationError{
-			Code:    "0001",
-			Message: "Failed to retrieve Accounts by ids for grpc",
+			Code:    "0054",
+			Title:   "Accounts Not Found for Provided IDs",
+			Message: "No accounts were found for the provided account IDs. Please verify the account IDs and try again.",
 		}
 	}
 
@@ -61,8 +62,9 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
 
 		return nil, common.ValidationError{
-			Code:    "0001",
-			Message: "Failed to retrieve Accounts by aliases for grpc",
+			Code:    "0063",
+			Title:   "Failed To Retrieve Accounts By Aliases",
+			Message: "The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again.",
 		}
 	}
 
@@ -90,8 +92,9 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			logger.Errorf("Failed to update Accounts because id is empty")
 
 			return nil, common.ValidationError{
-				Code:    "0001",
-				Message: "Failed to update Accounts because id is empty",
+				Code:    "0062",
+				Title:   "No Account IDs Provided",
+				Message: "No account IDs were provided for the balance update. Please provide valid account IDs and try again.",
 			}
 		}
 
@@ -106,8 +109,9 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			logger.Errorf("Failed to update balance in Account by id for grpc, Error: %s", err.Error())
 
 			return nil, common.ValidationError{
-				Code:    "0002",
-				Message: "Failed to update balance in Account by id for grpc",
+				Code:    "0061",
+				Title:   "Balance Update Failed",
+				Message: "The balance could not be updated for the specified account ID. Please verify the account ID and try again.",
 			}
 		}
 

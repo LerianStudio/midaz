@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"strings"
 	"time"
-
-	"github.com/LerianStudio/midaz/common"
 
 	"github.com/LerianStudio/midaz/common/mmongo"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -143,13 +142,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	updated, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return common.EntityNotFoundError{
-				EntityType: collection,
-				Code:       "0007",
-				Title:      "Entity Not Found",
-				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-				Err:        err,
-			}
+			return c.ValidateBusinessError(c.EntityNotFoundBusinessError, collection)
 		}
 
 		return err

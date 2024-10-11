@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -23,7 +24,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 
 	if !uoi.Address.IsEmpty() {
 		if err := common.ValidateCountryAddress(uoi.Address.Country); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 	}
 
@@ -40,13 +41,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		logger.Errorf("Error updating organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Code:       "0038",
-				Title:      "Organization ID Not Found",
-				Message:    "The provided organization ID does not exist in our records. Please verify the organization ID and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.OrganizationIDNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err

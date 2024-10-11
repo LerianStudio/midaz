@@ -3,9 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
@@ -22,13 +22,7 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 		logger.Errorf("Error getting product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Code:       "0036",
-				Title:      "Product ID Not Found",
-				Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.ProductIDNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		return nil, err

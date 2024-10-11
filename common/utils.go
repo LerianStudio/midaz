@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"regexp"
 	"slices"
 	"strconv"
@@ -75,11 +76,7 @@ func ValidateCountryAddress(country string) error {
 	}
 
 	if !slices.Contains(countries, country) {
-		return ValidationError{
-			Code:    "0032",
-			Title:   "Invalid Country Code",
-			Message: "The provided country code in the 'address.country' field does not conform to the ISO-3166 alpha-2 standard. Please provide a valid alpha-2 country code.",
-		}
+		return c.InvalidCountryCodeBusinessError
 	}
 
 	return nil
@@ -90,11 +87,7 @@ func ValidateType(t string) error {
 	types := []string{"crypto", "currency", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
-		return ValidationError{
-			Code:    "0040",
-			Title:   "Invalid Type",
-			Message: "The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type.",
-		}
+		return c.InvalidTypeBusinessError
 	}
 
 	return nil
@@ -116,20 +109,12 @@ func ValidateCurrency(code string) error {
 
 	for _, r := range code {
 		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
-			return ValidationError{
-				Code:    "0004",
-				Title:   "Code Uppercase Requirement",
-				Message: "The code must be in uppercase. Please ensure that the code is in uppercase format and try again.",
-			}
+			return c.CodeUppercaseRequirementBusinessError
 		}
 	}
 
 	if !slices.Contains(currencies, code) {
-		return ValidationError{
-			Code:    "0005",
-			Title:   "Currency Code Standard Compliance",
-			Message: "Currency-type assets must comply with the ISO-4217 standard. Please use a currency code that conforms to ISO-4217 guidelines.",
-		}
+		return c.CurrencyCodeStandardComplianceBusinessError
 	}
 
 	return nil

@@ -1,7 +1,9 @@
 package http
 
 import (
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"os"
+	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -143,12 +145,9 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 	if os.Getenv("ENV_NAME") == "production" {
 		logger.Errorf("Failed to remove Organization with ID: %s in ", id)
+		err := cn.ValidateBusinessError(cn.ActionNotPermittedBusinessError, reflect.TypeOf(o.Organization{}).Name())
 
-		return commonHTTP.BadRequest(c, &fiber.Map{
-			"code":    "0008",
-			"title":   "Action Not Permitted",
-			"message": "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
-		})
+		return commonHTTP.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {

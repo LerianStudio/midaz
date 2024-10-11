@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -27,12 +28,12 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if err := common.ValidateType(cii.Type); err != nil {
-		return nil, err
+		return nil, c.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	if cii.Type == "currency" {
 		if err := common.ValidateCurrency(cii.Code); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 		}
 	}
 

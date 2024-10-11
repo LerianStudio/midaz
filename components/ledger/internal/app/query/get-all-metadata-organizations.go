@@ -22,8 +22,9 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(o.Organization{}).Name(),
-			Message:    "Organizations by metadata was not found",
-			Code:       "ORGANIZATION_NOT_FOUND",
+			Code:       "0059",
+			Title:      "No Organizations Found",
+			Message:    "No organizations were found in the search. Please review the search criteria and try again.",
 			Err:        err,
 		}
 	}
@@ -43,8 +44,9 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    "Organizations by metadata was not found",
-				Code:       "ORGANIZATION_NOT_FOUND",
+				Code:       "0059",
+				Title:      "No Organizations Found",
+				Message:    "No organizations were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

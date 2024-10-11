@@ -22,8 +22,9 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Message:    "Products by metadata was not found",
-			Code:       "PRODUCT_NOT_FOUND",
+			Code:       "0057",
+			Title:      "No Products Found",
+			Message:    "No products were found in the search. Please review the search criteria and try again.",
 			Err:        err,
 		}
 	}
@@ -43,8 +44,9 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Message:    "Products by metadata was not found",
-				Code:       "PRODUCT_NOT_FOUND",
+				Code:       "0057",
+				Title:      "No Products Found",
+				Message:    "No products were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

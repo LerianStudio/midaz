@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -28,13 +29,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id stri
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Code:       "0037",
-				Title:      "Ledger ID Not Found",
-				Message:    "The provided ledger ID does not exist in our records. Please verify the ledger ID and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.LedgerIDNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err

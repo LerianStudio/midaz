@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -69,6 +70,9 @@ func WithError(c *fiber.Ctx, err error) error {
 
 		return JSONResponseError(c, rErr)
 	default:
-		return InternalServerError(c)
+		var iErr common.InternalServerError
+		_ = errors.As(cn.ValidateInternalError(err, ""), &iErr)
+
+		return InternalServerError(c, iErr.Code, iErr.Title, iErr.Message)
 	}
 }

@@ -96,11 +96,11 @@ func UnprocessableEntity(c *fiber.Ctx, code, title, message string) error {
 }
 
 // InternalServerError sends an HTTP 500 Internal Server Error response
-func InternalServerError(c *fiber.Ctx) error {
+func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 	return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
-		"code":    "0046",
-		"title":   "Internal Server Error",
-		"message": "The server encountered an unexpected error. Please try again later or contact support.",
+		"code":    code,
+		"title":   title,
+		"message": message,
 	})
 }
 

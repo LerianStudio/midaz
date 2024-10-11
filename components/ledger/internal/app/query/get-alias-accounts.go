@@ -23,8 +23,9 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, aliases []string) ([
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    "Account was not found",
-				Code:       "ACCOUNT_NOT_FOUND",
+				Code:       "0063",
+				Title:      "Failed To Retrieve Accounts By Aliases",
+				Message:    "The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again.",
 				Err:        err,
 			}
 		}

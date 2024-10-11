@@ -25,8 +25,9 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string, fil
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Message:    "Ledgers was not found",
-				Code:       "LEDGER_NOT_FOUND",
+				Code:       "0060",
+				Title:      "No Ledgers Found",
+				Message:    "No ledgers were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}
@@ -39,8 +40,9 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string, fil
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Message:    "Metadata was not found",
-				Code:       "LEDGER_NOT_FOUND",
+				Code:       "0060",
+				Title:      "No Ledgers Found",
+				Message:    "No ledgers were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

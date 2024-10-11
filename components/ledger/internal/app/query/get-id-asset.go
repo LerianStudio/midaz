@@ -25,8 +25,9 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(s.Asset{}).Name(),
-				Message:    fmt.Sprintf("Asset with id %s was not found", id),
-				Code:       "ASSET_NOT_FOUND",
+				Code:       "0055",
+				Title:      "Asset Not Found",
+				Message:    fmt.Sprintf("The specified asset ID %s was not found. Please verify the asset ID and try again.", id),
 				Err:        err,
 			}
 		}

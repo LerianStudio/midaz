@@ -2,6 +2,8 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strings"
 
@@ -82,8 +84,9 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 
 	if len(diffFields) > 0 {
 		return BadRequest(c, fiber.Map{
-			"code":    "BAD_REQUEST",
-			"message": "Incoming JSON fields do not match the request payload fields",
+			"code":    "0053",
+			"title":   "Unexpected Fields in the Request",
+			"message": "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.",
 			"fields":  diffFields,
 		})
 	}
@@ -178,12 +181,12 @@ func newValidator() (*validator.Validate, ut.Translator) {
 }
 
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) ValidationError {
-	return ValidationError{
-		Code:    "0047",
-		Title:   "Bad Request",
-		Message: "The server could not understand the request due to malformed syntax. Please check the listed fields and try again.",
-		Fields:  fields(err, trans),
-	}
+	mapValidationFields := fields(err, trans)
+
+	var vErr ValidationError
+	_ = errors.As(c.ValidateBadRequestFieldsError(mapValidationFields, ""), &vErr)
+
+	return vErr
 }
 
 func fields(errors validator.ValidationErrors, trans ut.Translator) FieldValidations {

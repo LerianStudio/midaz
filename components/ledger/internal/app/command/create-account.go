@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -61,12 +62,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		}
 
 		if acc.AssetCode != cai.AssetCode {
-			return nil, common.ValidationError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Title:      "Mismatched Asset Code",
-				Code:       "0030",
-				Message:    "The parent account ID you provided is associated with a different asset code than the one specified in your request. Please make sure the asset code matches that of the parent account, or use a different parent account ID and try again.",
-			}
+			return nil, c.ValidateBusinessError(c.MismatchedAssetCodeBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 	}
 

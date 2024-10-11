@@ -22,8 +22,9 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Message:    "Accounts by metadata was not found",
-			Code:       "ACCOUNT_NOT_FOUND",
+			Code:       "0064",
+			Title:      "No Accounts Found",
+			Message:    "No accounts were found in the search. Please review the search criteria and try again.",
 			Err:        err,
 		}
 	}
@@ -43,8 +44,9 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    "Accounts by metadata was not found",
-				Code:       "ACCOUNT_NOT_FOUND",
+				Code:       "0064",
+				Title:      "No Accounts Found",
+				Message:    "No accounts were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

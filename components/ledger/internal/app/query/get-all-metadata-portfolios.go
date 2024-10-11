@@ -22,8 +22,9 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 	if err != nil || metadata == nil {
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-			Message:    "Portfolios by metadata was not found",
-			Code:       "PORTFOLIO_NOT_FOUND",
+			Code:       "0058",
+			Title:      "No Portfolios Found",
+			Message:    "No portfolios were found in the search. Please review the search criteria and try again.",
 			Err:        err,
 		}
 	}
@@ -43,8 +44,9 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Message:    "Portfolios by metadata was not found",
-				Code:       "PORTFOLIO_NOT_FOUND",
+				Code:       "0058",
+				Title:      "No Portfolios Found",
+				Message:    "No portfolios were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

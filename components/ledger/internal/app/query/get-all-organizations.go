@@ -24,8 +24,9 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    "Organizations was not found",
-				Code:       "ORGANIZATION_NOT_FOUND",
+				Code:       "0059",
+				Title:      "No Organizations Found",
+				Message:    "No organizations were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}
@@ -38,8 +39,9 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    "Metadata was not found",
-				Code:       "ORGANIZATION_NOT_FOUND",
+				Code:       "0059",
+				Title:      "No Organizations Found",
+				Message:    "No organizations were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -30,7 +31,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	}
 
 	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
-		return nil, err
+		return nil, c.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	organization := &o.Organization{

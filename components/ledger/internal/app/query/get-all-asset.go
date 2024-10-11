@@ -25,8 +25,9 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID st
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(s.Asset{}).Name(),
-				Message:    "Asset was not found",
-				Code:       "ASSET_NOT_FOUND",
+				Code:       "0056",
+				Title:      "No Assets Found",
+				Message:    "No assets were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}
@@ -39,8 +40,9 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID st
 		if err != nil {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(s.Asset{}).Name(),
-				Message:    "Metadata was not found",
-				Code:       "ASSET_NOT_FOUND",
+				Code:       "0056",
+				Title:      "No Assets Found",
+				Message:    "No assets were found in the search. Please review the search criteria and try again.",
 				Err:        err,
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
@@ -79,12 +80,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-			Title:      "Entity Not Found",
-			Code:       "0007",
-			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-		}
+		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -104,12 +100,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
 		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Title:      "Entity Not Found",
-				Code:       "0007",
-				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-			}
+			return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -144,12 +135,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-			Title:      "Entity Not Found",
-			Code:       "0007",
-			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-		}
+		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 	defer rows.Close()
 
@@ -184,12 +170,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
 		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Title:      "Entity Not Found",
-				Code:       "0007",
-				Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-			}
+			return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -292,12 +273,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-			Title:      "Entity Not Found",
-			Code:       "0007",
-			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-		}
+		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -322,12 +298,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-			Title:      "Entity Not Found",
-			Code:       "0007",
-			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
-		}
+		return c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	return nil

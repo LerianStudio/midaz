@@ -24,8 +24,9 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*a
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    "Account was not found",
-				Code:       "ACCOUNT_NOT_FOUND",
+				Code:       "0054",
+				Title:      "Accounts Not Found for Provided IDs",
+				Message:    "No accounts were found for the provided account IDs. Please verify the account IDs and try again.",
 				Err:        err,
 			}
 		}

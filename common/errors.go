@@ -19,6 +19,7 @@ type EntityNotFoundError struct {
 func NewEntityNotFoundError(entityType string) EntityNotFoundError {
 	return EntityNotFoundError{
 		EntityType: entityType,
+		Code:       "",
 		Title:      "",
 		Message:    "",
 		Err:        nil,
@@ -29,6 +30,7 @@ func NewEntityNotFoundError(entityType string) EntityNotFoundError {
 func WrapEntityNotFoundError(entityType string, err error) EntityNotFoundError {
 	return EntityNotFoundError{
 		EntityType: entityType,
+		Code:       "",
 		Title:      "",
 		Message:    "",
 		Err:        err,
@@ -167,5 +169,18 @@ type FailedPreconditionError struct {
 }
 
 func (e FailedPreconditionError) Error() string {
+	return e.Message
+}
+
+// InternalServerError indicates a precondition failed during an operation.
+type InternalServerError struct {
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
+}
+
+func (e InternalServerError) Error() string {
 	return e.Message
 }
