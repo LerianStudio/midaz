@@ -5,6 +5,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -22,7 +23,6 @@ import (
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	httpHandler "github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/google/wire"
