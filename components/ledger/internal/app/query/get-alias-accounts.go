@@ -3,9 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -21,13 +21,7 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, aliases []string) ([
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Code:       "0063",
-				Title:      "Failed To Retrieve Accounts By Aliases",
-				Message:    "The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.FailedToRetrieveAccountsByAliasesBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err

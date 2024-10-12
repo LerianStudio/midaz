@@ -49,7 +49,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 
 	if len(uoi.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, uoi.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Organization{}).Name(), id, uoi.Metadata); err != nil {

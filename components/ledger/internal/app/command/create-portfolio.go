@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -47,7 +48,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	if cpi.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cpi.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		meta := m.Metadata{

@@ -36,7 +36,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	if len(upi.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, upi.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id, upi.Metadata); err != nil {

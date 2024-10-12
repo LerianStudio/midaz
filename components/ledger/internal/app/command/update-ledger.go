@@ -37,7 +37,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id stri
 
 	if len(uli.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, uli.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(l.Ledger{}).Name(), id, uli.Metadata); err != nil {

@@ -3,10 +3,9 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
@@ -23,13 +22,7 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 		logger.Errorf("Error getting asset on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(s.Asset{}).Name(),
-				Code:       "0055",
-				Title:      "Asset Not Found",
-				Message:    fmt.Sprintf("The specified asset ID %s was not found. Please verify the asset ID and try again.", id),
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.AssetNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
 		}
 
 		return nil, err

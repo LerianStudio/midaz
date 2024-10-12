@@ -3,9 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -22,13 +22,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 		logger.Errorf("Error getting organizations on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Code:       "0059",
-				Title:      "No Organizations Found",
-				Message:    "No organizations were found in the search. Please review the search criteria and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.NoOrganizationsFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err
@@ -37,13 +31,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 	if organizations != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 		if err != nil {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Code:       "0059",
-				Title:      "No Organizations Found",
-				Message:    "No organizations were found in the search. Please review the search criteria and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.NoOrganizationsFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

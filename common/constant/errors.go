@@ -59,6 +59,18 @@ var (
 	EmptyDSLFileBusinessError                        = errors.New("0049")
 	MetadataKeyLengthExceededBusinessError           = errors.New("0050")
 	MetadataValueLengthExceededBusinessError         = errors.New("0051")
+	AccountIDNotFoundBusinessError                   = errors.New("0052")
+	UnexpectedFieldsInTheRequestBusinessError        = errors.New("0053")
+	NoAccountsFoundBusinessError                     = errors.New("0054")
+	AssetNotFoundBusinessError                       = errors.New("0055")
+	NoAssetsFoundBusinessError                       = errors.New("0056")
+	NoProductsFoundBusinessError                     = errors.New("0057")
+	NoPortfoliosFoundBusinessError                   = errors.New("0058")
+	NoOrganizationsFoundBusinessError                = errors.New("0059")
+	NoLedgersFoundBusinessError                      = errors.New("0060")
+	BalanceUpdateFailedBusinessError                 = errors.New("0061")
+	NoAccountIDsProvidedBusinessError                = errors.New("0062")
+	FailedToRetrieveAccountsByAliasesBusinessError   = errors.New("0063")
 )
 
 // ValidateInternalError validate the error and return the appropriate internal error code, title and message
@@ -66,9 +78,12 @@ func ValidateInternalError(err error, entityType string) error {
 	return ValidateBusinessError(InternalServerBusinessError, entityType, err)
 }
 
-// ValidateBadRequestFieldsError validate the error and return the appropriate internal error code, title and message
-func ValidateBadRequestFieldsError(fieldsValidation map[string]string, entityType string) error {
-	return ValidateBusinessError(BadRequestBusinessError, entityType, fieldsValidation)
+// ValidateBadRequestFieldsError validate the error and return the appropriate bad request error code, title, message and the invalid fields
+func ValidateBadRequestFieldsError(knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
+	if len(unknownFields) > 0 {
+		return ValidateBusinessError(UnexpectedFieldsInTheRequestBusinessError, entityType, unknownFields)
+	}
+	return ValidateBusinessError(BadRequestBusinessError, entityType, knownInvalidFields)
 }
 
 // ValidateBusinessError validate the error and return the appropriate business error code, title and message
@@ -242,17 +257,135 @@ func ValidateBusinessError(err error, entityType string, args ...interface{}) er
 			Err:        e,
 		}
 	case errors.Is(err, BadRequestBusinessError):
-		m, ok := args[0].(map[string]string)
+		fields, ok := args[0].(map[string]string)
 		if !ok {
-			return fmt.Errorf("expected fieldsValidation of type map[string]string type, got %T", args[0])
+			return fmt.Errorf("expected knownInvalidFields of type map[string]string type, got %T", args[0])
 		}
 
-		return http.ValidationError{
+		return http.ValidationKnownFieldsError{
 			EntityType: entityType,
 			Code:       "0047",
 			Title:      "Bad Request",
 			Message:    "The server could not understand the request due to malformed syntax. Please check the listed fields and try again.",
-			Fields:     m,
+			Fields:     fields,
+		}
+	case errors.Is(err, InvalidDSLFileFormatBusinessError):
+		return common.ValidationError{
+			EntityType: entityType,
+			Code:       "0048",
+			Title:      "Invalid DSL File Format",
+			Message:    fmt.Sprintf("The submitted DSL file %s is in an incorrect format. Please ensure that the file follows the expected structure and syntax.", args...),
+		}
+	case errors.Is(err, EmptyDSLFileBusinessError):
+		return common.ValidationError{
+			EntityType: entityType,
+			Code:       "0049",
+			Title:      "Empty DSL File",
+			Message:    fmt.Sprintf("The submitted DSL file %s is empty. Please provide a valid file with content.", args...),
+		}
+	case errors.Is(err, MetadataKeyLengthExceededBusinessError):
+		return common.ValidationError{
+			EntityType: entityType,
+			Code:       "0050",
+			Title:      "Metadata Key Length Exceeded",
+			Message:    fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of 100 characters. Please use a shorter key.", args...),
+		}
+	case errors.Is(err, MetadataValueLengthExceededBusinessError):
+		return common.ValidationError{
+			EntityType: entityType,
+			Code:       "0051",
+			Title:      "Metadata Value Length Exceeded",
+			Message:    fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of 100 characters. Please use a shorter value.", args...),
+		}
+	case errors.Is(err, AccountIDNotFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0052",
+			Title:      "Account ID Not Found",
+			Message:    "The provided account ID does not exist in our records. Please verify the account ID and try again.",
+		}
+	case errors.Is(err, UnexpectedFieldsInTheRequestBusinessError):
+		fields, ok := args[0].(map[string]any)
+		if !ok {
+			return fmt.Errorf("expected unknownFields of type map[string]any type, got %T", args[0])
+		}
+
+		return http.ValidationUnknownFieldsError{
+			EntityType: entityType,
+			Code:       "0053",
+			Title:      "Unexpected Fields in the Request",
+			Message:    "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.",
+			Fields:     fields,
+		}
+	case errors.Is(err, NoAccountsFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0054",
+			Title:      "Accounts Not Found for Provided IDs",
+			Message:    "No accounts were found for the provided account IDs. Please verify the account IDs and try again.",
+		}
+	case errors.Is(err, AssetNotFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0055",
+			Title:      "Asset Not Found",
+			Message:    fmt.Sprintf("The specified asset ID %s was not found. Please verify the asset ID and try again.", args...),
+		}
+	case errors.Is(err, NoAssetsFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0056",
+			Title:      "No Assets Found",
+			Message:    "No assets were found in the search. Please review the search criteria and try again.",
+		}
+	case errors.Is(err, NoProductsFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0057",
+			Title:      "No Products Found",
+			Message:    "No products were found in the search. Please review the search criteria and try again.",
+		}
+	case errors.Is(err, NoPortfoliosFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0058",
+			Title:      "No Portfolios Found",
+			Message:    "No portfolios were found in the search. Please review the search criteria and try again.",
+		}
+	case errors.Is(err, NoOrganizationsFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0059",
+			Title:      "No Organizations Found",
+			Message:    "No organizations were found in the search. Please review the search criteria and try again.",
+		}
+	case errors.Is(err, NoLedgersFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0060",
+			Title:      "No Ledgers Found",
+			Message:    "No ledgers were found in the search. Please review the search criteria and try again.",
+		}
+	case errors.Is(err, BalanceUpdateFailedBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0061",
+			Title:      "Balance Update Failed",
+			Message:    "The balance could not be updated for the specified account ID. Please verify the account ID and try again.",
+		}
+	case errors.Is(err, NoAccountIDsProvidedBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0062",
+			Title:      "No Account IDs Provided",
+			Message:    "No account IDs were provided for the balance update. Please provide valid account IDs and try again.",
+		}
+	case errors.Is(err, FailedToRetrieveAccountsByAliasesBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       "0063",
+			Title:      "Failed To Retrieve Accounts By Aliases",
+			Message:    "The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again.",
 		}
 	default:
 		return err

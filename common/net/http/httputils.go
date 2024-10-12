@@ -2,14 +2,13 @@ package http
 
 import (
 	"bytes"
-	"fmt"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -94,19 +93,11 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", common.ValidationError{
-			Code:    "0048",
-			Title:   "Invalid DSL File Format",
-			Message: fmt.Sprintf("The submitted DSL file %s is in an incorrect format. Please ensure that the file follows the expected structure and syntax.", fileHeader.Filename),
-		}
+		return "", c.ValidateBusinessError(c.InvalidDSLFileFormatBusinessError, "", fileHeader.Filename)
 	}
 
 	if fileHeader.Size == 0 {
-		return "", common.ValidationError{
-			Code:    "0049",
-			Title:   "Empty DSL File",
-			Message: fmt.Sprintf("The submitted DSL file %s is empty. Please provide a valid file with content.", fileHeader.Filename),
-		}
+		return "", c.ValidateBusinessError(c.EmptyDSLFileBusinessError, "", fileHeader.Filename)
 	}
 
 	file, err := fileHeader.Open()

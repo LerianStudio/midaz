@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -49,7 +50,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID s
 
 	if cpi.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cpi.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		meta := m.Metadata{

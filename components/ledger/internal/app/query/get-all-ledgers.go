@@ -3,9 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -23,13 +23,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string, fil
 		logger.Errorf("Error getting ledgers on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Code:       "0060",
-				Title:      "No Ledgers Found",
-				Message:    "No ledgers were found in the search. Please review the search criteria and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.NoLedgersFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -38,13 +32,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string, fil
 	if ledgers != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), filter)
 		if err != nil {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Code:       "0060",
-				Title:      "No Ledgers Found",
-				Message:    "No ledgers were found in the search. Please review the search criteria and try again.",
-				Err:        err,
-			}
+			return nil, c.ValidateBusinessError(c.NoLedgersFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

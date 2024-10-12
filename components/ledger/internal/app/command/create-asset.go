@@ -62,7 +62,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	if cii.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cii.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		meta := m.Metadata{

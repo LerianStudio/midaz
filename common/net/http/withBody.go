@@ -3,7 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strings"
 
@@ -83,12 +83,8 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if len(diffFields) > 0 {
-		return BadRequest(c, fiber.Map{
-			"code":    "0053",
-			"title":   "Unexpected Fields in the Request",
-			"message": "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.",
-			"fields":  diffFields,
-		})
+		err := cn.ValidateBadRequestFieldsError(make(map[string]string), "", diffFields)
+		return BadRequest(c, err)
 	}
 
 	if err := ValidateStruct(s); err != nil {
@@ -180,11 +176,11 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	return v, trans
 }
 
-func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) ValidationError {
-	mapValidationFields := fields(err, trans)
+func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) ValidationKnownFieldsError {
+	invalidFieldsMap := fields(err, trans)
 
-	var vErr ValidationError
-	_ = errors.As(c.ValidateBadRequestFieldsError(mapValidationFields, ""), &vErr)
+	var vErr ValidationKnownFieldsError
+	_ = errors.As(cn.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
 }

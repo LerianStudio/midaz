@@ -53,7 +53,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 
 	if coi.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, coi.Metadata); err != nil {
-			return nil, err
+			return nil, c.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		meta := m.Metadata{

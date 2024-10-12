@@ -2,7 +2,6 @@ package common
 
 import (
 	"encoding/json"
-	"fmt"
 	c "github.com/LerianStudio/midaz/common/constant"
 	"regexp"
 	"slices"
@@ -25,11 +24,7 @@ func Contains[T comparable](slice []T, item T) bool {
 func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 	for k, v := range metadata {
 		if len(k) > limit {
-			return ValidationError{
-				Code:    "0050",
-				Title:   "Metadata Key Length Exceeded",
-				Message: fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of 100 characters. Please use a shorter key.", k),
-			}
+			return c.MetadataKeyLengthExceededBusinessError
 		}
 
 		var value string
@@ -45,11 +40,7 @@ func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 		}
 
 		if len(value) > limit {
-			return ValidationError{
-				Code:    "0051",
-				Title:   "Metadata Value Length Exceeded",
-				Message: fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of 100 characters. Please use a shorter value.", value),
-			}
+			return c.MetadataValueLengthExceededBusinessError
 		}
 	}
 
