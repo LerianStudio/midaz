@@ -49,6 +49,28 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, pagination)
 }
 
+func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	accountID := c.Params("account_id")
+	operationID := c.Params("operation_id")
+
+	logger.Infof("Initiating retrieval of Operation by account")
+
+	operation, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Operation by account, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Operation by account")
+
+	return commonHTTP.OK(c, operation)
+}
+
 func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
