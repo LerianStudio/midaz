@@ -127,3 +127,13 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	return fileString, nil
 }
+
+// GetTokenHeader func that get token from header
+func GetTokenHeader(c *fiber.Ctx) string {
+	splitToken := strings.Split(c.Get(fiber.HeaderAuthorization), "Bearer")
+	if len(splitToken) == 2 {
+		return strings.TrimSpace(splitToken[1])
+	}
+
+	return ""
+}

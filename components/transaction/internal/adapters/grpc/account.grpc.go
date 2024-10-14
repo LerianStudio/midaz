@@ -5,6 +5,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
+	gmtdt "google.golang.org/grpc/metadata"
 )
 
 // AccountGRPCRepository is a gRPC implementation of the account.proto
@@ -27,7 +28,7 @@ func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
 }
 
 // GetAccountsByIds returns a grpc accounts on ledger bi given ids.
-func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, ids []string) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, ids []string) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -39,6 +40,9 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, ids []stri
 		Ids: ids,
 	}
 
+	md := gmtdt.Pairs("authorization", "Bearer "+token)
+	ctx = gmtdt.NewOutgoingContext(ctx, md)
+
 	accountsResponse, err := client.GetAccountsByIds(ctx, accountsID)
 	if err != nil {
 		return nil, err
@@ -48,7 +52,7 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, ids []stri
 }
 
 // GetAccountsByAlias returns a grpc accounts on ledger bi given aliases.
-func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, aliases []string) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, aliases []string) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -60,6 +64,9 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, aliases 
 		Aliases: aliases,
 	}
 
+	md := gmtdt.Pairs("authorization", "Bearer "+token)
+	ctx = gmtdt.NewOutgoingContext(ctx, md)
+
 	accountsResponse, err := client.GetAccountsByAliases(ctx, accountsAlias)
 	if err != nil {
 		return nil, err
@@ -69,7 +76,7 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, aliases 
 }
 
 // UpdateAccounts update a grpc accounts on ledger.
-func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, accounts []*proto.Account) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, accounts []*proto.Account) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -80,6 +87,9 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, accounts []*
 	accountsRequest := &proto.AccountsRequest{
 		Accounts: accounts,
 	}
+
+	md := gmtdt.Pairs("authorization", "Bearer "+token)
+	ctx = gmtdt.NewOutgoingContext(ctx, md)
 
 	accountsResponse, err := client.UpdateAccounts(ctx, accountsRequest)
 	if err != nil {
