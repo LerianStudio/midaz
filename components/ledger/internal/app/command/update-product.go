@@ -3,8 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -28,7 +29,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ProductIDNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrProductIDNotFound, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		return nil, err

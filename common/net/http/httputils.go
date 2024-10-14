@@ -2,13 +2,14 @@ package http
 
 import (
 	"bytes"
-	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
@@ -94,11 +95,11 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", common.ValidateBusinessError(cn.InvalidDSLFileFormatBusinessError, "", fileHeader.Filename)
+		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	if fileHeader.Size == 0 {
-		return "", common.ValidateBusinessError(cn.EmptyDSLFileBusinessError, "", fileHeader.Filename)
+		return "", common.ValidateBusinessError(cn.ErrEmptyDSLFile, "", fileHeader.Filename)
 	}
 
 	file, err := fileHeader.Open()

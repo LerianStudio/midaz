@@ -2,9 +2,10 @@ package command
 
 import (
 	"context"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -62,7 +63,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		}
 
 		if acc.AssetCode != cai.AssetCode {
-			return nil, common.ValidateBusinessError(cn.MismatchedAssetCodeBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrMismatchedAssetCode, reflect.TypeOf(a.Account{}).Name())
 		}
 	}
 

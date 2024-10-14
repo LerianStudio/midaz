@@ -3,9 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
-	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -21,7 +22,7 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 	if err != nil || metadata == nil {
-		return nil, common.ValidateBusinessError(cn.NoOrganizationsFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -37,7 +38,7 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 		logger.Errorf("Error getting organizations on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.NoOrganizationsFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err

@@ -1,8 +1,9 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/common"
 	"net/http"
+
+	"github.com/LerianStudio/midaz/common"
 
 	"github.com/gofiber/fiber/v2"
 )

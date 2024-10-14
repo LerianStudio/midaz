@@ -2,11 +2,12 @@ package common
 
 import (
 	"encoding/json"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"regexp"
 	"slices"
 	"strconv"
 	"unicode"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.
@@ -24,7 +25,7 @@ func Contains[T comparable](slice []T, item T) bool {
 func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 	for k, v := range metadata {
 		if len(k) > limit {
-			return cn.MetadataKeyLengthExceededBusinessError
+			return cn.ErrMetadataKeyLengthExceeded
 		}
 
 		var value string
@@ -40,7 +41,7 @@ func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 		}
 
 		if len(value) > limit {
-			return cn.MetadataValueLengthExceededBusinessError
+			return cn.ErrMetadataValueLengthExceeded
 		}
 	}
 
@@ -67,7 +68,7 @@ func ValidateCountryAddress(country string) error {
 	}
 
 	if !slices.Contains(countries, country) {
-		return cn.InvalidCountryCodeBusinessError
+		return cn.ErrInvalidCountryCode
 	}
 
 	return nil
@@ -78,7 +79,7 @@ func ValidateType(t string) error {
 	types := []string{"crypto", "currency", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
-		return cn.InvalidTypeBusinessError
+		return cn.ErrInvalidType
 	}
 
 	return nil
@@ -100,12 +101,12 @@ func ValidateCurrency(code string) error {
 
 	for _, r := range code {
 		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
-			return cn.CodeUppercaseRequirementBusinessError
+			return cn.ErrCodeUppercaseRequirement
 		}
 	}
 
 	if !slices.Contains(currencies, code) {
-		return cn.CurrencyCodeStandardComplianceBusinessError
+		return cn.ErrCurrencyCodeStandardCompliance
 	}
 
 	return nil

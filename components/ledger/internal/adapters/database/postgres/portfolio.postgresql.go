@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -80,7 +81,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -100,7 +101,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
 		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -135,7 +136,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 	defer rows.Close()
 
@@ -170,7 +171,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	if err := row.Scan(&portfolio.ID, &portfolio.Name, &portfolio.EntityID, &portfolio.LedgerID, &portfolio.OrganizationID,
 		&portfolio.Status, &portfolio.StatusDescription, &portfolio.AllowSending, &portfolio.AllowReceiving, &portfolio.CreatedAt, &portfolio.UpdatedAt, &portfolio.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -273,7 +274,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -298,7 +299,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	return nil

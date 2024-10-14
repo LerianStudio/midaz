@@ -3,8 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -41,7 +42,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		logger.Errorf("Error updating organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.OrganizationIDNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrOrganizationIDNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err

@@ -3,8 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -29,7 +30,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id stri
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.LedgerIDNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err

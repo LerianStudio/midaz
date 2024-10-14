@@ -3,9 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
-	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -23,7 +24,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 		logger.Errorf("Error getting organizations on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.NoOrganizationsFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 	if organizations != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.NoOrganizationsFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

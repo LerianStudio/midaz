@@ -3,9 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
-	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -23,7 +24,7 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 		logger.Errorf("Error getting portfolio on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.PortfolioIDNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrPortfolioIDNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err

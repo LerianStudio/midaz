@@ -3,9 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
-	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -21,7 +22,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), filter)
 	if err != nil || metadata == nil {
-		return nil, common.ValidateBusinessError(cn.NoPortfoliosFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrNoPortfoliosFound, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -37,7 +38,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 		logger.Errorf("Error getting portfolios on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.NoPortfoliosFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoPortfoliosFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err

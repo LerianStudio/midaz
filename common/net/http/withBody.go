@@ -3,9 +3,10 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"strings"
+
+	"github.com/LerianStudio/midaz/common"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -185,11 +186,11 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) co
 	return vErr
 }
 
-func fields(errors validator.ValidationErrors, trans ut.Translator) common.FieldValidations {
-	l := len(errors)
+func fields(errs validator.ValidationErrors, trans ut.Translator) common.FieldValidations {
+	l := len(errs)
 	if l > 0 {
 		fields := make(common.FieldValidations, l)
-		for _, e := range errors {
+		for _, e := range errs {
 			fields[e.Field()] = e.Translate(trans)
 		}
 

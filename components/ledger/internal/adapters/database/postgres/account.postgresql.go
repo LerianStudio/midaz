@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -93,7 +94,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -203,7 +204,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&account.DeletedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
@@ -227,7 +228,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	defer rows.Close()
 
 	if rows.Next() {
-		return true, common.ValidateBusinessError(cn.AliasUnavailabilityBusinessError, reflect.TypeOf(a.Account{}).Name(), alias)
+		return true, common.ValidateBusinessError(cn.ErrAliasUnavailability, reflect.TypeOf(a.Account{}).Name(), alias)
 	}
 
 	return false, nil
@@ -413,7 +414,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -428,7 +429,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	if _, err := db.ExecContext(ctx, `UPDATE account SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = $4 AND deleted_at IS NULL`,
 		organizationID, ledgerID, portfolioID, id); err != nil {
-		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return nil
@@ -590,7 +591,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id 
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return record.ToEntity(), nil

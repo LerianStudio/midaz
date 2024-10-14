@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -84,7 +85,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -162,7 +163,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -184,7 +185,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 		&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err
@@ -312,7 +313,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return nil
