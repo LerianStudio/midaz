@@ -176,19 +176,19 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	return v, trans
 }
 
-func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) ValidationKnownFieldsError {
+func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) common.ValidationKnownFieldsError {
 	invalidFieldsMap := fields(err, trans)
 
-	var vErr ValidationKnownFieldsError
+	var vErr common.ValidationKnownFieldsError
 	_ = errors.As(common.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
 }
 
-func fields(errors validator.ValidationErrors, trans ut.Translator) FieldValidations {
+func fields(errors validator.ValidationErrors, trans ut.Translator) common.FieldValidations {
 	l := len(errors)
 	if l > 0 {
-		fields := make(FieldValidations, l)
+		fields := make(common.FieldValidations, l)
 		for _, e := range errors {
 			fields[e.Field()] = e.Translate(trans)
 		}

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -105,7 +106,7 @@ func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 }
 
 // JSONResponseError sends a JSON formatted error response with a custom error struct.
-func JSONResponseError(c *fiber.Ctx, err ResponseError) error {
+func JSONResponseError(c *fiber.Ctx, err common.ResponseError) error {
 	return c.Status(err.Code).JSON(err)
 }
 
