@@ -2,12 +2,13 @@ package http
 
 import (
 	"bytes"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/gofiber/fiber/v2"

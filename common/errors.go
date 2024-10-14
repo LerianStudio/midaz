@@ -3,8 +3,9 @@ package common
 import (
 	"errors"
 	"fmt"
-	cn "github.com/LerianStudio/midaz/common/constant"
 	"strings"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
