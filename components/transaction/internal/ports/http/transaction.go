@@ -72,7 +72,9 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	accounts, err := handler.getAccounts(c.Context(), logger, validate.Aliases)
+	token := commonHTTP.GetTokenHeader(c)
+
+	accounts, err := handler.getAccounts(c.Context(), logger, token, validate.Aliases)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -105,7 +107,7 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	err = handler.processAccounts(c.Context(), logger, *validate, accounts)
+	err = handler.processAccounts(c.Context(), logger, token, *validate, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -236,7 +238,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, input []string) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, token string, input []string) ([]*account.Account, error) {
 	var ids []string
 
 	var aliases []string
@@ -252,7 +254,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	var accounts []*account.Account
 
 	if len(ids) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, "", ids)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, token, ids)
 		if err != nil {
 			logger.Error("Failed to get account gRPC by ids on Ledger", err.Error())
 			return nil, err
@@ -262,7 +264,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	}
 
 	if len(aliases) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, "", aliases)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, token, aliases)
 		if err != nil {
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 			return nil, err
@@ -275,7 +277,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 }
 
 // processAccounts is a function that adjust balance on Accounts
-func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, accounts []*account.Account) error {
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, token string, validate v.Responses, accounts []*account.Account) error {
 	e := make(chan error)
 	result := make(chan []*account.Account)
 
@@ -297,7 +299,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, "", update)
+	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, token, update)
 	if err != nil {
 		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
 		return err
