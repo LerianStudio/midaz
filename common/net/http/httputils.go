@@ -114,7 +114,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", validationError
+		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	fileString := buf.String()
