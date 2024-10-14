@@ -1,3 +1,18 @@
+## [1.15.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.4...v1.15.0-beta.5) (2024-10-14)
+
+
+### Features
+
+* implement auth on transaction :sparkles: ([a183909](https://github.com/LerianStudio/midaz/commit/a183909b1122ff19dbddb08b3fa51771a4c68738))
+* implement token to call grpc :sparkles: ([b1fc617](https://github.com/LerianStudio/midaz/commit/b1fc617c95a1aecfefd35a48ef6f069b08397e77))
+
+
+### Bug Fixes
+
+* accept only [@external](https://github.com/external) accounts to be negative values :bug: ([909eb23](https://github.com/LerianStudio/midaz/commit/909eb23613df8b284190fa490802239dcd256ebc))
+* add auth on the new route :bug: ([ed51df9](https://github.com/LerianStudio/midaz/commit/ed51df902e852469c29d6b4a9e37f772515ed180))
+* remove fmt.sprintf :bug: ([1ba33f8](https://github.com/LerianStudio/midaz/commit/1ba33f82cfc9a44e7b92b13b75c064107d656f02))
+
 ## [1.15.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.3...v1.15.0-beta.4) (2024-10-14)
 
 
