@@ -28,7 +28,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error updating asset on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.AssetNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
+			return nil, c.ValidateBusinessError(c.AssetIDNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
 		}
 
 		return nil, err

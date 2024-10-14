@@ -3,6 +3,7 @@ package http
 import (
 	"crypto/subtle"
 	"encoding/base64"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -57,5 +58,7 @@ func WithBasicAuth(f BasicAuthFunc, realm string) fiber.Handler {
 func unauthorizedResponse(c *fiber.Ctx, realm string) error {
 	c.Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 
-	return Unauthorized(c, "0042", "Invalid Token", "The provided token is expired, invalid or malformed. Please provide a valid token and try again.")
+	err := cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "Basic Auth")
+
+	return WithError(c, err)
 }

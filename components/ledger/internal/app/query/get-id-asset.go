@@ -22,7 +22,7 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 		logger.Errorf("Error getting asset on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.AssetNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
+			return nil, c.ValidateBusinessError(c.AssetIDNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
 		}
 
 		return nil, err

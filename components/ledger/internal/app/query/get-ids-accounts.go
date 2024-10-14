@@ -22,7 +22,7 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*a
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, c.ValidateBusinessError(c.IDsNotFoundForAccountsBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err

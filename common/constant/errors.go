@@ -61,8 +61,8 @@ var (
 	MetadataValueLengthExceededBusinessError         = errors.New("0051")
 	AccountIDNotFoundBusinessError                   = errors.New("0052")
 	UnexpectedFieldsInTheRequestBusinessError        = errors.New("0053")
-	NoAccountsFoundBusinessError                     = errors.New("0054")
-	AssetNotFoundBusinessError                       = errors.New("0055")
+	IDsNotFoundForAccountsBusinessError              = errors.New("0054")
+	AssetIDNotFoundBusinessError                     = errors.New("0055")
 	NoAssetsFoundBusinessError                       = errors.New("0056")
 	NoProductsFoundBusinessError                     = errors.New("0057")
 	NoPortfoliosFoundBusinessError                   = errors.New("0058")
@@ -71,6 +71,7 @@ var (
 	BalanceUpdateFailedBusinessError                 = errors.New("0061")
 	NoAccountIDsProvidedBusinessError                = errors.New("0062")
 	FailedToRetrieveAccountsByAliasesBusinessError   = errors.New("0063")
+	NoAccountsFoundBusinessError                     = errors.New("0064")
 )
 
 // ValidateInternalError validate the error and return the appropriate internal error code, title and message
@@ -462,19 +463,19 @@ func ValidateBusinessError(err error, entityType string, args ...interface{}) er
 			Title:      "Account ID Not Found",
 			Message:    "The provided account ID does not exist in our records. Please verify the account ID and try again.",
 		}
-	case errors.Is(err, NoAccountsFoundBusinessError):
+	case errors.Is(err, IDsNotFoundForAccountsBusinessError):
 		return common.EntityNotFoundError{
 			EntityType: entityType,
-			Code:       NoAccountsFoundBusinessError.Error(),
-			Title:      "Accounts Not Found for Provided IDs",
-			Message:    "No accounts were found for the provided account IDs. Please verify the account IDs and try again.",
+			Code:       IDsNotFoundForAccountsBusinessError.Error(),
+			Title:      "IDs Not Found for Accounts",
+			Message:    "No accounts were found for the provided IDs. Please verify the IDs and try again.",
 		}
-	case errors.Is(err, AssetNotFoundBusinessError):
+	case errors.Is(err, AssetIDNotFoundBusinessError):
 		return common.EntityNotFoundError{
 			EntityType: entityType,
-			Code:       AssetNotFoundBusinessError.Error(),
-			Title:      "Asset Not Found",
-			Message:    fmt.Sprintf("The specified asset ID %s was not found. Please verify the asset ID and try again.", args...),
+			Code:       AssetIDNotFoundBusinessError.Error(),
+			Title:      "Asset ID Not Found",
+			Message:    "The provided asset ID does not exist in our records. Please verify the asset ID and try again.",
 		}
 	case errors.Is(err, NoAssetsFoundBusinessError):
 		return common.EntityNotFoundError{
@@ -531,6 +532,13 @@ func ValidateBusinessError(err error, entityType string, args ...interface{}) er
 			Code:       FailedToRetrieveAccountsByAliasesBusinessError.Error(),
 			Title:      "Failed To Retrieve Accounts By Aliases",
 			Message:    "The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again.",
+		}
+	case errors.Is(err, NoAccountsFoundBusinessError):
+		return common.EntityNotFoundError{
+			EntityType: entityType,
+			Code:       NoAccountsFoundBusinessError.Error(),
+			Title:      "No Accounts Found",
+			Message:    "No accounts were found in the search. Please review the search criteria and try again.",
 		}
 	default:
 		return err

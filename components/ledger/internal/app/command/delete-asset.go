@@ -21,7 +21,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error deleting asset on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return c.ValidateBusinessError(c.AssetNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
+			return c.ValidateBusinessError(c.AssetIDNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
 		}
 
 		return err
