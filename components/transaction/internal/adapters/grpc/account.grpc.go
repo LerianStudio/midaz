@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
@@ -41,7 +40,7 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 		Ids: ids,
 	}
 
-	md := gmtdt.Pairs("authorization", fmt.Sprintf("Bearer %s", token))
+	md := gmtdt.Pairs("authorization", "Bearer "+token)
 	ctx = gmtdt.NewOutgoingContext(ctx, md)
 
 	accountsResponse, err := client.GetAccountsByIds(ctx, accountsID)
@@ -65,7 +64,7 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 		Aliases: aliases,
 	}
 
-	md := gmtdt.Pairs("authorization", fmt.Sprintf("Bearer %s", token))
+	md := gmtdt.Pairs("authorization", "Bearer "+token)
 	ctx = gmtdt.NewOutgoingContext(ctx, md)
 
 	accountsResponse, err := client.GetAccountsByAliases(ctx, accountsAlias)
@@ -89,7 +88,7 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 		Accounts: accounts,
 	}
 
-	md := gmtdt.Pairs("authorization", fmt.Sprintf("Bearer %s", token))
+	md := gmtdt.Pairs("authorization", "Bearer "+token)
 	ctx = gmtdt.NewOutgoingContext(ctx, md)
 
 	accountsResponse, err := client.UpdateAccounts(ctx, accountsRequest)
