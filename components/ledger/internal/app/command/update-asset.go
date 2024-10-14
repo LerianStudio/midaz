@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -28,7 +28,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error updating asset on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.AssetIDNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
+			return nil, common.ValidateBusinessError(cn.AssetIDNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name(), id)
 		}
 
 		return nil, err
@@ -36,7 +36,7 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 	if len(uii.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, uii.Metadata); err != nil {
-			return nil, c.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(s.Asset{}).Name(), id.String(), uii.Metadata); err != nil {

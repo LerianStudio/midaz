@@ -2,7 +2,7 @@ package command
 
 import (
 	"context"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -62,7 +62,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		}
 
 		if acc.AssetCode != cai.AssetCode {
-			return nil, c.ValidateBusinessError(c.MismatchedAssetCodeBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.MismatchedAssetCodeBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 	}
 
@@ -99,7 +99,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 
 	if cai.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cai.Metadata); err != nil {
-			return nil, c.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		meta := m.Metadata{

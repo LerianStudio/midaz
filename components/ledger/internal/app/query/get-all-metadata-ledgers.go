@@ -3,7 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -20,7 +21,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID str
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(l.Ledger{}).Name(), filter)
 	if err != nil || metadata == nil {
-		return nil, c.ValidateBusinessError(c.NoLedgersFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+		return nil, common.ValidateBusinessError(cn.NoLedgersFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -36,7 +37,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID str
 		logger.Errorf("Error getting ledgers on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.NoLedgersFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoLedgersFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err

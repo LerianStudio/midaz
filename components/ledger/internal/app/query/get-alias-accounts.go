@@ -3,7 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -21,7 +22,7 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, aliases []string) ([
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.FailedToRetrieveAccountsByAliasesBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.FailedToRetrieveAccountsByAliasesBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err

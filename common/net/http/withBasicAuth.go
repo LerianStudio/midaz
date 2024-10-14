@@ -3,6 +3,7 @@ package http
 import (
 	"crypto/subtle"
 	"encoding/base64"
+	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 	"strings"
 
@@ -58,7 +59,7 @@ func WithBasicAuth(f BasicAuthFunc, realm string) fiber.Handler {
 func unauthorizedResponse(c *fiber.Ctx, realm string) error {
 	c.Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 
-	err := cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "Basic Auth")
+	err := common.ValidateBusinessError(cn.InvalidTokenBusinessError, "Basic Auth")
 
 	return WithError(c, err)
 }

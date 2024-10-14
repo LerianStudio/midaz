@@ -2,7 +2,8 @@ package http
 
 import (
 	"bytes"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -93,11 +94,11 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", c.ValidateBusinessError(c.InvalidDSLFileFormatBusinessError, "", fileHeader.Filename)
+		return "", common.ValidateBusinessError(cn.InvalidDSLFileFormatBusinessError, "", fileHeader.Filename)
 	}
 
 	if fileHeader.Size == 0 {
-		return "", c.ValidateBusinessError(c.EmptyDSLFileBusinessError, "", fileHeader.Filename)
+		return "", common.ValidateBusinessError(cn.EmptyDSLFileBusinessError, "", fileHeader.Filename)
 	}
 
 	file, err := fileHeader.Open()

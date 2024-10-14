@@ -3,7 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"strings"
 
@@ -83,7 +83,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if len(diffFields) > 0 {
-		err := cn.ValidateBadRequestFieldsError(make(map[string]string), "", diffFields)
+		err := common.ValidateBadRequestFieldsError(make(map[string]string), "", diffFields)
 		return BadRequest(c, err)
 	}
 
@@ -180,7 +180,7 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) Va
 	invalidFieldsMap := fields(err, trans)
 
 	var vErr ValidationKnownFieldsError
-	_ = errors.As(cn.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
+	_ = errors.As(common.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
 }

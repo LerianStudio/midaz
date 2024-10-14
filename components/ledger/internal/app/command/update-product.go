@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -28,7 +28,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.ProductIDNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.ProductIDNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		return nil, err
@@ -36,7 +36,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 
 	if len(upi.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, upi.Metadata); err != nil {
-			return nil, c.ValidateBusinessError(err, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(r.Product{}).Name(), id, upi.Metadata); err != nil {

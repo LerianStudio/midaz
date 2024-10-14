@@ -241,7 +241,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
 			l.Error(msg.Error())
 
-			err := cn.ValidateBusinessError(cn.TokenMissingBusinessError, "JWT Token")
+			err := common.ValidateBusinessError(cn.TokenMissingBusinessError, "JWT Token")
 
 			return WithError(c, err)
 		}
@@ -253,7 +253,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 			msg := errors.Wrap(err, "Couldn't load JWK keys from source")
 			l.Error(msg.Error())
 
-			err := cn.ValidateBusinessError(cn.JWKFetchBusinessError, "JWT Token")
+			err := common.ValidateBusinessError(cn.JWKFetchBusinessError, "JWT Token")
 
 			return WithError(c, err)
 		}
@@ -263,7 +263,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			err := cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
+			err := common.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
 
 			return WithError(c, err)
 		}
@@ -290,7 +290,7 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			err := cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
+			err := common.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
 
 			return WithError(c, err)
 		}
@@ -308,7 +308,7 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 			return c.Next()
 		}
 
-		err = cn.ValidateBusinessError(cn.InsufficientPrivilegesBusinessError, "JWT Token")
+		err = common.ValidateBusinessError(cn.InsufficientPrivilegesBusinessError, "JWT Token")
 
 		return WithError(c, err)
 	}
@@ -335,7 +335,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			err = cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
+			err = common.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
 
 			return WithError(c, err)
 		}
@@ -352,7 +352,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 			msg := errors.Wrap(err, "Failed to enforce permission")
 			l.Error(msg.Error())
 
-			err = cn.ValidateBusinessError(cn.PermissionEnforcementBusinessError, "JWT Token")
+			err = common.ValidateBusinessError(cn.PermissionEnforcementBusinessError, "JWT Token")
 
 			return WithError(c, err)
 		}
@@ -363,7 +363,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 
 		l.Debug("Unauthorized")
 
-		err = cn.ValidateBusinessError(cn.InsufficientPrivilegesBusinessError, "JWT Token")
+		err = common.ValidateBusinessError(cn.InsufficientPrivilegesBusinessError, "JWT Token")
 
 		return WithError(c, err)
 	}
@@ -386,7 +386,7 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
 			l.Error(msg.Error())
 
-			e := cn.ValidateBusinessError(cn.TokenMissingBusinessError, "JWT Token")
+			e := common.ValidateBusinessError(cn.TokenMissingBusinessError, "JWT Token")
 
 			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
@@ -398,7 +398,7 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Couldn't load JWK keys from source")
 			l.Error(msg.Error())
 
-			e := cn.ValidateBusinessError(cn.JWKFetchBusinessError, "JWT Token")
+			e := common.ValidateBusinessError(cn.JWKFetchBusinessError, "JWT Token")
 
 			return nil, jwtm.errorHandlingGrpc(codes.FailedPrecondition, e)
 		}
@@ -408,7 +408,7 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			e := cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
+			e := common.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
 
 			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
@@ -441,7 +441,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
 
-			e := cn.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
+			e := common.ValidateBusinessError(cn.InvalidTokenBusinessError, "JWT Token")
 
 			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
@@ -459,7 +459,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 			msg := errors.Wrap(err, "Failed to enforce permission")
 			l.Error(msg.Error())
 
-			e := cn.ValidateBusinessError(cn.PermissionEnforcementBusinessError, "JWT Token")
+			e := common.ValidateBusinessError(cn.PermissionEnforcementBusinessError, "JWT Token")
 
 			return nil, jwtm.errorHandlingGrpc(codes.FailedPrecondition, e)
 		}
@@ -467,7 +467,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 		if !authorized {
 			l.Debug("Unauthorized")
 
-			e := cn.ValidateBusinessError(cn.InsufficientPrivilegesBusinessError, "JWT Token")
+			e := common.ValidateBusinessError(cn.InsufficientPrivilegesBusinessError, "JWT Token")
 
 			return nil, jwtm.errorHandlingGrpc(codes.PermissionDenied, e)
 		}

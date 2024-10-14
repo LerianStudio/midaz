@@ -3,7 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -23,7 +24,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID st
 		logger.Errorf("Error getting assets on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		return nil, err
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID st
 	if assets != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(s.Asset{}).Name(), filter)
 		if err != nil {
-			return nil, c.ValidateBusinessError(c.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

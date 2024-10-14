@@ -3,7 +3,8 @@ package command
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -26,7 +27,7 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, id string, balance *a.
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.AccountIDNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.AccountIDNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err

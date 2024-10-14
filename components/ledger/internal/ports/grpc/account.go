@@ -2,7 +2,7 @@ package grpc
 
 import (
 	"context"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/google/uuid"
@@ -35,7 +35,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 	if err != nil {
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
 
-		return nil, c.ValidateBusinessError(c.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	accounts := make([]*proto.Account, len(acc))
@@ -59,7 +59,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 	if err != nil {
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
 
-		return nil, c.ValidateBusinessError(c.FailedToRetrieveAccountsByAliasesBusinessError, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.FailedToRetrieveAccountsByAliasesBusinessError, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	accounts := make([]*proto.Account, len(acc))
@@ -85,7 +85,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 		if common.IsNilOrEmpty(&account.Id) {
 			logger.Errorf("Failed to update Accounts because id is empty")
 
-			return nil, c.ValidateBusinessError(c.NoAccountIDsProvidedBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoAccountIDsProvidedBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		balance := a.Balance{
@@ -98,7 +98,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 		if err != nil {
 			logger.Errorf("Failed to update balance in Account by id for grpc, Error: %s", err.Error())
 
-			return nil, c.ValidateBusinessError(c.BalanceUpdateFailedBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.BalanceUpdateFailedBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		accounts = append(accounts, acu.ToProto())

@@ -3,7 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -23,7 +24,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, 
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
@@ -32,7 +33,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, 
 	if accounts != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter)
 		if err != nil {
-			return nil, c.ValidateBusinessError(c.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoAccountsFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

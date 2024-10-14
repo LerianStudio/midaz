@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
@@ -84,7 +84,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -162,7 +162,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -184,7 +184,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 		&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err
@@ -312,7 +312,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		return c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return nil

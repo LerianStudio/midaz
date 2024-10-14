@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -28,7 +28,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		logger.Errorf("Error updating portfolio on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.PortfolioIDNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, common.ValidateBusinessError(cn.PortfolioIDNotFoundBusinessError, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -36,7 +36,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	if len(upi.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, upi.Metadata); err != nil {
-			return nil, c.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id, upi.Metadata); err != nil {

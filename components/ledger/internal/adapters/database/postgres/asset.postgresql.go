@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
@@ -79,7 +79,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *s.Asset) 
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -100,7 +100,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	defer rows.Close()
 
 	if rows.Next() {
-		return true, c.ValidateBusinessError(c.AssetNameOrCodeDuplicateBusinessError, reflect.TypeOf(s.Asset{}).Name())
+		return true, common.ValidateBusinessError(cn.AssetNameOrCodeDuplicateBusinessError, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return false, nil
@@ -200,7 +200,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 	if err := row.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
 		&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		return nil, err
@@ -264,7 +264,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -289,7 +289,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		return c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return nil

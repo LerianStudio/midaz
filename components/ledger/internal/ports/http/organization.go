@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 	"os"
 	"reflect"
@@ -145,7 +146,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 	if os.Getenv("ENV_NAME") == "production" {
 		logger.Errorf("Failed to remove Organization with ID: %s in ", id)
-		err := cn.ValidateBusinessError(cn.ActionNotPermittedBusinessError, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ActionNotPermittedBusinessError, reflect.TypeOf(o.Organization{}).Name())
 
 		return commonHTTP.WithError(c, err)
 	}

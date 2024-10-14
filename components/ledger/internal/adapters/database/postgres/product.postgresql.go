@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
@@ -77,7 +77,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -98,7 +98,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	defer rows.Close()
 
 	if rows.Next() {
-		return true, c.ValidateBusinessError(c.DuplicateProductNameBusinessError, reflect.TypeOf(r.Product{}).Name(), name, ledgerID)
+		return true, common.ValidateBusinessError(cn.DuplicateProductNameBusinessError, reflect.TypeOf(r.Product{}).Name(), name, ledgerID)
 	}
 
 	return false, nil
@@ -130,7 +130,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 	}
 	defer rows.Close()
 
@@ -198,7 +198,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	if err := row.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 		&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		return nil, err
@@ -262,7 +262,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -287,7 +287,7 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		return c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
+		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(r.Product{}).Name())
 	}
 
 	return nil

@@ -3,7 +3,8 @@ package command
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -21,7 +22,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error deleting account on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return c.ValidateBusinessError(c.AccountIDNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
+			return common.ValidateBusinessError(cn.AccountIDNotFoundBusinessError, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return err

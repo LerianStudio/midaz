@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"strings"
 	"time"
 
@@ -142,7 +143,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	updated, err := coll.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return c.ValidateBusinessError(c.EntityNotFoundBusinessError, collection)
+			return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, collection)
 		}
 
 		return err

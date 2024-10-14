@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"strconv"
 	"strings"
@@ -77,7 +77,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -96,7 +96,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 	if err := row.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 		&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -242,7 +242,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		return nil, c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+		return nil, common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -266,7 +266,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		return c.ValidateBusinessError(c.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
+		return common.ValidateBusinessError(cn.EntityNotFoundBusinessError, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	return nil

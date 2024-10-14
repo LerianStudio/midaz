@@ -3,7 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	c "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -20,7 +21,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(s.Asset{}).Name(), filter)
 	if err != nil || metadata == nil {
-		return nil, c.ValidateBusinessError(c.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(cn.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -36,7 +37,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 		logger.Errorf("Error getting assets on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, c.ValidateBusinessError(c.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(cn.NoAssetsFoundBusinessError, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		return nil, err

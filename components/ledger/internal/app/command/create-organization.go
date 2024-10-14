@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	c "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -31,7 +30,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	}
 
 	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
-		return nil, c.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	organization := &o.Organization{
@@ -53,7 +52,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 
 	if coi.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, coi.Metadata); err != nil {
-			return nil, c.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		meta := m.Metadata{
