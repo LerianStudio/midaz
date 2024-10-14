@@ -39,8 +39,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	accounts := make([]*proto.Account, len(acc))
-
+	accounts := make([]*proto.Account, 0)
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
 	}
@@ -63,8 +62,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 		return nil, common.ValidateBusinessError(cn.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	accounts := make([]*proto.Account, len(acc))
-
+	accounts := make([]*proto.Account, 0)
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
 	}
@@ -80,7 +78,9 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.AccountsRequest) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	accounts := make([]*proto.Account, len(update.GetAccounts()))
+	accounts := make([]*proto.Account, 0)
+
+	uuids := make([]uuid.UUID, 0)
 
 	for _, account := range update.GetAccounts() {
 		if common.IsNilOrEmpty(&account.Id) {
@@ -95,14 +95,28 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			Scale:     &account.Balance.Scale,
 		}
 
-		acu, err := ap.Command.UpdateAccountByID(ctx, account.Id, &balance)
+		_, err := ap.Command.UpdateAccountByID(ctx, account.Id, &balance)
 		if err != nil {
 			logger.Errorf("Failed to update balance in Account by id for grpc, Error: %s", err.Error())
 
 			return nil, common.ValidateBusinessError(cn.ErrBalanceUpdateFailed, reflect.TypeOf(a.Account{}).Name())
 		}
 
-		accounts = append(accounts, acu.ToProto())
+		uuids = append(uuids, uuid.MustParse(account.Id))
+	}
+
+	acc, err := ap.Query.ListAccountsByIDs(ctx, uuids)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
+
+		return nil, common.ValidationError{
+			Code:    "0001",
+			Message: "Failed to retrieve Accounts by ids for grpc",
+		}
+	}
+
+	for _, ac := range acc {
+		accounts = append(accounts, ac.ToProto())
 	}
 
 	response := proto.AccountsResponse{

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -22,7 +23,6 @@ import (
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/ports"
 	httpHandler "github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
 	"github.com/google/wire"
@@ -58,6 +58,20 @@ func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
 	}
 }
 
+func setupCasdoorConnection(cfg *service.Config) *mcasdoor.CasdoorConnection {
+	casdoor := &mcasdoor.CasdoorConnection{
+		JWKUri:           cfg.JWKAddress,
+		Endpoint:         cfg.CasdoorAddress,
+		ClientID:         cfg.CasdoorClientID,
+		ClientSecret:     cfg.CasdoorClientSecret,
+		OrganizationName: cfg.CasdoorOrganizationName,
+		ApplicationName:  cfg.CasdoorApplicationName,
+		EnforcerName:     cfg.CasdoorEnforcerName,
+	}
+
+	return casdoor
+}
+
 func setupGRPCConnection(cfg *service.Config) *mgrpc.GRPCConnection {
 	addr := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
 
@@ -72,6 +86,7 @@ var (
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
+		setupCasdoorConnection,
 		setupGRPCConnection,
 		service.NewConfig,
 		httpHandler.NewRouter,
@@ -80,7 +95,8 @@ var (
 		postgres.NewOperationPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
 		grpc.NewAccountGRPC,
-		wire.Struct(new(ports.TransactionHandler), "*"),
+		wire.Struct(new(httpHandler.TransactionHandler), "*"),
+		wire.Struct(new(httpHandler.OperationHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),

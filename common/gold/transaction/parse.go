@@ -251,6 +251,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		Remaining:   remaining,
 		Description: description,
 		Metadata:    metadata,
+		IsFrom:      true,
 	}
 }
 
@@ -293,6 +294,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		Remaining:   remaining,
 		Description: description,
 		Metadata:    metadata,
+		IsFrom:      false,
 	}
 }
 

@@ -1,4 +1,4 @@
-package ports
+package http
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
@@ -29,25 +30,24 @@ type TransactionHandler struct {
 func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
+	_ = commonHTTP.ValidateParameters(c.Queries())
+
 	organizationID := c.Params("organization_id")
 	ledgerID := c.Params("ledger_id")
 
 	dsl, err := commonHTTP.GetFileFromHeader(c)
 	if err != nil {
-		logger.Error("Failed to validate and parse transaction", err.Error())
-		return commonHTTP.WithError(c, err)
+		logger.Error("Failed to get file from Header: ", err.Error())
+
+		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
 	errListener := transaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		var err []fiber.Map
-		for _, e := range errListener.Errors {
-			err = append(err, fiber.Map{
-				"line":    e.Line,
-				"column":  e.Column,
-				"message": e.Message,
-				"source":  errListener.Source,
-			})
+		err := common.ValidationError{
+			Code:    "0017",
+			Title:   "Invalid Script Error",
+			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
 		}
 
 		return c.Status(http.StatusBadRequest).JSON(err)
@@ -55,30 +55,31 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 
 	parsed := transaction.Parse(dsl)
 
-	logger.Infof("Transaction parsed and validated")
-
 	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
-		return c.Status(http.StatusBadRequest).JSON("Type assertion failed")
+		err := common.ValidationError{
+			Code:    "0017",
+			Title:   "Invalid Script Error",
+			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
+		}
+
+		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	source := make([]string, len(parserDSL.Send.Source.From))
-
-	for i, fr := range parserDSL.Send.Source.From {
-		source[i] = fr.Account
+	validate, err := v.ValidateSendSourceAndDistribute(parserDSL)
+	if err != nil {
+		logger.Error("Validation failed:", err.Error())
+		return commonHTTP.WithError(c, err)
 	}
 
-	destination := make([]string, len(parserDSL.Distribute.To))
+	token := commonHTTP.GetTokenHeader(c)
 
-	for i, ot := range parserDSL.Distribute.To {
-		destination[i] = ot.Account
+	accounts, err := handler.getAccounts(c.Context(), logger, token, validate.Aliases)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
 	}
 
-	var alias []string
-	alias = append(alias, destination...)
-	alias = append(alias, source...)
-
-	accounts, err := handler.processAccounts(c.Context(), logger, alias)
+	err = v.ValidateAccounts(*validate, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -89,20 +90,25 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	tran.Source = source
-	tran.Destination = destination
+	tran.Source = validate.Sources
+	tran.Destination = validate.Destinations
 
 	e := make(chan error)
 	result := make(chan []*o.Operation)
 
 	var operations []*o.Operation
 
-	go handler.Command.CreateOperation(c.Context(), accounts, tran, &parserDSL, result, e)
+	go handler.Command.CreateOperation(c.Context(), accounts, tran.ID, &parserDSL, *validate, result, e)
 	select {
 	case ops := <-result:
 		operations = append(operations, ops...)
 	case err := <-e:
 		logger.Error("Failed to create operations: ", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	err = handler.processAccounts(c.Context(), logger, token, *validate, accounts)
+	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -184,7 +190,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, tran)
 }
 
-func (handler *TransactionHandler) GetAllTTransactions(c *fiber.Ctx) error {
+func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
@@ -231,24 +237,24 @@ func (handler *TransactionHandler) GetAllTTransactions(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, pagination)
 }
 
-// ProcessAccounts is a function that split alias and isd, call the properly function and return Accounts
-func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, input []string) ([]*account.Account, error) {
+// getAccounts is a function that split aliases and ids, call the properly function and return Accounts
+func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, token string, input []string) ([]*account.Account, error) {
 	var ids []string
 
-	var alias []string
+	var aliases []string
 
 	for _, item := range input {
 		if common.IsUUID(item) {
 			ids = append(ids, item)
 		} else {
-			alias = append(alias, item)
+			aliases = append(aliases, item)
 		}
 	}
 
 	var accounts []*account.Account
 
 	if len(ids) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, ids)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, token, ids)
 		if err != nil {
 			logger.Error("Failed to get account gRPC by ids on Ledger", err.Error())
 			return nil, err
@@ -257,8 +263,8 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		accounts = append(accounts, gRPCAccounts.GetAccounts()...)
 	}
 
-	if len(alias) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, alias)
+	if len(aliases) > 0 {
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, token, aliases)
 		if err != nil {
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 			return nil, err
@@ -268,4 +274,40 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 	}
 
 	return accounts, nil
+}
+
+// processAccounts is a function that adjust balance on Accounts
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, token string, validate v.Responses, accounts []*account.Account) error {
+	e := make(chan error)
+	result := make(chan []*account.Account)
+
+	var update []*account.Account
+
+	go v.UpdateAccounts("sub", validate.From, accounts, result, e)
+	select {
+	case r := <-result:
+		update = append(update, r...)
+	case err := <-e:
+		return err
+	}
+
+	go v.UpdateAccounts("add", validate.To, accounts, result, e)
+	select {
+	case r := <-result:
+		update = append(update, r...)
+	case err := <-e:
+		return err
+	}
+
+	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, token, update)
+	if err != nil {
+		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
+		return err
+	}
+
+	for _, a := range acc.Accounts {
+		logger.Infof(a.UpdatedAt)
+	}
+
+	return nil
 }

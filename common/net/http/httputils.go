@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -9,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
-
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -91,9 +90,8 @@ func GetRemoteAddress(r *http.Request) string {
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(dsl)
 	if err != nil {
-		return "", err
+		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "")
 	}
-
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
 		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
@@ -116,10 +114,20 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", err
+		return "", validationError
 	}
 
 	fileString := buf.String()
 
 	return fileString, nil
+}
+
+// GetTokenHeader func that get token from header
+func GetTokenHeader(c *fiber.Ctx) string {
+	splitToken := strings.Split(c.Get(fiber.HeaderAuthorization), "Bearer")
+	if len(splitToken) == 2 {
+		return strings.TrimSpace(splitToken[1])
+	}
+
+	return ""
 }

@@ -13,7 +13,7 @@ type OperationPostgreSQLModel struct {
 	TransactionID         string
 	Description           string
 	Type                  string
-	InstrumentCode        string
+	AssetCode             string
 	Amount                *float64
 	AmountScale           *float64
 	AvailableBalance      *float64
@@ -76,7 +76,7 @@ type Operation struct {
 	TransactionID   string         `json:"transactionId"`
 	Description     string         `json:"description"`
 	Type            string         `json:"type"`
-	InstrumentCode  string         `json:"instrumentCode"`
+	AssetCode       string         `json:"assetCode"`
 	ChartOfAccounts string         `json:"chartOfAccounts"`
 	Amount          Amount         `json:"amount"`
 	Balance         Balance        `json:"balance"`
@@ -122,7 +122,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		TransactionID:   t.TransactionID,
 		Description:     t.Description,
 		Type:            t.Type,
-		InstrumentCode:  t.InstrumentCode,
+		AssetCode:       t.AssetCode,
 		ChartOfAccounts: t.ChartOfAccounts,
 		Amount:          amount,
 		Balance:         balance,
@@ -153,7 +153,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		TransactionID:         operation.TransactionID,
 		Description:           operation.Description,
 		Type:                  operation.Type,
-		InstrumentCode:        operation.InstrumentCode,
+		AssetCode:             operation.AssetCode,
 		ChartOfAccounts:       operation.ChartOfAccounts,
 		Amount:                operation.Amount.Amount,
 		AmountScale:           operation.Amount.Scale,
@@ -162,7 +162,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		AvailableBalance:      operation.Balance.Available,
 		BalanceScaleAfter:     operation.BalanceAfter.Scale,
 		AvailableBalanceAfter: operation.BalanceAfter.Available,
-		OnHoldBalanceAfter:    operation.BalanceAfter.Scale,
+		OnHoldBalanceAfter:    operation.BalanceAfter.OnHold,
 		Status:                operation.Status.Code,
 		StatusDescription:     operation.Status.Description,
 		AccountID:             operation.AccountID,

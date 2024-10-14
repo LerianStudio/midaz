@@ -53,7 +53,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *o
 		record.TransactionID,
 		record.Description,
 		record.Type,
-		record.InstrumentCode,
+		record.AssetCode,
 		record.Amount,
 		record.AmountScale,
 		record.AvailableBalance,
@@ -133,7 +133,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.TransactionID,
 			&operation.Description,
 			&operation.Type,
-			&operation.InstrumentCode,
+			&operation.AssetCode,
 			&operation.Amount,
 			&operation.AmountScale,
 			&operation.AvailableBalance,
@@ -190,7 +190,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.TransactionID,
 			&operation.Description,
 			&operation.Type,
-			&operation.InstrumentCode,
+			&operation.AssetCode,
 			&operation.Amount,
 			&operation.AmountScale,
 			&operation.AvailableBalance,
@@ -240,7 +240,59 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.TransactionID,
 		&operation.Description,
 		&operation.Type,
-		&operation.InstrumentCode,
+		&operation.AssetCode,
+		&operation.Amount,
+		&operation.AmountScale,
+		&operation.AvailableBalance,
+		&operation.BalanceScale,
+		&operation.OnHoldBalance,
+		&operation.AvailableBalanceAfter,
+		&operation.OnHoldBalanceAfter,
+		&operation.BalanceScaleAfter,
+		&operation.Status,
+		&operation.StatusDescription,
+		&operation.AccountID,
+		&operation.AccountAlias,
+		&operation.PortfolioID,
+		&operation.ChartOfAccounts,
+		&operation.OrganizationID,
+		&operation.LedgerID,
+		&operation.CreatedAt,
+		&operation.UpdatedAt,
+		&operation.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, common.EntityNotFoundError{
+				EntityType: reflect.TypeOf(o.Operation{}).Name(),
+				Title:      "Entity not found.",
+				Code:       "0007",
+				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			}
+		}
+
+		return nil, err
+	}
+
+	return operation.ToEntity(), nil
+}
+
+// FindByAccount retrieves a Operation entity from the database using the provided account ID.
+func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*o.Operation, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	operation := &o.OperationPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND id = $4 AND deleted_at IS NULL",
+		organizationID, ledgerID, accountID, id)
+	if err := row.Scan(
+		&operation.ID,
+		&operation.TransactionID,
+		&operation.Description,
+		&operation.Type,
+		&operation.AssetCode,
 		&operation.Amount,
 		&operation.AmountScale,
 		&operation.AvailableBalance,
@@ -352,4 +404,148 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	return nil
+}
+
+// FindAllByAccount retrieves Operations entities from the database using the provided account ID.
+func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, limit, page int) ([]*o.Operation, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var operations []*o.Operation
+
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Expr("account_id = ?", accountID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(common.SafeIntToUint64(limit)).
+		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var operation o.OperationPostgreSQLModel
+		if err := rows.Scan(
+			&operation.ID,
+			&operation.TransactionID,
+			&operation.Description,
+			&operation.Type,
+			&operation.AssetCode,
+			&operation.Amount,
+			&operation.AmountScale,
+			&operation.AvailableBalance,
+			&operation.BalanceScale,
+			&operation.OnHoldBalance,
+			&operation.AvailableBalanceAfter,
+			&operation.OnHoldBalanceAfter,
+			&operation.BalanceScaleAfter,
+			&operation.Status,
+			&operation.StatusDescription,
+			&operation.AccountID,
+			&operation.AccountAlias,
+			&operation.PortfolioID,
+			&operation.ChartOfAccounts,
+			&operation.OrganizationID,
+			&operation.LedgerID,
+			&operation.CreatedAt,
+			&operation.UpdatedAt,
+			&operation.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		operations = append(operations, operation.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return operations, nil
+}
+
+// FindAllByPortfolio retrieves Operations entities from the database using the provided portfolio ID.
+func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*o.Operation, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	var operations []*o.Operation
+
+	findAll := sqrl.Select("*").
+		From(r.tableName).
+		Where(sqrl.Expr("organization_id = ?", organizationID)).
+		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
+		Where(sqrl.Expr("portfolio_id = ?", portfolioID)).
+		Where(sqrl.Eq{"deleted_at": nil}).
+		OrderBy("created_at DESC").
+		Limit(common.SafeIntToUint64(limit)).
+		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		PlaceholderFormat(sqrl.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var operation o.OperationPostgreSQLModel
+		if err := rows.Scan(
+			&operation.ID,
+			&operation.TransactionID,
+			&operation.Description,
+			&operation.Type,
+			&operation.AssetCode,
+			&operation.Amount,
+			&operation.AmountScale,
+			&operation.AvailableBalance,
+			&operation.BalanceScale,
+			&operation.OnHoldBalance,
+			&operation.AvailableBalanceAfter,
+			&operation.OnHoldBalanceAfter,
+			&operation.BalanceScaleAfter,
+			&operation.Status,
+			&operation.StatusDescription,
+			&operation.AccountID,
+			&operation.AccountAlias,
+			&operation.PortfolioID,
+			&operation.ChartOfAccounts,
+			&operation.OrganizationID,
+			&operation.LedgerID,
+			&operation.CreatedAt,
+			&operation.UpdatedAt,
+			&operation.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+
+		operations = append(operations, operation.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return operations, nil
 }
