@@ -15,6 +15,7 @@ type Repository interface {
 	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, limit, page int) ([]*Operation, error)
 	FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*Operation, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Operation, error)
+	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operation *Operation) (*Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
