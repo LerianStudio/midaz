@@ -2,7 +2,6 @@ package http
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -88,23 +87,23 @@ func GetRemoteAddress(r *http.Request) string {
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
+	validationError := common.ValidationError{
+		Code:    "0017",
+		Title:   "Invalid Script Error",
+		Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
+	}
+
 	fileHeader, err := ctx.FormFile(dsl)
 	if err != nil {
-		return "", err
+		return "", validationError
 	}
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", common.ValidationError{
-			Code:    "0001",
-			Message: fmt.Sprintf("This type o file: %s can't be parsed", fileHeader.Filename),
-		}
+		return "", validationError
 	}
 
 	if fileHeader.Size == 0 {
-		return "", common.ValidationError{
-			Code:    "0001",
-			Message: fmt.Sprintf("This file: %s is empty", fileHeader.Filename),
-		}
+		return "", validationError
 	}
 
 	file, err := fileHeader.Open()
@@ -121,10 +120,20 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", err
+		return "", validationError
 	}
 
 	fileString := buf.String()
 
 	return fileString, nil
+}
+
+// GetTokenHeader func that get token from header
+func GetTokenHeader(c *fiber.Ctx) string {
+	splitToken := strings.Split(c.Get(fiber.HeaderAuthorization), "Bearer")
+	if len(splitToken) == 2 {
+		return strings.TrimSpace(splitToken[1])
+	}
+
+	return ""
 }

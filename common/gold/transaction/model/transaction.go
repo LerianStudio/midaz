@@ -38,6 +38,7 @@ type FromTo struct {
 	Description     string         `json:"description,omitempty"`
 	ChartOfAccounts string         `json:"chartOfAccountsG"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
+	IsFrom          bool           `json:"isFrom,omitempty"`
 }
 
 type Distribute struct {

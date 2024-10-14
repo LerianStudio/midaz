@@ -10,7 +10,7 @@ import (
 //
 //go:generate mockgen --destination=../../gen/mock/account/account_mock.go --package=mock . Repository
 type Repository interface {
-	GetAccountsByIds(ctx context.Context, ids []string) (*proto.AccountsResponse, error)
-	GetAccountsByAlias(ctx context.Context, aliases []string) (*proto.AccountsResponse, error)
-	UpdateAccounts(ctx context.Context, accounts []*proto.Account) (*proto.AccountsResponse, error)
+	GetAccountsByIds(ctx context.Context, token string, ids []string) (*proto.AccountsResponse, error)
+	GetAccountsByAlias(ctx context.Context, token string, aliases []string) (*proto.AccountsResponse, error)
+	UpdateAccounts(ctx context.Context, token string, accounts []*proto.Account) (*proto.AccountsResponse, error)
 }

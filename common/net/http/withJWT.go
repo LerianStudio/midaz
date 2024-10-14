@@ -111,15 +111,6 @@ func convertGroups(groups []any) []string {
 	return newGroups
 }
 
-func getTokenHeader(c *fiber.Ctx) string {
-	splitToken := strings.Split(c.Get(fiber.HeaderAuthorization), "Bearer")
-	if len(splitToken) == 2 {
-		return strings.TrimSpace(splitToken[1])
-	}
-
-	return ""
-}
-
 func getTokenHeaderFromContext(ctx context.Context) string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -234,9 +225,9 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 
 		l.Debug("Read token from header")
 
-		tokenString := getTokenHeader(c)
+		tokenString := GetTokenHeader(c)
 
-		if len(tokenString) == 0 {
+		if common.IsNilOrEmpty(&tokenString) {
 			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
 			l.Error(msg.Error())
 
@@ -245,7 +236,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 
 		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
 
-		keySet, err := jwtm.JWK.Fetch(context.Background())
+		keySet, err := jwtm.JWK.Fetch(c.Context())
 		if err != nil {
 			msg := errors.Wrap(err, "Couldn't load JWK keys from source")
 			l.Error(msg.Error())
