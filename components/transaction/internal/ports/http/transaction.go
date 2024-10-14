@@ -1,4 +1,4 @@
-package ports
+package http
 
 import (
 	"context"
@@ -188,7 +188,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, tran)
 }
 
-func (handler *TransactionHandler) GetAllTTransactions(c *fiber.Ctx) error {
+func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
@@ -252,7 +252,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	var accounts []*account.Account
 
 	if len(ids) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, ids)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, "", ids)
 		if err != nil {
 			logger.Error("Failed to get account gRPC by ids on Ledger", err.Error())
 			return nil, err
@@ -262,7 +262,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	}
 
 	if len(aliases) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, aliases)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, "", aliases)
 		if err != nil {
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 			return nil, err
@@ -297,7 +297,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, update)
+	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, "", update)
 	if err != nil {
 		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
 		return err
