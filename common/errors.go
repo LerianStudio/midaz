@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	cn "github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/net/http"
 	"strings"
 )
 
@@ -188,7 +187,71 @@ func (e InternalServerError) Error() string {
 	return e.Message
 }
 
-// ValidateInternalError validate the error and return the appropriate internal error code, title and message
+// ResponseError is a struct used to return errors to the client.
+type ResponseError struct {
+	Code    int    `json:"code,omitempty"`
+	Title   string `json:"title,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+// Error returns the message of the ResponseError.
+//
+// No parameters.
+// Returns a string.
+func (r ResponseError) Error() string {
+	return r.Message
+}
+
+// ValidationKnownFieldsError records an error that occurred during a validation of known fields.
+type ValidationKnownFieldsError struct {
+	EntityType string           `json:"entityType,omitempty"`
+	Title      string           `json:"title,omitempty"`
+	Code       string           `json:"code,omitempty"`
+	Message    string           `json:"message,omitempty"`
+	Fields     FieldValidations `json:"fields,omitempty"`
+}
+
+// Error returns the error message for a ValidationKnownFieldsError.
+//
+// No parameters.
+// Returns a string.
+func (r ValidationKnownFieldsError) Error() string {
+	return r.Message
+}
+
+// FieldValidations is a map of known fields and their validation errors.
+type FieldValidations map[string]string
+
+// ValidationUnknownFieldsError records an error that occurred during a validation of known fields.
+type ValidationUnknownFieldsError struct {
+	EntityType string        `json:"entityType,omitempty"`
+	Title      string        `json:"title,omitempty"`
+	Code       string        `json:"code,omitempty"`
+	Message    string        `json:"message,omitempty"`
+	Fields     UnknownFields `json:"fields,omitempty"`
+}
+
+// Error returns the error message for a ValidationUnknownFieldsError.
+//
+// No parameters.
+// Returns a string.
+func (r ValidationUnknownFieldsError) Error() string {
+	return r.Message
+}
+
+// UnknownFields is a map of unknown fields and their error messages.
+type UnknownFields map[string]any
+
+// Methods to create errors for different scenarios:
+
+// ValidateInternalError validates the error and returns an appropriate InternalServerError.
+//
+// Parameters:
+// - err: The error to be validated.
+// - entityType: The type of the entity associated with the error.
+//
+// Returns:
+// - An InternalServerError with the appropriate code, title, message.
 func ValidateInternalError(err error, entityType string) error {
 	return InternalServerError{
 		EntityType: entityType,
@@ -199,14 +262,22 @@ func ValidateInternalError(err error, entityType string) error {
 	}
 }
 
-// ValidateBadRequestFieldsError validate the error and return the appropriate bad request error code, title, message and the invalid fields
+// ValidateBadRequestFieldsError validates the error and returns the appropriate bad request error code, title, message, and the invalid fields.
+//
+// Parameters:
+// - knownInvalidFields: A map of known invalid fields and their validation errors.
+// - entityType: The type of the entity associated with the error.
+// - unknownFields: A map of unknown fields and their error messages.
+//
+// Returns:
+// - An error indicating the validation result, which could be a ValidationUnknownFieldsError or a ValidationKnownFieldsError.
 func ValidateBadRequestFieldsError(knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
 	if len(unknownFields) == 0 && len(knownInvalidFields) == 0 {
 		return errors.New("expected knownInvalidFields and unknownFields to be non-empty")
 	}
 
 	if len(unknownFields) > 0 {
-		return http.ValidationUnknownFieldsError{
+		return ValidationUnknownFieldsError{
 			EntityType: entityType,
 			Code:       cn.UnexpectedFieldsInTheRequestBusinessError.Error(),
 			Title:      "Unexpected Fields in the Request",
@@ -215,7 +286,7 @@ func ValidateBadRequestFieldsError(knownInvalidFields map[string]string, entityT
 		}
 	}
 
-	return http.ValidationKnownFieldsError{
+	return ValidationKnownFieldsError{
 		EntityType: entityType,
 		Code:       cn.BadRequestBusinessError.Error(),
 		Title:      "Bad Request",
@@ -224,7 +295,15 @@ func ValidateBadRequestFieldsError(knownInvalidFields map[string]string, entityT
 	}
 }
 
-// ValidateBusinessError validate the error and return the appropriate business error code, title and message
+// ValidateBusinessError validates the error and returns the appropriate business error code, title, and message.
+//
+// Parameters:
+//   - err: The error to be validated (ref: https://github.com/LerianStudio/midaz/common/constant/errors.go).
+//   - entityType: The type of the entity related to the error.
+//   - args: Additional arguments for formatting error messages.
+//
+// Returns:
+//   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...interface{}) error {
 	switch {
 	case errors.Is(err, cn.DuplicateLedgerBusinessError):
