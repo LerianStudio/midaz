@@ -276,6 +276,58 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 	return operation.ToEntity(), nil
 }
 
+// FindByAccount retrieves a Operation entity from the database using the provided account ID.
+func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*o.Operation, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	operation := &o.OperationPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND account_id = $3 AND id = $4 AND deleted_at IS NULL",
+		organizationID, ledgerID, accountID, id)
+	if err := row.Scan(
+		&operation.ID,
+		&operation.TransactionID,
+		&operation.Description,
+		&operation.Type,
+		&operation.AssetCode,
+		&operation.Amount,
+		&operation.AmountScale,
+		&operation.AvailableBalance,
+		&operation.BalanceScale,
+		&operation.OnHoldBalance,
+		&operation.AvailableBalanceAfter,
+		&operation.OnHoldBalanceAfter,
+		&operation.BalanceScaleAfter,
+		&operation.Status,
+		&operation.StatusDescription,
+		&operation.AccountID,
+		&operation.AccountAlias,
+		&operation.PortfolioID,
+		&operation.ChartOfAccounts,
+		&operation.OrganizationID,
+		&operation.LedgerID,
+		&operation.CreatedAt,
+		&operation.UpdatedAt,
+		&operation.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, common.EntityNotFoundError{
+				EntityType: reflect.TypeOf(o.Operation{}).Name(),
+				Title:      "Entity not found.",
+				Code:       "0007",
+				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			}
+		}
+
+		return nil, err
+	}
+
+	return operation.ToEntity(), nil
+}
+
 // Update a Operation entity into Postgresql and returns the Operation updated.
 func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operation *o.Operation) (*o.Operation, error) {
 	db, err := r.connection.GetDB()
