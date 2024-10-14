@@ -1,3 +1,10 @@
+## [1.15.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.3...v1.15.0-beta.4) (2024-10-14)
+
+
+### Features
+
+* implement get operation by account :sparkles: ([9137bc1](https://github.com/LerianStudio/midaz/commit/9137bc126f902d23a482e1894995c2cf9bb77230))
+
 ## [1.15.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.15.0-beta.2...v1.15.0-beta.3) (2024-10-11)
 
 
