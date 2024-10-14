@@ -32,7 +32,7 @@ type Responses struct {
 // ValidateAccounts function with some validates in accounts and DSL operations
 func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	for _, acc := range accounts {
-		if acc.Balance.Available == 0 {
+		if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
 			return common.ValidationError{
 				Code:    "0025",
 				Title:   "Insuficient balance",
