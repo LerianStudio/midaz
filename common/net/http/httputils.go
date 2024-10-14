@@ -92,6 +92,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	if err != nil {
 		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "")
 	}
+
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
 		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
