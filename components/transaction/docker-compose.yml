@@ -9,7 +9,7 @@ x-postgres-transaction-common:
     timeout: 5s
     retries: 5
   networks:
-    - app-tier
+    - midaz_network
 
 x-mongodb-common:
   &mongodb-common
@@ -21,7 +21,7 @@ x-mongodb-common:
     timeout: 5s
     retries: 5
   networks:
-    - app-tier
+    - midaz_network
 
 services:
   transaction:
@@ -47,7 +47,7 @@ services:
       replica-transaction:
         condition: service_healthy
     networks:
-      - app-tier
+      - midaz_network
 
   mongodb:
     <<: *mongodb-common
@@ -175,6 +175,6 @@ volumes:
   mongodb_data_container:
 
 networks:
-  app-tier:
+  midaz_network:
+    name: midaz_network
     driver: bridge
-    name: app-tier
