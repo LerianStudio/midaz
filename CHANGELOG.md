@@ -1,3 +1,15 @@
+## [1.16.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.16.0-beta.1...v1.16.0-beta.2) (2024-10-15)
+
+## [1.16.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.15.0...v1.16.0-beta.1) (2024-10-15)
+
+
+### Bug Fixes
+
+* add error treatment when extracting dsl file from header and get creating buffer error :bug: ([807a706](https://github.com/LerianStudio/midaz/commit/807a706a810f0b729e43472abaa93db5d96675be))
+* add solution to avoid nolint:gocyclo in business error messages handler :bug: ([a293625](https://github.com/LerianStudio/midaz/commit/a293625ea937c6a7ccecf94a254933673bf50816))
+* adjust centralized errors name to comply with stylecheck and other lint issues :bug: ([a06361d](https://github.com/LerianStudio/midaz/commit/a06361da717d4330445ab589b5fd9bf800d18743))
+* adjust reference to errors in common instead of http package :bug: ([c0deae2](https://github.com/LerianStudio/midaz/commit/c0deae240ba53530ec9750bacf6cf23862c127dc))
+
 ## [1.15.0](https://github.com/LerianStudio/midaz/compare/v1.14.1...v1.15.0) (2024-10-14)
 
 
