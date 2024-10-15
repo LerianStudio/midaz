@@ -58,20 +58,13 @@ For comprehensive documentation on Midaz features, API references, and best prac
 
 - Join our [Discord community](https://discord.gg/DnhqKwkGv3) for discussions, support, and updates.
 - For bug reports and feature requests, please use our [GitHub Issues](https://github.com/LerianStudio/midaz/issues).
+- If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/discussions).
 - Follow us on [Twitter](https://twitter.com/LerianStudio) for the latest news and announcements.
 
-## Contributing
+## Contributing & License
 
-We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started.
-
-## License
-
-Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
+We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
 
 ## About Lerian
 
-Midaz is developed by Lerian, a tech company founded in 2023, led by a team with a track record in developing ledger and core banking solutions.
-
-## Contact
-
-For any inquiries or support, please reach out to us at [contact@lerian.io](mailto:contact@lerian.io) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).
+Midaz is developed by Lerian, a tech company founded in 2023, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.io](mailto:contact@lerian.io) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).
