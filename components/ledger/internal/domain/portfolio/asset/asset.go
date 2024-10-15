@@ -25,16 +25,16 @@ type AssetPostgreSQLModel struct {
 
 // CreateAssetInput is a struct design to encapsulate request create payload data.
 type CreateAssetInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"max=100"`
 	Type     string         `json:"type"`
-	Code     string         `json:"code"`
+	Code     string         `json:"code" validate:"max=100"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 type UpdateAssetInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"max=100"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -42,9 +42,9 @@ type UpdateAssetInput struct {
 // Asset is a struct designed to encapsulate payload data.
 type Asset struct {
 	ID             string         `json:"id"`
-	Name           string         `json:"name"`
+	Name           string         `json:"name" validate:"max=100"`
 	Type           string         `json:"type"`
-	Code           string         `json:"code"`
+	Code           string         `json:"code" validate:"max=100"`
 	Status         Status         `json:"status"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
@@ -56,8 +56,8 @@ type Asset struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"max=100"`
 }
 
 // IsEmpty method that set empty or nil in fields
