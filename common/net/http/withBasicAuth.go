@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"strings"
 
+	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -57,8 +60,7 @@ func WithBasicAuth(f BasicAuthFunc, realm string) fiber.Handler {
 func unauthorizedResponse(c *fiber.Ctx, realm string) error {
 	c.Set("WWW-Authenticate", `Basic realm="`+realm+`"`)
 
-	return c.Status(401).JSON(fiber.Map{
-		"code":    401,
-		"message": "Unauthorized request",
-	})
+	err := common.ValidateBusinessError(cn.ErrInvalidToken, "Basic Auth")
+
+	return WithError(c, err)
 }

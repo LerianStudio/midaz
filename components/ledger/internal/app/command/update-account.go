@@ -3,8 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -35,12 +36,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, 
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    fmt.Sprintf("Account with id %s was not found", id),
-				Code:       "ACCOUNT_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
@@ -48,7 +44,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, 
 
 	if len(uai.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, uai.Metadata); err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(a.Account{}).Name(), id, uai.Metadata)

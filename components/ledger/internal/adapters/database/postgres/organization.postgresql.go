@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -83,9 +85,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(o.Organization{}).Name(),
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -163,12 +163,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(o.Organization{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -190,12 +185,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 		&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Title:      "Entity not found.",
-				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err
@@ -323,12 +313,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(o.Organization{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
 	return nil

@@ -3,10 +3,11 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -23,12 +24,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID,
 		logger.Errorf("Error getting account on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    fmt.Sprintf("Account with id %s was not found", id),
-				Code:       "ACCOUNT_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrAccountIDNotFound, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err

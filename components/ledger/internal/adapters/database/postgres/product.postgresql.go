@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -76,12 +78,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -102,12 +99,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	defer rows.Close()
 
 	if rows.Next() {
-		return true, common.EntityConflictError{
-			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity found.",
-			Code:       "0008",
-			Message:    "Entity was found matching by the provided Name. Ensure the another Name is being used for the entity you are attempting to manage.",
-		}
+		return true, common.ValidateBusinessError(cn.ErrDuplicateProductName, reflect.TypeOf(r.Product{}).Name(), name, ledgerID)
 	}
 
 	return false, nil
@@ -139,12 +131,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
 	}
 	defer rows.Close()
 
@@ -212,12 +199,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	if err := row.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 		&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Title:      "Entity not found.",
-				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		return nil, err
@@ -281,12 +263,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -311,12 +288,7 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(r.Product{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
 	}
 
 	return nil

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
@@ -87,23 +89,17 @@ func GetRemoteAddress(r *http.Request) string {
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
-	validationError := common.ValidationError{
-		Code:    "0017",
-		Title:   "Invalid Script Error",
-		Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
-	}
-
 	fileHeader, err := ctx.FormFile(dsl)
 	if err != nil {
-		return "", validationError
+		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "")
 	}
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", validationError
+		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	if fileHeader.Size == 0 {
-		return "", validationError
+		return "", common.ValidateBusinessError(cn.ErrEmptyDSLFile, "", fileHeader.Filename)
 	}
 
 	file, err := fileHeader.Open()
@@ -120,7 +116,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", validationError
+		return "", common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	fileString := buf.String()

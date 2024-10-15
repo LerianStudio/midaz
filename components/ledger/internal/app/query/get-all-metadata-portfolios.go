@@ -6,6 +6,8 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -20,12 +22,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(p.Portfolio{}).Name(), filter)
 	if err != nil || metadata == nil {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-			Message:    "Portfolios by metadata was not found",
-			Code:       "PORTFOLIO_NOT_FOUND",
-			Err:        err,
-		}
+		return nil, common.ValidateBusinessError(cn.ErrNoPortfoliosFound, reflect.TypeOf(p.Portfolio{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -41,12 +38,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 		logger.Errorf("Error getting portfolios on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Message:    "Portfolios by metadata was not found",
-				Code:       "PORTFOLIO_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoPortfoliosFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err

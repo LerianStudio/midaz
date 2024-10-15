@@ -3,10 +3,11 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -23,12 +24,7 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id string) (*o.Organ
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    fmt.Sprintf("Organization with id %s was not found", id),
-				Code:       "ORGANIZATION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrOrganizationIDNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err

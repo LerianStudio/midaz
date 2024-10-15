@@ -2,7 +2,11 @@ package http
 
 import (
 	"os"
+	"reflect"
 
+	"github.com/LerianStudio/midaz/common"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -153,10 +157,9 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	if os.Getenv("ENV_NAME") == "production" {
 		logger.Errorf("Failed to remove Ledger with ID: %s in ", id)
 
-		return commonHTTP.BadRequest(c, &fiber.Map{
-			"code":    "0008",
-			"message": "Action not allowed.",
-		})
+		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(l.Ledger{}).Name())
+
+		return commonHTTP.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {

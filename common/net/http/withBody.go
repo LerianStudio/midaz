@@ -2,8 +2,11 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
+
+	"github.com/LerianStudio/midaz/common"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -81,11 +84,8 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if len(diffFields) > 0 {
-		return BadRequest(c, fiber.Map{
-			"code":    "BAD_REQUEST",
-			"message": "Incoming JSON fields do not match the request payload fields",
-			"fields":  diffFields,
-		})
+		err := common.ValidateBadRequestFieldsError(make(map[string]string), "", diffFields)
+		return BadRequest(c, err)
 	}
 
 	if err := ValidateStruct(s); err != nil {
@@ -177,19 +177,20 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	return v, trans
 }
 
-func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) ValidationError {
-	return ValidationError{
-		Code:    "400",
-		Message: "Malformed request.",
-		Fields:  fields(err, trans),
-	}
+func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) common.ValidationKnownFieldsError {
+	invalidFieldsMap := fields(err, trans)
+
+	var vErr common.ValidationKnownFieldsError
+	_ = errors.As(common.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
+
+	return vErr
 }
 
-func fields(errors validator.ValidationErrors, trans ut.Translator) FieldValidations {
-	l := len(errors)
+func fields(errs validator.ValidationErrors, trans ut.Translator) common.FieldValidations {
+	l := len(errs)
 	if l > 0 {
-		fields := make(FieldValidations, l)
-		for _, e := range errors {
+		fields := make(common.FieldValidations, l)
+		for _, e := range errs {
 			fields[e.Field()] = e.Translate(trans)
 		}
 
