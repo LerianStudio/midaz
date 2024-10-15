@@ -3,10 +3,11 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -22,12 +23,7 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id string) error 
 		logger.Errorf("Error deleting organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    fmt.Sprintf("Organization with id %s was not found", id),
-				Code:       "ORGANIZATION_NOT_FOUND",
-				Err:        err,
-			}
+			return common.ValidateBusinessError(cn.ErrOrganizationIDNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return err

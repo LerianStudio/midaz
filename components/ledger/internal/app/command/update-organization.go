@@ -3,8 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -24,7 +25,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 
 	if !uoi.Address.IsEmpty() {
 		if err := common.ValidateCountryAddress(uoi.Address.Country); err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 	}
 
@@ -41,12 +42,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		logger.Errorf("Error updating organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Organization{}).Name(),
-				Message:    fmt.Sprintf("Organization with id %s was not found", id),
-				Code:       "ORGANIZATION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrOrganizationIDNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		return nil, err
@@ -54,7 +50,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 
 	if len(uoi.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, uoi.Metadata); err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Organization{}).Name(), id, uoi.Metadata); err != nil {

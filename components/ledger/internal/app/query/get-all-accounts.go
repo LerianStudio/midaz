@@ -6,6 +6,8 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -23,12 +25,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, 
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    "Account was not found",
-				Code:       "ACCOUNT_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
@@ -37,12 +34,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, 
 	if accounts != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(a.Account{}).Name(), filter)
 		if err != nil {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Message:    "Metadata was not found",
-				Code:       "ACCOUNT_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))
