@@ -48,13 +48,9 @@ Lerian is committed to also providing a robust set of Transactional Services and
 
 ## Getting Started
 
-To begin using Midaz, please follow our [Getting Started Guide](https://docs.midaz.io/getting-started).
+To begin using Midaz, please follow our [Getting Started Guide](https://docs.midaz.io/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.midaz.io).
 
-## Documentation
-
-For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.midaz.io).
-
-## Community and Support
+## Community & Support
 
 - Join our [Discord community](https://discord.gg/DnhqKwkGv3) for discussions, support, and updates.
 - For bug reports and feature requests, please use our [GitHub Issues](https://github.com/LerianStudio/midaz/issues).
@@ -63,7 +59,7 @@ For comprehensive documentation on Midaz features, API references, and best prac
 
 ## Contributing & License
 
-We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
+We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE.md) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
 
 ## About Lerian
 
