@@ -3,10 +3,11 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
@@ -22,12 +23,7 @@ func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id stri
 		logger.Errorf("Error deleting ledger on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Message:    fmt.Sprintf("Ledger with id %s was not found", id),
-				Code:       "LEDGER_NOT_FOUND",
-				Err:        err,
-			}
+			return common.ValidateBusinessError(cn.ErrLedgerIDNotFound, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return err

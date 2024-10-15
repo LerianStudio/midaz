@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	sqrl "github.com/Masterminds/squirrel"
 
 	"github.com/LerianStudio/midaz/common"
@@ -76,9 +78,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -97,12 +97,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 	if err := row.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 		&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-				Title:      "Entity not found.",
-				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -248,12 +243,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -277,12 +267,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(l.Ledger{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
 	}
 
 	return nil

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"time"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
@@ -61,12 +63,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		}
 
 		if acc.AssetCode != cai.AssetCode {
-			return nil, common.ValidationError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Title:      "Mismatched Asset Code",
-				Code:       "0030",
-				Message:    "The provided parent account ID is associated with a different asset code than the one specified in your request. Please ensure the asset code matches that of the parent account, or use a different parent account ID and try again.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrMismatchedAssetCode, reflect.TypeOf(a.Account{}).Name())
 		}
 	}
 
@@ -103,7 +100,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 
 	if cai.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cai.Metadata); err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		meta := m.Metadata{

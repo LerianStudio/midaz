@@ -3,8 +3,9 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -28,12 +29,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		logger.Errorf("Error updating portfolio on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Message:    fmt.Sprintf("Portfolio with ledger id %s and portfolio id %s was not found", ledgerID, id),
-				Code:       "PORTFOLIO_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrPortfolioIDNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -41,7 +37,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 
 	if len(upi.Metadata) > 0 {
 		if err := common.CheckMetadataKeyAndValueLength(100, upi.Metadata); err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id, upi.Metadata); err != nil {
