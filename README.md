@@ -1,4 +1,4 @@
-![Midaz Banner](https://your-banner-url.com/midaz-banner.png)
+![banner](image/README/midaz-banner.png)
 
 <div align="center">
 
