@@ -53,5 +53,6 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 	cmd.SetVersionTemplate(color.New(color.Bold).Sprint(fRoot.factory.CLIVersion))
 	fRoot.setCmds(cmd)
 	fRoot.setFlags(cmd)
+
 	return cmd
 }

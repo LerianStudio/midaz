@@ -11,7 +11,7 @@ get-lint-deps:
 
 .PHONY: lint
 lint: get-lint-deps
-	golangci-lint run ./... --verbose
+	golangci-lint run --fix ./... --verbose
 
 .PHONY: get-govulncheck-deps
 get-govulncheck-deps:
@@ -21,13 +21,21 @@ get-govulncheck-deps:
 govulncheck: get-govulncheck-deps
 	govulncheck ./...
 
+.PHONY: get-gosec-deps
+get-gosec-deps:
+	go install github.com/securego/gosec/v2/cmd/gosec@latest
+
 .PHONY: gosec
 gosec: get-gosec-deps
 	 gosec ./...
 
-.PHONY: get-gosec-deps
-get-gosec-deps:
-	go install github.com/securego/gosec/v2/cmd/gosec@latest
+.PHONY: get-perfsprint-deps
+get-perfsprint-deps:
+	go get github.com/catenacyber/perfsprint@latest
+
+.PHONY : perfsprint
+perfsprint: get-perfsprint-deps
+	perfsprint ./...
 
 .PHONY : build
 build:

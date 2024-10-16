@@ -15,7 +15,8 @@ type factoryVersion struct {
 func (f *factoryVersion) runE(_ *cobra.Command, _ []string) error {
 	return output.Print(&output.GeneralOutput{
 		Msg: color.New(color.Bold).Sprint(f.factory.CLIVersion),
-		Out: f.factory.IOStreams.Out})
+		Out: f.factory.IOStreams.Out,
+	})
 }
 
 func NewCmdVersion(f *factory.Factory) *cobra.Command {
@@ -33,5 +34,6 @@ func NewCmdVersion(f *factory.Factory) *cobra.Command {
 		RunE: fVersion.runE,
 	}
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Midaz CLI")
+
 	return cmd
 }

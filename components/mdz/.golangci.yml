@@ -1,13 +1,145 @@
 linters:
   enable:
-    - revive
-    - errcheck
+    - bodyclose
+    - gocognit
+    - goconst
+    - depguard
+    - dogsled
+    - dupword # Detects duplicate words.
+    - durationcheck
+    - errchkjson
+    - copyloopvar
+    - gocyclo
+    - loggercheck
+    - ineffassign
+    - wsl
+    - misspell # Detects commonly misspelled English words in comments.
+    - nakedret
+    - nilerr # Detects code that returns nil even if it checks that the error is not nil.
+    - nolintlint # Detects ill-formed or insufficient nolint directives.
+    - perfsprint # Detects fmt.Sprintf uses that can be replaced with a faster alternative.
+    - prealloc # Detects slice declarations that could potentially be pre-allocated.
+    - predeclared # Detects code that shadows one of Go's predeclared identifiers
+    - reassign
+    - revive # Metalinter; drop-in replacement for golint.
+    - stylecheck # Replacement for golint
+    - tenv # Detects using os.Setenv instead of t.Setenv.
+    - thelper # Detects test helpers without t.Helper().
+    - tparallel # Detects inappropriate usage of t.Parallel().
+    - unconvert # Detects unnecessary type conversions.
+    - unparam
     - unused
-    - staticcheck
-    - gocritic
+    - usestdlibvars
+    - wastedassign
+    - errcheck
 
+run:
+  timeout: 5m
+  tests: false
+
+linters-settings:
+  depguard:
+    rules:
+      main:
+        deny:
+          - pkg: io/ioutil
+            desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
+  gocyclo:
+    min-complexity: 16
+  govet:
+    enable:
+      - shadow
+    settings:
+      shadow:
+        strict: true
+  revive:
+    rules:
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#import-shadowing
+      - name: import-shadowing
+        severity: warning
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#empty-block
+      - name: empty-block
+        severity: warning
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#empty-lines
+      - name: empty-lines
+        severity: warning
+        disabled: false
+      # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#use-any
+      - name: use-any
+        severity: warning
+        disabled: false
 issues:
+  # The default exclusion rules are a bit too permissive, so copying the relevant ones below
+  exclude-use-default: false
+  exclude:
+    - parameter .* always receives
   exclude-rules:
+    # We prefer to use an "exclude-list" so that new "default" exclusions are not
+    # automatically inherited. We can decide whether or not to follow upstream
+    # defaults when updating golang-ci-lint versions.
+    # Unfortunately, this means we have to copy the whole exclusion pattern, as
+    # (unlike the "include" option), the "exclude" option does not take exclusion
+    # ID's.
+    #
+    # These exclusion patterns are copied from the default excluses at:
+    # https://github.com/golangci/golangci-lint/blob/v1.44.0/pkg/config/issues.go#L10-L104
+    # EXC0001
+    - text: "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+      linters:
+        - errcheck
+    # EXC0003
+    - text: "func name will be used as test\\.Test.* by other packages, and that stutters; consider calling this"
+      linters:
+        - revive
+    # EXC0006
+    - text: "Use of unsafe calls should be audited"
+      linters:
+        - gosec
+    # EXC0007
+    - text: "Subprocess launch(ed with variable|ing should be audited)"
+      linters:
+        - gosec
+    # EXC0008
+    - text: "G307"
+      linters:
+        - gosec
+    # EXC0009
+    - text: "(Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)"
+      linters:
+        - gosec
+    # EXC0010
+    - text: "Potential file inclusion via variable"
+      linters:
+        - gosec
+    - text: "G113"
+      linters:
+        - gosec
+    - text: "G104"
+      linters:
+        - gosec
+    - text: "G204: Subprocess launched with a potential tainted input or cmd arguments"
+      linters:
+        - gosec
+    - text: "G306: Expect WriteFile permissions to be 0600 or less"
+      linters:
+        - gosec
+    - text: "package-comments: should have a package comment"
+      linters:
+        - revive
     - path: _test\.go
-      text: "test files"
-
+      linters:
+        - errcheck
+        - gosec
+    - text: "ST1000: at least one file in a package should have a package comment"
+      linters:
+        - stylecheck
+    # Allow "err" and "ok" vars to shadow existing declarations, otherwise we get too many false positives.
+    - text: '^shadow: declaration of "(err|ok)" shadows declaration'
+      linters:
+        - govet
+  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0

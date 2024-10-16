@@ -22,6 +22,7 @@ func (o *GeneralOutput) Output() error {
 	if _, err := fmt.Fprintf(o.Out, "%s\n", o.Msg); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -37,5 +38,6 @@ func (o *ErrorOutput) Output() error {
 			return err
 		}
 	}
+
 	return nil
 }

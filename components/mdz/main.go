@@ -12,6 +12,7 @@ import (
 func main() {
 	f := factory.NewFactory()
 	cmd := root.NewCmdRoot(f)
+
 	if err := cmd.Execute(); err != nil {
 		printErr := output.Print(&output.ErrorOutput{
 			GeneralOutput: output.GeneralOutput{

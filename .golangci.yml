@@ -8,18 +8,10 @@ linters:
     - dupword # Detects duplicate words.
     - durationcheck
     - errchkjson
-    - exportloopref # Detects pointers to enclosing loop variables.
-    - gocritic # Metalinter; detects bugs, performance, and styling issues.
+    - copyloopvar
     - gocyclo
-    - gofumpt # Detects whether code was gofumpt-ed.
-    - goimports
-    - gosec # Detects security problems.
-    - gosimple
     - loggercheck
-    - govet
-    # - golint
     - ineffassign
-    - megacheck
     - wsl
     - misspell # Detects commonly misspelled English words in comments.
     - nakedret
@@ -34,12 +26,10 @@ linters:
     - tenv # Detects using os.Setenv instead of t.Setenv.
     - thelper # Detects test helpers without t.Helper().
     - tparallel # Detects inappropriate usage of t.Parallel().
-    - typecheck
     - unconvert # Detects unnecessary type conversions.
     - unparam
     - unused
     - usestdlibvars
-    - vet
     - wastedassign
     - errcheck
 
