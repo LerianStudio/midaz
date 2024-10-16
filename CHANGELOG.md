@@ -1,3 +1,19 @@
+## [1.18.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.17.0...v1.18.0-beta.1) (2024-10-16)
+
+
+### Bug Fixes
+
+* filters if any required fields are missing and returns a customized error message :bug: ([7f6c95a](https://github.com/LerianStudio/midaz/commit/7f6c95a4e388f9edb110f19d8ad5f4ca01b1a7ab))
+* sets legalName and legalDocument as required fields for creating or updating an organization :bug: ([1dd238d](https://github.com/LerianStudio/midaz/commit/1dd238d77b68e0e847adc0861deb526588a9049e))
+* update .env.example to transaction access accounts on grpc on ledger :bug: ([a643cc6](https://github.com/LerianStudio/midaz/commit/a643cc61c79678f1a1ae91d5eb623f6de04ee2d6))
+
+## [1.17.0](https://github.com/LerianStudio/midaz/compare/v1.16.0...v1.17.0) (2024-10-16)
+
+
+### Bug Fixes
+
+* update scripts to set variable on collection instead of environment :bug: ([e2a52dc](https://github.com/LerianStudio/midaz/commit/e2a52dc5da8b89d5999bae90da292ebce10729cd))
+
 ## [1.17.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.16.0...v1.17.0-beta.1) (2024-10-16)
 
 
