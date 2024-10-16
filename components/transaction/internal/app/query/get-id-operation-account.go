@@ -32,5 +32,17 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 		return nil, err
 	}
 
+	if op != nil {
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Operation{}).Name(), operationID)
+		if err != nil {
+			logger.Errorf("Error get metadata on mongodb operation: %v", err)
+			return nil, err
+		}
+
+		if metadata != nil {
+			op.Metadata = metadata.Data
+		}
+	}
+
 	return op, nil
 }
