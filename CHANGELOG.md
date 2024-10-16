@@ -1,3 +1,10 @@
+## [1.18.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.18.0-beta.1...v1.18.0-beta.2) (2024-10-16)
+
+
+### Features
+
+* implement patch operation :sparkles: ([d4c6e5c](https://github.com/LerianStudio/midaz/commit/d4c6e5c3823b44b6b3466342f9cc6c24f21e3e05))
+
 ## [1.18.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.17.0...v1.18.0-beta.1) (2024-10-16)
 
 
