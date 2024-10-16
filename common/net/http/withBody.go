@@ -180,7 +180,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) common.ValidationKnownFieldsError {
 	invalidFieldsMap := fields(err, trans)
 
-	var requiredFields = fieldsRequired(invalidFieldsMap)
+	requiredFields := fieldsRequired(invalidFieldsMap)
 
 	var vErr common.ValidationKnownFieldsError
 	_ = errors.As(common.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
