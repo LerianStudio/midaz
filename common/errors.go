@@ -266,15 +266,16 @@ func ValidateInternalError(err error, entityType string) error {
 // ValidateBadRequestFieldsError validates the error and returns the appropriate bad request error code, title, message, and the invalid fields.
 //
 // Parameters:
+// - requiredFields: A map of missing required fields and their error messages.
 // - knownInvalidFields: A map of known invalid fields and their validation errors.
 // - entityType: The type of the entity associated with the error.
 // - unknownFields: A map of unknown fields and their error messages.
 //
 // Returns:
 // - An error indicating the validation result, which could be a ValidationUnknownFieldsError or a ValidationKnownFieldsError.
-func ValidateBadRequestFieldsError(knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
-	if len(unknownFields) == 0 && len(knownInvalidFields) == 0 {
-		return errors.New("expected knownInvalidFields and unknownFields to be non-empty")
+func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string]string, entityType string, unknownFields map[string]any) error {
+	if len(unknownFields) == 0 && len(knownInvalidFields) == 0 && len(requiredFields) == 0 {
+		return errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty")
 	}
 
 	if len(unknownFields) > 0 {
@@ -284,6 +285,16 @@ func ValidateBadRequestFieldsError(knownInvalidFields map[string]string, entityT
 			Title:      "Unexpected Fields in the Request",
 			Message:    "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.",
 			Fields:     unknownFields,
+		}
+	}
+
+	if len(requiredFields) > 0 {
+		return ValidationKnownFieldsError{
+			EntityType: entityType,
+			Code:       cn.ErrMissingFieldsInRequest.Error(),
+			Title:      "Missing Fields in Request",
+			Message:    "Your request is missing one or more required fields. Please refer to the documentation to ensure all necessary fields are included in your request.",
+			Fields:     requiredFields,
 		}
 	}
 
@@ -354,12 +365,6 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       cn.ErrActionNotPermitted.Error(),
 			Title:      "Action Not Permitted",
 			Message:    "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
-		},
-		cn.ErrMissingFieldsInRequest: ValidationError{
-			EntityType: entityType,
-			Code:       cn.ErrMissingFieldsInRequest.Error(),
-			Title:      "Missing Fields in Request",
-			Message:    "Your request is missing one or more required fields. Please refer to the documentation to ensure all necessary fields are included in your request.",
 		},
 		cn.ErrAccountTypeImmutable: ValidationError{
 			EntityType: entityType,

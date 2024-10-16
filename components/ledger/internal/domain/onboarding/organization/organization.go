@@ -25,10 +25,10 @@ type OrganizationPostgreSQLModel struct {
 
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 type CreateOrganizationInput struct {
-	LegalName            string         `json:"legalName"`
+	LegalName            string         `json:"legalName" validate:"required"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
 	DoingBusinessAs      *string        `json:"doingBusinessAs"`
-	LegalDocument        string         `json:"legalDocument"`
+	LegalDocument        string         `json:"legalDocument" validate:"required"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -36,7 +36,7 @@ type CreateOrganizationInput struct {
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 type UpdateOrganizationInput struct {
-	LegalName            string         `json:"legalName"`
+	LegalName            string         `json:"legalName" validate:"required"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
 	DoingBusinessAs      *string        `json:"doingBusinessAs"`
 	Address              Address        `json:"address"`

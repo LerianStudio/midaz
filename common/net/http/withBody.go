@@ -84,7 +84,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if len(diffFields) > 0 {
-		err := common.ValidateBadRequestFieldsError(make(map[string]string), "", diffFields)
+		err := common.ValidateBadRequestFieldsError(common.FieldValidations{}, common.FieldValidations{}, "", diffFields)
 		return BadRequest(c, err)
 	}
 
@@ -180,8 +180,10 @@ func newValidator() (*validator.Validate, ut.Translator) {
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) common.ValidationKnownFieldsError {
 	invalidFieldsMap := fields(err, trans)
 
+	requiredFields := fieldsRequired(invalidFieldsMap)
+
 	var vErr common.ValidationKnownFieldsError
-	_ = errors.As(common.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
+	_ = errors.As(common.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
 }
@@ -198,4 +200,16 @@ func fields(errs validator.ValidationErrors, trans ut.Translator) common.FieldVa
 	}
 
 	return nil
+}
+
+func fieldsRequired(myMap common.FieldValidations) common.FieldValidations {
+	result := make(common.FieldValidations)
+
+	for key, value := range myMap {
+		if strings.Contains(value, "required") {
+			result[key] = value
+		}
+	}
+
+	return result
 }
