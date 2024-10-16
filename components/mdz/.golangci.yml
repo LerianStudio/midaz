@@ -1,0 +1,13 @@
+linters:
+  enable:
+    - revive
+    - errcheck
+    - unused
+    - staticcheck
+    - gocritic
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      text: "test files"
+
