@@ -225,7 +225,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 }
 
 // Find retrieves a Operation entity from the database using the provided ID.
-func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*o.Operation, error) {
+func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*o.Operation, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -233,8 +233,8 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 	operation := &o.OperationPostgreSQLModel{}
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
-		organizationID, ledgerID, id)
+	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND transaction_id = $3 AND id = $4 AND deleted_at IS NULL",
+		organizationID, ledgerID, transactionID, id)
 	if err := row.Scan(
 		&operation.ID,
 		&operation.TransactionID,
@@ -381,7 +381,7 @@ func (r *OperationPostgreSQLRepository) FindByPortfolio(ctx context.Context, org
 }
 
 // Update a Operation entity into Postgresql and returns the Operation updated.
-func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, operation *o.Operation) (*o.Operation, error) {
+func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *o.Operation) (*o.Operation, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -394,15 +394,21 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 	var args []any
 
+	if operation.Description != "" {
+		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Description)
+	}
+
 	record.UpdatedAt = time.Now()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+	args = append(args, record.UpdatedAt, organizationID, ledgerID, transactionID, id)
 
 	query := `UPDATE operation SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+		` AND transaction_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
