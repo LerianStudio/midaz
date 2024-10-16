@@ -1,3 +1,10 @@
+## [1.17.0](https://github.com/LerianStudio/midaz/compare/v1.16.0...v1.17.0) (2024-10-16)
+
+
+### Bug Fixes
+
+* update scripts to set variable on collection instead of environment :bug: ([e2a52dc](https://github.com/LerianStudio/midaz/commit/e2a52dc5da8b89d5999bae90da292ebce10729cd))
+
 ## [1.17.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.16.0...v1.17.0-beta.1) (2024-10-16)
 
 
