@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"unicode"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.
@@ -23,9 +25,7 @@ func Contains[T comparable](slice []T, item T) bool {
 func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 	for k, v := range metadata {
 		if len(k) > limit {
-			return ValidationError{
-				Message: "Error the key: " + k + " must be less than 100 characters",
-			}
+			return cn.ErrMetadataKeyLengthExceeded
 		}
 
 		var value string
@@ -41,9 +41,7 @@ func CheckMetadataKeyAndValueLength(limit int, metadata map[string]any) error {
 		}
 
 		if len(value) > limit {
-			return ValidationError{
-				Message: "Error the value: " + value + " must be less than 100 characters",
-			}
+			return cn.ErrMetadataValueLengthExceeded
 		}
 	}
 
@@ -70,11 +68,7 @@ func ValidateCountryAddress(country string) error {
 	}
 
 	if !slices.Contains(countries, country) {
-		return ValidationError{
-			Code:    "0032",
-			Title:   "Invalid Country Code",
-			Message: "The provided country code in the 'address.country' field does not conform to the ISO-3166 alpha-2 standard. Please provide a valid alpha-2 country code.",
-		}
+		return cn.ErrInvalidCountryCode
 	}
 
 	return nil
@@ -85,11 +79,7 @@ func ValidateType(t string) error {
 	types := []string{"crypto", "currency", "commodity", "others"}
 
 	if !slices.Contains(types, t) {
-		return ValidationError{
-			Code:    "0040",
-			Title:   "Invalid Type",
-			Message: "The provided type is not valid. Accepted types are: currency, crypto, commodities, or others. Please provide a valid type.",
-		}
+		return cn.ErrInvalidType
 	}
 
 	return nil
@@ -111,20 +101,12 @@ func ValidateCurrency(code string) error {
 
 	for _, r := range code {
 		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
-			return ValidationError{
-				Code:    "0004",
-				Title:   "Code Uppercase Requirement",
-				Message: "The code must be in uppercase. Please send the code in uppercase format.",
-			}
+			return cn.ErrCodeUppercaseRequirement
 		}
 	}
 
 	if !slices.Contains(currencies, code) {
-		return ValidationError{
-			Code:    "0005",
-			Title:   "Currency Code Standard Compliance",
-			Message: "Currency-type assets must adhere to the ISO-4217 standard. Please use a currency code that follows ISO-4217 guidelines.",
-		}
+		return cn.ErrCurrencyCodeStandardCompliance
 	}
 
 	return nil

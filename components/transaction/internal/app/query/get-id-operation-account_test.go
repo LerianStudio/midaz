@@ -41,7 +41,7 @@ func TestGetOperationByAccount(t *testing.T) {
 }
 
 func TestGetOperationByAccountError(t *testing.T) {
-	errMSG := "err to create account on database"
+	errMSG := "err to get operation on database"
 	ID := uuid.New()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()

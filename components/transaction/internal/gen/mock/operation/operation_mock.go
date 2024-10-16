@@ -145,6 +145,21 @@ func (mr *MockRepositoryMockRecorder) FindByAccount(arg0, arg1, arg2, arg3, arg4
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAccount", reflect.TypeOf((*MockRepository)(nil).FindByAccount), arg0, arg1, arg2, arg3, arg4)
 }
 
+// FindByPortfolio mocks base method.
+func (m *MockRepository) FindByPortfolio(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*operation.Operation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByPortfolio", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(*operation.Operation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByPortfolio indicates an expected call of FindByPortfolio.
+func (mr *MockRepositoryMockRecorder) FindByPortfolio(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByPortfolio", reflect.TypeOf((*MockRepository)(nil).FindByPortfolio), arg0, arg1, arg2, arg3, arg4)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*operation.Operation, error) {
 	m.ctrl.T.Helper()

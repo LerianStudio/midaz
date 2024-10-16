@@ -7,7 +7,7 @@ toolchain go1.22.0
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
-	github.com/casdoor/casdoor-go-sdk v0.52.0
+	github.com/casdoor/casdoor-go-sdk v1.1.0
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.5

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -78,18 +80,13 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *s.Asset) 
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return record.ToEntity(), nil
 }
 
-// FindByNameOrCode retrieves Asset entities by nam or code from the database.
+// FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -104,12 +101,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	defer rows.Close()
 
 	if rows.Next() {
-		return true, common.EntityConflictError{
-			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Code:       "0003",
-			Title:      "Invalid Data provided.",
-			Message:    "Invalid Data provided.",
-		}
+		return true, common.ValidateBusinessError(cn.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return false, nil
@@ -209,12 +201,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 	if err := row.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
 		&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(s.Asset{}).Name(),
-				Title:      "Entity not found.",
-				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(s.Asset{}).Name())
 		}
 
 		return nil, err
@@ -278,12 +265,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -308,12 +290,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(s.Asset{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	return nil

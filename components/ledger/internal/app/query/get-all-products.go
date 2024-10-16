@@ -6,6 +6,8 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
@@ -23,12 +25,7 @@ func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID 
 		logger.Errorf("Error getting products on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Message:    "Product was not found",
-				Code:       "PRODUCT_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		return nil, err
@@ -37,12 +34,7 @@ func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID 
 	if products != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter)
 		if err != nil {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(r.Product{}).Name(),
-				Message:    "Metadata was not found",
-				Code:       "PRODUCT_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(r.Product{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

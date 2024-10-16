@@ -41,7 +41,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID string, cli 
 
 	if cli.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cli.Metadata); err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
 		meta := m.Metadata{

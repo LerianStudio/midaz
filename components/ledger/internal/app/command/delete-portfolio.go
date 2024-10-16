@@ -3,10 +3,11 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
+	cn "github.com/LerianStudio/midaz/common/constant"
+
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
@@ -22,12 +23,7 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 		logger.Errorf("Error deleting portfolio on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(p.Portfolio{}).Name(),
-				Message:    fmt.Sprintf("Portfolio with id %s was not found", id),
-				Code:       "PORTFOLIO_NOT_FOUND",
-				Err:        err,
-			}
+			return common.ValidateBusinessError(cn.ErrPortfolioIDNotFound, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
 		return err

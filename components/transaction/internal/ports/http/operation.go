@@ -102,3 +102,25 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 
 	return commonHTTP.OK(c, pagination)
 }
+
+func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+	operationID := c.Params("operation_id")
+
+	logger.Infof("Initiating retrieval of Operation by portfolio")
+
+	operation, err := handler.Query.GetOperationByPortfolio(ctx, organizationID, ledgerID, portfolioID, operationID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Operation by portfolio, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Operation by portfolio")
+
+	return commonHTTP.OK(c, operation)
+}

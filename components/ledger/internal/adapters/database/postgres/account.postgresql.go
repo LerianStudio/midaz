@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -93,12 +94,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Acc
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -208,12 +204,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&account.DeletedAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(a.Account{}).Name(),
-				Title:      "Entity not found.",
-				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		return nil, err
@@ -237,12 +228,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	defer rows.Close()
 
 	if rows.Next() {
-		return true, common.EntityConflictError{
-			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Alias has been taken",
-			Code:       "0020",
-			Message:    fmt.Sprintf("The alias %s has been taken already. Please, inform another one.", alias),
-		}
+		return true, common.ValidateBusinessError(cn.ErrAliasUnavailability, reflect.TypeOf(a.Account{}).Name(), alias)
 	}
 
 	return false, nil
@@ -428,12 +414,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return record.ToEntity(), nil
@@ -448,12 +429,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	if _, err := db.ExecContext(ctx, `UPDATE account SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = $4 AND deleted_at IS NULL`,
 		organizationID, ledgerID, portfolioID, id); err != nil {
-		return common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return nil
@@ -615,12 +591,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id 
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(a.Account{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	return record.ToEntity(), nil
