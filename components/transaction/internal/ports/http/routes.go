@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	lib "github.com/LerianStudio/midaz/common/net/http"
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -37,7 +38,7 @@ func NewRouter(cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *Opera
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), oh.GetAllOperationsByPortfolio)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), oh.GetOperationByPortfolio)
 
-	// f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", nil)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), lib.WithBody(new(o.UpdateOperationInput), oh.UpdateOperation))
 
 	// Health
 	f.Get("/health", lib.Ping)

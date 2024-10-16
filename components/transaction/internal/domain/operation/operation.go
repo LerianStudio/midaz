@@ -179,3 +179,9 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }
+
+// UpdateOperationInput is a struct design to encapsulate payload data.
+type UpdateOperationInput struct {
+	Description string         `json:"description"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+}
