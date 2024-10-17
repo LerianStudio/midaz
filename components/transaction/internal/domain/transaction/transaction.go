@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"time"
 
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
@@ -39,11 +40,28 @@ func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
 
+// CreateTransactionInput is a struct design to encapsulate payload data.
+type CreateTransactionInput struct {
+	ChartOfAccountsGroupName string          `json:"chartOfAccountsGroupName"`
+	Description              string          `json:"description,omitempty"`
+	Code                     string          `json:"code,omitempty"`
+	Pending                  bool            `json:"pending,omitempty"`
+	Metadata                 map[string]any  `json:"metadata,omitempty"`
+	Send                     gold.Send       `json:"send,omitempty"`
+	Distribute               gold.Distribute `json:"distribute,omitempty"`
+}
+
 // InputDSL is a struct design to encapsulate payload data.
 type InputDSL struct {
 	TransactionType     uuid.UUID      `json:"transactionType"`
 	TransactionTypeCode string         `json:"transactionTypeCode"`
 	Variables           map[string]any `json:"variables,omitempty"`
+}
+
+// UpdateTransactionInput is a struct design to encapsulate payload data.
+type UpdateTransactionInput struct {
+	Description string         `json:"description"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 // Transaction is a struct designed to encapsulate response payload data.
@@ -124,8 +142,18 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	}
 }
 
-// UpdateTransactionInput is a struct design to encapsulate payload data.
-type UpdateTransactionInput struct {
-	Description string         `json:"description"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+// FromDSl converts an entity FromDSl to gold.Transaction
+func (cti *CreateTransactionInput) FromDSl() *gold.Transaction {
+
+	dsl := &gold.Transaction{
+		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
+		Description:              cti.Description,
+		Code:                     cti.Code,
+		Pending:                  cti.Pending,
+		Metadata:                 cti.Metadata,
+		Send:                     cti.Send,
+		Distribute:               cti.Distribute,
+	}
+
+	return dsl
 }
