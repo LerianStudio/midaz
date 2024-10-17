@@ -1,3 +1,18 @@
+## [1.19.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.1...v1.19.0-beta.2) (2024-10-17)
+
+## [1.19.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.18.0...v1.19.0-beta.1) (2024-10-17)
+
+
+### Features
+
+* implement get operation by portfolio :sparkles: ([1e9322f](https://github.com/LerianStudio/midaz/commit/1e9322f8257672d95d850739609af87c673d7b56))
+* initialize CLI with root and version commands :sparkles: ([6ebff8a](https://github.com/LerianStudio/midaz/commit/6ebff8a40ba097b0eaa4feb1106ebc29a5ba84dc))
+
+
+### Bug Fixes
+
+* resolve conflicts :bug: ([bc4b697](https://github.com/LerianStudio/midaz/commit/bc4b697c2e50cd1ec3cd41e0f96cb933a17b6a79))
+
 ## [1.18.0](https://github.com/LerianStudio/midaz/compare/v1.17.0...v1.18.0) (2024-10-16)
 
 
