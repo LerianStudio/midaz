@@ -151,10 +151,10 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating removal of Ledeger with ID: %s", id)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	if os.Getenv("ENV_NAME") == "production" {
 		logger.Errorf("Failed to remove Ledger with ID: %s in ", id)
