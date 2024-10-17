@@ -1,15 +1,13 @@
 package account
 
 import (
-	"fmt"
-	"math"
-	"strconv"
-	"strings"
-
 	"github.com/LerianStudio/midaz/common"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	a "github.com/LerianStudio/midaz/common/mgrpc/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
+	"math"
+	"strconv"
+	"strings"
 )
 
 // Response return struct with total and per-account amounts
@@ -32,15 +30,18 @@ type Responses struct {
 // ValidateAccounts function with some validates in accounts and DSL operations
 func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	for _, acc := range accounts {
-		if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
-			return common.ValidationError{
-				Code:    "0025",
-				Title:   "Insuficient balance",
-				Message: strings.ReplaceAll("The account {Id} has insufficient balance. Try again sending the amount minor or equal to the available balance.", "{Id}", acc.Id),
-			}
-		}
 
 		for key := range validate.From {
+			if acc.Id == key || acc.Alias == key && acc.Status.AllowSending {
+				if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
+					return common.ValidationError{
+						Code:    "0025",
+						Title:   "Insuficient balance",
+						Message: strings.ReplaceAll("The account {Id} has insufficient balance. Try again sending the amount minor or equal to the available balance.", "{Id}", acc.Alias),
+					}
+				}
+			}
+
 			if acc.Id == key || acc.Alias == key && !acc.Status.AllowSending {
 				return common.ValidationError{
 					Code:    "0019",
@@ -187,14 +188,14 @@ func FindScaleForPercentage(value float64, share gold.Share) (gold.Amount, float
 	return amount, shareValue
 }
 
-// CalculateRemainingFromSend Function to calculate the remaining value when previous values are known
-func CalculateRemainingFromSend(asset string, remainingValue float64) gold.Amount {
+// CalculateRemaining Function to calculate the remaining value when previous values are known
+func CalculateRemaining(asset string, remainingValue float64) gold.Amount {
 	remainingScale := int(math.Ceil(-math.Log10(remainingValue)))
 	normalizedRemainingValue := UndoScale(remainingValue, float64(remainingScale))
 
 	acc := gold.Amount{
 		Asset: asset,
-		Value: fmt.Sprintf("%.0f", normalizedRemainingValue),
+		Value: strconv.FormatFloat(normalizedRemainingValue, 'f', 1, 64),
 		Scale: strconv.Itoa(remainingScale),
 	}
 
@@ -243,7 +244,7 @@ func OperateAmounts(amount gold.Amount, balance *a.Balance, operation string) (o
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
-func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, result chan *Response, e chan error) {
+func calculateTotal(fromTos []gold.FromTo, totalSend float64, scale, asset string, result chan *Response, e chan error) {
 	total := 0.0
 	remaining := totalSend
 	response := Response{
@@ -294,14 +295,18 @@ func calculateTotal(fromTos []gold.FromTo, totalSend float64, asset string, resu
 		response.FromTo[fromTos[i].Account] = amount
 	}
 
-	for i, source := range fromTos {
-		if source.Remaining != "" {
+	for i, tos := range fromTos {
+		if tos.Remaining != "" {
 			total += remaining
 
-			amount := CalculateRemainingFromSend(asset, remaining)
+			amount := CalculateRemaining(asset, remaining)
 
-			response.SD = append(response.SD, source.Account)
-			response.FromTo[source.Account] = amount
+			if amount.Scale == "0" || amount.Scale == "" {
+				amount.Scale = scale
+			}
+
+			response.SD = append(response.SD, tos.Account)
+			response.FromTo[tos.Account] = amount
 			fromTos[i].Amount = &amount
 
 			break
@@ -337,7 +342,7 @@ func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, 
 
 	var destinationsTotal float64
 
-	go calculateTotal(transaction.Send.Source.From, totalSend, transaction.Send.Asset, result, e)
+	go calculateTotal(transaction.Send.Source.From, totalSend, transaction.Send.Scale, transaction.Send.Asset, result, e)
 	select {
 	case from := <-result:
 		sourcesTotal = from.Total
@@ -348,7 +353,7 @@ func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, 
 		return nil, err
 	}
 
-	go calculateTotal(transaction.Distribute.To, totalSend, transaction.Send.Asset, result, e)
+	go calculateTotal(transaction.Distribute.To, totalSend, transaction.Send.Scale, transaction.Send.Asset, result, e)
 	select {
 	case from := <-result:
 		destinationsTotal = from.Total
