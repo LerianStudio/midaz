@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/common"
 
 	cn "github.com/LerianStudio/midaz/common/constant"
@@ -50,10 +52,10 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating retrieval of Ledger with ID: %s", id)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
@@ -118,10 +120,10 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating update of Ledger with ID: %s", id)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := p.(*l.UpdateLedgerInput)
 	logger.Infof("Request to update an Ledger with details: %#v", payload)
