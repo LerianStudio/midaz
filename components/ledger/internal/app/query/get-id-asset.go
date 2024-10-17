@@ -15,11 +15,11 @@ import (
 )
 
 // GetAssetByID get an Asset from the repository by given id.
-func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id string) (*s.Asset, error) {
+func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*s.Asset, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving asset for id: %s", id)
 
-	asset, err := uc.AssetRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id))
+	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		logger.Errorf("Error getting asset on repo by id: %v", err)
 
@@ -31,7 +31,7 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 	}
 
 	if asset != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(s.Asset{}).Name(), id)
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(s.Asset{}).Name(), id.String())
 		if err != nil {
 			logger.Errorf("Error get metadata on mongodb asset: %v", err)
 			return nil, err

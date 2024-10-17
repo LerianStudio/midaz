@@ -98,9 +98,9 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
@@ -122,16 +122,16 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
 
 	payload := a.(*s.UpdateAssetInput)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
-	_, err := handler.Command.UpdateAssetByID(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id), payload)
+	_, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
 		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id, err.Error())
 		return commonHTTP.WithError(c, err)
