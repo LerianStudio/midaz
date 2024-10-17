@@ -60,6 +60,12 @@ tidy:
 sec:
 	gosec ./...
 
+
+mv_env:
+	mv $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
+	mv $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
+	mv $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR).env
+
 auth:
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
 
