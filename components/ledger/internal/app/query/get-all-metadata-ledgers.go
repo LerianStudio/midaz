@@ -16,7 +16,7 @@ import (
 )
 
 // GetAllMetadataLedgers fetch all Ledgers from the repository
-func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID string, filter commonHTTP.QueryHeader) ([]*l.Ledger, error) {
+func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID uuid.UUID, filter commonHTTP.QueryHeader) ([]*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving ledgers")
 
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllMetadataLedgers(ctx context.Context, organizationID str
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	ledgers, err := uc.LedgerRepo.ListByIDs(ctx, uuid.MustParse(organizationID), uuids)
+	ledgers, err := uc.LedgerRepo.ListByIDs(ctx, organizationID, uuids)
 	if err != nil {
 		logger.Errorf("Error getting ledgers on repo by query params: %v", err)
 

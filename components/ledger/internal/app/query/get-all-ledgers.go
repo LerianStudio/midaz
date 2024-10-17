@@ -16,11 +16,11 @@ import (
 )
 
 // GetAllLedgers fetch all Ledgers from the repository
-func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID string, filter commonHTTP.QueryHeader) ([]*l.Ledger, error) {
+func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, filter commonHTTP.QueryHeader) ([]*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving ledgers")
 
-	ledgers, err := uc.LedgerRepo.FindAll(ctx, uuid.MustParse(organizationID), filter.Limit, filter.Page)
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting ledgers on repo: %v", err)
 

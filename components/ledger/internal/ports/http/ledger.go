@@ -73,7 +73,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
