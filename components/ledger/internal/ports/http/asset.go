@@ -24,16 +24,16 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID)
 
-	ledgerID := c.Params("ledger_id")
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID)
 
 	payload := a.(*s.CreateAssetInput)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
-	asset, err := handler.Command.CreateAsset(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), payload)
+	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
