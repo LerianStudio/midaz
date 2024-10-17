@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
@@ -47,7 +49,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating update of Organization with ID: %s", id)
 
 	payload := p.(*o.UpdateOrganizationInput)
@@ -74,7 +76,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
