@@ -172,7 +172,7 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 	}
 
 	if len(invalidUUIDs) > 0 {
-		err := common.ValidateBusinessError(cn.ErrInvalidPathParameter, "", invalidUUIDs)
+		err := common.ValidateBusinessError(cn.ErrInvalidPathParameter, "", strings.Join(invalidUUIDs, ", "))
 		return WithError(c, err)
 	}
 
