@@ -48,10 +48,10 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID)
 
-	ledgerID := c.Params("ledger_id")
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID)
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
