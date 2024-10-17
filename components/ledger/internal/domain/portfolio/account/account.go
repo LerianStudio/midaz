@@ -36,22 +36,22 @@ type AccountPostgreSQLModel struct {
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
 type CreateAccountInput struct {
-	AssetCode       string         `json:"assetCode" validate:"max=10"`
-	Name            string         `json:"name" validate:"max=100"`
-	Alias           *string        `json:"alias" validate:"max=30"`
+	AssetCode       string         `json:"assetCode" validate:"max=100"`
+	Name            string         `json:"name" validate:"max=256"`
+	Alias           *string        `json:"alias" validate:"max=100"`
 	Type            string         `json:"type"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
-	EntityID        *string        `json:"entityId"`
+	EntityID        *string        `json:"entityId" validate:"max=256"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata"`
 }
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
 type UpdateAccountInput struct {
-	Name      string         `json:"name" validate:"max=100"`
+	Name      string         `json:"name" validate:"max=256"`
 	Status    Status         `json:"status"`
-	Alias     *string        `json:"alias" validate:"max=30"`
+	Alias     *string        `json:"alias" validate:"max=100"`
 	ProductID *string        `json:"productId" validate:"uuid"`
 	Metadata  map[string]any `json:"metadata"`
 }
@@ -59,9 +59,9 @@ type UpdateAccountInput struct {
 // Account is a struct designed to encapsulate response payload data.
 type Account struct {
 	ID              string         `json:"id"`
-	Name            string         `json:"name" validate:"max=100"`
+	Name            string         `json:"name" validate:"max=256"`
 	ParentAccountID *string        `json:"parentAccountId"`
-	EntityID        string         `json:"entityId"`
+	EntityID        string         `json:"entityId" validate:"max=256"`
 	AssetCode       string         `json:"assetCode" validate:"max=10"`
 	OrganizationID  string         `json:"organizationId"`
 	LedgerID        string         `json:"ledgerId"`
@@ -69,7 +69,7 @@ type Account struct {
 	ProductID       *string        `json:"productId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
-	Alias           *string        `json:"alias" validate:"max=30"`
+	Alias           *string        `json:"alias" validate:"max=100"`
 	Type            string         `json:"type"`
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`
@@ -80,7 +80,7 @@ type Account struct {
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"max=100"`
+	Description    *string `json:"description" validate:"max=256"`
 	AllowSending   bool    `json:"allowSending"`
 	AllowReceiving bool    `json:"allowReceiving"`
 }

@@ -25,10 +25,10 @@ type OrganizationPostgreSQLModel struct {
 
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 type CreateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"max=100"`
+	LegalName            string         `json:"legalName" validate:"max=256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=100"`
-	LegalDocument        string         `json:"legalDocument" validate:"max=100"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
+	LegalDocument        string         `json:"legalDocument" validate:"max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -36,9 +36,9 @@ type CreateOrganizationInput struct {
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 type UpdateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"max=100"`
+	LegalName            string         `json:"legalName" validate:"max=256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=100"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -48,9 +48,9 @@ type UpdateOrganizationInput struct {
 type Organization struct {
 	ID                   string         `json:"id"`
 	ParentOrganizationID *string        `json:"parentOrganizationId"`
-	LegalName            string         `json:"legalName" validate:"max=100"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=100"`
-	LegalDocument        string         `json:"legalDocument" validate:"max=100"`
+	LegalName            string         `json:"legalName" validate:"max=256"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
+	LegalDocument        string         `json:"legalDocument" validate:"max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	CreatedAt            time.Time      `json:"createdAt"`
@@ -62,7 +62,7 @@ type Organization struct {
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code        string  `json:"code" validate:"max=100"`
-	Description *string `json:"description" validate:"max=100"`
+	Description *string `json:"description" validate:"max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields

@@ -26,15 +26,15 @@ type PortfolioPostgreSQLModel struct {
 
 // CreatePortfolioInput is a struct design to encapsulate request create payload data.
 type CreatePortfolioInput struct {
-	EntityID string         `json:"entityId"`
-	Name     string         `json:"name" validate:"max=100"`
+	EntityID string         `json:"entityId" validate:"max=256"`
+	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdatePortfolioInput is a struct design to encapsulate payload data.
 type UpdatePortfolioInput struct {
-	Name     string         `json:"name" validate:"max=100"`
+	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -42,8 +42,8 @@ type UpdatePortfolioInput struct {
 // Portfolio is a struct designed to encapsulate request update payload data.
 type Portfolio struct {
 	ID             string         `json:"id"`
-	Name           string         `json:"name" validate:"max=100"`
-	EntityID       string         `json:"entityId"`
+	Name           string         `json:"name" validate:"max=256"`
+	EntityID       string         `json:"entityId" validate:"max=256"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
 	Status         Status         `json:"status"`
@@ -56,7 +56,7 @@ type Portfolio struct {
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"max=100"`
+	Description    *string `json:"description" validate:"max=256"`
 	AllowSending   bool    `json:"allowSending"`
 	AllowReceiving bool    `json:"allowReceiving"`
 }
