@@ -144,7 +144,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating removal of Organization with ID: %s", id)
 
 	if os.Getenv("ENV_NAME") == "production" {
