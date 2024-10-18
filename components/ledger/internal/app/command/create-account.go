@@ -23,10 +23,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
-	if common.IsNilOrEmpty(cai.Alias) {
-		cai.Alias = nil
-	}
-
 	var status a.Status
 	if cai.Status.IsEmpty() {
 		status = a.Status{
