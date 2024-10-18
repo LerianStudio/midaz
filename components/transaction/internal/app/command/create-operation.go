@@ -27,8 +27,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 	fromTo = append(fromTo, dsl.Distribute.To...)
 
 	for _, acc := range accounts {
-		for _, ft := range fromTo {
-			if ft.Account == acc.Id || ft.Account == acc.Alias {
+		for i := range fromTo {
+			if fromTo[i].Account == acc.Id || fromTo[i].Account == acc.Alias {
 				logger.Infof("Creating operation for account id: %s", acc.Id)
 
 				balance := o.Balance{
@@ -37,13 +37,13 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					Scale:     &acc.Balance.Scale,
 				}
 
-				amount, balanceAfter, er := v.ValidateFromToOperation(ft, validate, acc)
+				amount, balanceAfter, er := v.ValidateFromToOperation(fromTo[i], validate, acc)
 				if er != nil {
 					err <- er
 				}
 
-				description := ft.Description
-				if common.IsNilOrEmpty(&ft.Description) {
+				description := fromTo[i].Description
+				if common.IsNilOrEmpty(&fromTo[i].Description) {
 					description = dsl.Description
 				}
 
@@ -53,7 +53,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					Description:     description,
 					Type:            acc.Type,
 					AssetCode:       dsl.Send.Asset,
-					ChartOfAccounts: ft.ChartOfAccounts,
+					ChartOfAccounts: fromTo[i].ChartOfAccounts,
 					Amount:          amount,
 					Balance:         balance,
 					BalanceAfter:    balanceAfter,
@@ -73,26 +73,9 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					err <- er
 				}
 
-				if ft.Metadata != nil {
-					if er = common.CheckMetadataKeyAndValueLength(100, ft.Metadata); er != nil {
-						err <- er
-					}
-
-					meta := m.Metadata{
-						EntityID:   operation.ID,
-						EntityName: reflect.TypeOf(o.Operation{}).Name(),
-						Data:       ft.Metadata,
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
-					}
-
-					if er = uc.MetadataRepo.Create(ctx, reflect.TypeOf(o.Operation{}).Name(), &meta); er != nil {
-						logger.Errorf("Error into creating operation metadata: %v", er)
-
-						err <- er
-					}
-
-					operation.Metadata = ft.Metadata
+				er = uc.createMetadata(ctx, logger, fromTo[i].Metadata, operation)
+				if er != nil {
+					err <- er
 				}
 
 				operations = append(operations, operation)
@@ -103,4 +86,31 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 	}
 
 	result <- operations
+}
+
+// createMetadata func that create metadata into operations
+func (uc *UseCase) createMetadata(ctx context.Context, logger mlog.Logger, metadata map[string]any, operation *o.Operation) error {
+	if metadata != nil {
+		if err := common.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
+			return err
+		}
+
+		meta := m.Metadata{
+			EntityID:   operation.ID,
+			EntityName: reflect.TypeOf(o.Operation{}).Name(),
+			Data:       metadata,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+
+		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(o.Operation{}).Name(), &meta); err != nil {
+			logger.Errorf("Error into creating operation metadata: %v", err)
+
+			return err
+		}
+
+		operation.Metadata = metadata
+	}
+
+	return nil
 }

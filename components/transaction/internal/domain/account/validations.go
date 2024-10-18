@@ -30,7 +30,6 @@ type Responses struct {
 // ValidateAccounts function with some validates in accounts and DSL operations
 func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	for _, acc := range accounts {
-
 		for key := range validate.From {
 			if acc.Id == key || acc.Alias == key && acc.Status.AllowSending {
 				if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {

@@ -144,7 +144,6 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 
 // FromDSl converts an entity FromDSl to gold.Transaction
 func (cti *CreateTransactionInput) FromDSl() *gold.Transaction {
-
 	dsl := &gold.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
