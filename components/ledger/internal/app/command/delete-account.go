@@ -15,11 +15,11 @@ import (
 )
 
 // DeleteAccountByID delete an account from the repository by ids.
-func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID, portfolioID, id string) error {
+func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Remove account for id: %s", id)
+	logger.Infof("Remove account for id: %s", id.String())
 
-	if err := uc.AccountRepo.Delete(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), uuid.MustParse(id)); err != nil {
+	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
 		logger.Errorf("Error deleting account on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

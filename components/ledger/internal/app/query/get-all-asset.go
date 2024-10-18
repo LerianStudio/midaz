@@ -16,11 +16,11 @@ import (
 )
 
 // GetAllAssets fetch all Asset from the repository
-func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*s.Asset, error) {
+func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*s.Asset, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving assets")
 
-	assets, err := uc.AssetRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), filter.Limit, filter.Page)
+	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting assets on repo: %v", err)
 

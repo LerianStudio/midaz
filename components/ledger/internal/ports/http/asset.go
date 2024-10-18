@@ -24,16 +24,16 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
 	payload := a.(*s.CreateAssetInput)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
-	asset, err := handler.Command.CreateAsset(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), payload)
+	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		logger.Infof("Error to created Asset: %s", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -49,11 +49,11 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	logger.Infof("Initiating create of Asset with organization ID: %s", organizationID.String())
 
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -99,21 +99,21 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
+	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID, id, err.Error())
+		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
+	logger.Infof("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	return commonHTTP.OK(c, asset)
 }
@@ -123,28 +123,28 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
+	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	payload := a.(*s.UpdateAssetInput)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
-	_, err := handler.Command.UpdateAssetByID(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id), payload)
+	_, err := handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
+	logger.Infof("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	return commonHTTP.OK(c, asset)
 }
@@ -155,18 +155,18 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
+	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	if err := handler.Command.DeleteAssetByID(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id)); err != nil {
-		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID, id, err.Error())
+	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
+		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
+	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	return commonHTTP.NoContent(c)
 }

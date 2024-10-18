@@ -16,7 +16,7 @@ import (
 )
 
 // GetAllMetadataProducts fetch all Products from the repository
-func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
+func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving products")
 
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	products, err := uc.ProductRepo.FindByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
+	products, err := uc.ProductRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
 		logger.Errorf("Error getting products on repo by query params: %v", err)
 
