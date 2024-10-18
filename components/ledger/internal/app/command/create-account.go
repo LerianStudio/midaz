@@ -50,12 +50,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, common.ValidateBusinessError(cn.ErrInvalidCodeFormat, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	isAsset, err := uc.AssetRepo.FindByNameOrCode(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), "", cai.AssetCode)
-	if err != nil {
-		logger.Errorf("Error to find asset by asset code: %v", err.Error())
-		return nil, err
-	}
-
+	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), "", cai.AssetCode)
 	if !isAsset {
 		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
