@@ -1,3 +1,10 @@
+## [1.20.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.19.0...v1.20.0-beta.1) (2024-10-18)
+
+
+### Bug Fixes
+
+* update error message for invalid path parameters :bug: ([5942994](https://github.com/LerianStudio/midaz/commit/5942994ed9f31d3a3257f46a829463df2e607d93))
+
 ## [1.19.0](https://github.com/LerianStudio/midaz/compare/v1.18.0...v1.19.0) (2024-10-18)
 
 
