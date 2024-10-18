@@ -54,7 +54,7 @@ account: VARIABLE
 
 from: '(' 'from' account sendTypes description? chartOfAccounts? metadata? ')';
 send: '(' 'send' UUID valueOrVariable '|' valueOrVariable source ')';
-source: '(' 'source' REMAINING? from+ source? ')';
+source: '(' 'source' REMAINING? from+ ')';
 
 to: '(' 'to' account sendTypes description? chartOfAccounts? metadata? ')';
-distribute: '(' 'distribute' REMAINING? to+ distribute? ')';
+distribute: '(' 'distribute' REMAINING? to+ ')';

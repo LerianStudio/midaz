@@ -27,7 +27,6 @@ type Send struct {
 type Source struct {
 	Remaining string   `json:"remaining,omitempty"`
 	From      []FromTo `json:"from,omitempty"`
-	Source    *Source  `json:"source,omitempty"`
 }
 
 type FromTo struct {
@@ -42,9 +41,8 @@ type FromTo struct {
 }
 
 type Distribute struct {
-	Remaining  string      `json:"remaining,omitempty"`
-	To         []FromTo    `json:"to,omitempty"`
-	Distribute *Distribute `json:"distribute,omitempty"`
+	Remaining string   `json:"remaining,omitempty"`
+	To        []FromTo `json:"to,omitempty"`
 }
 
 type Transaction struct {

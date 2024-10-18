@@ -3,6 +3,7 @@ package factory
 import (
 	"net/http"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 )
 
@@ -12,12 +13,14 @@ type Factory struct {
 	CLIVersion string
 	HTTPClient *http.Client
 	IOStreams  *iostreams.IOStreams
+	Env        *environment.Env
 }
 
-func NewFactory() *Factory {
+func NewFactory(env *environment.Env) *Factory {
 	return &Factory{
 		CLIVersion: CLIVersion,
 		HTTPClient: &http.Client{},
 		IOStreams:  iostreams.System(),
+		Env:        env,
 	}
 }
