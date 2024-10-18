@@ -17,7 +17,7 @@ import (
 // GetOrganizationByID fetch a new organization from the repository
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Retrieving organization for id: %s", id)
+	logger.Infof("Retrieving organization for id: %s", id.String())
 
 	organization, err := uc.OrganizationRepo.Find(ctx, id)
 	if err != nil {
