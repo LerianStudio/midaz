@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -22,11 +23,11 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
-	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioID)
+	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioID.String())
 
 	payload := i.(*a.CreateAccountInput)
 	logger.Infof("Request to create a Account with details: %#v", payload)
@@ -46,11 +47,11 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
-	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID)
+	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID.String())
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -96,22 +97,22 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, portfolioID, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID, id, err.Error())
+		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Successfully retrieved Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	return commonHTTP.OK(c, account)
 }
@@ -121,23 +122,23 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Initiating update of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	payload := i.(*a.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
 	account, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, portfolioID, id, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Successfully updated Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	return commonHTTP.OK(c, account)
 }
@@ -147,19 +148,19 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Initiating removal of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
-		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID, id, err.Error())
+		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	return commonHTTP.NoContent(c)
 }

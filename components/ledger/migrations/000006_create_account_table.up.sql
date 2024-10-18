@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS account
     updated_at                      TIMESTAMP WITH TIME ZONE,
     deleted_at                      TIMESTAMP WITH TIME ZONE,
     FOREIGN KEY (parent_account_id) REFERENCES account (id),
-    FOREIGN KEY (asset_code)        REFERENCES asset (code),
     FOREIGN KEY (organization_id)   REFERENCES organization (id),
     FOREIGN KEY (ledger_id)         REFERENCES ledger (id),
     FOREIGN KEY (portfolio_id)      REFERENCES portfolio (id),

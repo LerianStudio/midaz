@@ -1,5 +1,5 @@
 # Default owners for the entire repository
-*                    @LerianStudio/Dev @LerianStudio/Devops
+*                    @LerianStudio/Dev
 
 # Owners for specific directories and files
 .github/*            @LerianStudio/Devops

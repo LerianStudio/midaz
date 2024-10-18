@@ -27,7 +27,7 @@ type AssetPostgreSQLModel struct {
 type CreateAssetInput struct {
 	Name     string         `json:"name"`
 	Type     string         `json:"type"`
-	Code     string         `json:"code"`
+	Code     string         `json:"code" validate:"required"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }

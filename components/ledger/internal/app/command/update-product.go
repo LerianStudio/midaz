@@ -15,7 +15,7 @@ import (
 )
 
 // UpdateProductByID update a product from the repository by given id.
-func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledgerID, id string, upi *r.UpdateProductInput) (*r.Product, error) {
+func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *r.UpdateProductInput) (*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update product: %v", upi)
 
@@ -24,7 +24,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		Status: upi.Status,
 	}
 
-	productUpdated, err := uc.ProductRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id), product)
+	productUpdated, err := uc.ProductRepo.Update(ctx, organizationID, ledgerID, id, product)
 	if err != nil {
 		logger.Errorf("Error updating product on repo by id: %v", err)
 
@@ -40,7 +40,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(r.Product{}).Name())
 		}
 
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(r.Product{}).Name(), id, upi.Metadata); err != nil {
+		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(r.Product{}).Name(), id.String(), upi.Metadata); err != nil {
 			return nil, err
 		}
 

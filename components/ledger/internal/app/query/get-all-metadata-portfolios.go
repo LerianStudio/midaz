@@ -16,7 +16,7 @@ import (
 )
 
 // GetAllMetadataPortfolios fetch all Portfolios from the repository
-func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*p.Portfolio, error) {
+func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving portfolios")
 
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	portfolios, err := uc.PortfolioRepo.ListByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
+	portfolios, err := uc.PortfolioRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
 		logger.Errorf("Error getting portfolios on repo by query params: %v", err)
 
