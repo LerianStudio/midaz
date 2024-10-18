@@ -17,7 +17,7 @@ import (
 // DeleteLedgerByID deletes a ledger from the repository
 func (uc *UseCase) DeleteLedgerByID(ctx context.Context, organizationID, id uuid.UUID) error {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Remove ledger for id: %s", id)
+	logger.Infof("Remove ledger for id: %s", id.String())
 
 	if err := uc.LedgerRepo.Delete(ctx, organizationID, id); err != nil {
 		logger.Errorf("Error deleting ledger on repo by id: %v", err)

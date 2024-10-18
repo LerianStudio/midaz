@@ -17,7 +17,7 @@ import (
 // GetLedgerByID Get a ledger from the repository by given id.
 func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Retrieving ledger for id: %s", id)
+	logger.Infof("Retrieving ledger for id: %s", id.String())
 
 	ledger, err := uc.LedgerRepo.Find(ctx, organizationID, id)
 	if err != nil {
