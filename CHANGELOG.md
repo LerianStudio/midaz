@@ -1,3 +1,17 @@
+## [1.19.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.5...v1.19.0-beta.6) (2024-10-18)
+
+
+### Bug Fixes
+
+* asset validate create before to ledger_id :bug: ([da0a22a](https://github.com/LerianStudio/midaz/commit/da0a22a38f57c6d8217e8511abb07592523c822f))
+
+## [1.19.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.4...v1.19.0-beta.5) (2024-10-18)
+
+
+### Features
+
+* require code :sparkles: ([40d1bbd](https://github.com/LerianStudio/midaz/commit/40d1bbd7f54c85aaab279e36754274df93d12a34))
+
 ## [1.19.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.3...v1.19.0-beta.4) (2024-10-18)
 
 
