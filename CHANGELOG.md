@@ -1,3 +1,11 @@
+## [1.19.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.2...v1.19.0-beta.3) (2024-10-18)
+
+
+### Bug Fixes
+
+* Invalid code format validation :bug: ([e8383ca](https://github.com/LerianStudio/midaz/commit/e8383cac7957d1f0d63ce20f71534052ab1e8703))
+* Invalid code format validation :bug: ([4dfe76c](https://github.com/LerianStudio/midaz/commit/4dfe76c1092412a129a60b09d408f71d8a59dca0))
+
 ## [1.19.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.1...v1.19.0-beta.2) (2024-10-17)
 
 ## [1.19.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.18.0...v1.19.0-beta.1) (2024-10-17)
