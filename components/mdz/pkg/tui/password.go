@@ -31,7 +31,6 @@ func initialPasswordModel() passwordModel {
 }
 
 type passwordModel struct {
-	message  string
 	password string
 	cursor   int
 	entered  bool
@@ -45,21 +44,21 @@ func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case ctrlC:
 			return m, tea.Quit
-		case "enter":
+		case enter:
 			m.entered = true
 			return m, tea.Quit
-		case "backspace":
+		case backspace:
 			if m.cursor > 0 {
 				m.password = m.password[:m.cursor-1] + m.password[m.cursor:]
 				m.cursor--
 			}
-		case "left":
+		case left:
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "right":
+		case right:
 			if m.cursor < len(m.password) {
 				m.cursor++
 			}
@@ -69,6 +68,7 @@ func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor++
 		}
 	}
+
 	return m, nil
 }
 

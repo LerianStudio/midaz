@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 )
@@ -19,12 +20,6 @@ var (
 
 func initializeContext() {
 	srvCallBackCtx, srvCallBackCancel = context.WithCancel(context.Background())
-}
-
-func shutdownContext() {
-	if srvCallBackCancel != nil {
-		srvCallBackCancel()
-	}
 }
 
 type browser struct {
@@ -42,40 +37,52 @@ func (l *factoryLogin) browserLogin() {
 	if err != nil {
 		l.browser.Err = err
 		output.Printf(l.factory.IOStreams.Err, err.Error())
+
 		return
 	}
 
 	http.HandleFunc("/callback", l.callbackHandler)
 	initializeContext()
 
-	server := http.Server{Addr: ":9000"}
+	server := http.Server{Addr: ":9000", ReadHeaderTimeout: 5 * time.Second}
+
 	go func() {
 		output.Printf(l.factory.IOStreams.Out, "Server running on http://localhost:9000...")
+
 		err := server.ListenAndServe()
+
 		if err != http.ErrServerClosed {
 			l.browser.Err = err
 			output.Printf(l.factory.IOStreams.Out, "Error while serving server for browser login "+err.Error())
+
 			return
 		}
 	}()
 
 	<-srvCallBackCtx.Done() // wait for the signal to gracefully shutdown the server
-	server.Shutdown(context.Background())
+
+	err = server.Shutdown(context.Background())
+	if err != nil {
+		l.browser.Err = err
+		output.Printf(l.factory.IOStreams.Err, err.Error())
+
+		return
+	}
 }
 
 // openBrowser to open the browser in the operating system
-func (l *factoryLogin) openBrowser(url string) error {
+func (l *factoryLogin) openBrowser(u string) error {
 	var err error
 
 	switch runtime.GOOS {
 	case "linux":
-		err = exec.Command("xdg-open", url).Start()
+		err = exec.Command("xdg-open", u).Start()
 	case "windows":
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", u).Start()
 	case "darwin":
-		err = exec.Command("open", url).Start()
+		err = exec.Command("open", u).Start()
 	default:
-		err = fmt.Errorf("unsupported platform")
+		err = errors.New("unsupported platform")
 	}
 
 	if err != nil {
@@ -83,6 +90,7 @@ func (l *factoryLogin) openBrowser(url string) error {
 	}
 
 	output.Printf(l.factory.IOStreams.Out, "Wait Authenticated via browser...")
+
 	return nil
 }
 
@@ -98,10 +106,12 @@ func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	token, err := l.auth.ExchangeToken(code)
 	if err != nil {
 		l.browser.Err = err
+
 		http.Error(w,
 			"Failed to exchange authorization code for access token. Please try again or contact support. :(",
 			http.StatusInternalServerError)
 		output.Printf(l.factory.IOStreams.Err, err.Error())
+
 		return
 	}
 
@@ -167,7 +177,15 @@ func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(htmlResponse))
+
+	_, err = w.Write([]byte(htmlResponse))
+	if err != nil {
+		l.browser.Err = err
+
+		output.Printf(l.factory.IOStreams.Err, err.Error())
+
+		http.Error(w, "Failed to render HTML", http.StatusInternalServerError)
+	}
 
 	srvCallBackCancel()
 }

@@ -10,7 +10,7 @@ import (
 type Env struct {
 	ClientID     string `mapstructure:"CLIENT_ID"`
 	ClientSecret string `mapstructure:"CLIENT_SECRET"`
-	UrlApistring string `mapstructure:"URL_API_AUTH"`
+	URLAPIAuth   string `mapstructure:"URL_API_AUTH"`
 }
 
 func LoadEnv() (Env, error) {
@@ -18,6 +18,7 @@ func LoadEnv() (Env, error) {
 
 	if _, err := os.Stat(".env"); err == nil {
 		viper.SetConfigFile(".env")
+
 		if err := viper.ReadInConfig(); err != nil {
 			fmt.Printf("Error reading config file: %s\n", err)
 			return Env{}, err

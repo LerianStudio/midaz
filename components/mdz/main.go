@@ -13,21 +13,21 @@ func main() {
 	env, err := environment.LoadEnv()
 	if err != nil {
 		output.Printf(os.Stderr, "Failed load envs: "+err.Error())
+
+		os.Exit(1)
 	}
 
 	f := factory.NewFactory(&env)
 	cmd := root.NewCmdRoot(f)
 
 	if err := cmd.Execute(); err != nil {
-		printErr := output.Print(&output.ErrorOutput{
-			GeneralOutput: output.GeneralOutput{
-				Out: f.IOStreams.Err,
-			},
-			Err: err,
-		})
+		printErr := output.Errorf(f.IOStreams.Err, err)
 		if printErr != nil {
 			output.Printf(os.Stderr, "Failed to print error output: "+printErr.Error())
+
 			os.Exit(1)
 		}
+
+		os.Exit(1)
 	}
 }

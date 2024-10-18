@@ -1,7 +1,7 @@
 package tui
 
 import (
-	"fmt"
+	"errors"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -10,6 +10,7 @@ func Select(message string, options []string) (string, error) {
 	model := initialSelectModel(message, options)
 	p := tea.NewProgram(model)
 	finalModel, err := p.Run()
+
 	if err != nil {
 		return "", err
 	}
@@ -18,7 +19,7 @@ func Select(message string, options []string) (string, error) {
 		return m.choices[m.cursor], nil
 	}
 
-	return "", fmt.Errorf("no option selected")
+	return "", errors.New("no option selected")
 }
 
 type selectModel struct {
@@ -59,18 +60,20 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
+
 	return m, nil
 }
 
 func (m selectModel) View() string {
-	s := fmt.Sprintf("%s\n\n", m.message)
+	s := m.message + "\n\n"
 
 	for i, choice := range m.choices {
 		cursor := " "
 		if m.cursor == i {
 			cursor = ">" // add a “>” cursor to the current option
 		}
-		s += fmt.Sprintf("%s %s\n", cursor, choice)
+
+		s += cursor + " " + choice + "\n"
 	}
 
 	s += "\nUse the up/down arrows to move the cursor and press Enter to select."

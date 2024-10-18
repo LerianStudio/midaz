@@ -2,6 +2,7 @@ package rest
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,25 +25,25 @@ func (r *Auth) AuthenticateWithCredentials(username, password string) (*model.To
 	data.Set("password", password)
 
 	resp, err := http.PostForm(
-		r.Factory.Env.UrlApistring+"/api/login/oauth/access_token", data)
+		r.Factory.Env.URLAPIAuth+"/api/login/oauth/access_token", data)
 	if err != nil {
-		return nil, fmt.Errorf("Error request: %w", err)
+		return nil, errors.New("error request: " + err.Error())
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Error when reading the answer: %w", err)
+		return nil, errors.New("error when reading the answer: " + err.Error())
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Error: status %d - %w", resp.StatusCode, err)
+		return nil, fmt.Errorf("error: status %d - %w", resp.StatusCode, err)
 	}
 
 	var tokenResponse model.TokenResponse
-	err = json.Unmarshal(body, &tokenResponse)
-	if err != nil {
-		return nil, fmt.Errorf("Error processing the answer: %w", err)
+
+	if err = json.Unmarshal(body, &tokenResponse); err != nil {
+		return nil, errors.New("error processing the answer: " + err.Error())
 	}
 
 	return &tokenResponse, nil
@@ -59,21 +60,21 @@ func (r *Auth) ExchangeToken(code string) (*model.TokenResponse, error) {
 	data.Set("redirect_uri", redirectURI)
 
 	resp, err := http.PostForm(
-		r.Factory.Env.UrlApistring+"/api/login/oauth/access_token", data)
+		r.Factory.Env.URLAPIAuth+"/api/login/oauth/access_token", data)
 	if err != nil {
-		return nil, fmt.Errorf("Request error: %w", err)
+		return nil, errors.New("request error: " + err.Error())
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Request error: %w", err)
+		return nil, errors.New("request error: " + err.Error())
 	}
 
 	var tokenResponse model.TokenResponse
-	err = json.Unmarshal(body, &tokenResponse)
-	if err != nil {
-		return nil, fmt.Errorf("Error processing the answer: %w", err)
+
+	if err = json.Unmarshal(body, &tokenResponse); err != nil {
+		return nil, errors.New("error processing the answer: " + err.Error())
 	}
 
 	return &tokenResponse, nil

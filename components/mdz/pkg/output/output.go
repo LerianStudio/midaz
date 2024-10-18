@@ -3,19 +3,22 @@ package output
 import (
 	"fmt"
 	"io"
+	"log"
 )
 
 type Output interface {
 	Output() error
 }
 
-func Print(out Output) error {
-	return out.Output()
+func Printf(w io.Writer, msg string) {
+	g := GeneralOutput{Msg: msg, Out: w}
+	g.Output()
 }
 
-func Printf(w io.Writer, msg string) error {
-	g := GeneralOutput{Msg: msg, Out: w}
-	return g.Output()
+func Errorf(w io.Writer, err error) error {
+	e := ErrorOutput{GeneralOutput: GeneralOutput{Out: w}, Err: err}
+
+	return e.Output()
 }
 
 type GeneralOutput struct {
@@ -23,12 +26,10 @@ type GeneralOutput struct {
 	Out io.Writer
 }
 
-func (o *GeneralOutput) Output() error {
+func (o *GeneralOutput) Output() {
 	if _, err := fmt.Fprintf(o.Out, "%s\n", o.Msg); err != nil {
-		return err
+		log.Printf("failed to write output: %v", err)
 	}
-
-	return nil
 }
 
 type ErrorOutput struct {

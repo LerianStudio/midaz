@@ -13,6 +13,7 @@ func Input(message string) (string, error) {
 func runInput(m tea.Model) (string, error) {
 	p := tea.NewProgram(m)
 	finalModel, err := p.Run()
+
 	if err != nil {
 		return "", fmt.Errorf("erro ao iniciar o programa: %w", err)
 	}
@@ -29,11 +30,10 @@ func initialInputModel(message string) inputModel {
 }
 
 type inputModel struct {
-	message    string
-	input      string
-	cursor     int
-	entered    bool
-	isPassword bool
+	message string
+	input   string
+	cursor  int
+	entered bool
 }
 
 func (m inputModel) Init() tea.Cmd {
@@ -44,21 +44,21 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c":
+		case ctrlC:
 			return m, tea.Quit
-		case "enter":
+		case enter:
 			m.entered = true
 			return m, tea.Quit
-		case "backspace":
+		case backspace:
 			if m.cursor > 0 {
 				m.input = m.input[:m.cursor-1] + m.input[m.cursor:]
 				m.cursor--
 			}
-		case "left":
+		case left:
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "right":
+		case right:
 			if m.cursor < len(m.input) {
 				m.cursor++
 			}
@@ -68,6 +68,7 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor++
 		}
 	}
+
 	return m, nil
 }
 
