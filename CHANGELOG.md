@@ -1,3 +1,10 @@
+## [1.21.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.1...v1.21.0-beta.2) (2024-10-18)
+
+
+### Features
+
+* create command login mode term, browser :sparkles: ([80a9326](https://github.com/LerianStudio/midaz/commit/80a932663d5e2747b59fb740a46d828a852e10a9))
+
 ## [1.21.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0-beta.1) (2024-10-18)
 
 
