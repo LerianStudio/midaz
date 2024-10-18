@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -22,11 +23,11 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
-	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioID)
+	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioID.String())
 
 	payload := i.(*a.CreateAccountInput)
 	logger.Infof("Request to create a Account with details: %#v", payload)
