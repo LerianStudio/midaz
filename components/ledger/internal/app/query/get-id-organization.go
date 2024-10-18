@@ -15,11 +15,11 @@ import (
 )
 
 // GetOrganizationByID fetch a new organization from the repository
-func (uc *UseCase) GetOrganizationByID(ctx context.Context, id string) (*o.Organization, error) {
+func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Retrieving organization for id: %s", id)
+	logger.Infof("Retrieving organization for id: %s", id.String())
 
-	organization, err := uc.OrganizationRepo.Find(ctx, uuid.MustParse(id))
+	organization, err := uc.OrganizationRepo.Find(ctx, id)
 	if err != nil {
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
@@ -31,7 +31,7 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id string) (*o.Organ
 	}
 
 	if organization != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Organization{}).Name(), id)
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Organization{}).Name(), id.String())
 		if err != nil {
 			logger.Errorf("Error get metadata on mongodb organization: %v", err)
 			return nil, err

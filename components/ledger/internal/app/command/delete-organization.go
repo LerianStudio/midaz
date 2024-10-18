@@ -15,11 +15,11 @@ import (
 )
 
 // DeleteOrganizationByID fetch a new organization from the repository
-func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id string) error {
+func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Remove organization for id: %s", id)
 
-	if err := uc.OrganizationRepo.Delete(ctx, uuid.MustParse(id)); err != nil {
+	if err := uc.OrganizationRepo.Delete(ctx, id); err != nil {
 		logger.Errorf("Error deleting organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

@@ -13,7 +13,7 @@ import (
 )
 
 // CreateProduct creates a new product persists data in the repository.
-func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID string, cpi *r.CreateProductInput) (*r.Product, error) {
+func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *r.CreateProductInput) (*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create product: %v", cpi)
 
@@ -28,15 +28,15 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID s
 
 	product := &r.Product{
 		ID:             uuid.New().String(),
-		LedgerID:       ledgerID,
-		OrganizationID: organizationID,
+		LedgerID:       ledgerID.String(),
+		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
 
-	_, err := uc.ProductRepo.FindByName(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), cpi.Name)
+	_, err := uc.ProductRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
 		return nil, err
 	}

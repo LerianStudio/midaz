@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -23,9 +24,9 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Initiating create of Product with organization ID: %s and ledger ID: %s", organizationID, ledgerID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Initiating create of Product with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	payload := i.(*r.CreateProductInput)
 	logger.Infof("Request to create a Product with details: %#v", payload)
@@ -45,9 +46,9 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID, ledgerID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -94,18 +95,18 @@ func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
-	logger.Infof("Initiating retrieval of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating retrieval of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	product, err := handler.Query.GetProductByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID, id, err.Error())
+		logger.Errorf("Failed to retrieve Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Successfully retrieved Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	return commonHTTP.OK(c, product)
 }
@@ -115,27 +116,27 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
-	logger.Infof("Initiating update of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating update of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	payload := i.(*r.UpdateProductInput)
 	logger.Infof("Request to update an Product with details: %#v", payload)
 
 	_, err := handler.Command.UpdateProductByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Product with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to update Product with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	product, err := handler.Query.GetProductByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID, id, err.Error())
+		logger.Errorf("Failed to retrieve Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Successfully updated Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	return commonHTTP.OK(c, product)
 }
@@ -146,18 +147,18 @@ func (handler *ProductHandler) DeleteProductByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Initiating removal of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := handler.Command.DeleteProductByID(ctx, organizationID, ledgerID, id); err != nil {
-		logger.Errorf("Failed to remove Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID, id, err.Error())
+		logger.Errorf("Failed to remove Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Successfully removed Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	return commonHTTP.NoContent(c)
 }
