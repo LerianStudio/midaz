@@ -2142,6 +2142,53 @@
 			"name": "Operations",
 			"item": [
 				{
+					"name": "operations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/operations/{{operation_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"transactions",
+								"{{transaction_id}}",
+								"operations",
+								"{{operation_id}}"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+					},
+					"response": []
+				},
+				{
 					"name": "Account -> Operations",
 					"request": {
 						"method": "GET",
