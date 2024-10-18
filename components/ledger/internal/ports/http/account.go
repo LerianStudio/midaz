@@ -47,11 +47,11 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
-	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID)
+	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID.String())
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
