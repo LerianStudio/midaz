@@ -46,6 +46,20 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		Scale:     &balanceValue,
 	}
 
+	if err := common.ValidateCurrency(cai.AssetCode); err != nil {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidCodeFormat, reflect.TypeOf(a.Account{}).Name())
+	}
+
+	isAsset, err := uc.AssetRepo.FindByNameOrCode(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), "", cai.AssetCode)
+	if err != nil {
+		logger.Errorf("Error to find asset by asset code: %v", err.Error())
+		return nil, err
+	}
+
+	if !isAsset {
+		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(a.Account{}).Name())
+	}
+
 	if cai.EntityID == nil {
 		portfolio, err := uc.PortfolioRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID))
 		if err != nil {

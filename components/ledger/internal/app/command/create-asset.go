@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -36,11 +37,16 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		}
 	}
 
-	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
+	isAsset, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
 		logger.Errorf("Error creating asset: %v", err)
 		return nil, err
 	}
+
+	if !isAsset {
+		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(s.Asset{}).Name())
+	}
+
 
 	asset := &s.Asset{
 		Name:           cii.Name,
