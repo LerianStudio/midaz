@@ -1,3 +1,27 @@
+## [1.19.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.6...v1.19.0-beta.7) (2024-10-18)
+
+
+### Features
+
+* adds UUID handler for routes with path parameters :sparkles: ([6153896](https://github.com/LerianStudio/midaz/commit/6153896bc83e0d3048a7223f89eafe6b6f2deae3))
+* adds validation error for invalid path parameters :sparkles: ([270ecfd](https://github.com/LerianStudio/midaz/commit/270ecfdc7aa14040aefa29ab09710aa6274acce9))
+* implements handler for parsing UUID path parameters :sparkles: ([6baa571](https://github.com/LerianStudio/midaz/commit/6baa571275c876ab48760f882e48a400bd892196))
+
+
+### Bug Fixes
+
+* better formatting for error message :bug: ([d7135ff](https://github.com/LerianStudio/midaz/commit/d7135ff90f50f154a95928829142a37226be7629))
+* remove asset_code validation on account :bug: ([05b89c5](https://github.com/LerianStudio/midaz/commit/05b89c52266d1e067ffc429d29405d49f50762dc))
+* uses parsed uuid while creating asset :bug: ([333bf49](https://github.com/LerianStudio/midaz/commit/333bf4921d3f2fd48156ead07ac8b1b29d88d5fa))
+* uses parsed uuid while deleting ledger by id :bug: ([8dc3a97](https://github.com/LerianStudio/midaz/commit/8dc3a97f8c859a6948cad099cd61888c8c016bee))
+* uses parsed uuid while deleting organization :bug: ([866170a](https://github.com/LerianStudio/midaz/commit/866170a1d2bb849fc1ed002a9aed99d7ee43eecb))
+* uses parsed uuid while getting all organization ledgers :bug: ([2260a33](https://github.com/LerianStudio/midaz/commit/2260a331e381d452bcab942f9f06864c60444f52))
+* uses parsed uuid while getting and updating a ledger :bug: ([ad1bcae](https://github.com/LerianStudio/midaz/commit/ad1bcae482d2939c8e828b169b566d3a13be95cd))
+* uses parsed uuid while retrieving all assets from a ledger :bug: ([aadf885](https://github.com/LerianStudio/midaz/commit/aadf8852154726bd4aef2e3295221b5472236ed9))
+* uses parsed uuid while retrieving and updating asset :bug: ([9c8b3a2](https://github.com/LerianStudio/midaz/commit/9c8b3a2f9747117e5149f3a515c8a5b582db4942))
+* uses parsed uuid while retrieving organization :bug: ([e2d2848](https://github.com/LerianStudio/midaz/commit/e2d284808c9c1d95d3d1192be2e4ba3e613318dc))
+* uses UUID to find asset :bug: ([381ba21](https://github.com/LerianStudio/midaz/commit/381ba2178633863f17cffb327a7ab2276926ce0d))
+
 ## [1.19.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.5...v1.19.0-beta.6) (2024-10-18)
 
 
