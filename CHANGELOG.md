@@ -1,3 +1,25 @@
+## [1.19.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.4...v1.19.0-beta.5) (2024-10-18)
+
+
+### Features
+
+* require code :sparkles: ([40d1bbd](https://github.com/LerianStudio/midaz/commit/40d1bbd7f54c85aaab279e36754274df93d12a34))
+
+## [1.19.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.3...v1.19.0-beta.4) (2024-10-18)
+
+
+### Bug Fixes
+
+* add log; :bug: ([3a71282](https://github.com/LerianStudio/midaz/commit/3a712820a16ede4cd50cdc1729c5abf0507950b0))
+* add parentheses on find name or asset query; :bug: ([9b71d2e](https://github.com/LerianStudio/midaz/commit/9b71d2ee9bafba37b0eb9e1a0f328b5d10036d1e))
+* add required in asset_code; :bug: ([d2481eb](https://github.com/LerianStudio/midaz/commit/d2481ebf4d3007df5337394c151360aca28ee69a))
+* adjust to validate if exists code on assets; :bug: ([583890a](https://github.com/LerianStudio/midaz/commit/583890a6c1d178b95b41666a91600a60d3053123))
+* create validation on code to certify that asset_code exist on assets before insert in accounts; :bug: ([2375963](https://github.com/LerianStudio/midaz/commit/2375963e26657972f22ac714c905775bdf0ed5d5))
+* go sec and lint; :bug: ([4d22c8c](https://github.com/LerianStudio/midaz/commit/4d22c8c5be0f6498c5305ed01e1121efbe4e8987))
+* remove copyloopvar and perfsprint; :bug: ([a181709](https://github.com/LerianStudio/midaz/commit/a1817091640de24bad22e43eaddccd86b21dcf82))
+* remove goconst :bug: ([707be65](https://github.com/LerianStudio/midaz/commit/707be656984aaea2c839be70f6c7c17e84375866))
+* remove unique constraint on database in code and reference on accounts; :bug: ([926ca9b](https://github.com/LerianStudio/midaz/commit/926ca9b758d7e69611afa903c035fa01218b108f))
+
 ## [1.19.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.2...v1.19.0-beta.3) (2024-10-18)
 
 
