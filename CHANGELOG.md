@@ -1,3 +1,22 @@
+## [1.21.0](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0) (2024-10-18)
+
+
+### Features
+
+* create command login mode term, browser :sparkles: ([80a9326](https://github.com/LerianStudio/midaz/commit/80a932663d5e2747b59fb740a46d828a852e10a9))
+* create transaction using json based on dsl struct :sparkles: ([a2552ed](https://github.com/LerianStudio/midaz/commit/a2552ed74b40e92963b265f1defd69ab32d43482))
+
+
+### Bug Fixes
+
+* change midaz code owner file :bug: ([8f5e2c2](https://github.com/LerianStudio/midaz/commit/8f5e2c202fe6fa9ae9140ac032ad304f97ab34a6))
+* make sec and lint; :bug: ([93a3dd6](https://github.com/LerianStudio/midaz/commit/93a3dd6eddc6c3f032a7e5844355b81c93ccbf5f))
+* sets entityID as a required field for portfolio creation :bug: ([5a74f7d](https://github.com/LerianStudio/midaz/commit/5a74f7d381061ec677ed6c3d1887793deb4fd7ca))
+* sets name as a required field for portfolio creation :bug: ([ef35811](https://github.com/LerianStudio/midaz/commit/ef358115fba637d8430897b58f87eb5cc2295fb2))
+* some update to add and sub accounts; adjust validate accounts balance; :bug: ([e705cbd](https://github.com/LerianStudio/midaz/commit/e705cbd3db086d400ae6440b8b21870d3c28cd49))
+* update postman; :bug: ([4931c51](https://github.com/LerianStudio/midaz/commit/4931c5117ca48a4bbd4471f61e0f1d987da9c60b))
+* updates to get all accounts :bug: ([f536a9a](https://github.com/LerianStudio/midaz/commit/f536a9a5ee1b949b60dded1b3ae7709b4e219d55))
+
 ## [1.21.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.4...v1.21.0-beta.5) (2024-10-18)
 
 
