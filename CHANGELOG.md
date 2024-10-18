@@ -1,3 +1,24 @@
+## [1.21.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.2...v1.21.0-beta.3) (2024-10-18)
+
+
+### Bug Fixes
+
+* sets entityID as a required field for portfolio creation :bug: ([5a74f7d](https://github.com/LerianStudio/midaz/commit/5a74f7d381061ec677ed6c3d1887793deb4fd7ca))
+
+## [1.21.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.1...v1.21.0-beta.2) (2024-10-18)
+
+
+### Features
+
+* create command login mode term, browser :sparkles: ([80a9326](https://github.com/LerianStudio/midaz/commit/80a932663d5e2747b59fb740a46d828a852e10a9))
+
+## [1.21.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0-beta.1) (2024-10-18)
+
+
+### Bug Fixes
+
+* sets name as a required field for portfolio creation :bug: ([ef35811](https://github.com/LerianStudio/midaz/commit/ef358115fba637d8430897b58f87eb5cc2295fb2))
+
 ## [1.20.0](https://github.com/LerianStudio/midaz/compare/v1.19.0...v1.20.0) (2024-10-18)
 
 
