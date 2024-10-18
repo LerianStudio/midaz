@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -23,9 +24,9 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Initiating create of Product with organization ID: %s and ledger ID: %s", organizationID, ledgerID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Initiating create of Product with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	payload := i.(*r.CreateProductInput)
 	logger.Infof("Request to create a Product with details: %#v", payload)
