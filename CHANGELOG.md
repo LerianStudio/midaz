@@ -1,3 +1,10 @@
+## [1.21.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0-beta.1) (2024-10-18)
+
+
+### Bug Fixes
+
+* sets name as a required field for portfolio creation :bug: ([ef35811](https://github.com/LerianStudio/midaz/commit/ef358115fba637d8430897b58f87eb5cc2295fb2))
+
 ## [1.20.0](https://github.com/LerianStudio/midaz/compare/v1.19.0...v1.20.0) (2024-10-18)
 
 
