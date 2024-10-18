@@ -100,7 +100,9 @@ func ValidateCurrency(code string) error {
 	}
 
 	for _, r := range code {
-		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
+		if !unicode.IsLetter(r) {
+			return cn.ErrInvalidCodeFormat
+		} else if !unicode.IsUpper(r) {
 			return cn.ErrCodeUppercaseRequirement
 		}
 	}

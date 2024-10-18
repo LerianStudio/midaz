@@ -36,7 +36,7 @@ type AccountPostgreSQLModel struct {
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
 type CreateAccountInput struct {
-	AssetCode       string         `json:"assetCode"`
+	AssetCode       string         `json:"assetCode" validate:"required"`
 	Name            string         `json:"name"`
 	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`

@@ -38,6 +38,8 @@ github.com/bxcodec/dbresolver/v2 v2.2.0 h1:3Xg5Cw64khndjnWYiadP1mL1XU8eVxtkqcDad
 github.com/bxcodec/dbresolver/v2 v2.2.0/go.mod h1:xWb3HT8vrWUnoLVA7KQ+IcD9RvnzfRBqOkO9rKsg1rQ=
 github.com/casdoor/casdoor-go-sdk v1.1.0 h1:QW1pMoGG18X+GrcMolKKaTXCLDOpoYCu2kbfUZZQ+5A=
 github.com/casdoor/casdoor-go-sdk v1.1.0/go.mod h1:cMnkCQJgMYpgAlgEx8reSt1AVaDIQLcJ1zk5pzBaz+4=
+github.com/catenacyber/perfsprint v0.7.1 h1:PGW5G/Kxn+YrN04cRAZKC+ZuvlVwolYMrIyyTJ/rMmc=
+github.com/catenacyber/perfsprint v0.7.1/go.mod h1:/wclWYompEyjUD2FuIIDVKNkqz7IgBIWXIH3V0Zol50=
 github.com/containerd/console v1.0.3/go.mod h1:7LqA/THxQ86k76b8c/EMSiaJ3h1eZkMkXar0TQ1gf3U=
 github.com/containerd/console v1.0.4 h1:F2g4+oChYvBTsASRTz8NP6iIAi97J3TtSAsLbIFn4ro=
 github.com/containerd/console v1.0.4/go.mod h1:YynlIjWYF8myEu6sdkwKIvGQq+cOckRm6So2avqoYAk=

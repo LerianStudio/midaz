@@ -23,10 +23,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
-	if common.IsNilOrEmpty(cai.Alias) {
-		cai.Alias = nil
-	}
-
 	var status a.Status
 	if cai.Status.IsEmpty() {
 		status = a.Status{
@@ -44,6 +40,15 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		Available: &balanceValue,
 		OnHold:    &balanceValue,
 		Scale:     &balanceValue,
+	}
+
+	if err := common.ValidateCurrency(cai.AssetCode); err != nil {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidCodeFormat, reflect.TypeOf(a.Account{}).Name())
+	}
+
+	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), "", cai.AssetCode)
+	if !isAsset {
+		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	if cai.EntityID == nil {

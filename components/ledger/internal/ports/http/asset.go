@@ -35,6 +35,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
 	if err != nil {
+		logger.Infof("Error to created Asset: %s", err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
