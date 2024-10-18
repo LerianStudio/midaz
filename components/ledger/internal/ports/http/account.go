@@ -148,19 +148,19 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Initiating removal of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
-		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID, id, err.Error())
+		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	return commonHTTP.NoContent(c)
 }
