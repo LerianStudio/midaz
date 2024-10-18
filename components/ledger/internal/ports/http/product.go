@@ -147,18 +147,18 @@ func (handler *ProductHandler) DeleteProductByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating removal of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Initiating removal of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := handler.Command.DeleteProductByID(ctx, organizationID, ledgerID, id); err != nil {
-		logger.Errorf("Failed to remove Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID, id, err.Error())
+		logger.Errorf("Failed to remove Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Successfully removed Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	return commonHTTP.NoContent(c)
 }

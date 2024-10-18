@@ -15,11 +15,11 @@ import (
 )
 
 // DeleteProductByID delete a product from the repository by ids.
-func (uc *UseCase) DeleteProductByID(ctx context.Context, organizationID, ledgerID, id string) error {
+func (uc *UseCase) DeleteProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Remove product for id: %s", id)
+	logger.Infof("Remove product for id: %s", id.String())
 
-	if err := uc.ProductRepo.Delete(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id)); err != nil {
+	if err := uc.ProductRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		logger.Errorf("Error deleting product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
