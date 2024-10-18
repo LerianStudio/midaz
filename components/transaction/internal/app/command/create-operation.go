@@ -42,10 +42,15 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					err <- er
 				}
 
+				description := ft.Description
+				if common.IsNilOrEmpty(&ft.Description) {
+					description = dsl.Description
+				}
+
 				save := &o.Operation{
 					ID:              uuid.New().String(),
 					TransactionID:   transactionID,
-					Description:     ft.Description,
+					Description:     description,
 					Type:            acc.Type,
 					AssetCode:       dsl.Send.Asset,
 					ChartOfAccounts: ft.ChartOfAccounts,

@@ -96,6 +96,8 @@ func ValidateFromToOperation(ft gold.FromTo, validate Responses, acc *a.Account)
 
 // UpdateAccounts function with some updates values in accounts and
 func UpdateAccounts(operation string, fromTo map[string]gold.Amount, accounts []*a.Account, result chan []*a.Account, e chan error) {
+	accs := make([]*a.Account, 0)
+
 	for _, acc := range accounts {
 		for key := range fromTo {
 			if acc.Id == key || acc.Alias == key {
@@ -117,30 +119,32 @@ func UpdateAccounts(operation string, fromTo map[string]gold.Amount, accounts []
 					AllowReceiving: acc.Status.AllowReceiving,
 				}
 
-				result <- []*a.Account{
-					{
-						Id:              acc.Id,
-						Alias:           acc.Alias,
-						Name:            acc.Name,
-						ParentAccountId: acc.ParentAccountId,
-						EntityId:        acc.EntityId,
-						OrganizationId:  acc.OrganizationId,
-						LedgerId:        acc.LedgerId,
-						PortfolioId:     acc.PortfolioId,
-						ProductId:       acc.ProductId,
-						AssetCode:       acc.AssetCode,
-						Balance:         &balance,
-						Status:          &status,
-						Type:            acc.Type,
-						CreatedAt:       acc.CreatedAt,
-						UpdatedAt:       acc.UpdatedAt,
-					},
+				ac := a.Account{
+					Id:              acc.Id,
+					Alias:           acc.Alias,
+					Name:            acc.Name,
+					ParentAccountId: acc.ParentAccountId,
+					EntityId:        acc.EntityId,
+					OrganizationId:  acc.OrganizationId,
+					LedgerId:        acc.LedgerId,
+					PortfolioId:     acc.PortfolioId,
+					ProductId:       acc.ProductId,
+					AssetCode:       acc.AssetCode,
+					Balance:         &balance,
+					Status:          &status,
+					Type:            acc.Type,
+					CreatedAt:       acc.CreatedAt,
+					UpdatedAt:       acc.UpdatedAt,
 				}
+
+				accs = append(accs, &ac)
 
 				break
 			}
 		}
 	}
+
+	result <- accs
 }
 
 // Scale func scale: (V * 10^-S)
