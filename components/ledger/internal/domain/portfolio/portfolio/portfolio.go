@@ -27,7 +27,7 @@ type PortfolioPostgreSQLModel struct {
 // CreatePortfolioInput is a struct design to encapsulate request create payload data.
 type CreatePortfolioInput struct {
 	EntityID string         `json:"entityId"`
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"required"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
