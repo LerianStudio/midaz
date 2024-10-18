@@ -60,6 +60,12 @@ tidy:
 sec:
 	gosec ./...
 
+
+set_env:
+	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
+	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
+	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR).env
+
 auth:
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
 
