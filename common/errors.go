@@ -689,7 +689,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       cn.ErrInvalidPathParameter.Error(),
 			Title:      "Invalid Path Parameter",
-			Message:    fmt.Sprintf("The provided path parameter(s) %s is/are not in the expected format. Please ensure the parameter adheres to the required format and try again.", args),
+			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %s and ensure they meet the required format before trying again.", args),
 		},
 	}
 
