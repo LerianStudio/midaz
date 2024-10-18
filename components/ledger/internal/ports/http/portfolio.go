@@ -48,9 +48,9 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID, ledgerID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -102,7 +102,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	logger.Infof("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID, ledgerID, id)
+	logger.Infof("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
