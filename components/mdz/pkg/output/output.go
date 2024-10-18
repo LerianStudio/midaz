@@ -13,6 +13,11 @@ func Print(out Output) error {
 	return out.Output()
 }
 
+func Printf(w io.Writer, msg string) error {
+	g := GeneralOutput{Msg: msg, Out: w}
+	return g.Output()
+}
+
 type GeneralOutput struct {
 	Msg string
 	Out io.Writer

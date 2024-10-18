@@ -1,16 +1,21 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/root"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 )
 
 func main() {
-	f := factory.NewFactory()
+	env, err := environment.LoadEnv()
+	if err != nil {
+		output.Printf(os.Stderr, "Failed load envs: "+err.Error())
+	}
+
+	f := factory.NewFactory(&env)
 	cmd := root.NewCmdRoot(f)
 
 	if err := cmd.Execute(); err != nil {
@@ -21,7 +26,7 @@ func main() {
 			Err: err,
 		})
 		if printErr != nil {
-			fmt.Fprintf(os.Stderr, "Failed to print error output: %v\n", printErr)
+			output.Printf(os.Stderr, "Failed to print error output: "+printErr.Error())
 			os.Exit(1)
 		}
 	}
