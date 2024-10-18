@@ -1,10 +1,13 @@
 package http
 
 import (
+	"context"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"google.golang.org/grpc"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/gofiber/fiber/v2"
@@ -129,8 +132,8 @@ type logMiddleware struct {
 // LogMiddlewareOption represents the log middleware function as an implementation.
 type LogMiddlewareOption func(l *logMiddleware)
 
-// WithLogger is a functional option for logMiddleware.
-func WithLogger(logger mlog.Logger) LogMiddlewareOption {
+// WithCustomLogger is a functional option for logMiddleware.
+func WithCustomLogger(logger mlog.Logger) LogMiddlewareOption {
 	return func(l *logMiddleware) {
 		l.Logger = logger
 	}
@@ -149,10 +152,10 @@ func buildOpts(opts ...LogMiddlewareOption) *logMiddleware {
 	return mid
 }
 
-// WithLog is a middleware to log access to http server.
+// WithHTTPLogging is a middleware to log access to http server.
 // It logs access log according to Apache Standard Logs which uses Common Log Format (CLF)
 // Ref: https://httpd.apache.org/docs/trunk/logs.html#common
-func WithLog(opts ...LogMiddlewareOption) fiber.Handler {
+func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if c.Path() == "/health" {
 			return c.Next()
@@ -188,5 +191,28 @@ func WithLog(opts ...LogMiddlewareOption) fiber.Handler {
 		}
 
 		return nil
+	}
+}
+
+// WithGrpcLogging is a gRPC unary interceptor to log access to gRPC server.
+func WithGrpcLogging(opts ...LogMiddlewareOption) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req any,
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (any, error) {
+		mid := buildOpts(opts...)
+		logger := mid.Logger
+
+		ctx = mlog.ContextWithLogger(ctx, logger)
+
+		start := time.Now()
+		resp, err := handler(ctx, req)
+		duration := time.Since(start)
+
+		logger.Infof("gRPC method: %s, Duration: %s, Error: %v", info.FullMethod, duration, err)
+
+		return resp, err
 	}
 }

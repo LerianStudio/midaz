@@ -41,7 +41,8 @@ func InitializeLogger() mlog.Logger {
 
 	zapCfg.DisableStacktrace = true
 
-	logger, err := zapCfg.Build()
+	// AddCallerSkip(1) is used to skip the stack frame of the zap logger wrapper code and get the actual caller
+	logger, err := zapCfg.Build(zap.AddCallerSkip(1))
 	if err != nil {
 		log.Fatalf("can't initialize zap logger: %v", err)
 	}
