@@ -46,9 +46,9 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID, ledgerID)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
