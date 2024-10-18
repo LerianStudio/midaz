@@ -85,6 +85,18 @@ func ValidateType(t string) error {
 	return nil
 }
 
+func ValidateCode(code string) error {
+	for _, r := range code {
+		if !unicode.IsLetter(r) {
+			return cn.ErrInvalidCodeFormat
+		} else if !unicode.IsUpper(r) {
+			return cn.ErrCodeUppercaseRequirement
+		}
+	}
+
+	return nil
+}
+
 // ValidateCurrency validate if code contains in currencies list using ISO 4217
 func ValidateCurrency(code string) error {
 	currencies := []string{
@@ -97,14 +109,6 @@ func ValidateCurrency(code string) error {
 		"PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN",
 		"SVC", "SYP", "SZL", "THB", "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "USD", "USN", "UYI", "UYU", "UZS",
 		"VED", "VEF", "VND", "VUV", "WST", "XAF", "XCD", "XDR", "XOF", "XPF", "XSU", "XUA", "YER", "ZAR", "ZMW", "ZWL",
-	}
-
-	for _, r := range code {
-		if !unicode.IsLetter(r) {
-			return cn.ErrInvalidCodeFormat
-		} else if !unicode.IsUpper(r) {
-			return cn.ErrCodeUppercaseRequirement
-		}
 	}
 
 	if !slices.Contains(currencies, code) {
