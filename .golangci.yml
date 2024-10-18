@@ -2,7 +2,6 @@ linters:
   enable:
     - bodyclose
     - gocognit
-    - goconst
     - depguard
     - dogsled
     - dupword # Detects duplicate words.
