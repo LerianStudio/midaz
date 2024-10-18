@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -95,9 +96,9 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
@@ -119,9 +120,9 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger.Infof("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID, ledgerID, id)
 
