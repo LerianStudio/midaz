@@ -46,7 +46,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, common.ValidateBusinessError(cn.ErrInvalidCodeFormat, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), "", cai.AssetCode)
+	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
 		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
