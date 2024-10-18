@@ -154,13 +154,13 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
 	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID, id)
 
-	if err := handler.Command.DeleteAssetByID(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id)); err != nil {
+	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
 		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID, id, err.Error())
 		return commonHTTP.WithError(c, err)
 	}
