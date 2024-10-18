@@ -122,23 +122,23 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
-	id := c.Params("id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Initiating update of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	payload := i.(*a.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
 	account, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, portfolioID, id, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Account with Portfolio ID: %s and Account ID: %s", portfolioID, id)
+	logger.Infof("Successfully updated Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	return commonHTTP.OK(c, account)
 }
