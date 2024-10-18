@@ -26,14 +26,22 @@ type TransactionHandler struct {
 	Query   *query.UseCase
 }
 
-// CreateTransaction method that create transaction
-func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
+// CreateTransactionJSON method that create transaction using JSON
+func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	input := p.(*t.CreateTransactionInput)
+	parserDSL := input.FromDSl()
+	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
+
+	return handler.createTransaction(c, logger, *parserDSL)
+}
+
+// CreateTransactionDSL method that create transaction using DSL
+func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
 	_ = commonHTTP.ValidateParameters(c.Queries())
-
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
 
 	dsl, err := commonHTTP.GetFileFromHeader(c)
 	if err != nil {
@@ -66,55 +74,7 @@ func (handler *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(err)
 	}
 
-	validate, err := v.ValidateSendSourceAndDistribute(parserDSL)
-	if err != nil {
-		logger.Error("Validation failed:", err.Error())
-		return commonHTTP.WithError(c, err)
-	}
-
-	token := commonHTTP.GetTokenHeader(c)
-
-	accounts, err := handler.getAccounts(c.Context(), logger, token, validate.Aliases)
-	if err != nil {
-		return commonHTTP.WithError(c, err)
-	}
-
-	err = v.ValidateAccounts(*validate, accounts)
-	if err != nil {
-		return commonHTTP.WithError(c, err)
-	}
-
-	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &parserDSL)
-	if err != nil {
-		logger.Error("Failed to create transaction", err.Error())
-		return commonHTTP.WithError(c, err)
-	}
-
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
-
-	e := make(chan error)
-	result := make(chan []*o.Operation)
-
-	var operations []*o.Operation
-
-	go handler.Command.CreateOperation(c.Context(), accounts, tran.ID, &parserDSL, *validate, result, e)
-	select {
-	case ops := <-result:
-		operations = append(operations, ops...)
-	case err := <-e:
-		logger.Error("Failed to create operations: ", err.Error())
-		return commonHTTP.WithError(c, err)
-	}
-
-	err = handler.processAccounts(c.Context(), logger, token, *validate, accounts)
-	if err != nil {
-		return commonHTTP.WithError(c, err)
-	}
-
-	tran.Operations = operations
-
-	return commonHTTP.Created(c, tran)
+	return handler.createTransaction(c, logger, parserDSL)
 }
 
 // CreateTransactionTemplate method that create transaction template
@@ -235,6 +195,62 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	pagination.SetItems(trans)
 
 	return commonHTTP.OK(c, pagination)
+}
+
+// createTransaction func that received struct from DSL parsed and create Transaction
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.Logger, parserDSL gold.Transaction) error {
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+
+	validate, err := v.ValidateSendSourceAndDistribute(parserDSL)
+	if err != nil {
+		logger.Error("Validation failed:", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	token := commonHTTP.GetTokenHeader(c)
+
+	accounts, err := handler.getAccounts(c.Context(), logger, token, validate.Aliases)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	err = v.ValidateAccounts(*validate, accounts)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	tran, err := handler.Command.CreateTransaction(c.Context(), organizationID, ledgerID, &parserDSL)
+	if err != nil {
+		logger.Error("Failed to create transaction", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	tran.Source = validate.Sources
+	tran.Destination = validate.Destinations
+
+	e := make(chan error)
+	result := make(chan []*o.Operation)
+
+	var operations []*o.Operation
+
+	go handler.Command.CreateOperation(c.Context(), accounts, tran.ID, &parserDSL, *validate, result, e)
+	select {
+	case ops := <-result:
+		operations = append(operations, ops...)
+	case err := <-e:
+		logger.Error("Failed to create operations: ", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	err = handler.processAccounts(c.Context(), logger, token, *validate, accounts)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	tran.Operations = operations
+
+	return commonHTTP.Created(c, tran)
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
