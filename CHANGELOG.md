@@ -1,3 +1,10 @@
+## [1.21.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.4...v1.21.0-beta.5) (2024-10-18)
+
+
+### Bug Fixes
+
+* change midaz code owner file :bug: ([8f5e2c2](https://github.com/LerianStudio/midaz/commit/8f5e2c202fe6fa9ae9140ac032ad304f97ab34a6))
+
 ## [1.21.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.3...v1.21.0-beta.4) (2024-10-18)
 
 
