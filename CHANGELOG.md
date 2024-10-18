@@ -1,3 +1,10 @@
+## [1.20.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.20.0-beta.1...v1.20.0-beta.2) (2024-10-18)
+
+
+### Features
+
+* validate code for all types :sparkles: ([c0e7b31](https://github.com/LerianStudio/midaz/commit/c0e7b3179839c720f24ce2da00e5c20172616f10))
+
 ## [1.20.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.19.0...v1.20.0-beta.1) (2024-10-18)
 
 
