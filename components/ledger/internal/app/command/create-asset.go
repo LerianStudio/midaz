@@ -30,6 +30,10 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 	}
 
+	if err := common.ValidateCode(cii.Code); err != nil {
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+	}
+
 	if cii.Type == "currency" {
 		if err := common.ValidateCurrency(cii.Code); err != nil {
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
