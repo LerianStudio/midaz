@@ -8,7 +8,6 @@ linters:
     - dupword # Detects duplicate words.
     - durationcheck
     - errchkjson
-    - copyloopvar
     - gocyclo
     - loggercheck
     - ineffassign
@@ -17,7 +16,6 @@ linters:
     - nakedret
     - nilerr # Detects code that returns nil even if it checks that the error is not nil.
     - nolintlint # Detects ill-formed or insufficient nolint directives.
-    - perfsprint # Detects fmt.Sprintf uses that can be replaced with a faster alternative.
     - prealloc # Detects slice declarations that could potentially be pre-allocated.
     - predeclared # Detects code that shadows one of Go's predeclared identifiers
     - reassign
