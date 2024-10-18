@@ -685,6 +685,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Accounts Found",
 			Message:    "No accounts were found in the search. Please review the search criteria and try again.",
 		},
+		cn.ErrInvalidPathParameter: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrInvalidPathParameter.Error(),
+			Title:      "Invalid Path Parameter",
+			Message:    fmt.Sprintf("The provided path parameter(s) %s is/are not in the expected format. Please ensure the parameter adheres to the required format and try again.", args),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

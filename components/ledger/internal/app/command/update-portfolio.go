@@ -15,7 +15,7 @@ import (
 )
 
 // UpdatePortfolioByID update a portfolio from the repository by given id.
-func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledgerID, id string, upi *p.UpdatePortfolioInput) (*p.Portfolio, error) {
+func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *p.UpdatePortfolioInput) (*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update portfolio: %v", upi)
 
@@ -24,7 +24,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		Status: upi.Status,
 	}
 
-	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id), portfolio)
+	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, organizationID, ledgerID, id, portfolio)
 	if err != nil {
 		logger.Errorf("Error updating portfolio on repo by id: %v", err)
 
@@ -40,7 +40,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
 		}
 
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id, upi.Metadata); err != nil {
+		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id.String(), upi.Metadata); err != nil {
 			return nil, err
 		}
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
@@ -47,25 +49,25 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
-	logger.Infof("Initiating update of Organization with ID: %s", id)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating update of Organization with ID: %s", id.String())
 
 	payload := p.(*o.UpdateOrganizationInput)
 	logger.Infof("Request to update an organization with details: %#v", payload)
 
 	_, err := handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Organization with ID: %s", id)
+	logger.Infof("Successfully updated Organization with ID: %s", id.String())
 
 	return commonHTTP.OK(c, organizations)
 }
@@ -74,19 +76,19 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	id := c.Params("id")
+	id := c.Locals("id").(uuid.UUID)
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	logger.Infof("Initiating retrieval of Organization with ID: %s", id)
+	logger.Infof("Initiating retrieval of Organization with ID: %s", id.String())
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Organization with ID: %s", id)
+	logger.Infof("Successfully retrieved Organization with ID: %s", id.String())
 
 	return commonHTTP.OK(c, organizations)
 }
@@ -142,11 +144,11 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
-	logger.Infof("Initiating removal of Organization with ID: %s", id)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
-		logger.Errorf("Failed to remove Organization with ID: %s in ", id)
+		logger.Errorf("Failed to remove Organization with ID: %s in ", id.String())
 
 		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(o.Organization{}).Name())
 
@@ -154,11 +156,11 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
-		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Organization with ID: %s", id)
+	logger.Infof("Successfully removed Organization with ID: %s", id.String())
 
 	return commonHTTP.NoContent(c)
 }

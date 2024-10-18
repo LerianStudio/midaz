@@ -15,17 +15,17 @@ import (
 )
 
 // UpdateLedgerByID update a ledger from the repository.
-func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id string, uli *l.UpdateLedgerInput) (*l.Ledger, error) {
+func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid.UUID, uli *l.UpdateLedgerInput) (*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update ledger: %v", uli)
 
 	ledger := &l.Ledger{
 		Name:           uli.Name,
-		OrganizationID: organizationID,
+		OrganizationID: organizationID.String(),
 		Status:         uli.Status,
 	}
 
-	ledgerUpdated, err := uc.LedgerRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(id), ledger)
+	ledgerUpdated, err := uc.LedgerRepo.Update(ctx, organizationID, id, ledger)
 	if err != nil {
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
@@ -41,7 +41,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id stri
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(l.Ledger{}).Name())
 		}
 
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(l.Ledger{}).Name(), id, uli.Metadata); err != nil {
+		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(l.Ledger{}).Name(), id.String(), uli.Metadata); err != nil {
 			return nil, err
 		}
 

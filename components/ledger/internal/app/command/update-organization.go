@@ -15,7 +15,7 @@ import (
 )
 
 // UpdateOrganizationByID update an organization from the repository.
-func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o.UpdateOrganizationInput) (*o.Organization, error) {
+func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *o.UpdateOrganizationInput) (*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update organization: %v", uoi)
 
@@ -37,7 +37,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 		Status:               uoi.Status,
 	}
 
-	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, uuid.MustParse(id), organization)
+	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, id, organization)
 	if err != nil {
 		logger.Errorf("Error updating organization on repo by id: %v", err)
 
@@ -53,7 +53,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id string, uoi *o
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 		}
 
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Organization{}).Name(), id, uoi.Metadata); err != nil {
+		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Organization{}).Name(), id.String(), uoi.Metadata); err != nil {
 			return nil, err
 		}
 
