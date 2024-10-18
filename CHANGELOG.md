@@ -1,3 +1,10 @@
+## [1.21.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.2...v1.21.0-beta.3) (2024-10-18)
+
+
+### Bug Fixes
+
+* sets entityID as a required field for portfolio creation :bug: ([5a74f7d](https://github.com/LerianStudio/midaz/commit/5a74f7d381061ec677ed6c3d1887793deb4fd7ca))
+
 ## [1.21.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.1...v1.21.0-beta.2) (2024-10-18)
 
 
