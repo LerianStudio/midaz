@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "34212af8-3dc4-49f9-87e1-01da185da3d2",
+		"_postman_id": "78088a93-9c50-492b-a84f-c47ab92f4911",
 		"name": "MIDAZ",
-		"description": "## **How generate token to use on MIDAZ  \n  \n**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
+		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "38753084"
+		"_exporter_id": "32592108"
 	},
 	"item": [
 		{
@@ -1710,10 +1710,65 @@
 			"name": "Transaction",
 			"item": [
 				{
+					"name": "Transaction JSON",
+					"item": [
+						{
+							"name": "Transaction",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"const jsonData = JSON.parse(responseBody);",
+											"if (jsonData.hasOwnProperty('id')) {",
+											"    console.log(\"transaction_id before: \" + pm.collectionVariables.get(\"transaction_id\"));",
+											"    pm.collectionVariables.set(\"transaction_id\", jsonData.id);",
+											"    console.log(\"transaction_id after: \" + pm.collectionVariables.get(\"transaction_id\"));",
+											"}"
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": \"100\",\n        \"scale\": \"1\",\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"@mcgregor\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": \"100\",\n                        \"scale\": \"1\"\n                    },\n                    \"share\": {},\n                    \"description\": \"pagamento de emprestimo jeff e teste de devolucao\",\n                    \"chartOfAccountsG\": \"\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    },\n                    \"isFrom\": true\n                }\n            ],\n            \"source\": {}\n        }\n    },\n    \"distribute\": {\n        \"to\": [\n            {\n                \"account\": \"@jeff\",\n                \"amount\": {},\n                \"share\": {\n                    \"percentage\": 50\n                },\n                \"chartOfAccountsG\": \"\",\n                \"metadata\": {\n                    \"mensagem\": \"tks\"\n                }\n            },\n            {\n                \"account\": \"@wallet_46631173\",\n                \"amount\": {},\n                \"share\": {\n                    \"percentage\": 35\n                },\n                \"chartOfAccountsG\": \"\"\n            },\n            {\n                \"account\": \"@wallet_03621341\",\n                \"amount\": {},\n                \"share\": {},\n                \"remaining\": \"remaining\",\n                \"chartOfAccountsG\": \"\"\n            }\n        ],\n        \"distribute\": {}\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/json",
+									"host": [
+										"{{url_transaction}}"
+									],
+									"path": [
+										"v1",
+										"organizations",
+										"{{organization_id}}",
+										"ledgers",
+										"{{ledger_id}}",
+										"transactions",
+										"json"
+									]
+								},
+								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+							},
+							"response": []
+						}
+					]
+				},
+				{
 					"name": "Transaction DSL",
 					"item": [
 						{
-							"name": "Transactions DSL",
+							"name": "Transaction",
 							"event": [
 								{
 									"listen": "test",
@@ -1753,47 +1808,12 @@
 											"key": "dsl",
 											"description": "test 1",
 											"type": "file",
-											"src": "postman-cloud:///1ef2418e-2c63-43f0-8b92-4d38a5dd8157"
-										},
-										{
-											"key": "dsl",
-											"description": "ok",
-											"type": "file",
-											"src": [],
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "empty",
-											"type": "file",
-											"src": [],
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "error",
-											"type": "file",
-											"src": [],
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "wrong extension",
-											"type": "file",
-											"src": [],
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "template",
-											"type": "file",
-											"src": [],
-											"disabled": true
+											"src": "/Users/mcgregor/Documents/LERIAND/POSTMAN/examples/mcgregor-to-jeff.gold"
 										}
 									]
 								},
 								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions",
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/dsl",
 									"host": [
 										"{{url_transaction}}"
 									],
@@ -1803,7 +1823,8 @@
 										"{{organization_id}}",
 										"ledgers",
 										"{{ledger_id}}",
-										"transactions"
+										"transactions",
+										"dsl"
 									]
 								},
 								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
@@ -1816,7 +1837,7 @@
 					"name": "Transaction Template",
 					"item": [
 						{
-							"name": "transactions Template",
+							"name": "Transaction",
 							"event": [
 								{
 									"listen": "test",
@@ -1847,7 +1868,7 @@
 									}
 								},
 								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions",
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/templates",
 									"host": [
 										"{{url_transaction}}"
 									],
@@ -1857,7 +1878,8 @@
 										"{{organization_id}}",
 										"ledgers",
 										"{{ledger_id}}",
-										"transactions"
+										"transactions",
+										"templates"
 									]
 								},
 								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
@@ -2025,210 +2047,6 @@
 					]
 				},
 				{
-					"name": "Transaction JSON",
-					"item": [
-						{
-							"name": "Transactions Body",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"const jsonData = JSON.parse(responseBody);",
-											"if (jsonData.hasOwnProperty('id')) {",
-											"    console.log(\"transaction_id before: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"    pm.collectionVariables.set(\"transaction_id\", jsonData.id);",
-											"    console.log(\"transaction_id after: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"transactionTypeCode\": \"PIX_OUT\",\n    \"variables\": {\n        \"amount\": 100,\n        \"source\": \"@gabriel\",\n        \"fee\": 1\n    },\n    \"metadata\": {\n        \"anyKey\": \"anyValue\",\n        \"anotherKey\": \"anotherValue\"\n    },\n    \"parentTransactionId\": null,\n    \"description\": \"My first transaction using Midaz!\", //optional\n    \"inheritMetadata\": false,\n    \"inheritDescription\": false\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Operations",
-					"item": [
-						{
-							"name": "Operations by account",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/operations",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"accounts",
-										"{{account_id}}",
-										"operations"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Operation by account",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/operations/{{operation_id}}",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"accounts",
-										"{{account_id}}",
-										"operations",
-										"{{operation_id}}"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Operations by portfolio",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/operations",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"portfolios",
-										"{{portfolio_id}}",
-										"operations"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "Operation by portfolio",
-							"request": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/operations/{{operation_id}}",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"portfolios",
-										"{{portfolio_id}}",
-										"operations",
-										"{{operation_id}}"
-									]
-								}
-							},
-							"response": []
-						},
-						{
-							"name": "operations",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											""
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "PATCH",
-								"header": [],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/operations/{{operation_id}}",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"{{transaction_id}}",
-										"operations",
-										"{{operation_id}}"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						}
-					]
-				},
-				{
 					"name": "transactions",
 					"event": [
 						{
@@ -2313,6 +2131,156 @@
 								"ledgers",
 								"{{ledger_id}}",
 								"transactions"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Operations",
+			"item": [
+				{
+					"name": "operations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/operations/{{operation_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"transactions",
+								"{{transaction_id}}",
+								"operations",
+								"{{operation_id}}"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+					},
+					"response": []
+				},
+				{
+					"name": "Account -> Operations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/operations",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts",
+								"{{account_id}}",
+								"operations"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts -> Operation by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/operations/{{operation_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts",
+								"{{account_id}}",
+								"operations",
+								"{{operation_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Portofolios -> Operations",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/operations",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"operations"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Portfolios -> Operation by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/operations/{{operation_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
+								"operations",
+								"{{operation_id}}"
 							]
 						}
 					},
@@ -2423,6 +2391,16 @@
 	],
 	"variable": [
 		{
+			"key": "client_secret",
+			"value": "dd03f916cacf4a98c6a413d9c38ba102dce436a9",
+			"type": "default"
+		},
+		{
+			"key": "client_id",
+			"value": "9670e0ca55a29a466d31",
+			"type": "default"
+		},
+		{
 			"key": "url_auth",
 			"value": "http://127.0.0.1:8000",
 			"type": "default"
@@ -2434,7 +2412,7 @@
 		},
 		{
 			"key": "url_transaction",
-			"value": "http://127.0.0.1:3003",
+			"value": "http://127.0.0.1:3005",
 			"type": "default"
 		},
 		{
@@ -2473,14 +2451,9 @@
 			"type": "default"
 		},
 		{
-			"key": "client_id",
-			"value": "9670e0ca55a29a466d31",
-			"type": "default"
-		},
-		{
-			"key": "client_secret",
-			"value": "dd03f916cacf4a98c6a413d9c38ba102dce436a9",
-			"type": "default"
+			"key": "operation_id",
+			"value": "",
+			"type": "string"
 		}
 	]
 }
