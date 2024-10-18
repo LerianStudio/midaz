@@ -93,7 +93,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 		return false, err
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 OR code = $4 AND deleted_at IS NULL ORDER BY created_at DESC",
+	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND (name LIKE $3 OR code = $4) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, name, code)
 	if err != nil {
 		return false, err

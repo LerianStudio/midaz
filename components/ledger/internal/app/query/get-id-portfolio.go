@@ -15,11 +15,11 @@ import (
 )
 
 // GetPortfolioByID get a Portfolio from the repository by given id.
-func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerID, id string) (*p.Portfolio, error) {
+func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving portfolio for id: %s", id)
 
-	portfolio, err := uc.PortfolioRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id))
+	portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		logger.Errorf("Error getting portfolio on repo by id: %v", err)
 
@@ -31,7 +31,7 @@ func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerI
 	}
 
 	if portfolio != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id)
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id.String())
 		if err != nil {
 			logger.Errorf("Error get metadata on mongodb portfolio: %v", err)
 			return nil, err

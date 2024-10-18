@@ -16,11 +16,11 @@ import (
 )
 
 // GetAllAccount fetch all Account from the repository
-func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, portfolioID string, filter commonHTTP.QueryHeader) ([]*a.Account, error) {
+func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter commonHTTP.QueryHeader) ([]*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving accounts")
 
-	accounts, err := uc.AccountRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), filter.Limit, filter.Page)
+	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting accounts on repo: %v", err)
 

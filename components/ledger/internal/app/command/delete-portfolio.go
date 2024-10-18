@@ -15,11 +15,11 @@ import (
 )
 
 // DeletePortfolioByID deletes a portfolio from the repository by ids.
-func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledgerID, id string) error {
+func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Remove portfolio for id: %s", id)
+	logger.Infof("Remove portfolio for id: %s", id.String())
 
-	if err := uc.PortfolioRepo.Delete(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id)); err != nil {
+	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		logger.Errorf("Error deleting portfolio on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

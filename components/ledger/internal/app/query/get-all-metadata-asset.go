@@ -16,7 +16,7 @@ import (
 )
 
 // GetAllMetadataAssets fetch all Assets from the repository
-func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*s.Asset, error) {
+func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*s.Asset, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving assets")
 
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	assets, err := uc.AssetRepo.ListByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
+	assets, err := uc.AssetRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
 		logger.Errorf("Error getting assets on repo by query params: %v", err)
 

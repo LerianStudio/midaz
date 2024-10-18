@@ -3,6 +3,9 @@ package http
 import (
 	"encoding/json"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/require"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -75,4 +78,66 @@ func TestFilterRequiredFieldWithNoFields(t *testing.T) {
 	if len(result) > 0 {
 		t.Errorf("Want %v, got %v", expected, result)
 	}
+}
+
+func TestParseUUIDPathParameters_ValidUUID(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/v1/organizations/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK) // Se o middleware passar, responde com 200
+	})
+
+	req := httptest.NewRequest("GET", "/v1/organizations/123e4567-e89b-12d3-a456-426614174000", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestParseUUIDPathParameters_MultipleValidUUID(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest(
+		"GET",
+		"/v1/organizations/123e4567-e89b-12d3-a456-426614174000/ledgers/c71ab589-cf46-4f2d-b6ef-b395c9a475da",
+		nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+}
+
+func TestParseUUIDPathParameters_InvalidUUID(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/v1/organizations/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest("GET", "/v1/organizations/invalid-uuid", nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	require.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+}
+
+func TestParseUUIDPathParameters_ValidAndInvalidUUID(t *testing.T) {
+	app := fiber.New()
+
+	app.Get("/v1/organizations/:organization_id/ledgers/:id", ParseUUIDPathParameters, func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	})
+
+	req := httptest.NewRequest(
+		"GET",
+		"/v1/organizations/123e4567-e89b-12d3-a456-426614174000/ledgers/invalid-uuid",
+		nil)
+	resp, err := app.Test(req, -1)
+	require.NoError(t, err)
+
+	require.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
