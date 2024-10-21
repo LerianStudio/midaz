@@ -2,6 +2,7 @@
 *__debug_bin1675735721
 .DS_Store
 .env
+components/mdz/bin/mdz
 .idea
 *.iml
 components/ledger/_docker-compose.yml

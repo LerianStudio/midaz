@@ -25,9 +25,21 @@ type factoryLogin struct {
 	auth     repository.Auth
 }
 
+func validateCredentials(username, password string) error {
+	if len(username) == 0 {
+		return errors.New("username must not be empty")
+	}
+	if len(password) == 0 {
+		return errors.New("password must not be empty")
+	}
+	return nil
+}
+
 func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
-	if (cmd.Flags().Changed("username") && cmd.Flags().Changed("password")) ||
-		(len(l.username) > 0 && len(l.password) > 0) {
+	if cmd.Flags().Changed("username") && cmd.Flags().Changed("password") {
+		if err := validateCredentials(l.username, l.password); err != nil {
+			return err
+		}
 
 		r := rest.Auth{Factory: l.factory}
 		_, err := r.AuthenticateWithCredentials(l.username, l.password)
@@ -84,6 +96,10 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 		return nil
 	case strings.Contains(answer, "terminal"):
 		err := l.terminalLogin()
+
+		if err := validateCredentials(l.username, l.password); err != nil {
+			return err
+		}
 
 		if err != nil {
 			return err
