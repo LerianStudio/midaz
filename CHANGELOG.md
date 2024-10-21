@@ -1,3 +1,47 @@
+## [1.22.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.5...v1.22.0-beta.6) (2024-10-21)
+
+
+### Features
+
+* implements method to check if a ledger exists by name in an organization :sparkles: ([9737579](https://github.com/LerianStudio/midaz/commit/973757967817027815cc1a5497247af3e26ea587))
+
+
+### Bug Fixes
+
+* uses parsed UUID for organizationID on create ledger :bug: ([b506dc3](https://github.com/LerianStudio/midaz/commit/b506dc3dfe1e1ea8abdf251ca040ab3a6db163ef))
+* validates if a ledger with the same name already exists for the same organization :bug: ([08df20b](https://github.com/LerianStudio/midaz/commit/08df20bf4cdd99fc33ce3d273162addb0023afc6))
+
+## [1.22.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.4...v1.22.0-beta.5) (2024-10-21)
+
+
+### Bug Fixes
+
+* rename to put on pattern :bug: ([ec8141a](https://github.com/LerianStudio/midaz/commit/ec8141ae8195d6e6f864ee766bca94bf6e90de03))
+* update some ports on .env :bug: ([b7c58ea](https://github.com/LerianStudio/midaz/commit/b7c58ea75e5c82b8728a785a4b233fa5351c478c))
+
+## [1.22.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.3...v1.22.0-beta.4) (2024-10-21)
+
+
+### Bug Fixes
+
+* patch account doesnt return the right data :bug: ([a9c97c2](https://github.com/LerianStudio/midaz/commit/a9c97c2b48b16ae237195777fa8c77d23370e184))
+
+## [1.22.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.2...v1.22.0-beta.3) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets type as a required field for creating accounts :bug: ([a35044f](https://github.com/LerianStudio/midaz/commit/a35044f7d79b4eb3ecd1476d9ac5527e36617fb1))
+
+## [1.22.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.1...v1.22.0-beta.2) (2024-10-21)
+
+## [1.22.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0-beta.1) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets name as a required field for creating ledgers :bug: ([534cda5](https://github.com/LerianStudio/midaz/commit/534cda5d9203a6c478baf8980dea2e3fc2170eaf))
+
 ## [1.21.0](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0) (2024-10-18)
 
 
