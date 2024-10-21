@@ -1,3 +1,10 @@
+## [1.22.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0-beta.1) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets name as a required field for creating ledgers :bug: ([534cda5](https://github.com/LerianStudio/midaz/commit/534cda5d9203a6c478baf8980dea2e3fc2170eaf))
+
 ## [1.21.0](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0) (2024-10-18)
 
 
