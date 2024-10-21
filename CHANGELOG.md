@@ -1,3 +1,11 @@
+## [1.22.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.6...v1.22.0-beta.7) (2024-10-21)
+
+
+### Bug Fixes
+
+* error in the logic not respecting the username and password flags ([b76e361](https://github.com/LerianStudio/midaz/commit/b76e3615a06e48140e57ed74c2d6d06db513e60b))
+* setting cursor input and interactive terminal output ([9b45c14](https://github.com/LerianStudio/midaz/commit/9b45c147a68c5fb030e264b65a3c05f32c8eaa04))
+
 ## [1.22.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.5...v1.22.0-beta.6) (2024-10-21)
 
 
