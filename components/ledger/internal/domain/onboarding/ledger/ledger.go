@@ -22,7 +22,7 @@ type LedgerPostgreSQLModel struct {
 
 // CreateLedgerInput is a struct design to encapsulate request create payload data.
 type CreateLedgerInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"required"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
