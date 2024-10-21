@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"reflect"
 	"time"
 
@@ -23,6 +24,12 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		}
 	} else {
 		status = cli.Status
+	}
+
+	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
+	if err != nil {
+		logger.Errorf("Error creating ledger: %v", err)
+		return nil, err
 	}
 
 	ledger := &l.Ledger{
