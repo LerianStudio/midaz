@@ -39,7 +39,7 @@ type CreateAccountInput struct {
 	AssetCode       string         `json:"assetCode" validate:"required"`
 	Name            string         `json:"name"`
 	Alias           *string        `json:"alias"`
-	Type            string         `json:"type"`
+	Type            string         `json:"type" validate:"required"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
 	EntityID        *string        `json:"entityId"`
