@@ -44,18 +44,18 @@ func (m selectModel) Init() tea.Cmd {
 func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		switch msg.Type {
+		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case "up", "ctrl+p":
+		case tea.KeyUp, tea.KeyCtrlP:
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "ctrl+n":
+		case tea.KeyDown, tea.KeyCtrlN:
 			if m.cursor < len(m.choices)-1 {
 				m.cursor++
 			}
-		case "enter":
+		case tea.KeyEnter:
 			m.selected = true
 			return m, tea.Quit
 		}
@@ -80,14 +80,3 @@ func (m selectModel) View() string {
 
 	return s
 }
-
-// Example of using
-// func main() {
-// 	answer, err := Select([]string{"Log in via browser", "Log in via terminal"})
-// 	if err != nil {
-// 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-// 		os.Exit(1)
-// 	}
-//
-// 	fmt.Printf("You chose: %s\n", answer)
-// }

@@ -1,3 +1,24 @@
+## [1.22.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.6...v1.22.0-beta.7) (2024-10-21)
+
+
+### Bug Fixes
+
+* error in the logic not respecting the username and password flags ([b76e361](https://github.com/LerianStudio/midaz/commit/b76e3615a06e48140e57ed74c2d6d06db513e60b))
+* setting cursor input and interactive terminal output ([9b45c14](https://github.com/LerianStudio/midaz/commit/9b45c147a68c5fb030e264b65a3c05f32c8eaa04))
+
+## [1.22.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.5...v1.22.0-beta.6) (2024-10-21)
+
+
+### Features
+
+* implements method to check if a ledger exists by name in an organization :sparkles: ([9737579](https://github.com/LerianStudio/midaz/commit/973757967817027815cc1a5497247af3e26ea587))
+
+
+### Bug Fixes
+
+* uses parsed UUID for organizationID on create ledger :bug: ([b506dc3](https://github.com/LerianStudio/midaz/commit/b506dc3dfe1e1ea8abdf251ca040ab3a6db163ef))
+* validates if a ledger with the same name already exists for the same organization :bug: ([08df20b](https://github.com/LerianStudio/midaz/commit/08df20bf4cdd99fc33ce3d273162addb0023afc6))
+
 ## [1.22.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.4...v1.22.0-beta.5) (2024-10-21)
 
 

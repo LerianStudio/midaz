@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"reflect"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
-func (uc *UseCase) CreateLedger(ctx context.Context, organizationID string, cli *l.CreateLedgerInput) (*l.Ledger, error) {
+func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *l.CreateLedgerInput) (*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create ledger: %v", cli)
 
@@ -25,8 +26,14 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID string, cli 
 		status = cli.Status
 	}
 
+	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
+	if err != nil {
+		logger.Errorf("Error creating ledger: %v", err)
+		return nil, err
+	}
+
 	ledger := &l.Ledger{
-		OrganizationID: organizationID,
+		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
 		CreatedAt:      time.Now(),
