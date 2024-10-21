@@ -17,21 +17,24 @@ import (
 )
 
 type factoryLogin struct {
-	factory  *factory.Factory
-	username string
-	password string
-	token    string
-	browser  browser
-	auth     repository.Auth
+	factory   *factory.Factory
+	username  string
+	password  string
+	token     string
+	browser   browser
+	auth      repository.Auth
+	tuiSelect func(message string, options []string) (string, error)
 }
 
 func validateCredentials(username, password string) error {
 	if len(username) == 0 {
 		return errors.New("username must not be empty")
 	}
+
 	if len(password) == 0 {
 		return errors.New("password must not be empty")
 	}
+
 	return nil
 }
 
@@ -41,14 +44,14 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 
-		r := rest.Auth{Factory: l.factory}
-		_, err := r.AuthenticateWithCredentials(l.username, l.password)
+		_, err := l.auth.AuthenticateWithCredentials(l.username, l.password)
 
 		if err != nil {
 			return err
 		}
 
 		output.Printf(l.factory.IOStreams.Out, color.New(color.Bold).Sprint("Successfully logged in"))
+
 		return nil
 	}
 
@@ -113,8 +116,9 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 
 func NewCmdLogin(f *factory.Factory) *cobra.Command {
 	fVersion := factoryLogin{
-		factory: f,
-		auth:    rest.NewAuth(f),
+		factory:   f,
+		auth:      rest.NewAuth(f),
+		tuiSelect: tui.Select,
 	}
 
 	cmd := &cobra.Command{

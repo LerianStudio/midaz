@@ -37,6 +37,10 @@ get-perfsprint-deps:
 perfsprint: get-perfsprint-deps
 	perfsprint ./...
 
+.PHONY: gotext
+test: 
+	 go test ./...
+
 .PHONY : build
 build:
 	go version

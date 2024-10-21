@@ -63,6 +63,7 @@ func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
+
 	return m, cmd
 }
 
