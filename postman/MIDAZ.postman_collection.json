@@ -2402,7 +2402,7 @@
 		},
 		{
 			"key": "url_auth",
-			"value": "http://127.0.0.1:8000",
+			"value": "http://127.0.0.1:8080",
 			"type": "default"
 		},
 		{
@@ -2412,7 +2412,7 @@
 		},
 		{
 			"key": "url_transaction",
-			"value": "http://127.0.0.1:3001",
+			"value": "http://127.0.0.1:3002",
 			"type": "default"
 		},
 		{

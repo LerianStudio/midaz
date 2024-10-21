@@ -1,3 +1,27 @@
+## [1.22.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.4...v1.22.0-beta.5) (2024-10-21)
+
+
+### Bug Fixes
+
+* rename to put on pattern :bug: ([ec8141a](https://github.com/LerianStudio/midaz/commit/ec8141ae8195d6e6f864ee766bca94bf6e90de03))
+* update some ports on .env :bug: ([b7c58ea](https://github.com/LerianStudio/midaz/commit/b7c58ea75e5c82b8728a785a4b233fa5351c478c))
+
+## [1.22.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.3...v1.22.0-beta.4) (2024-10-21)
+
+
+### Bug Fixes
+
+* patch account doesnt return the right data :bug: ([a9c97c2](https://github.com/LerianStudio/midaz/commit/a9c97c2b48b16ae237195777fa8c77d23370e184))
+
+## [1.22.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.2...v1.22.0-beta.3) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets type as a required field for creating accounts :bug: ([a35044f](https://github.com/LerianStudio/midaz/commit/a35044f7d79b4eb3ecd1476d9ac5527e36617fb1))
+
+## [1.22.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.1...v1.22.0-beta.2) (2024-10-21)
+
 ## [1.22.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0-beta.1) (2024-10-21)
 
 
