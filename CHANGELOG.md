@@ -1,3 +1,17 @@
+## [1.22.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.3...v1.22.0-beta.4) (2024-10-21)
+
+
+### Bug Fixes
+
+* patch account doesnt return the right data :bug: ([a9c97c2](https://github.com/LerianStudio/midaz/commit/a9c97c2b48b16ae237195777fa8c77d23370e184))
+
+## [1.22.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.2...v1.22.0-beta.3) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets type as a required field for creating accounts :bug: ([a35044f](https://github.com/LerianStudio/midaz/commit/a35044f7d79b4eb3ecd1476d9ac5527e36617fb1))
+
 ## [1.22.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.1...v1.22.0-beta.2) (2024-10-21)
 
 ## [1.22.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0-beta.1) (2024-10-21)
