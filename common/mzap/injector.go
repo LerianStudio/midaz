@@ -20,10 +20,12 @@ func InitializeLogger() mlog.Logger {
 
 	var zapCfg zap.Config
 
-	if os.Getenv("ENV_NAME") == "local" {
-		zapCfg = zap.NewDevelopmentConfig()
-	} else {
+	if os.Getenv("ENV_NAME") == "production" {
 		zapCfg = zap.NewProductionConfig()
+		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	} else {
+		zapCfg = zap.NewDevelopmentConfig()
+		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 
 	if val, ok := os.LookupEnv("LOG_LEVEL"); ok {
@@ -36,8 +38,6 @@ func InitializeLogger() mlog.Logger {
 
 		zapCfg.Level = zap.NewAtomicLevelAt(lvl)
 	}
-
-	zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
 	zapCfg.DisableStacktrace = true
 
