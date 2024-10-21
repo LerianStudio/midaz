@@ -26,9 +26,9 @@ type factoryLogin struct {
 }
 
 func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
-	if cmd.Flags().Changed("username") &&
-		cmd.Flags().Changed("password") &&
-		len(l.username) > 0 && len(l.password) > 0 {
+	if (cmd.Flags().Changed("username") && cmd.Flags().Changed("password")) ||
+		(len(l.username) > 0 && len(l.password) > 0) {
+
 		r := rest.Auth{Factory: l.factory}
 		_, err := r.AuthenticateWithCredentials(l.username, l.password)
 
@@ -37,6 +37,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 		}
 
 		output.Printf(l.factory.IOStreams.Out, color.New(color.Bold).Sprint("Successfully logged in"))
+		return nil
 	}
 
 	option, err := tui.Select(
