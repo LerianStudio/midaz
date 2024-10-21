@@ -12,7 +12,7 @@ import (
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
-func (uc *UseCase) CreateLedger(ctx context.Context, organizationID string, cli *l.CreateLedgerInput) (*l.Ledger, error) {
+func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *l.CreateLedgerInput) (*l.Ledger, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create ledger: %v", cli)
 
@@ -26,7 +26,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID string, cli 
 	}
 
 	ledger := &l.Ledger{
-		OrganizationID: organizationID,
+		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
 		CreatedAt:      time.Now(),
