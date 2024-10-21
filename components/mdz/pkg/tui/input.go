@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -12,80 +13,58 @@ func Input(message string) (string, error) {
 
 func runInput(m tea.Model) (string, error) {
 	p := tea.NewProgram(m)
-	finalModel, err := p.Run()
 
+	finalModel, err := p.Run()
 	if err != nil {
-		return "", fmt.Errorf("erro ao iniciar o programa: %w", err)
+		return "", fmt.Errorf("error starting program: %w", err)
 	}
 
-	if pm, ok := finalModel.(inputModel); ok && pm.entered {
-		return pm.input, nil
+	if im, ok := finalModel.(inputModel); ok && im.inputDone {
+		return im.textInput.Value(), nil
 	}
 
 	return "", nil
 }
 
-func initialInputModel(message string) inputModel {
-	return inputModel{message: message}
+type inputModel struct {
+	textInput textinput.Model
+	message   string
+	inputDone bool
 }
 
-type inputModel struct {
-	message string
-	input   string
-	cursor  int
-	entered bool
+func initialInputModel(message string) inputModel {
+	ti := textinput.New()
+	ti.Placeholder = "..."
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 20
+
+	return inputModel{textInput: ti, message: message}
 }
 
 func (m inputModel) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case ctrlC:
+		switch msg.Type {
+		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
-		case enter:
-			m.entered = true
+		case tea.KeyEnter:
+			m.inputDone = true
 			return m, tea.Quit
-		case backspace:
-			if m.cursor > 0 {
-				m.input = m.input[:m.cursor-1] + m.input[m.cursor:]
-				m.cursor--
-			}
-		case left:
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case right:
-			if m.cursor < len(m.input) {
-				m.cursor++
-			}
-		default:
-			// Adiciona o caractere digitado à entrada
-			m.input = m.input[:m.cursor] + msg.String() + m.input[m.cursor:]
-			m.cursor++
 		}
 	}
 
-	return m, nil
+	m.textInput, cmd = m.textInput.Update(msg)
+
+	return m, cmd
 }
 
 func (m inputModel) View() string {
-	if m.entered {
-		return "Entry received!\n"
-	}
-
-	return fmt.Sprintf("%s: %s\n", m.message, m.input)
+	return fmt.Sprintf("%s %s\n", m.message, m.textInput.View())
 }
-
-// Example of using
-// func main() {
-// 	input, err := Input("Enter your name")
-// 	if err != nil {
-// 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-// 		os.Exit(1)
-// 	}
-
-// 	fmt.Printf("Name entered: %s\n", input)
