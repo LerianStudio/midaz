@@ -1529,7 +1529,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"deposit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"credit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2412,7 +2412,7 @@
 		},
 		{
 			"key": "url_transaction",
-			"value": "http://127.0.0.1:3005",
+			"value": "http://127.0.0.1:3001",
 			"type": "default"
 		},
 		{
