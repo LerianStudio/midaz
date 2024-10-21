@@ -29,9 +29,11 @@ func validateCredentials(username, password string) error {
 	if len(username) == 0 {
 		return errors.New("username must not be empty")
 	}
+
 	if len(password) == 0 {
 		return errors.New("password must not be empty")
 	}
+
 	return nil
 }
 
@@ -49,6 +51,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 		}
 
 		output.Printf(l.factory.IOStreams.Out, color.New(color.Bold).Sprint("Successfully logged in"))
+
 		return nil
 	}
 

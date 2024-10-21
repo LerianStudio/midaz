@@ -14,7 +14,7 @@ func Input(message string) (string, error) {
 func runInput(m tea.Model) (string, error) {
 	p := tea.NewProgram(m)
 
-	finalModel, err := p.Run() // Executa o programa TUI
+	finalModel, err := p.Run()
 	if err != nil {
 		return "", fmt.Errorf("error starting program: %w", err)
 	}
@@ -61,6 +61,7 @@ func (m inputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
+
 	return m, cmd
 }
 
