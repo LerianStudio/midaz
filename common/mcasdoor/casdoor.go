@@ -93,7 +93,7 @@ func (cc *CasdoorConnection) healthCheck() bool {
 		return false
 	}
 
-	var result map[string]interface{}
+	result := make(map[string]any)
 
 	err = json.Unmarshal(body, &result)
 	if err != nil {
