@@ -7,7 +7,7 @@ toolchain go1.22.0
 require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
-	github.com/casdoor/casdoor-go-sdk v1.1.0
+	github.com/casdoor/casdoor-go-sdk v1.2.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.1
 	github.com/go-playground/locales v0.14.1
@@ -73,7 +73,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.3.0 // indirect
-	github.com/fatih/color v1.14.1
+	github.com/fatih/color v1.17.0
 	github.com/goccy/go-json v0.10.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
