@@ -223,9 +223,9 @@ func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
 func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		l := mlog.NewLoggerFromContext(c.UserContext())
-		l.Debug("JWTMiddleware:ProtectHTTP")
+		l.Info("JWTMiddleware:ProtectHTTP")
 
-		l.Debug("Read token from header")
+		l.Info("Read token from header")
 
 		tokenString := GetTokenHeader(c)
 
@@ -238,7 +238,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 			return WithError(c, err)
 		}
 
-		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
+		l.Infof("Get JWK keys using %s", jwtm.JWK.URI)
 
 		keySet, err := jwtm.JWK.Fetch(c.Context())
 		if err != nil {
@@ -260,7 +260,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 			return WithError(c, err)
 		}
 
-		l.Debug("Token ok")
+		l.Info("Token ok")
 		c.Locals(string(TokenContextValue("token")), token)
 
 		return c.Next()
@@ -271,7 +271,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		l := mlog.NewLoggerFromContext(c.UserContext())
-		l.Debug("JWTMiddleware:WithScope")
+		l.Info("JWTMiddleware:WithScope")
 
 		parser := TokenParser{
 			ParseToken: (&CasdoorTokenParser{}).ParseToken,
@@ -310,7 +310,7 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		l := mlog.NewLoggerFromContext(c.UserContext())
-		l.Debug("JWTMiddleware:WithPermissionHTTP")
+		l.Info("JWTMiddleware:WithPermissionHTTP")
 
 		client, err := jwtm.connection.GetClient()
 		if err != nil {
@@ -353,7 +353,7 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 			return c.Next()
 		}
 
-		l.Debug("Unauthorized")
+		l.Info("Unauthorized")
 
 		err = common.ValidateBusinessError(cn.ErrInsufficientPrivileges, "JWT Token")
 
@@ -370,7 +370,7 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 		handler grpc.UnaryHandler,
 	) (any, error) {
 		l := mlog.NewLoggerFromContext(ctx)
-		l.Debug("JWTMiddleware:ProtectGrpc")
+		l.Info("JWTMiddleware:ProtectGrpc")
 
 		tokenString := getTokenHeaderFromContext(ctx)
 
@@ -383,7 +383,7 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
 
-		l.Debugf("Get JWK keys using %s", jwtm.JWK.URI)
+		l.Infof("Get JWK keys using %s", jwtm.JWK.URI)
 
 		keySet, err := jwtm.JWK.Fetch(context.Background())
 		if err != nil {
@@ -420,7 +420,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 		handler grpc.UnaryHandler,
 	) (any, error) {
 		l := mlog.NewLoggerFromContext(ctx)
-		l.Debug("JWTMiddleware:WithPermissionGrpc")
+		l.Info("JWTMiddleware:WithPermissionGrpc")
 
 		client, err := jwtm.connection.GetClient()
 		if err != nil {
@@ -457,7 +457,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 		}
 
 		if !authorized {
-			l.Debug("Unauthorized")
+			l.Info("Unauthorized")
 
 			e := common.ValidateBusinessError(cn.ErrInsufficientPrivileges, "JWT Token")
 

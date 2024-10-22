@@ -546,8 +546,8 @@
         "Name",
         "DisplayName"
       ],
-      "expireInHours": 2,
-      "refreshExpireInHours": 168,
+      "expireInHours": 1,
+      "refreshExpireInHours": 24,
       "failedSigninLimit": 5,
       "failedSigninFrozenTime": 15
     }

@@ -1,3 +1,18 @@
+## [1.23.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.23.0-beta.1...v1.23.0-beta.2) (2024-10-22)
+
+
+### Features
+
+* **logging:** wrap zap logger implementation with otelzap :sparkles: ([d792e65](https://github.com/LerianStudio/midaz/commit/d792e651312d63a3812d1d737710db2f0329e1d3))
+
+
+### Bug Fixes
+
+* **logging:** add logger sync to server for graceful shutdown :bug: ([c51a4af](https://github.com/LerianStudio/midaz/commit/c51a4af37d9f0f646c6386505138ab9273aeaefd))
+* **logging:** resolve logging issues for all routes :bug: ([694dadb](https://github.com/LerianStudio/midaz/commit/694dadb29889d2884920260d6e6ac765e5c672dd))
+* **logging:** set capital color level encoder for non-production environments :bug: ([f5f6e73](https://github.com/LerianStudio/midaz/commit/f5f6e7329037de63ba2c6325446c0961eabee4b4))
+* **logging:** update sync func being called in zap logger for graceful shutdown :bug: ([4ad1ff2](https://github.com/LerianStudio/midaz/commit/4ad1ff2a653500ae9e9d97280bed0eba2f226f4c))
+
 ## [1.23.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.22.0...v1.23.0-beta.1) (2024-10-22)
 
 

@@ -34,6 +34,7 @@ import (
 // InitializeService the setup the dependencies and returns a new *service.Service instance
 func InitializeService() *service.Service {
 	config := service.NewConfig()
+	logger := mzap.InitializeLogger()
 	casdoorConnection := setupCasdoorConnection(config)
 	postgresConnection := setupPostgreSQLConnection(config)
 	transactionPostgreSQLRepository := postgres.NewTransactionPostgreSQLRepository(postgresConnection)
@@ -62,8 +63,7 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	app := http.NewRouter(casdoorConnection, transactionHandler, operationHandler)
-	logger := mzap.InitializeLogger()
+	app := http.NewRouter(logger, casdoorConnection, transactionHandler, operationHandler)
 	server := service.NewServer(config, app, logger)
 	serviceService := &service.Service{
 		Server: server,

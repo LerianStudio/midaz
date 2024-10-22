@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
+	"github.com/LerianStudio/midaz/common/mlog"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -14,13 +15,14 @@ import (
 )
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
 
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
+	f.Use(lib.WithHTTPLogging(lib.WithCustomLogger(lg)))
 	jwt := lib.NewJWTMiddleware(cc)
 
 	// Organizations

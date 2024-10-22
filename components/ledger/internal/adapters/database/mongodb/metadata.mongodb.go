@@ -3,7 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
-	"fmt"
+	"github.com/LerianStudio/midaz/common/mlog"
 	"strings"
 	"time"
 
@@ -136,6 +136,8 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		return err
 	}
 
+	logger := mlog.NewLoggerFromContext(ctx)
+
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	opts := options.Update().SetUpsert(true)
 	filter := bson.M{"entity_id": id}
@@ -151,7 +153,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	}
 
 	if updated.ModifiedCount > 0 {
-		fmt.Println("updated a document with entity_id: ", id)
+		logger.Infoln("updated a document with entity_id: ", id)
 	}
 
 	return nil
@@ -164,6 +166,8 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
+	logger := mlog.NewLoggerFromContext(ctx)
+
 	opts := options.Delete()
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
@@ -174,7 +178,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	}
 
 	if deleted.DeletedCount > 0 {
-		fmt.Println("deleted a document with entity_id: ", id)
+		logger.Infoln("deleted a document with entity_id: ", id)
 	}
 
 	return nil

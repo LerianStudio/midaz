@@ -54,3 +54,8 @@ func (l *NoneLogger) Fatalln(args ...any) {}
 func (l *NoneLogger) WithFields(fields ...any) Logger {
 	return l
 }
+
+// Sync implements Sync Logger interface function.
+//
+//nolint:ireturn
+func (l *NoneLogger) Sync() error { return nil }
