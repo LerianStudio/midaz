@@ -15,6 +15,6 @@ COPY --chown=nonroot:nonroot --from=builder /ledger-app/components/ledger/migrat
 
 USER nonroot
 
-EXPOSE 3000 50051
+EXPOSE 3000 3001
 
 ENTRYPOINT ["/app"]

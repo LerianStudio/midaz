@@ -2,10 +2,13 @@ package mcasdoor
 
 import (
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"go.uber.org/zap"
+	"io"
+	"net/http"
 )
 
 //go:embed certificates/token_jwt_key.pem
@@ -45,12 +48,16 @@ func (cc *CasdoorConnection) Connect() error {
 	}
 
 	client := casdoorsdk.NewClientWithConf(conf)
-	if client != nil {
-		cc.Logger.Info("Connected to casdoor ✅ \n")
+	if client == nil || !cc.healthCheck() {
+		cc.Connected = false
+		err := errors.New("can't connect casdoor")
+		cc.Logger.Fatalf("CasdoorConnection.Ping %v", zap.Error(err))
 
-		cc.Connected = true
+		return err
 	}
 
+	cc.Logger.Info("Connected to casdoor ✅ ")
+	cc.Connected = true
 	cc.Client = client
 
 	return nil
@@ -66,4 +73,40 @@ func (cc *CasdoorConnection) GetClient() (*casdoorsdk.Client, error) {
 	}
 
 	return cc.Client, nil
+}
+
+func (cc *CasdoorConnection) healthCheck() bool {
+	resp, err := http.Get(cc.Endpoint + "/api/health")
+
+	if err != nil {
+		cc.Logger.Errorf("failed to make GET request: %v", err.Error())
+
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		cc.Logger.Errorf("failed to read response body: %v", err.Error())
+
+		return false
+	}
+
+	result := make(map[string]any)
+
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		cc.Logger.Errorf("failed to unmarshal response: %v", err.Error())
+
+		return false
+	}
+
+	if status, ok := result["status"].(string); ok && status == "ok" {
+		return true
+	}
+
+	cc.Logger.Error("casdoor unhealthy...")
+
+	return false
 }

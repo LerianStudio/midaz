@@ -15,6 +15,6 @@ COPY --chown=nonroot:nonroot --from=builder /transaction-app/components/transact
 
 USER nonroot
 
-EXPOSE 3000
+EXPOSE 3002
 
 ENTRYPOINT ["/app"]
