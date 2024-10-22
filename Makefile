@@ -20,7 +20,7 @@ help:
 	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
 	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
-	@echo "    make set_env                             Run a command to copy all .env.example to .env into respective folders."
+	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo ""
 	@echo "  ## Utility Commands"
@@ -64,7 +64,7 @@ sec:
 	gosec ./...
 
 
-set_env:
+set-env:
 	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
 	cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
 	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
