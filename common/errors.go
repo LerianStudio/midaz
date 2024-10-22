@@ -691,6 +691,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Path Parameter",
 			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %s and ensure they meet the required format before trying again.", args),
 		},
+		cn.ErrInvalidAccountType: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrInvalidAccountType.Error(),
+			Title:      "Invalid Account Type",
+			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, cerditCard or external. Please provide a valid type.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
