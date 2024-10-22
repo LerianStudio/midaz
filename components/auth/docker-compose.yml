@@ -5,7 +5,7 @@ x-postgres-common:
   env_file:
     - .env
   networks:
-    - midaz_network
+    - auth_network
 
 services:
   casdoor:
@@ -21,7 +21,7 @@ services:
       casdoor-db:
         condition: service_healthy
     networks:
-      - midaz_network
+      - auth_network
 
   casdoor-db:
     <<: *postgres-common
@@ -43,6 +43,6 @@ services:
       retries: 5
 
 networks:
-  midaz_network:
-    name: midaz_network
+  auth_network:
+    name: auth_network
     driver: bridge

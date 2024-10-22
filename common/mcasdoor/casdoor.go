@@ -2,9 +2,12 @@ package mcasdoor
 
 import (
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 
 	"go.uber.org/zap"
 
@@ -47,12 +50,16 @@ func (cc *CasdoorConnection) Connect() error {
 	}
 
 	client := casdoorsdk.NewClientWithConf(conf)
-	if client != nil {
-		fmt.Println("Connected to casdoor ✅ ")
+	if client == nil || !cc.healthCheck() {
+		cc.Connected = false
+		err := errors.New("can't connect casdoor")
+		log.Printf("CasdoorConnection.Ping %v", zap.Error(err))
 
-		cc.Connected = true
+		return err
 	}
 
+	fmt.Println("Connected to casdoor ✅ ")
+	cc.Connected = true
 	cc.Client = client
 
 	return nil
@@ -68,4 +75,34 @@ func (cc *CasdoorConnection) GetClient() (*casdoorsdk.Client, error) {
 	}
 
 	return cc.Client, nil
+}
+
+func (cc *CasdoorConnection) healthCheck() bool {
+	url := fmt.Sprintf("%s/api/health", cc.Endpoint)
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Errorf("failed to make GET request: %w", err.Error())
+		return false
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Errorf("failed to read response body: %w", err.Error())
+		return false
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		fmt.Errorf("failed to unmarshal response: %w", err.Error())
+		return false
+	}
+
+	if status, ok := result["status"].(string); ok && status == "ok" {
+		return true
+	}
+
+	fmt.Errorf("casdoor unhealthy")
+	return false
 }
