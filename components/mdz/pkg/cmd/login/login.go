@@ -17,26 +17,42 @@ import (
 )
 
 type factoryLogin struct {
-	factory  *factory.Factory
-	username string
-	password string
-	token    string
-	browser  browser
-	auth     repository.Auth
+	factory   *factory.Factory
+	username  string
+	password  string
+	token     string
+	browser   browser
+	auth      repository.Auth
+	tuiSelect func(message string, options []string) (string, error)
+}
+
+func validateCredentials(username, password string) error {
+	if len(username) == 0 {
+		return errors.New("username must not be empty")
+	}
+
+	if len(password) == 0 {
+		return errors.New("password must not be empty")
+	}
+
+	return nil
 }
 
 func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
-	if cmd.Flags().Changed("username") &&
-		cmd.Flags().Changed("password") &&
-		len(l.username) > 0 && len(l.password) > 0 {
-		r := rest.Auth{Factory: l.factory}
-		_, err := r.AuthenticateWithCredentials(l.username, l.password)
+	if cmd.Flags().Changed("username") && cmd.Flags().Changed("password") {
+		if err := validateCredentials(l.username, l.password); err != nil {
+			return err
+		}
+
+		_, err := l.auth.AuthenticateWithCredentials(l.username, l.password)
 
 		if err != nil {
 			return err
 		}
 
 		output.Printf(l.factory.IOStreams.Out, color.New(color.Bold).Sprint("Successfully logged in"))
+
+		return nil
 	}
 
 	option, err := tui.Select(
@@ -84,6 +100,10 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 	case strings.Contains(answer, "terminal"):
 		err := l.terminalLogin()
 
+		if err := validateCredentials(l.username, l.password); err != nil {
+			return err
+		}
+
 		if err != nil {
 			return err
 		}
@@ -96,8 +116,9 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 
 func NewCmdLogin(f *factory.Factory) *cobra.Command {
 	fVersion := factoryLogin{
-		factory: f,
-		auth:    rest.NewAuth(f),
+		factory:   f,
+		auth:      rest.NewAuth(f),
+		tuiSelect: tui.Select,
 	}
 
 	cmd := &cobra.Command{

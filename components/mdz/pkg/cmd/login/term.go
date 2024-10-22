@@ -16,7 +16,7 @@ func (l *factoryLogin) terminalLogin() error {
 	}
 
 	if len(l.password) == 0 {
-		l.password, err = tui.Password()
+		l.password, err = tui.Password("Enter your password")
 		if err != nil {
 			return err
 		}

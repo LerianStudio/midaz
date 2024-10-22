@@ -37,7 +37,7 @@ func (r *Auth) AuthenticateWithCredentials(username, password string) (*model.To
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error: status %d - %w", resp.StatusCode, err)
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
 	var tokenResponse model.TokenResponse
