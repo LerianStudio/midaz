@@ -23,14 +23,14 @@ type ProductPostgreSQLModel struct {
 
 // CreateProductInput is a struct design to encapsulate request create payload data.
 type CreateProductInput struct {
-	Name     string         `json:"name" validate:"required"`
+	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdateProductInput is a struct design to encapsulate request update payload data.
 type UpdateProductInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -50,8 +50,8 @@ type Product struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields

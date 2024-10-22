@@ -38,8 +38,8 @@ type OperationPostgreSQLModel struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -182,6 +182,6 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 
 // UpdateOperationInput is a struct design to encapsulate payload data.
 type UpdateOperationInput struct {
-	Description string         `json:"description"`
+	Description string         `json:"description" validate:"max=256"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }

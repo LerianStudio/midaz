@@ -31,8 +31,8 @@ type TransactionPostgreSQLModel struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -42,9 +42,9 @@ func (s Status) IsEmpty() bool {
 
 // CreateTransactionInput is a struct design to encapsulate payload data.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName string          `json:"chartOfAccountsGroupName"`
-	Description              string          `json:"description,omitempty"`
-	Code                     string          `json:"code,omitempty"`
+	ChartOfAccountsGroupName string          `json:"chartOfAccountsGroupName" validate:"max=256"`
+	Description              string          `json:"description,omitempty" validate:"max=256"`
+	Code                     string          `json:"code,omitempty" validate:"max=100"`
 	Pending                  bool            `json:"pending,omitempty"`
 	Metadata                 map[string]any  `json:"metadata,omitempty"`
 	Send                     gold.Send       `json:"send,omitempty"`
@@ -60,7 +60,7 @@ type InputDSL struct {
 
 // UpdateTransactionInput is a struct design to encapsulate payload data.
 type UpdateTransactionInput struct {
-	Description string         `json:"description"`
+	Description string         `json:"description" validate:"max=256"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 

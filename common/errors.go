@@ -695,7 +695,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       cn.ErrInvalidAccountType.Error(),
 			Title:      "Invalid Account Type",
-			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, cerditCard or external. Please provide a valid type.",
+			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
 		},
 	}
 

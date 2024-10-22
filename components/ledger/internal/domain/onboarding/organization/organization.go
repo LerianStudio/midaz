@@ -25,10 +25,10 @@ type OrganizationPostgreSQLModel struct {
 
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 type CreateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"required"`
+	LegalName            string         `json:"legalName" validate:"required,max=256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs"`
-	LegalDocument        string         `json:"legalDocument" validate:"required"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
+	LegalDocument        string         `json:"legalDocument" validate:"required,max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -36,9 +36,9 @@ type CreateOrganizationInput struct {
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 type UpdateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"required"`
+	LegalName            string         `json:"legalName" validate:"required,max=256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -61,8 +61,8 @@ type Organization struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields
