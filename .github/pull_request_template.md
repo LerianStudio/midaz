@@ -3,8 +3,9 @@
 ## Pull Request Type
 [//]: # (Check the appropriate box for the type of pull request.)
 
-- [ ] Ledger
 - [ ] Auth
+- [ ] Infra
+- [ ] Ledger
 - [ ] Mdz
 - [ ] Transaction
 - [ ] Pipeline
