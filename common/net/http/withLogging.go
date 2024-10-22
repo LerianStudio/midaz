@@ -175,7 +175,7 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 			Body:       "",
 		}
 
-		logger.Debug(info.debugRequestString())
+		logger.Info(info.debugRequestString())
 
 		ctx := mlog.ContextWithLogger(c.Context(), logger)
 
@@ -183,7 +183,7 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 
 		info.FinishRequestInfo(&rw)
 
-		logger.Debug(info.debugResponseString(&rw))
+		logger.Info(info.debugResponseString(&rw))
 		logger.Infoln(info)
 
 		if err := c.Next(); err != nil {

@@ -49,14 +49,12 @@ func InitializeLogger() mlog.Logger {
 	}
 
 	tracingLogger := otelzap.New(logger)
-	sugar := tracingLogger.Sugar()
+	sugarLogger := tracingLogger.Sugar()
 
-	fmt.Printf("Log level is (%v)\n", zapCfg.Level)
-	fmt.Printf("Logger is (%T)\n", sugar)
-
-	fmt.Println(console.Line(console.DefaultLineSize))
+	sugarLogger.Infof("Log level is (%v)", zapCfg.Level)
+	sugarLogger.Infof("Logger is (%T) \n", sugarLogger)
 
 	return &ZapWithTraceLogger{
-		Logger: sugar,
+		Logger: sugarLogger,
 	}
 }
