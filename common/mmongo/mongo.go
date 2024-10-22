@@ -2,9 +2,7 @@ package mmongo
 
 import (
 	"context"
-	"fmt"
-	"log"
-
+	"github.com/LerianStudio/midaz/common/mlog"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
@@ -16,28 +14,29 @@ type MongoConnection struct {
 	DB                     *mongo.Client
 	Connected              bool
 	Database               string
+	Logger                 mlog.Logger
 }
 
 // Connect keeps a singleton connection with postgres.
 func (mc *MongoConnection) Connect(ctx context.Context) error {
-	fmt.Println("Connecting to mongodb...")
+	mc.Logger.Info("Connecting to mongodb...")
 
 	clientOptions := options.Client().ApplyURI(mc.ConnectionStringSource)
 
 	noSQLDB, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Fatal("failed to open connect to mongodb", zap.Error(err))
+		mc.Logger.Fatal("failed to open connect to mongodb", zap.Error(err))
 		return nil
 	}
 
 	if err := noSQLDB.Ping(ctx, nil); err != nil {
-		log.Printf("MongoDBConnection.Ping %v",
+		mc.Logger.Infof("MongoDBConnection.Ping %v",
 			zap.Error(err))
 
 		return err
 	}
 
-	fmt.Println("Connected to mongodb ✅ ")
+	mc.Logger.Info("Connected to mongodb ✅ \n")
 
 	mc.Connected = true
 
@@ -51,7 +50,7 @@ func (mc *MongoConnection) GetDB(ctx context.Context) (*mongo.Client, error) {
 	if mc.DB == nil {
 		err := mc.Connect(ctx)
 		if err != nil {
-			log.Printf("ERRCONECT %s", err)
+			mc.Logger.Infof("ERRCONECT %s", err)
 			return nil, err
 		}
 	}
