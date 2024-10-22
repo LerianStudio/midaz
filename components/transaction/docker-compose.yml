@@ -1,28 +1,3 @@
-x-postgres-transaction-common:
-  &postgres-transaction-common
-  image: postgres:16-alpine
-  user: ${USER_EXECUTE_COMMAND}
-  restart: always
-  healthcheck:
-    test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}" ]
-    interval: 10s
-    timeout: 5s
-    retries: 5
-  networks:
-    - midaz_network
-
-x-mongodb-common:
-  &mongodb-common
-  image: mongo:latest
-  restart: always
-  healthcheck:
-    test: echo 'db.runCommand("ping").ok'
-    interval: 10s
-    timeout: 5s
-    retries: 5
-  networks:
-    - midaz_network
-
 services:
   transaction:
     container_name: midaz-transaction
@@ -31,94 +6,26 @@ services:
       dockerfile: ./components/transaction/Dockerfile
     env_file:
       - .env
-    links:
-      - mongodb
-      - primary-transaction
-      - replica-transaction
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
       - .:/usr/src/app
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      primary-transaction:
-        condition: service_healthy
-      replica-transaction:
-        condition: service_healthy
     networks:
-      - midaz_network
-
-  mongodb:
-    <<: *mongodb-common
-    container_name: midaz-mongodb-transaction
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    command: mongod --port ${MONGO_PORT}
-    ports:
-      - ${MONGO_PORT}:${MONGO_PORT}
-    volumes:
-      - mongodb_data_container:/data/db
-
-  primary-transaction:
-    <<: *postgres-transaction-common
-    container_name: midaz-primary-transaction
-    ports:
-      - ${DB_PORT}:${DB_PORT}
-    environment:
-      PGPORT: ${DB_PORT}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
-    command: |
-      postgres
-      -c wal_level=replica
-      -c hot_standby=on
-      -c max_wal_senders=10
-      -c max_replication_slots=10
-      -c hot_standby_feedback=on
-    volumes:
-      - ./setup/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
-
-  replica-transaction:
-    <<: *postgres-transaction-common
-    container_name: midaz-replica-transaction
-    ports:
-      - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
-    environment:
-      PGUSER: ${REPLICATION_USER}
-      PGPASSWORD: ${REPLICATION_PASSWORD}
-    command: |
-      bash -c "
-      if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
-        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=primary-transaction --port=${DB_PORT}
-        do
-          echo 'Waiting for primary-transaction to connect...'
-          sleep 3s
-        done
-        echo 'Backup done... starting replica-transaction...'
-        chmod 0700 /var/lib/postgresql/data
-        # Ensure the port is set to 5435 for the replica
-        sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
-      fi
-      exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
-      "
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_REPLICA_USER} -d ${DB_REPLICA_NAME} -p ${DB_REPLICA_PORT}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    depends_on:
-      primary-transaction:
-        condition: service_healthy
-
-volumes:
-  mongodb_data_container:
+      - transaction_network
+      - auth_network
+      - infra_network
+      - ledger_network
 
 networks:
-  midaz_network:
-    name: midaz_network
+  transaction_network:
+    name: transaction_network
+    driver: bridge
+  ledger_network:
+    name: ledger_network
+    driver: bridge
+  auth_network:
+    name: auth_network
+    driver: bridge
+  infra_network:
+    name: infra_network
     driver: bridge
