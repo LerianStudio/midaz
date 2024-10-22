@@ -37,7 +37,7 @@ get-perfsprint-deps:
 perfsprint: get-perfsprint-deps
 	perfsprint ./...
 
-.PHONY: gotext
+.PHONY: test
 test: 
 	 go test ./...
 
