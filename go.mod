@@ -5,7 +5,6 @@ go 1.22
 toolchain go1.22.0
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/casdoor/casdoor-go-sdk v1.1.0
@@ -21,6 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
+	github.com/uptrace/opentelemetry-go-extra/otelzap v0.3.2
 	go.mongodb.org/mongo-driver v1.17.1
 	go.uber.org/mock v0.4.0
 	google.golang.org/grpc v1.67.1
@@ -35,6 +35,8 @@ require (
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
@@ -43,14 +45,12 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
@@ -63,6 +63,11 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/swaggo/swag v1.16.3 // indirect
+	github.com/uptrace/opentelemetry-go-extra/otelutil v0.3.2 // indirect
+	go.opentelemetry.io/otel v1.30.0 // indirect
+	go.opentelemetry.io/otel/log v0.6.0 // indirect
+	go.opentelemetry.io/otel/metric v1.30.0 // indirect
+	go.opentelemetry.io/otel/trace v1.30.0 // indirect
 	golang.org/x/net v0.28.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
@@ -99,7 +104,6 @@ require (
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/term v0.24.0 // indirect
 	golang.org/x/text v0.19.0
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

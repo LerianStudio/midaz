@@ -2,6 +2,7 @@ package mzap
 
 import (
 	"fmt"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"log"
 	"os"
 
@@ -47,14 +48,15 @@ func InitializeLogger() mlog.Logger {
 		log.Fatalf("can't initialize zap logger: %v", err)
 	}
 
-	sugar := logger.Sugar()
+	tracingLogger := otelzap.New(logger)
+	sugar := tracingLogger.Sugar()
 
 	fmt.Printf("Log level is (%v)\n", zapCfg.Level)
 	fmt.Printf("Logger is (%T)\n", sugar)
 
 	fmt.Println(console.Line(console.DefaultLineSize))
 
-	return &ZapLogger{
+	return &ZapWithTraceLogger{
 		Logger: sugar,
 	}
 }
