@@ -23,7 +23,7 @@ type ProductPostgreSQLModel struct {
 
 // CreateProductInput is a struct design to encapsulate request create payload data.
 type CreateProductInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"required"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
