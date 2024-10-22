@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 LOGO=$(cat "$PWD"/common/shell/logo.txt)
 GITHOOKS_PATH="$PWD"/.githooks
