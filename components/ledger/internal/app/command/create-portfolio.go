@@ -13,7 +13,7 @@ import (
 )
 
 // CreatePortfolio creates a new portfolio persists data in the repository.
-func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID string, cpi *p.CreatePortfolioInput) (*p.Portfolio, error) {
+func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *p.CreatePortfolioInput) (*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
@@ -31,8 +31,8 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	portfolio := &p.Portfolio{
 		ID:             uuid.New().String(),
 		EntityID:       cpi.EntityID,
-		LedgerID:       ledgerID,
-		OrganizationID: organizationID,
+		LedgerID:       ledgerID.String(),
+		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
 		Status:         status,
 		CreatedAt:      time.Now(),

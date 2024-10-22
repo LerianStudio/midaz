@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
+	"github.com/LerianStudio/midaz/common/mlog"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
@@ -9,13 +10,14 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func NewRouter(cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
 
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
+	f.Use(lib.WithHTTPLogging(lib.WithCustomLogger(lg)))
 	jwt := lib.NewJWTMiddleware(cc)
 
 	// -- Routes --

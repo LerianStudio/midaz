@@ -35,5 +35,11 @@ func (s *Server) Run(l *common.Launcher) error {
 		return errors.Wrap(err, "failed to run the server")
 	}
 
+	defer func() {
+		if err := s.Logger.Sync(); err != nil {
+			s.Logger.Fatalf("Failed to sync logger: %s", err)
+		}
+	}()
+
 	return nil
 }

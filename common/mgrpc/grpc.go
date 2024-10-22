@@ -2,6 +2,7 @@ package mgrpc
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mlog"
 	"log"
 
 	"go.uber.org/zap"
@@ -11,8 +12,9 @@ import (
 
 // GRPCConnection is a struct which deal with gRPC connections.
 type GRPCConnection struct {
-	Addr string
-	Conn *grpc.ClientConn
+	Addr   string
+	Conn   *grpc.ClientConn
+	Logger mlog.Logger
 }
 
 // Connect keeps a singleton connection with gRPC.

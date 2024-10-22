@@ -2,13 +2,13 @@ package mcasdoor
 
 import (
 	_ "embed"
+	"encoding/json"
 	"errors"
-	"fmt"
-	"log"
-
-	"go.uber.org/zap"
-
+	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
+	"go.uber.org/zap"
+	"io"
+	"net/http"
 )
 
 //go:embed certificates/token_jwt_key.pem
@@ -25,14 +25,15 @@ type CasdoorConnection struct {
 	JWKUri           string
 	Connected        bool
 	Client           *casdoorsdk.Client
+	Logger           mlog.Logger
 }
 
 func (cc *CasdoorConnection) Connect() error {
-	fmt.Println("Connecting to casdoor...")
+	cc.Logger.Info("Connecting to casdoor...")
 
 	if len(jwtPKCertificate) == 0 {
 		err := errors.New("public key certificate isn't load")
-		log.Fatal("public key certificate isn't load", zap.Error(err))
+		cc.Logger.Fatalf("public key certificate isn't load. error: %v", zap.Error(err))
 
 		return err
 	}
@@ -47,12 +48,16 @@ func (cc *CasdoorConnection) Connect() error {
 	}
 
 	client := casdoorsdk.NewClientWithConf(conf)
-	if client != nil {
-		fmt.Println("Connected to casdoor ✅ ")
+	if client == nil || !cc.healthCheck() {
+		cc.Connected = false
+		err := errors.New("can't connect casdoor")
+		cc.Logger.Fatalf("CasdoorConnection.Ping %v", zap.Error(err))
 
-		cc.Connected = true
+		return err
 	}
 
+	cc.Logger.Info("Connected to casdoor ✅ ")
+	cc.Connected = true
 	cc.Client = client
 
 	return nil
@@ -61,11 +66,47 @@ func (cc *CasdoorConnection) Connect() error {
 func (cc *CasdoorConnection) GetClient() (*casdoorsdk.Client, error) {
 	if cc.Client == nil {
 		if err := cc.Connect(); err != nil {
-			log.Printf("ERRCONECT %s", err)
+			cc.Logger.Infof("ERRCONECT %s", err)
 
 			return nil, err
 		}
 	}
 
 	return cc.Client, nil
+}
+
+func (cc *CasdoorConnection) healthCheck() bool {
+	resp, err := http.Get(cc.Endpoint + "/api/health")
+
+	if err != nil {
+		cc.Logger.Errorf("failed to make GET request: %v", err.Error())
+
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		cc.Logger.Errorf("failed to read response body: %v", err.Error())
+
+		return false
+	}
+
+	result := make(map[string]any)
+
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		cc.Logger.Errorf("failed to unmarshal response: %v", err.Error())
+
+		return false
+	}
+
+	if status, ok := result["status"].(string); ok && status == "ok" {
+		return true
+	}
+
+	cc.Logger.Error("casdoor unhealthy...")
+
+	return false
 }

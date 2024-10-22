@@ -1,11 +1,10 @@
 package mzap
 
 import (
-	"fmt"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"log"
 	"os"
 
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 
 	"go.uber.org/zap"
@@ -16,14 +15,14 @@ import (
 //
 //nolint:ireturn
 func InitializeLogger() mlog.Logger {
-	fmt.Println(console.Title("InitializeLogger"))
-
 	var zapCfg zap.Config
 
-	if os.Getenv("ENV_NAME") == "local" {
-		zapCfg = zap.NewDevelopmentConfig()
-	} else {
+	if os.Getenv("ENV_NAME") == "production" {
 		zapCfg = zap.NewProductionConfig()
+		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	} else {
+		zapCfg = zap.NewDevelopmentConfig()
+		zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 
 	if val, ok := os.LookupEnv("LOG_LEVEL"); ok {
@@ -37,23 +36,21 @@ func InitializeLogger() mlog.Logger {
 		zapCfg.Level = zap.NewAtomicLevelAt(lvl)
 	}
 
-	zapCfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-
 	zapCfg.DisableStacktrace = true
 
-	logger, err := zapCfg.Build()
+	// AddCallerSkip(1) is used to skip the stack frame of the zap logger wrapper code and get the actual caller
+	logger, err := zapCfg.Build(zap.AddCallerSkip(1))
 	if err != nil {
 		log.Fatalf("can't initialize zap logger: %v", err)
 	}
 
-	sugar := logger.Sugar()
+	tracingLogger := otelzap.New(logger)
+	sugarLogger := tracingLogger.Sugar()
 
-	fmt.Printf("Log level is (%v)\n", zapCfg.Level)
-	fmt.Printf("Logger is (%T)\n", sugar)
+	sugarLogger.Infof("Log level is (%v)", zapCfg.Level)
+	sugarLogger.Infof("Logger is (%T) \n", sugarLogger)
 
-	fmt.Println(console.Line(console.DefaultLineSize))
-
-	return &ZapLogger{
-		Logger: sugar,
+	return &ZapWithTraceLogger{
+		Logger: sugarLogger,
 	}
 }

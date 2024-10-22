@@ -24,10 +24,10 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID)
+	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID.String())
 
 	payload := i.(*p.CreatePortfolioInput)
 
