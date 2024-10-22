@@ -1,10 +1,8 @@
 package common
 
 import (
-	"fmt"
 	"sync"
 
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 )
 
@@ -50,35 +48,27 @@ func (l *Launcher) Run() {
 	count := len(l.apps)
 	l.wg.Add(count)
 
-	logf := func(format string, args ...any) {
-		if l.Logger != nil {
-			l.Logger.Infof(format, args...)
-		}
-	}
-
-	fmt.Println(console.Title("Launcher Run"))
-
-	logf(fmt.Sprintf("Starting %d app(s)\n", count))
+	l.Logger.Infof("Starting %d app(s)\n", count)
 
 	for name, app := range l.apps {
 		go func(name string, app App) {
-			logf("--")
-			logf(fmt.Sprintf("Launcher: App \u001b[33m(%s)\u001b[0m starting\n", name))
+			l.Logger.Info("--")
+			l.Logger.Infof("Launcher: App \u001b[33m(%s)\u001b[0m starting\n", name)
 
 			if err := app.Run(l); err != nil {
-				logf(fmt.Sprintf("Launcher: App (%s) error:", name))
-				logf(fmt.Sprintln("\u001b[31m", err, "\u001b[0m"))
+				l.Logger.Infof("Launcher: App (%s) error:", name)
+				l.Logger.Infof("\u001b[31m%s\u001b[0m", err)
 			}
 
 			l.wg.Done()
 
-			logf(fmt.Sprintf("Launcher: App (%s) finished\n", name))
+			l.Logger.Infof("Launcher: App (%s) finished\n", name)
 		}(name, app)
 	}
 
 	l.wg.Wait()
 
-	logf("Launcher: Terminated")
+	l.Logger.Info("Launcher: Terminated")
 }
 
 // NewLauncher create an instance of Launch.

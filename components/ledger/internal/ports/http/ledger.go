@@ -4,6 +4,8 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/common"
 
 	cn "github.com/LerianStudio/midaz/common/constant"
@@ -29,7 +31,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := i.(*l.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
@@ -50,18 +52,18 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
-	logger.Infof("Initiating retrieval of Ledger with ID: %s", id)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Ledger with ID: %s", id)
+	logger.Infof("Successfully retrieved Ledger with ID: %s", id.String())
 
 	return commonHTTP.OK(c, ledger)
 }
@@ -71,7 +73,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -118,27 +120,27 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
-	logger.Infof("Initiating update of Ledger with ID: %s", id)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating update of Ledger with ID: %s", id.String())
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := p.(*l.UpdateLedgerInput)
 	logger.Infof("Request to update an Ledger with details: %#v", payload)
 
 	_, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Ledger with ID: %s", id)
+	logger.Infof("Successfully updated Ledger with ID: %s", id.String())
 
 	return commonHTTP.OK(c, ledger)
 }
@@ -149,13 +151,13 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	id := c.Params("id")
-	logger.Infof("Initiating removal of Ledeger with ID: %s", id)
+	id := c.Locals("id").(uuid.UUID)
+	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	if os.Getenv("ENV_NAME") == "production" {
-		logger.Errorf("Failed to remove Ledger with ID: %s in ", id)
+		logger.Errorf("Failed to remove Ledger with ID: %s in ", id.String())
 
 		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(l.Ledger{}).Name())
 
@@ -163,11 +165,11 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
-		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id, err.Error())
+		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully removed Ledeger with ID: %s", id)
+	logger.Infof("Successfully removed Ledeger with ID: %s", id.String())
 
 	return commonHTTP.NoContent(c)
 }

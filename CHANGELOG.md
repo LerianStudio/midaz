@@ -1,3 +1,443 @@
+## [1.23.0](https://github.com/LerianStudio/midaz/compare/v1.22.0...v1.23.0) (2024-10-22)
+
+
+### Features
+
+* add infra to template; :sparkles: ([f18dca9](https://github.com/LerianStudio/midaz/commit/f18dca99754eb5c0aa71936c075979c27048bb53))
+* **logging:** wrap zap logger implementation with otelzap :sparkles: ([d792e65](https://github.com/LerianStudio/midaz/commit/d792e651312d63a3812d1d737710db2f0329e1d3))
+
+
+### Bug Fixes
+
+* **logging:** add logger sync to server for graceful shutdown :bug: ([c51a4af](https://github.com/LerianStudio/midaz/commit/c51a4af37d9f0f646c6386505138ab9273aeaefd))
+* add make set_env on make file; :bug: ([6c6bead](https://github.com/LerianStudio/midaz/commit/6c6bead89a289a52993d7e75b3687753637f4624))
+* adjust transaction log; :bug: ([823ec66](https://github.com/LerianStudio/midaz/commit/823ec6643f8e54af7fd47acc434c010b0416fd31))
+* change map instantiation; :bug: ([1d3f1e8](https://github.com/LerianStudio/midaz/commit/1d3f1e8178950da03b9320371b140ad752f10cd5))
+* **logging:** resolve logging issues for all routes :bug: ([694dadb](https://github.com/LerianStudio/midaz/commit/694dadb29889d2884920260d6e6ac765e5c672dd))
+* return bash on make.sh; :bug: ([0b964ba](https://github.com/LerianStudio/midaz/commit/0b964ba235ef81a1ccce11f6d9a8b1f372a50de9))
+* **logging:** set capital color level encoder for non-production environments :bug: ([f5f6e73](https://github.com/LerianStudio/midaz/commit/f5f6e7329037de63ba2c6325446c0961eabee4b4))
+* some adjusts; :bug: ([9f45958](https://github.com/LerianStudio/midaz/commit/9f45958bba6cec482d582f4ba12acbdfbff6129d))
+* **logging:** update sync func being called in zap logger for graceful shutdown :bug: ([4ad1ff2](https://github.com/LerianStudio/midaz/commit/4ad1ff2a653500ae9e9d97280bed0eba2f226f4c))
+* uses uuid type instead of string for portfolio creation :bug: ([f1edeef](https://github.com/LerianStudio/midaz/commit/f1edeefe2132c3439c46b41a1f56edcc84b4ccfa))
+
+## [1.23.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.23.0-beta.2...v1.23.0-beta.3) (2024-10-22)
+
+
+### Features
+
+* add infra to template; :sparkles: ([f18dca9](https://github.com/LerianStudio/midaz/commit/f18dca99754eb5c0aa71936c075979c27048bb53))
+
+
+### Bug Fixes
+
+* add make set_env on make file; :bug: ([6c6bead](https://github.com/LerianStudio/midaz/commit/6c6bead89a289a52993d7e75b3687753637f4624))
+* adjust transaction log; :bug: ([823ec66](https://github.com/LerianStudio/midaz/commit/823ec6643f8e54af7fd47acc434c010b0416fd31))
+* change map instantiation; :bug: ([1d3f1e8](https://github.com/LerianStudio/midaz/commit/1d3f1e8178950da03b9320371b140ad752f10cd5))
+* return bash on make.sh; :bug: ([0b964ba](https://github.com/LerianStudio/midaz/commit/0b964ba235ef81a1ccce11f6d9a8b1f372a50de9))
+* some adjusts; :bug: ([9f45958](https://github.com/LerianStudio/midaz/commit/9f45958bba6cec482d582f4ba12acbdfbff6129d))
+
+## [1.23.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.23.0-beta.1...v1.23.0-beta.2) (2024-10-22)
+
+
+### Features
+
+* **logging:** wrap zap logger implementation with otelzap :sparkles: ([d792e65](https://github.com/LerianStudio/midaz/commit/d792e651312d63a3812d1d737710db2f0329e1d3))
+
+
+### Bug Fixes
+
+* **logging:** add logger sync to server for graceful shutdown :bug: ([c51a4af](https://github.com/LerianStudio/midaz/commit/c51a4af37d9f0f646c6386505138ab9273aeaefd))
+* **logging:** resolve logging issues for all routes :bug: ([694dadb](https://github.com/LerianStudio/midaz/commit/694dadb29889d2884920260d6e6ac765e5c672dd))
+* **logging:** set capital color level encoder for non-production environments :bug: ([f5f6e73](https://github.com/LerianStudio/midaz/commit/f5f6e7329037de63ba2c6325446c0961eabee4b4))
+* **logging:** update sync func being called in zap logger for graceful shutdown :bug: ([4ad1ff2](https://github.com/LerianStudio/midaz/commit/4ad1ff2a653500ae9e9d97280bed0eba2f226f4c))
+
+## [1.23.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.22.0...v1.23.0-beta.1) (2024-10-22)
+
+
+### Bug Fixes
+
+* uses uuid type instead of string for portfolio creation :bug: ([f1edeef](https://github.com/LerianStudio/midaz/commit/f1edeefe2132c3439c46b41a1f56edcc84b4ccfa))
+
+## [1.22.0](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0) (2024-10-22)
+
+
+### Features
+
+* implements method to check if a ledger exists by name in an organization :sparkles: ([9737579](https://github.com/LerianStudio/midaz/commit/973757967817027815cc1a5497247af3e26ea587))
+* product name required :sparkles: ([e3c4a51](https://github.com/LerianStudio/midaz/commit/e3c4a511ef527de01dd9e4032ca9861fa7273bfc))
+* validate account type :sparkles: ([6dd3fa0](https://github.com/LerianStudio/midaz/commit/6dd3fa09e4cd43668ad33eec0f0533e775117e1e))
+
+
+### Bug Fixes
+
+* error in the logic not respecting the username and password flags ([b76e361](https://github.com/LerianStudio/midaz/commit/b76e3615a06e48140e57ed74c2d6d06db513e60b))
+* patch account doesnt return the right data :bug: ([a9c97c2](https://github.com/LerianStudio/midaz/commit/a9c97c2b48b16ae237195777fa8c77d23370e184))
+* rename to put on pattern :bug: ([ec8141a](https://github.com/LerianStudio/midaz/commit/ec8141ae8195d6e6f864ee766bca94bf6e90de03))
+* sets name as a required field for creating ledgers :bug: ([534cda5](https://github.com/LerianStudio/midaz/commit/534cda5d9203a6c478baf8980dea2e3fc2170eaf))
+* sets type as a required field for creating accounts :bug: ([a35044f](https://github.com/LerianStudio/midaz/commit/a35044f7d79b4eb3ecd1476d9ac5527e36617fb1))
+* setting cursor input and interactive terminal output ([9b45c14](https://github.com/LerianStudio/midaz/commit/9b45c147a68c5fb030e264b65a3c05f32c8eaa04))
+* update some ports on .env :bug: ([b7c58ea](https://github.com/LerianStudio/midaz/commit/b7c58ea75e5c82b8728a785a4b233fa5351c478c))
+* uses parsed UUID for organizationID on create ledger :bug: ([b506dc3](https://github.com/LerianStudio/midaz/commit/b506dc3dfe1e1ea8abdf251ca040ab3a6db163ef))
+* validates if a ledger with the same name already exists for the same organization :bug: ([08df20b](https://github.com/LerianStudio/midaz/commit/08df20bf4cdd99fc33ce3d273162addb0023afc6))
+
+## [1.22.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.12...v1.22.0-beta.13) (2024-10-22)
+
+## [1.22.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.11...v1.22.0-beta.12) (2024-10-22)
+
+
+### Features
+
+* product name required :sparkles: ([e3c4a51](https://github.com/LerianStudio/midaz/commit/e3c4a511ef527de01dd9e4032ca9861fa7273bfc))
+
+## [1.22.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.10...v1.22.0-beta.11) (2024-10-22)
+
+## [1.22.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.9...v1.22.0-beta.10) (2024-10-22)
+
+## [1.22.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.8...v1.22.0-beta.9) (2024-10-22)
+
+## [1.22.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.7...v1.22.0-beta.8) (2024-10-22)
+
+
+### Features
+
+* validate account type :sparkles: ([6dd3fa0](https://github.com/LerianStudio/midaz/commit/6dd3fa09e4cd43668ad33eec0f0533e775117e1e))
+
+## [1.22.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.6...v1.22.0-beta.7) (2024-10-21)
+
+
+### Bug Fixes
+
+* error in the logic not respecting the username and password flags ([b76e361](https://github.com/LerianStudio/midaz/commit/b76e3615a06e48140e57ed74c2d6d06db513e60b))
+* setting cursor input and interactive terminal output ([9b45c14](https://github.com/LerianStudio/midaz/commit/9b45c147a68c5fb030e264b65a3c05f32c8eaa04))
+
+## [1.22.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.5...v1.22.0-beta.6) (2024-10-21)
+
+
+### Features
+
+* implements method to check if a ledger exists by name in an organization :sparkles: ([9737579](https://github.com/LerianStudio/midaz/commit/973757967817027815cc1a5497247af3e26ea587))
+
+
+### Bug Fixes
+
+* uses parsed UUID for organizationID on create ledger :bug: ([b506dc3](https://github.com/LerianStudio/midaz/commit/b506dc3dfe1e1ea8abdf251ca040ab3a6db163ef))
+* validates if a ledger with the same name already exists for the same organization :bug: ([08df20b](https://github.com/LerianStudio/midaz/commit/08df20bf4cdd99fc33ce3d273162addb0023afc6))
+
+## [1.22.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.4...v1.22.0-beta.5) (2024-10-21)
+
+
+### Bug Fixes
+
+* rename to put on pattern :bug: ([ec8141a](https://github.com/LerianStudio/midaz/commit/ec8141ae8195d6e6f864ee766bca94bf6e90de03))
+* update some ports on .env :bug: ([b7c58ea](https://github.com/LerianStudio/midaz/commit/b7c58ea75e5c82b8728a785a4b233fa5351c478c))
+
+## [1.22.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.3...v1.22.0-beta.4) (2024-10-21)
+
+
+### Bug Fixes
+
+* patch account doesnt return the right data :bug: ([a9c97c2](https://github.com/LerianStudio/midaz/commit/a9c97c2b48b16ae237195777fa8c77d23370e184))
+
+## [1.22.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.2...v1.22.0-beta.3) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets type as a required field for creating accounts :bug: ([a35044f](https://github.com/LerianStudio/midaz/commit/a35044f7d79b4eb3ecd1476d9ac5527e36617fb1))
+
+## [1.22.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.1...v1.22.0-beta.2) (2024-10-21)
+
+## [1.22.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0-beta.1) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets name as a required field for creating ledgers :bug: ([534cda5](https://github.com/LerianStudio/midaz/commit/534cda5d9203a6c478baf8980dea2e3fc2170eaf))
+
+## [1.21.0](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0) (2024-10-18)
+
+
+### Features
+
+* create command login mode term, browser :sparkles: ([80a9326](https://github.com/LerianStudio/midaz/commit/80a932663d5e2747b59fb740a46d828a852e10a9))
+* create transaction using json based on dsl struct :sparkles: ([a2552ed](https://github.com/LerianStudio/midaz/commit/a2552ed74b40e92963b265f1defd69ab32d43482))
+
+
+### Bug Fixes
+
+* change midaz code owner file :bug: ([8f5e2c2](https://github.com/LerianStudio/midaz/commit/8f5e2c202fe6fa9ae9140ac032ad304f97ab34a6))
+* make sec and lint; :bug: ([93a3dd6](https://github.com/LerianStudio/midaz/commit/93a3dd6eddc6c3f032a7e5844355b81c93ccbf5f))
+* sets entityID as a required field for portfolio creation :bug: ([5a74f7d](https://github.com/LerianStudio/midaz/commit/5a74f7d381061ec677ed6c3d1887793deb4fd7ca))
+* sets name as a required field for portfolio creation :bug: ([ef35811](https://github.com/LerianStudio/midaz/commit/ef358115fba637d8430897b58f87eb5cc2295fb2))
+* some update to add and sub accounts; adjust validate accounts balance; :bug: ([e705cbd](https://github.com/LerianStudio/midaz/commit/e705cbd3db086d400ae6440b8b21870d3c28cd49))
+* update postman; :bug: ([4931c51](https://github.com/LerianStudio/midaz/commit/4931c5117ca48a4bbd4471f61e0f1d987da9c60b))
+* updates to get all accounts :bug: ([f536a9a](https://github.com/LerianStudio/midaz/commit/f536a9a5ee1b949b60dded1b3ae7709b4e219d55))
+
+## [1.21.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.4...v1.21.0-beta.5) (2024-10-18)
+
+
+### Bug Fixes
+
+* change midaz code owner file :bug: ([8f5e2c2](https://github.com/LerianStudio/midaz/commit/8f5e2c202fe6fa9ae9140ac032ad304f97ab34a6))
+
+## [1.21.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.3...v1.21.0-beta.4) (2024-10-18)
+
+
+### Features
+
+* create transaction using json based on dsl struct :sparkles: ([a2552ed](https://github.com/LerianStudio/midaz/commit/a2552ed74b40e92963b265f1defd69ab32d43482))
+
+
+### Bug Fixes
+
+* make sec and lint; :bug: ([93a3dd6](https://github.com/LerianStudio/midaz/commit/93a3dd6eddc6c3f032a7e5844355b81c93ccbf5f))
+* some update to add and sub accounts; adjust validate accounts balance; :bug: ([e705cbd](https://github.com/LerianStudio/midaz/commit/e705cbd3db086d400ae6440b8b21870d3c28cd49))
+* update postman; :bug: ([4931c51](https://github.com/LerianStudio/midaz/commit/4931c5117ca48a4bbd4471f61e0f1d987da9c60b))
+* updates to get all accounts :bug: ([f536a9a](https://github.com/LerianStudio/midaz/commit/f536a9a5ee1b949b60dded1b3ae7709b4e219d55))
+
+## [1.21.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.2...v1.21.0-beta.3) (2024-10-18)
+
+
+### Bug Fixes
+
+* sets entityID as a required field for portfolio creation :bug: ([5a74f7d](https://github.com/LerianStudio/midaz/commit/5a74f7d381061ec677ed6c3d1887793deb4fd7ca))
+
+## [1.21.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.21.0-beta.1...v1.21.0-beta.2) (2024-10-18)
+
+
+### Features
+
+* create command login mode term, browser :sparkles: ([80a9326](https://github.com/LerianStudio/midaz/commit/80a932663d5e2747b59fb740a46d828a852e10a9))
+
+## [1.21.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0-beta.1) (2024-10-18)
+
+
+### Bug Fixes
+
+* sets name as a required field for portfolio creation :bug: ([ef35811](https://github.com/LerianStudio/midaz/commit/ef358115fba637d8430897b58f87eb5cc2295fb2))
+
+## [1.20.0](https://github.com/LerianStudio/midaz/compare/v1.19.0...v1.20.0) (2024-10-18)
+
+
+### Features
+
+* validate code for all types :sparkles: ([c0e7b31](https://github.com/LerianStudio/midaz/commit/c0e7b3179839c720f24ce2da00e5c20172616f10))
+
+
+### Bug Fixes
+
+* update error message for invalid path parameters :bug: ([5942994](https://github.com/LerianStudio/midaz/commit/5942994ed9f31d3a3257f46a829463df2e607d93))
+
+## [1.20.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.20.0-beta.1...v1.20.0-beta.2) (2024-10-18)
+
+
+### Features
+
+* validate code for all types :sparkles: ([c0e7b31](https://github.com/LerianStudio/midaz/commit/c0e7b3179839c720f24ce2da00e5c20172616f10))
+
+## [1.20.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.19.0...v1.20.0-beta.1) (2024-10-18)
+
+
+### Bug Fixes
+
+* update error message for invalid path parameters :bug: ([5942994](https://github.com/LerianStudio/midaz/commit/5942994ed9f31d3a3257f46a829463df2e607d93))
+
+## [1.19.0](https://github.com/LerianStudio/midaz/compare/v1.18.0...v1.19.0) (2024-10-18)
+
+
+### Features
+
+* adds UUID handler for routes with path parameters :sparkles: ([6153896](https://github.com/LerianStudio/midaz/commit/6153896bc83e0d3048a7223f89eafe6b6f2deae3))
+* adds validation error for invalid path parameters :sparkles: ([270ecfd](https://github.com/LerianStudio/midaz/commit/270ecfdc7aa14040aefa29ab09710aa6274acce9))
+* implement get operation by portfolio :sparkles: ([1e9322f](https://github.com/LerianStudio/midaz/commit/1e9322f8257672d95d850739609af87c673d7b56))
+* implements handler for parsing UUID path parameters :sparkles: ([6baa571](https://github.com/LerianStudio/midaz/commit/6baa571275c876ab48760f882e48a400bd892196))
+* initialize CLI with root and version commands :sparkles: ([6ebff8a](https://github.com/LerianStudio/midaz/commit/6ebff8a40ba097b0eaa4feb1106ebc29a5ba84dc))
+* require code :sparkles: ([40d1bbd](https://github.com/LerianStudio/midaz/commit/40d1bbd7f54c85aaab279e36754274df93d12a34))
+
+
+### Bug Fixes
+
+* add log; :bug: ([3a71282](https://github.com/LerianStudio/midaz/commit/3a712820a16ede4cd50cdc1729c5abf0507950b0))
+* add parentheses on find name or asset query; :bug: ([9b71d2e](https://github.com/LerianStudio/midaz/commit/9b71d2ee9bafba37b0eb9e1a0f328b5d10036d1e))
+* add required in asset_code; :bug: ([d2481eb](https://github.com/LerianStudio/midaz/commit/d2481ebf4d3007df5337394c151360aca28ee69a))
+* adjust to validate if exists code on assets; :bug: ([583890a](https://github.com/LerianStudio/midaz/commit/583890a6c1d178b95b41666a91600a60d3053123))
+* asset validate create before to ledger_id :bug: ([da0a22a](https://github.com/LerianStudio/midaz/commit/da0a22a38f57c6d8217e8511abb07592523c822f))
+* better formatting for error message :bug: ([d7135ff](https://github.com/LerianStudio/midaz/commit/d7135ff90f50f154a95928829142a37226be7629))
+* create validation on code to certify that asset_code exist on assets before insert in accounts; :bug: ([2375963](https://github.com/LerianStudio/midaz/commit/2375963e26657972f22ac714c905775bdf0ed5d5))
+* go sec and lint; :bug: ([4d22c8c](https://github.com/LerianStudio/midaz/commit/4d22c8c5be0f6498c5305ed01e1121efbe4e8987))
+* Invalid code format validation :bug: ([e8383ca](https://github.com/LerianStudio/midaz/commit/e8383cac7957d1f0d63ce20f71534052ab1e8703))
+* Invalid code format validation :bug: ([4dfe76c](https://github.com/LerianStudio/midaz/commit/4dfe76c1092412a129a60b09d408f71d8a59dca0))
+* remove asset_code validation on account :bug: ([05b89c5](https://github.com/LerianStudio/midaz/commit/05b89c52266d1e067ffc429d29405d49f50762dc))
+* remove copyloopvar and perfsprint; :bug: ([a181709](https://github.com/LerianStudio/midaz/commit/a1817091640de24bad22e43eaddccd86b21dcf82))
+* remove goconst :bug: ([707be65](https://github.com/LerianStudio/midaz/commit/707be656984aaea2c839be70f6c7c17e84375866))
+* remove unique constraint on database in code and reference on accounts; :bug: ([926ca9b](https://github.com/LerianStudio/midaz/commit/926ca9b758d7e69611afa903c035fa01218b108f))
+* resolve conflicts :bug: ([bc4b697](https://github.com/LerianStudio/midaz/commit/bc4b697c2e50cd1ec3cd41e0f96cb933a17b6a79))
+* uses parsed uuid while creating asset :bug: ([333bf49](https://github.com/LerianStudio/midaz/commit/333bf4921d3f2fd48156ead07ac8b1b29d88d5fa))
+* uses parsed uuid while deleting ledger by id :bug: ([8dc3a97](https://github.com/LerianStudio/midaz/commit/8dc3a97f8c859a6948cad099cd61888c8c016bee))
+* uses parsed uuid while deleting organization :bug: ([866170a](https://github.com/LerianStudio/midaz/commit/866170a1d2bb849fc1ed002a9aed99d7ee43eecb))
+* uses parsed uuid while getting all organization ledgers :bug: ([2260a33](https://github.com/LerianStudio/midaz/commit/2260a331e381d452bcab942f9f06864c60444f52))
+* uses parsed uuid while getting and updating a ledger :bug: ([ad1bcae](https://github.com/LerianStudio/midaz/commit/ad1bcae482d2939c8e828b169b566d3a13be95cd))
+* uses parsed uuid while retrieving all assets from a ledger :bug: ([aadf885](https://github.com/LerianStudio/midaz/commit/aadf8852154726bd4aef2e3295221b5472236ed9))
+* uses parsed uuid while retrieving and updating asset :bug: ([9c8b3a2](https://github.com/LerianStudio/midaz/commit/9c8b3a2f9747117e5149f3a515c8a5b582db4942))
+* uses parsed uuid while retrieving organization :bug: ([e2d2848](https://github.com/LerianStudio/midaz/commit/e2d284808c9c1d95d3d1192be2e4ba3e613318dc))
+* uses UUID to find asset :bug: ([381ba21](https://github.com/LerianStudio/midaz/commit/381ba2178633863f17cffb327a7ab2276926ce0d))
+
+## [1.19.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.6...v1.19.0-beta.7) (2024-10-18)
+
+
+### Features
+
+* adds UUID handler for routes with path parameters :sparkles: ([6153896](https://github.com/LerianStudio/midaz/commit/6153896bc83e0d3048a7223f89eafe6b6f2deae3))
+* adds validation error for invalid path parameters :sparkles: ([270ecfd](https://github.com/LerianStudio/midaz/commit/270ecfdc7aa14040aefa29ab09710aa6274acce9))
+* implements handler for parsing UUID path parameters :sparkles: ([6baa571](https://github.com/LerianStudio/midaz/commit/6baa571275c876ab48760f882e48a400bd892196))
+
+
+### Bug Fixes
+
+* better formatting for error message :bug: ([d7135ff](https://github.com/LerianStudio/midaz/commit/d7135ff90f50f154a95928829142a37226be7629))
+* remove asset_code validation on account :bug: ([05b89c5](https://github.com/LerianStudio/midaz/commit/05b89c52266d1e067ffc429d29405d49f50762dc))
+* uses parsed uuid while creating asset :bug: ([333bf49](https://github.com/LerianStudio/midaz/commit/333bf4921d3f2fd48156ead07ac8b1b29d88d5fa))
+* uses parsed uuid while deleting ledger by id :bug: ([8dc3a97](https://github.com/LerianStudio/midaz/commit/8dc3a97f8c859a6948cad099cd61888c8c016bee))
+* uses parsed uuid while deleting organization :bug: ([866170a](https://github.com/LerianStudio/midaz/commit/866170a1d2bb849fc1ed002a9aed99d7ee43eecb))
+* uses parsed uuid while getting all organization ledgers :bug: ([2260a33](https://github.com/LerianStudio/midaz/commit/2260a331e381d452bcab942f9f06864c60444f52))
+* uses parsed uuid while getting and updating a ledger :bug: ([ad1bcae](https://github.com/LerianStudio/midaz/commit/ad1bcae482d2939c8e828b169b566d3a13be95cd))
+* uses parsed uuid while retrieving all assets from a ledger :bug: ([aadf885](https://github.com/LerianStudio/midaz/commit/aadf8852154726bd4aef2e3295221b5472236ed9))
+* uses parsed uuid while retrieving and updating asset :bug: ([9c8b3a2](https://github.com/LerianStudio/midaz/commit/9c8b3a2f9747117e5149f3a515c8a5b582db4942))
+* uses parsed uuid while retrieving organization :bug: ([e2d2848](https://github.com/LerianStudio/midaz/commit/e2d284808c9c1d95d3d1192be2e4ba3e613318dc))
+* uses UUID to find asset :bug: ([381ba21](https://github.com/LerianStudio/midaz/commit/381ba2178633863f17cffb327a7ab2276926ce0d))
+
+## [1.19.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.5...v1.19.0-beta.6) (2024-10-18)
+
+
+### Bug Fixes
+
+* asset validate create before to ledger_id :bug: ([da0a22a](https://github.com/LerianStudio/midaz/commit/da0a22a38f57c6d8217e8511abb07592523c822f))
+
+## [1.19.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.4...v1.19.0-beta.5) (2024-10-18)
+
+
+### Features
+
+* require code :sparkles: ([40d1bbd](https://github.com/LerianStudio/midaz/commit/40d1bbd7f54c85aaab279e36754274df93d12a34))
+
+## [1.19.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.3...v1.19.0-beta.4) (2024-10-18)
+
+
+### Bug Fixes
+
+* add log; :bug: ([3a71282](https://github.com/LerianStudio/midaz/commit/3a712820a16ede4cd50cdc1729c5abf0507950b0))
+* add parentheses on find name or asset query; :bug: ([9b71d2e](https://github.com/LerianStudio/midaz/commit/9b71d2ee9bafba37b0eb9e1a0f328b5d10036d1e))
+* add required in asset_code; :bug: ([d2481eb](https://github.com/LerianStudio/midaz/commit/d2481ebf4d3007df5337394c151360aca28ee69a))
+* adjust to validate if exists code on assets; :bug: ([583890a](https://github.com/LerianStudio/midaz/commit/583890a6c1d178b95b41666a91600a60d3053123))
+* create validation on code to certify that asset_code exist on assets before insert in accounts; :bug: ([2375963](https://github.com/LerianStudio/midaz/commit/2375963e26657972f22ac714c905775bdf0ed5d5))
+* go sec and lint; :bug: ([4d22c8c](https://github.com/LerianStudio/midaz/commit/4d22c8c5be0f6498c5305ed01e1121efbe4e8987))
+* remove copyloopvar and perfsprint; :bug: ([a181709](https://github.com/LerianStudio/midaz/commit/a1817091640de24bad22e43eaddccd86b21dcf82))
+* remove goconst :bug: ([707be65](https://github.com/LerianStudio/midaz/commit/707be656984aaea2c839be70f6c7c17e84375866))
+* remove unique constraint on database in code and reference on accounts; :bug: ([926ca9b](https://github.com/LerianStudio/midaz/commit/926ca9b758d7e69611afa903c035fa01218b108f))
+
+## [1.19.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.2...v1.19.0-beta.3) (2024-10-18)
+
+
+### Bug Fixes
+
+* Invalid code format validation :bug: ([e8383ca](https://github.com/LerianStudio/midaz/commit/e8383cac7957d1f0d63ce20f71534052ab1e8703))
+* Invalid code format validation :bug: ([4dfe76c](https://github.com/LerianStudio/midaz/commit/4dfe76c1092412a129a60b09d408f71d8a59dca0))
+
+## [1.19.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.19.0-beta.1...v1.19.0-beta.2) (2024-10-17)
+
+## [1.19.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.18.0...v1.19.0-beta.1) (2024-10-17)
+
+
+### Features
+
+* implement get operation by portfolio :sparkles: ([1e9322f](https://github.com/LerianStudio/midaz/commit/1e9322f8257672d95d850739609af87c673d7b56))
+* initialize CLI with root and version commands :sparkles: ([6ebff8a](https://github.com/LerianStudio/midaz/commit/6ebff8a40ba097b0eaa4feb1106ebc29a5ba84dc))
+
+
+### Bug Fixes
+
+* resolve conflicts :bug: ([bc4b697](https://github.com/LerianStudio/midaz/commit/bc4b697c2e50cd1ec3cd41e0f96cb933a17b6a79))
+
+## [1.18.0](https://github.com/LerianStudio/midaz/compare/v1.17.0...v1.18.0) (2024-10-16)
+
+
+### Features
+
+* implement patch operation :sparkles: ([d4c6e5c](https://github.com/LerianStudio/midaz/commit/d4c6e5c3823b44b6b3466342f9cc6c24f21e3e05))
+
+
+### Bug Fixes
+
+* filters if any required fields are missing and returns a customized error message :bug: ([7f6c95a](https://github.com/LerianStudio/midaz/commit/7f6c95a4e388f9edb110f19d8ad5f4ca01b1a7ab))
+* sets legalName and legalDocument as required fields for creating or updating an organization :bug: ([1dd238d](https://github.com/LerianStudio/midaz/commit/1dd238d77b68e0e847adc0861deb526588a9049e))
+* update .env.example to transaction access accounts on grpc on ledger :bug: ([a643cc6](https://github.com/LerianStudio/midaz/commit/a643cc61c79678f1a1ae91d5eb623f6de04ee2d6))
+
+## [1.18.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.18.0-beta.1...v1.18.0-beta.2) (2024-10-16)
+
+
+### Features
+
+* implement patch operation :sparkles: ([d4c6e5c](https://github.com/LerianStudio/midaz/commit/d4c6e5c3823b44b6b3466342f9cc6c24f21e3e05))
+
+## [1.18.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.17.0...v1.18.0-beta.1) (2024-10-16)
+
+
+### Bug Fixes
+
+* filters if any required fields are missing and returns a customized error message :bug: ([7f6c95a](https://github.com/LerianStudio/midaz/commit/7f6c95a4e388f9edb110f19d8ad5f4ca01b1a7ab))
+* sets legalName and legalDocument as required fields for creating or updating an organization :bug: ([1dd238d](https://github.com/LerianStudio/midaz/commit/1dd238d77b68e0e847adc0861deb526588a9049e))
+* update .env.example to transaction access accounts on grpc on ledger :bug: ([a643cc6](https://github.com/LerianStudio/midaz/commit/a643cc61c79678f1a1ae91d5eb623f6de04ee2d6))
+
+## [1.17.0](https://github.com/LerianStudio/midaz/compare/v1.16.0...v1.17.0) (2024-10-16)
+
+
+### Bug Fixes
+
+* update scripts to set variable on collection instead of environment :bug: ([e2a52dc](https://github.com/LerianStudio/midaz/commit/e2a52dc5da8b89d5999bae90da292ebce10729cd))
+
+## [1.17.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.16.0...v1.17.0-beta.1) (2024-10-16)
+
+
+### Bug Fixes
+
+* update scripts to set variable on collection instead of environment :bug: ([e2a52dc](https://github.com/LerianStudio/midaz/commit/e2a52dc5da8b89d5999bae90da292ebce10729cd))
+
+## [1.16.0](https://github.com/LerianStudio/midaz/compare/v1.15.0...v1.16.0) (2024-10-16)
+
+
+### Features
+
+* implement get operation by portfolio :sparkles: ([35702ae](https://github.com/LerianStudio/midaz/commit/35702ae99ed667a001a317f8932796d6e540d32a))
+
+
+### Bug Fixes
+
+* add error treatment when extracting dsl file from header and get creating buffer error :bug: ([807a706](https://github.com/LerianStudio/midaz/commit/807a706a810f0b729e43472abaa93db5d96675be))
+* add solution to avoid nolint:gocyclo in business error messages handler :bug: ([a293625](https://github.com/LerianStudio/midaz/commit/a293625ea937c6a7ccecf94a254933673bf50816))
+* adjust centralized errors name to comply with stylecheck and other lint issues :bug: ([a06361d](https://github.com/LerianStudio/midaz/commit/a06361da717d4330445ab589b5fd9bf800d18743))
+* adjust reference to errors in common instead of http package :bug: ([c0deae2](https://github.com/LerianStudio/midaz/commit/c0deae240ba53530ec9750bacf6cf23862c127dc))
+
+## [1.16.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.16.0-beta.3...v1.16.0-beta.4) (2024-10-16)
+
+## [1.16.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.16.0-beta.2...v1.16.0-beta.3) (2024-10-15)
+
+
+### Features
+
+* implement get operation by portfolio :sparkles: ([35702ae](https://github.com/LerianStudio/midaz/commit/35702ae99ed667a001a317f8932796d6e540d32a))
+
+## [1.16.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.16.0-beta.1...v1.16.0-beta.2) (2024-10-15)
+
+## [1.16.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.15.0...v1.16.0-beta.1) (2024-10-15)
+
+
+### Bug Fixes
+
+* add error treatment when extracting dsl file from header and get creating buffer error :bug: ([807a706](https://github.com/LerianStudio/midaz/commit/807a706a810f0b729e43472abaa93db5d96675be))
+* add solution to avoid nolint:gocyclo in business error messages handler :bug: ([a293625](https://github.com/LerianStudio/midaz/commit/a293625ea937c6a7ccecf94a254933673bf50816))
+* adjust centralized errors name to comply with stylecheck and other lint issues :bug: ([a06361d](https://github.com/LerianStudio/midaz/commit/a06361da717d4330445ab589b5fd9bf800d18743))
+* adjust reference to errors in common instead of http package :bug: ([c0deae2](https://github.com/LerianStudio/midaz/commit/c0deae240ba53530ec9750bacf6cf23862c127dc))
+
 ## [1.15.0](https://github.com/LerianStudio/midaz/compare/v1.14.1...v1.15.0) (2024-10-14)
 
 

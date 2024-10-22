@@ -6,6 +6,7 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -101,4 +102,57 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	pagination.SetItems(operations)
 
 	return commonHTTP.OK(c, pagination)
+}
+
+func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	portfolioID := c.Params("portfolio_id")
+	operationID := c.Params("operation_id")
+
+	logger.Infof("Initiating retrieval of Operation by portfolio")
+
+	operation, err := handler.Query.GetOperationByPortfolio(ctx, organizationID, ledgerID, portfolioID, operationID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Operation by portfolio, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Operation by portfolio")
+
+	return commonHTTP.OK(c, operation)
+}
+
+// UpdateOperation method that patch operation created before
+func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Params("organization_id")
+	ledgerID := c.Params("ledger_id")
+	transactionID := c.Params("transaction_id")
+	operationID := c.Params("operation_id")
+
+	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
+
+	payload := p.(*o.UpdateOperationInput)
+	logger.Infof("Request to update an Operation with details: %#v", payload)
+
+	_, err := handler.Command.UpdateOperation(c.Context(), organizationID, ledgerID, transactionID, operationID, payload)
+	if err != nil {
+		logger.Errorf("Failed to update Operation with ID: %s, Error: %s", transactionID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	operation, err := handler.Query.GetOperationByID(c.Context(), organizationID, ledgerID, transactionID, operationID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Operation with ID: %s, Error: %s", operationID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
+
+	return commonHTTP.OK(c, operation)
 }

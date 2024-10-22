@@ -16,7 +16,7 @@ import (
 )
 
 // GetAllMetadataAccounts fetch all Accounts from the repository
-func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID, portfolioID string, filter commonHTTP.QueryHeader) ([]*a.Account, error) {
+func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter commonHTTP.QueryHeader) ([]*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving accounts")
 
@@ -33,7 +33,7 @@ func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, l
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	accounts, err := uc.AccountRepo.ListByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(portfolioID), uuids)
+	accounts, err := uc.AccountRepo.ListByIDs(ctx, organizationID, ledgerID, portfolioID, uuids)
 	if err != nil {
 		logger.Errorf("Error getting accounts on repo by query params: %v", err)
 

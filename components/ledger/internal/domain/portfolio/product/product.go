@@ -23,7 +23,7 @@ type ProductPostgreSQLModel struct {
 
 // CreateProductInput is a struct design to encapsulate request create payload data.
 type CreateProductInput struct {
-	Name     string         `json:"name" validate:"max=256"`
+	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -38,7 +38,7 @@ type UpdateProductInput struct {
 // Product is a struct designed to encapsulate payload data.
 type Product struct {
 	ID             string         `json:"id"`
-	Name           string         `json:"name" validate:"max=256"`
+	Name           string         `json:"name"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
 	Status         Status         `json:"status"`

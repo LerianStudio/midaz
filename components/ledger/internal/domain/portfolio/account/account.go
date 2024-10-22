@@ -36,13 +36,13 @@ type AccountPostgreSQLModel struct {
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
 type CreateAccountInput struct {
-	AssetCode       string         `json:"assetCode" validate:"max=100"`
+	AssetCode       string         `json:"assetCode" validate:"required,max=100"`
 	Name            string         `json:"name" validate:"max=256"`
 	Alias           *string        `json:"alias" validate:"max=100"`
-	Type            string         `json:"type"`
+	Type            string         `json:"type" validate:"required"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
-	EntityID        *string        `json:"entityId" validate:"max=256"`
+	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata"`
 }
@@ -59,17 +59,17 @@ type UpdateAccountInput struct {
 // Account is a struct designed to encapsulate response payload data.
 type Account struct {
 	ID              string         `json:"id"`
-	Name            string         `json:"name" validate:"max=256"`
+	Name            string         `json:"name"`
 	ParentAccountID *string        `json:"parentAccountId"`
-	EntityID        string         `json:"entityId" validate:"max=256"`
-	AssetCode       string         `json:"assetCode" validate:"max=10"`
+	EntityID        string         `json:"entityId"`
+	AssetCode       string         `json:"assetCode"`
 	OrganizationID  string         `json:"organizationId"`
 	LedgerID        string         `json:"ledgerId"`
 	PortfolioID     string         `json:"portfolioId"`
 	ProductID       *string        `json:"productId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
-	Alias           *string        `json:"alias" validate:"max=100"`
+	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
 	CreatedAt       time.Time      `json:"createdAt"`
 	UpdatedAt       time.Time      `json:"updatedAt"`

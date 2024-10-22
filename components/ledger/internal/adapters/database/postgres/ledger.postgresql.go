@@ -152,6 +152,29 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	return ledgers, nil
 }
 
+// FindByName returns error and a boolean indicating if Ledger entities exists by name
+func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return false, err
+	}
+
+	rows, err := db.QueryContext(ctx,
+		"SELECT * FROM ledger WHERE organization_id = $1 AND LOWER(name) LIKE LOWER($2) AND deleted_at IS NULL",
+		organizationID,
+		name)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		return true, common.ValidateBusinessError(cn.ErrLedgerNameConflict, reflect.TypeOf(l.Ledger{}).Name(), name)
+	}
+
+	return false, nil
+}
+
 // ListByIDs retrieves Ledgers entities from the database using the provided IDs.
 func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*l.Ledger, error) {
 	db, err := r.connection.GetDB()

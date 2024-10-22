@@ -72,4 +72,6 @@ var (
 	ErrNoAccountIDsProvided                = errors.New("0062")
 	ErrFailedToRetrieveAccountsByAliases   = errors.New("0063")
 	ErrNoAccountsFound                     = errors.New("0064")
+	ErrInvalidPathParameter                = errors.New("0065")
+	ErrInvalidAccountType                  = errors.New("0066")
 )

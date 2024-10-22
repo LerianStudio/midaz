@@ -1,4 +1,5 @@
 AUTH_DIR := ./components/auth
+INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 TRANSACTION_DIR := ./components/transaction
 
@@ -16,8 +17,10 @@ help:
 	@echo "    make format                              Run code formatter."
 	@echo "    make checkEnvs                           Check if github hooks are installed and secret env on files are not exposed."
 	@echo "    make auth                                Run a command inside the auth app in the components directory to see available commands."
+	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
 	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
+	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo ""
 	@echo "  ## Utility Commands"
@@ -60,8 +63,18 @@ tidy:
 sec:
 	gosec ./...
 
+
+set-env:
+	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
+	cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
+	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
+	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
+
 auth:
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
+
+infra:
+	$(MAKE) -C $(INFRA_DIR) $(COMMAND)
 
 ledger:
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
@@ -71,5 +84,6 @@ transaction:
 
 all-services:
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
+	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)

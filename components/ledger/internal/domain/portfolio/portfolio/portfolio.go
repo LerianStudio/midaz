@@ -26,8 +26,8 @@ type PortfolioPostgreSQLModel struct {
 
 // CreatePortfolioInput is a struct design to encapsulate request create payload data.
 type CreatePortfolioInput struct {
-	EntityID string         `json:"entityId" validate:"max=256"`
-	Name     string         `json:"name" validate:"max=256"`
+	EntityID string         `json:"entityId" validate:"required,max=256"`
+	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -42,8 +42,8 @@ type UpdatePortfolioInput struct {
 // Portfolio is a struct designed to encapsulate request update payload data.
 type Portfolio struct {
 	ID             string         `json:"id"`
-	Name           string         `json:"name" validate:"max=256"`
-	EntityID       string         `json:"entityId" validate:"max=256"`
+	Name           string         `json:"name"`
+	EntityID       string         `json:"entityId"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
 	Status         Status         `json:"status"`

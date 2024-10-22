@@ -16,11 +16,11 @@ import (
 )
 
 // GetAllProducts fetch all Product from the repository
-func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
+func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving products")
 
-	products, err := uc.ProductRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), filter.Limit, filter.Page)
+	products, err := uc.ProductRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting products on repo: %v", err)
 

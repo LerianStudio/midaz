@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"strings"
 
+	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/common"
 
 	"github.com/gofiber/fiber/v2"
@@ -84,7 +87,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	if len(diffFields) > 0 {
-		err := common.ValidateBadRequestFieldsError(make(map[string]string), "", diffFields)
+		err := common.ValidateBadRequestFieldsError(common.FieldValidations{}, common.FieldValidations{}, "", diffFields)
 		return BadRequest(c, err)
 	}
 
@@ -152,6 +155,30 @@ func ValidateStruct(s any) error {
 	return nil
 }
 
+// ParseUUIDPathParameters globally, considering all path parameters are UUIDs
+func ParseUUIDPathParameters(c *fiber.Ctx) error {
+	params := c.AllParams()
+
+	var invalidUUIDs []string
+
+	for param, value := range params {
+		parsedUUID, err := uuid.Parse(value)
+		if err != nil {
+			invalidUUIDs = append(invalidUUIDs, param)
+			continue
+		}
+
+		c.Locals(param, parsedUUID)
+	}
+
+	if len(invalidUUIDs) > 0 {
+		err := common.ValidateBusinessError(cn.ErrInvalidPathParameter, "", strings.Join(invalidUUIDs, ", "))
+		return WithError(c, err)
+	}
+
+	return c.Next()
+}
+
 //nolint:ireturn
 func newValidator() (*validator.Validate, ut.Translator) {
 	locale := en.New()
@@ -180,8 +207,10 @@ func newValidator() (*validator.Validate, ut.Translator) {
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) common.ValidationKnownFieldsError {
 	invalidFieldsMap := fields(err, trans)
 
+	requiredFields := fieldsRequired(invalidFieldsMap)
+
 	var vErr common.ValidationKnownFieldsError
-	_ = errors.As(common.ValidateBadRequestFieldsError(invalidFieldsMap, "", make(map[string]any)), &vErr)
+	_ = errors.As(common.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
 }
@@ -198,4 +227,16 @@ func fields(errs validator.ValidationErrors, trans ut.Translator) common.FieldVa
 	}
 
 	return nil
+}
+
+func fieldsRequired(myMap common.FieldValidations) common.FieldValidations {
+	result := make(common.FieldValidations)
+
+	for key, value := range myMap {
+		if strings.Contains(value, "required") {
+			result[key] = value
+		}
+	}
+
+	return result
 }

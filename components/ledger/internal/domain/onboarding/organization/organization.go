@@ -25,10 +25,10 @@ type OrganizationPostgreSQLModel struct {
 
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 type CreateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"max=256"`
+	LegalName            string         `json:"legalName" validate:"required,max=256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
 	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
-	LegalDocument        string         `json:"legalDocument" validate:"max=256"`
+	LegalDocument        string         `json:"legalDocument" validate:"required,max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata"`
@@ -36,7 +36,7 @@ type CreateOrganizationInput struct {
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 type UpdateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"max=256"`
+	LegalName            string         `json:"legalName" validate:"required,max=256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid"`
 	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
 	Address              Address        `json:"address"`
@@ -48,9 +48,9 @@ type UpdateOrganizationInput struct {
 type Organization struct {
 	ID                   string         `json:"id"`
 	ParentOrganizationID *string        `json:"parentOrganizationId"`
-	LegalName            string         `json:"legalName" validate:"max=256"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
-	LegalDocument        string         `json:"legalDocument" validate:"max=256"`
+	LegalName            string         `json:"legalName"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs"`
+	LegalDocument        string         `json:"legalDocument"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	CreatedAt            time.Time      `json:"createdAt"`

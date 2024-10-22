@@ -22,7 +22,7 @@ type LedgerPostgreSQLModel struct {
 
 // CreateLedgerInput is a struct design to encapsulate request create payload data.
 type CreateLedgerInput struct {
-	Name     string         `json:"name" validate:"max=256"`
+	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -37,7 +37,7 @@ type UpdateLedgerInput struct {
 // Ledger is a struct designed to encapsulate payload data.
 type Ledger struct {
 	ID             string         `json:"id"`
-	Name           string         `json:"name" validate:"max=256"`
+	Name           string         `json:"name"`
 	OrganizationID string         `json:"organizationId"`
 	Status         Status         `json:"status"`
 	CreatedAt      time.Time      `json:"createdAt"`

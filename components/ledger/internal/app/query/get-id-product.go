@@ -15,11 +15,11 @@ import (
 )
 
 // GetProductByID get a Product from the repository by given id.
-func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID, id string) (*r.Product, error) {
+func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
-	logger.Infof("Retrieving product for id: %s", id)
+	logger.Infof("Retrieving product for id: %s", id.String())
 
-	product, err := uc.ProductRepo.Find(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(id))
+	product, err := uc.ProductRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		logger.Errorf("Error getting product on repo by id: %v", err)
 
@@ -31,7 +31,7 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 	}
 
 	if product != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(r.Product{}).Name(), id)
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(r.Product{}).Name(), id.String())
 		if err != nil {
 			logger.Errorf("Error get metadata on mongodb product: %v", err)
 			return nil, err

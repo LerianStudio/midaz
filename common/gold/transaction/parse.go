@@ -138,15 +138,9 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 		froms = append(froms, f)
 	}
 
-	var source model.Source
-	if ctx.Source() != nil {
-		source = v.VisitSource(ctx.Source().(*parser.SourceContext)).(model.Source)
-	}
-
 	return model.Source{
 		Remaining: remaining,
 		From:      froms,
-		Source:    &source,
 	}
 }
 
@@ -311,15 +305,9 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 		tos = append(tos, t)
 	}
 
-	var distribute model.Distribute
-	if ctx.Distribute() != nil {
-		distribute = v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(model.Distribute)
-	}
-
 	return model.Distribute{
-		Remaining:  remaining,
-		To:         tos,
-		Distribute: &distribute,
+		Remaining: remaining,
+		To:        tos,
 	}
 }
 

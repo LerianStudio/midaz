@@ -27,7 +27,7 @@ type AssetPostgreSQLModel struct {
 type CreateAssetInput struct {
 	Name     string         `json:"name" validate:"max=256"`
 	Type     string         `json:"type"`
-	Code     string         `json:"code" validate:"max=100"`
+	Code     string         `json:"code" validate:"required,max=100"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -42,9 +42,9 @@ type UpdateAssetInput struct {
 // Asset is a struct designed to encapsulate payload data.
 type Asset struct {
 	ID             string         `json:"id"`
-	Name           string         `json:"name" validate:"max=256"`
+	Name           string         `json:"name"`
 	Type           string         `json:"type"`
-	Code           string         `json:"code" validate:"max=100"`
+	Code           string         `json:"code"`
 	Status         Status         `json:"status"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
