@@ -1,3 +1,19 @@
+## [1.23.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.23.0-beta.2...v1.23.0-beta.3) (2024-10-22)
+
+
+### Features
+
+* add infra to template; :sparkles: ([f18dca9](https://github.com/LerianStudio/midaz/commit/f18dca99754eb5c0aa71936c075979c27048bb53))
+
+
+### Bug Fixes
+
+* add make set_env on make file; :bug: ([6c6bead](https://github.com/LerianStudio/midaz/commit/6c6bead89a289a52993d7e75b3687753637f4624))
+* adjust transaction log; :bug: ([823ec66](https://github.com/LerianStudio/midaz/commit/823ec6643f8e54af7fd47acc434c010b0416fd31))
+* change map instantiation; :bug: ([1d3f1e8](https://github.com/LerianStudio/midaz/commit/1d3f1e8178950da03b9320371b140ad752f10cd5))
+* return bash on make.sh; :bug: ([0b964ba](https://github.com/LerianStudio/midaz/commit/0b964ba235ef81a1ccce11f6d9a8b1f372a50de9))
+* some adjusts; :bug: ([9f45958](https://github.com/LerianStudio/midaz/commit/9f45958bba6cec482d582f4ba12acbdfbff6129d))
+
 ## [1.23.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.23.0-beta.1...v1.23.0-beta.2) (2024-10-22)
 
 
