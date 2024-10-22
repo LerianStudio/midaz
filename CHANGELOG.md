@@ -1,3 +1,10 @@
+## [1.22.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.11...v1.22.0-beta.12) (2024-10-22)
+
+
+### Features
+
+* product name required :sparkles: ([e3c4a51](https://github.com/LerianStudio/midaz/commit/e3c4a511ef527de01dd9e4032ca9861fa7273bfc))
+
 ## [1.22.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.10...v1.22.0-beta.11) (2024-10-22)
 
 ## [1.22.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.9...v1.22.0-beta.10) (2024-10-22)
