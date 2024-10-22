@@ -1,3 +1,12 @@
+## [1.24.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.23.0...v1.24.0-beta.1) (2024-10-22)
+
+
+### Bug Fixes
+
+* add field sizing to onboarding and portfolio domain structs :bug: ([df44228](https://github.com/LerianStudio/midaz/commit/df44228ecdc667a818daf218aefcc0f5012e9821))
+* **errors:** correcting invalid account type error message :bug: ([4df336d](https://github.com/LerianStudio/midaz/commit/4df336d420438fd4d7d0ec108006aae14afdf5bc))
+* update field sizing on onboarding and portfolio domain structs accordingly with rfc :bug: ([d8db53d](https://github.com/LerianStudio/midaz/commit/d8db53d506db76772c273f32df2f2c0875146868))
+
 ## [1.23.0](https://github.com/LerianStudio/midaz/compare/v1.22.0...v1.23.0) (2024-10-22)
 
 
