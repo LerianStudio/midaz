@@ -23,6 +23,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
+	if err := common.ValidateAccountType(cai.Type); err != nil {
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
+	}
+
 	var status a.Status
 	if cai.Status.IsEmpty() {
 		status = a.Status{

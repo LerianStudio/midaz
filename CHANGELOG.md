@@ -1,3 +1,77 @@
+## [1.22.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.12...v1.22.0-beta.13) (2024-10-22)
+
+## [1.22.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.11...v1.22.0-beta.12) (2024-10-22)
+
+
+### Features
+
+* product name required :sparkles: ([e3c4a51](https://github.com/LerianStudio/midaz/commit/e3c4a511ef527de01dd9e4032ca9861fa7273bfc))
+
+## [1.22.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.10...v1.22.0-beta.11) (2024-10-22)
+
+## [1.22.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.9...v1.22.0-beta.10) (2024-10-22)
+
+## [1.22.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.8...v1.22.0-beta.9) (2024-10-22)
+
+## [1.22.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.7...v1.22.0-beta.8) (2024-10-22)
+
+
+### Features
+
+* validate account type :sparkles: ([6dd3fa0](https://github.com/LerianStudio/midaz/commit/6dd3fa09e4cd43668ad33eec0f0533e775117e1e))
+
+## [1.22.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.6...v1.22.0-beta.7) (2024-10-21)
+
+
+### Bug Fixes
+
+* error in the logic not respecting the username and password flags ([b76e361](https://github.com/LerianStudio/midaz/commit/b76e3615a06e48140e57ed74c2d6d06db513e60b))
+* setting cursor input and interactive terminal output ([9b45c14](https://github.com/LerianStudio/midaz/commit/9b45c147a68c5fb030e264b65a3c05f32c8eaa04))
+
+## [1.22.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.5...v1.22.0-beta.6) (2024-10-21)
+
+
+### Features
+
+* implements method to check if a ledger exists by name in an organization :sparkles: ([9737579](https://github.com/LerianStudio/midaz/commit/973757967817027815cc1a5497247af3e26ea587))
+
+
+### Bug Fixes
+
+* uses parsed UUID for organizationID on create ledger :bug: ([b506dc3](https://github.com/LerianStudio/midaz/commit/b506dc3dfe1e1ea8abdf251ca040ab3a6db163ef))
+* validates if a ledger with the same name already exists for the same organization :bug: ([08df20b](https://github.com/LerianStudio/midaz/commit/08df20bf4cdd99fc33ce3d273162addb0023afc6))
+
+## [1.22.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.4...v1.22.0-beta.5) (2024-10-21)
+
+
+### Bug Fixes
+
+* rename to put on pattern :bug: ([ec8141a](https://github.com/LerianStudio/midaz/commit/ec8141ae8195d6e6f864ee766bca94bf6e90de03))
+* update some ports on .env :bug: ([b7c58ea](https://github.com/LerianStudio/midaz/commit/b7c58ea75e5c82b8728a785a4b233fa5351c478c))
+
+## [1.22.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.3...v1.22.0-beta.4) (2024-10-21)
+
+
+### Bug Fixes
+
+* patch account doesnt return the right data :bug: ([a9c97c2](https://github.com/LerianStudio/midaz/commit/a9c97c2b48b16ae237195777fa8c77d23370e184))
+
+## [1.22.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.2...v1.22.0-beta.3) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets type as a required field for creating accounts :bug: ([a35044f](https://github.com/LerianStudio/midaz/commit/a35044f7d79b4eb3ecd1476d9ac5527e36617fb1))
+
+## [1.22.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.1...v1.22.0-beta.2) (2024-10-21)
+
+## [1.22.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0-beta.1) (2024-10-21)
+
+
+### Bug Fixes
+
+* sets name as a required field for creating ledgers :bug: ([534cda5](https://github.com/LerianStudio/midaz/commit/534cda5d9203a6c478baf8980dea2e3fc2170eaf))
+
 ## [1.21.0](https://github.com/LerianStudio/midaz/compare/v1.20.0...v1.21.0) (2024-10-18)
 
 

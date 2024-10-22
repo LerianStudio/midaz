@@ -132,9 +132,15 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*a.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
-	account, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, portfolioID, id, payload)
+	_, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, portfolioID, id, payload)
 	if err != nil {
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	account, err := handler.Query.GetAccountByID(c.Context(), organizationID, ledgerID, portfolioID, id)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
