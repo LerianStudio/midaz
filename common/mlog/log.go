@@ -205,17 +205,8 @@ func (l *GoLogger) WithFields(fields ...any) Logger {
 
 // Sync implements Sync Logger interface function.
 //
-// Sync calls the underlying Core's Sync method, flushing any buffered log entries. Applications should take care to call Sync before exiting.
-//
 //nolint:ireturn
-func (l *GoLogger) Sync() error {
-	err := l.Sync()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
+func (l *GoLogger) Sync() error { return nil }
 
 // NewLoggerFromContext extract the Logger from "logger" value inside context
 //

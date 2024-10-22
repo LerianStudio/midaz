@@ -123,7 +123,7 @@ func (l *ZapWithTraceLogger) WithFields(fields ...any) mlog.Logger {
 //
 //nolint:ireturn
 func (l *ZapWithTraceLogger) Sync() error {
-	err := l.Sync()
+	err := l.Logger.Sync()
 	if err != nil {
 		return err
 	}
