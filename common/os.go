@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 )
@@ -67,8 +66,6 @@ var (
 // InitLocalEnvConfig load a .env file to set up local environment vars
 // It's called once per application process.
 func InitLocalEnvConfig() *LocalEnvConfig {
-	fmt.Println(console.Title("InitLocalEnvConfig"))
-
 	version := GetenvOrDefault("VERSION", "NO-VERSION")
 	envName := GetenvOrDefault("ENV_NAME", "local")
 
@@ -92,8 +89,6 @@ func InitLocalEnvConfig() *LocalEnvConfig {
 			}
 		})
 	}
-
-	fmt.Println(console.Line(console.DefaultLineSize))
 
 	return localEnvConfig
 }

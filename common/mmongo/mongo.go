@@ -2,8 +2,6 @@ package mmongo
 
 import (
 	"context"
-	"fmt"
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -21,8 +19,6 @@ type MongoConnection struct {
 
 // Connect keeps a singleton connection with postgres.
 func (mc *MongoConnection) Connect(ctx context.Context) error {
-	fmt.Println(console.Title("InitializeMongoDBConnection"))
-
 	mc.Logger.Info("Connecting to mongodb...")
 
 	clientOptions := options.Client().ApplyURI(mc.ConnectionStringSource)

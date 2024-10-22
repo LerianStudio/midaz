@@ -3,8 +3,6 @@ package mpostgres
 import (
 	"database/sql"
 	"errors"
-	"fmt"
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"net/url"
 	"path/filepath"
@@ -33,8 +31,6 @@ type PostgresConnection struct {
 
 // Connect keeps a singleton connection with postgres.
 func (pc *PostgresConnection) Connect() error {
-	fmt.Println(console.Title("InitializePostgresConnection"))
-
 	pc.Logger.Info("Connecting to primary and replica databases...")
 
 	dbPrimary, err := sql.Open("pgx", pc.ConnectionStringPrimary)

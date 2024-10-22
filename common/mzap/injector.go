@@ -1,12 +1,10 @@
 package mzap
 
 import (
-	"fmt"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"log"
 	"os"
 
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 
 	"go.uber.org/zap"
@@ -17,8 +15,6 @@ import (
 //
 //nolint:ireturn
 func InitializeLogger() mlog.Logger {
-	fmt.Println(console.Title("InitializeLogger"))
-
 	var zapCfg zap.Config
 
 	if os.Getenv("ENV_NAME") == "production" {

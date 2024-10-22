@@ -1,10 +1,8 @@
 package common
 
 import (
-	"fmt"
 	"sync"
 
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 )
 
@@ -49,8 +47,6 @@ func (l *Launcher) Add(appName string, a App) *Launcher {
 func (l *Launcher) Run() {
 	count := len(l.apps)
 	l.wg.Add(count)
-
-	fmt.Println(console.Title("Launcher Run"))
 
 	l.Logger.Infof("Starting %d app(s)\n", count)
 

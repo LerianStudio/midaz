@@ -3,8 +3,6 @@ package mcasdoor
 import (
 	_ "embed"
 	"errors"
-	"fmt"
-	"github.com/LerianStudio/midaz/common/console"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"go.uber.org/zap"
@@ -28,8 +26,6 @@ type CasdoorConnection struct {
 }
 
 func (cc *CasdoorConnection) Connect() error {
-	fmt.Println(console.Title("InitializeCasdoorConnection"))
-
 	cc.Logger.Info("Connecting to casdoor...")
 
 	if len(jwtPKCertificate) == 0 {
