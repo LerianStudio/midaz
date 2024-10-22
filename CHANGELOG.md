@@ -1,3 +1,10 @@
+## [1.22.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.7...v1.22.0-beta.8) (2024-10-22)
+
+
+### Features
+
+* validate account type :sparkles: ([6dd3fa0](https://github.com/LerianStudio/midaz/commit/6dd3fa09e4cd43668ad33eec0f0533e775117e1e))
+
 ## [1.22.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.22.0-beta.6...v1.22.0-beta.7) (2024-10-21)
 
 
