@@ -4,7 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/LerianStudio/midaz/common/console"
+	"github.com/LerianStudio/midaz/common/mlog"
 	"net/url"
 	"path/filepath"
 
@@ -27,21 +28,24 @@ type PostgresConnection struct {
 	ConnectionDB            *dbresolver.DB
 	Connected               bool
 	Component               string
+	Logger                  mlog.Logger
 }
 
 // Connect keeps a singleton connection with postgres.
 func (pc *PostgresConnection) Connect() error {
-	fmt.Println("Connecting to primary and replica databases...")
+	fmt.Println(console.Title("InitializePostgresConnection"))
+
+	pc.Logger.Info("Connecting to primary and replica databases...")
 
 	dbPrimary, err := sql.Open("pgx", pc.ConnectionStringPrimary)
 	if err != nil {
-		log.Fatal("failed to open connect to primary database", zap.Error(err))
+		pc.Logger.Fatal("failed to open connect to primary database", zap.Error(err))
 		return nil
 	}
 
 	dbReadOnlyReplica, err := sql.Open("pgx", pc.ConnectionStringReplica)
 	if err != nil {
-		log.Fatal("failed to open connect to replica database", zap.Error(err))
+		pc.Logger.Fatal("failed to open connect to replica database", zap.Error(err))
 		return nil
 	}
 
@@ -52,7 +56,7 @@ func (pc *PostgresConnection) Connect() error {
 
 	migrationsPath, err := filepath.Abs(filepath.Join("components", pc.Component, "migrations"))
 	if err != nil {
-		log.Fatal("failed get filepath",
+		pc.Logger.Fatal("failed get filepath",
 			zap.Error(err))
 
 		return err
@@ -60,7 +64,7 @@ func (pc *PostgresConnection) Connect() error {
 
 	primaryURL, err := url.Parse(filepath.ToSlash(migrationsPath))
 	if err != nil {
-		log.Fatal("failed parse url",
+		pc.Logger.Fatal("failed parse url",
 			zap.Error(err))
 
 		return err
@@ -74,13 +78,13 @@ func (pc *PostgresConnection) Connect() error {
 		SchemaName:            "public",
 	})
 	if err != nil {
-		log.Fatalf("failed to open connect to database %v", zap.Error(err))
+		pc.Logger.Fatalf("failed to open connect to database %v", zap.Error(err))
 		return nil
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(primaryURL.String(), pc.PrimaryDBName, primaryDriver)
 	if err != nil {
-		log.Fatal("failed to get migrations",
+		pc.Logger.Fatal("failed to get migrations",
 			zap.Error(err))
 
 		return err
@@ -91,7 +95,7 @@ func (pc *PostgresConnection) Connect() error {
 	}
 
 	if err := connectionDB.Ping(); err != nil {
-		log.Printf("PostgresConnection.Ping %v",
+		pc.Logger.Infof("PostgresConnection.Ping %v",
 			zap.Error(err))
 
 		return err
@@ -100,7 +104,7 @@ func (pc *PostgresConnection) Connect() error {
 	pc.Connected = true
 	pc.ConnectionDB = &connectionDB
 
-	fmt.Println("Connected to postgres ✅ ")
+	pc.Logger.Info("Connected to postgres ✅ \n")
 
 	return nil
 }
@@ -109,7 +113,7 @@ func (pc *PostgresConnection) Connect() error {
 func (pc *PostgresConnection) GetDB() (dbresolver.DB, error) {
 	if pc.ConnectionDB == nil {
 		if err := pc.Connect(); err != nil {
-			log.Printf("ERRCONECT %s", err)
+			pc.Logger.Infof("ERRCONECT %s", err)
 			return nil, err
 		}
 	}

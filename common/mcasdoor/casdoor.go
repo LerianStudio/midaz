@@ -4,11 +4,10 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
-	"log"
-
-	"go.uber.org/zap"
-
+	"github.com/LerianStudio/midaz/common/console"
+	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
+	"go.uber.org/zap"
 )
 
 //go:embed certificates/token_jwt_key.pem
@@ -25,14 +24,17 @@ type CasdoorConnection struct {
 	JWKUri           string
 	Connected        bool
 	Client           *casdoorsdk.Client
+	Logger           mlog.Logger
 }
 
 func (cc *CasdoorConnection) Connect() error {
-	fmt.Println("Connecting to casdoor...")
+	fmt.Println(console.Title("InitializeCasdoorConnection"))
+
+	cc.Logger.Info("Connecting to casdoor...")
 
 	if len(jwtPKCertificate) == 0 {
 		err := errors.New("public key certificate isn't load")
-		log.Fatal("public key certificate isn't load", zap.Error(err))
+		cc.Logger.Fatalf("public key certificate isn't load. error: %v", zap.Error(err))
 
 		return err
 	}
@@ -48,7 +50,7 @@ func (cc *CasdoorConnection) Connect() error {
 
 	client := casdoorsdk.NewClientWithConf(conf)
 	if client != nil {
-		fmt.Println("Connected to casdoor ✅ ")
+		cc.Logger.Info("Connected to casdoor ✅ \n")
 
 		cc.Connected = true
 	}
@@ -61,7 +63,7 @@ func (cc *CasdoorConnection) Connect() error {
 func (cc *CasdoorConnection) GetClient() (*casdoorsdk.Client, error) {
 	if cc.Client == nil {
 		if err := cc.Connect(); err != nil {
-			log.Printf("ERRCONECT %s", err)
+			cc.Logger.Infof("ERRCONECT %s", err)
 
 			return nil, err
 		}

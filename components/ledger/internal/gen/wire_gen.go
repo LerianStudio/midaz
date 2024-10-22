@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mcasdoor"
+	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mzap"
@@ -37,15 +38,15 @@ import (
 func InitializeService() *service.Service {
 	config := service.NewConfig()
 	logger := mzap.InitializeLogger()
-	casdoorConnection := setupCasdoorConnection(config)
-	postgresConnection := setupPostgreSQLConnection(config)
+	casdoorConnection := setupCasdoorConnection(config, logger)
+	postgresConnection := setupPostgreSQLConnection(config, logger)
 	organizationPostgreSQLRepository := postgres.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := postgres.NewLedgerPostgreSQLRepository(postgresConnection)
 	productPostgreSQLRepository := postgres.NewProductPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := postgres.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := postgres.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := postgres.NewAssetPostgreSQLRepository(postgresConnection)
-	mongoConnection := setupMongoDBConnection(config)
+	mongoConnection := setupMongoDBConnection(config, logger)
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	useCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
@@ -107,7 +108,7 @@ var onceConfig sync.Once
 
 const prdEnvName = "production"
 
-func setupPostgreSQLConnection(cfg *service.Config) *mpostgres.PostgresConnection {
+func setupPostgreSQLConnection(cfg *service.Config, log mlog.Logger) *mpostgres.PostgresConnection {
 	connStrPrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort)
 
@@ -120,20 +121,22 @@ func setupPostgreSQLConnection(cfg *service.Config) *mpostgres.PostgresConnectio
 		PrimaryDBName:           cfg.PrimaryDBName,
 		ReplicaDBName:           cfg.ReplicaDBName,
 		Component:               "ledger",
+		Logger:                  log,
 	}
 }
 
-func setupMongoDBConnection(cfg *service.Config) *mmongo.MongoConnection {
+func setupMongoDBConnection(cfg *service.Config, log mlog.Logger) *mmongo.MongoConnection {
 	connStrSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
 		cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	return &mmongo.MongoConnection{
 		ConnectionStringSource: connStrSource,
 		Database:               cfg.MongoDBName,
+		Logger:                 log,
 	}
 }
 
-func setupCasdoorConnection(cfg *service.Config) *mcasdoor.CasdoorConnection {
+func setupCasdoorConnection(cfg *service.Config, log mlog.Logger) *mcasdoor.CasdoorConnection {
 	casdoor := &mcasdoor.CasdoorConnection{
 		JWKUri:           cfg.JWKAddress,
 		Endpoint:         cfg.CasdoorAddress,
@@ -142,6 +145,7 @@ func setupCasdoorConnection(cfg *service.Config) *mcasdoor.CasdoorConnection {
 		OrganizationName: cfg.CasdoorOrganizationName,
 		ApplicationName:  cfg.CasdoorApplicationName,
 		EnforcerName:     cfg.CasdoorEnforcerName,
+		Logger:           log,
 	}
 
 	return casdoor
