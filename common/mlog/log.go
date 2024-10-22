@@ -30,6 +30,8 @@ type Logger interface {
 	Fatalln(args ...any)
 
 	WithFields(fields ...any) Logger
+
+	Sync() error
 }
 
 // LogLevel represents the level of log system (fatal, error, warn, info and debug).
@@ -199,6 +201,20 @@ func (l *GoLogger) WithFields(fields ...any) Logger {
 		Level:  l.Level,
 		fields: fields,
 	}
+}
+
+// Sync implements Sync Logger interface function.
+//
+// Sync calls the underlying Core's Sync method, flushing any buffered log entries. Applications should take care to call Sync before exiting.
+//
+//nolint:ireturn
+func (l *GoLogger) Sync() error {
+	err := l.Sync()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // NewLoggerFromContext extract the Logger from "logger" value inside context
