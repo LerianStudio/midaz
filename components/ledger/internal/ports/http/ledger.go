@@ -31,7 +31,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	organizationID := c.Params("organization_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := i.(*l.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
