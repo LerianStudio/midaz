@@ -1,3 +1,10 @@
+## [1.23.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.22.0...v1.23.0-beta.1) (2024-10-22)
+
+
+### Bug Fixes
+
+* uses uuid type instead of string for portfolio creation :bug: ([f1edeef](https://github.com/LerianStudio/midaz/commit/f1edeefe2132c3439c46b41a1f56edcc84b4ccfa))
+
 ## [1.22.0](https://github.com/LerianStudio/midaz/compare/v1.21.0...v1.22.0) (2024-10-22)
 
 
