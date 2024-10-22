@@ -1,3 +1,25 @@
+## [1.23.0](https://github.com/LerianStudio/midaz/compare/v1.22.0...v1.23.0) (2024-10-22)
+
+
+### Features
+
+* add infra to template; :sparkles: ([f18dca9](https://github.com/LerianStudio/midaz/commit/f18dca99754eb5c0aa71936c075979c27048bb53))
+* **logging:** wrap zap logger implementation with otelzap :sparkles: ([d792e65](https://github.com/LerianStudio/midaz/commit/d792e651312d63a3812d1d737710db2f0329e1d3))
+
+
+### Bug Fixes
+
+* **logging:** add logger sync to server for graceful shutdown :bug: ([c51a4af](https://github.com/LerianStudio/midaz/commit/c51a4af37d9f0f646c6386505138ab9273aeaefd))
+* add make set_env on make file; :bug: ([6c6bead](https://github.com/LerianStudio/midaz/commit/6c6bead89a289a52993d7e75b3687753637f4624))
+* adjust transaction log; :bug: ([823ec66](https://github.com/LerianStudio/midaz/commit/823ec6643f8e54af7fd47acc434c010b0416fd31))
+* change map instantiation; :bug: ([1d3f1e8](https://github.com/LerianStudio/midaz/commit/1d3f1e8178950da03b9320371b140ad752f10cd5))
+* **logging:** resolve logging issues for all routes :bug: ([694dadb](https://github.com/LerianStudio/midaz/commit/694dadb29889d2884920260d6e6ac765e5c672dd))
+* return bash on make.sh; :bug: ([0b964ba](https://github.com/LerianStudio/midaz/commit/0b964ba235ef81a1ccce11f6d9a8b1f372a50de9))
+* **logging:** set capital color level encoder for non-production environments :bug: ([f5f6e73](https://github.com/LerianStudio/midaz/commit/f5f6e7329037de63ba2c6325446c0961eabee4b4))
+* some adjusts; :bug: ([9f45958](https://github.com/LerianStudio/midaz/commit/9f45958bba6cec482d582f4ba12acbdfbff6129d))
+* **logging:** update sync func being called in zap logger for graceful shutdown :bug: ([4ad1ff2](https://github.com/LerianStudio/midaz/commit/4ad1ff2a653500ae9e9d97280bed0eba2f226f4c))
+* uses uuid type instead of string for portfolio creation :bug: ([f1edeef](https://github.com/LerianStudio/midaz/commit/f1edeefe2132c3439c46b41a1f56edcc84b4ccfa))
+
 ## [1.23.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.23.0-beta.2...v1.23.0-beta.3) (2024-10-22)
 
 
