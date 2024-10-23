@@ -190,12 +190,24 @@ func FindScaleForPercentage(value float64, scale string, share gold.Share) (gold
 	}
 
 	shareValue := value * (float64(sh) / float64(of))
+
+	v := strconv.FormatFloat(shareValue, 'f', -1, 64)
+	vf := strings.Replace(v, ".", "", -1)
+
+	valueFinal, _ := strconv.ParseFloat(vf, 64)
+
 	if shareValue != math.Trunc(shareValue) {
-		scale = strconv.Itoa(int(math.Ceil(math.Log10(shareValue))))
+		newScale := int(math.Ceil(math.Log10(shareValue)))
+
+		if scale == strconv.Itoa(newScale) && value <= valueFinal {
+			newScale += 1
+		}
+
+		scale = strconv.Itoa(newScale)
 	}
 
 	amount := gold.Amount{
-		Value: strconv.FormatFloat(shareValue, 'f', -1, 64),
+		Value: vf,
 		Scale: scale,
 	}
 
