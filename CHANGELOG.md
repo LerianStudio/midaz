@@ -1,3 +1,16 @@
+## [1.24.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.2...v1.24.0-beta.3) (2024-10-23)
+
+
+### Features
+
+* Create asset rates - part 2 :sparkles: ([c2d636c](https://github.com/LerianStudio/midaz/commit/c2d636c32a2fd83aeff6005aaeb599994a260b3c))
+* Create asset rates :sparkles: ([5e4519f](https://github.com/LerianStudio/midaz/commit/5e4519f6e64e65b094bfff685e4ac0221e3183c7))
+
+
+### Bug Fixes
+
+* adjust import alias :bug: ([c31d28d](https://github.com/LerianStudio/midaz/commit/c31d28d20c30d72a5c7fe87c77aa2752124c269a))
+
 ## [1.24.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.1...v1.24.0-beta.2) (2024-10-23)
 
 
