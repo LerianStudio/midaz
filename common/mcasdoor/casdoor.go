@@ -51,7 +51,7 @@ func (cc *CasdoorConnection) Connect() error {
 	if client == nil || !cc.healthCheck() {
 		cc.Connected = false
 		err := errors.New("can't connect casdoor")
-		cc.Logger.Fatalf("CasdoorConnection.Ping %v", zap.Error(err))
+		cc.Logger.Fatalf("Casdoor.HealthCheck %v", zap.Error(err))
 
 		return err
 	}
