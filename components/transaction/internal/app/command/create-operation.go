@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -47,11 +48,18 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					description = dsl.Description
 				}
 
+				var typeOperation string
+				if fromTo[i].IsFrom {
+					typeOperation = constant.DEBIT
+				} else {
+					typeOperation = constant.CREDIT
+				}
+
 				save := &o.Operation{
 					ID:              uuid.New().String(),
 					TransactionID:   transactionID,
 					Description:     description,
-					Type:            acc.Type,
+					Type:            typeOperation,
 					AssetCode:       dsl.Send.Asset,
 					ChartOfAccounts: fromTo[i].ChartOfAccounts,
 					Amount:          amount,
