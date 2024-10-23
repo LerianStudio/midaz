@@ -3,20 +3,20 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/operation"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetOperationByPortfolio(t *testing.T) {
-	ID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	ID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
 
 	operation := &o.Operation{
 		ID:             ID.String(),
@@ -42,10 +42,10 @@ func TestGetOperationByPortfolio(t *testing.T) {
 
 func TestGetOperationByPortfolioError(t *testing.T) {
 	errMSG := "err to get operation on database"
-	ID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	ID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
 
 	uc := UseCase{
 		OperationRepo: mock.NewMockRepository(gomock.NewController(t)),

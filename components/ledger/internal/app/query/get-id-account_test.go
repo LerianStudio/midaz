@@ -3,21 +3,21 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAccountByIDSuccess is responsible to test GetAccountByID with success
 func TestGetAccountByIDSuccess(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
-	id := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
 
 	account := &a.Account{
 		ID:             id.String(),
@@ -43,10 +43,10 @@ func TestGetAccountByIDSuccess(t *testing.T) {
 
 // TestGetAccountByIDError is responsible to test GetAccountByID with error
 func TestGetAccountByIDError(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
-	id := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
 
 	errMSG := "errDatabaseItemNotFound"
 

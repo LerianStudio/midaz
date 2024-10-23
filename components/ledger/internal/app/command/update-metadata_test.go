@@ -3,19 +3,19 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"reflect"
 	"testing"
 
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestMetadataUpdateSuccess is responsible to test MetadataUpdate with success
 func TestMetadataUpdateSuccess(t *testing.T) {
-	id := uuid.New().String()
+	id := common.GenerateUUIDv7().String()
 	metadata := map[string]any{}
 	collection := reflect.TypeOf(o.Organization{}).Name()
 	uc := UseCase{
@@ -35,7 +35,7 @@ func TestMetadataUpdateSuccess(t *testing.T) {
 // TestMetadataUpdateError is responsible to test MetadataUpdate with error
 func TestMetadataUpdateError(t *testing.T) {
 	errMSG := "err to update metadata on mongodb"
-	id := uuid.New().String()
+	id := common.GenerateUUIDv7().String()
 	metadata := map[string]any{}
 	collection := reflect.TypeOf(o.Organization{}).Name()
 	uc := UseCase{

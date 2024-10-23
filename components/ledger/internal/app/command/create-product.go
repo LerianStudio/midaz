@@ -27,7 +27,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 	}
 
 	product := &r.Product{
-		ID:             uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,

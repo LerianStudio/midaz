@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"time"
 
@@ -120,7 +121,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	*t = TransactionPostgreSQLModel{
-		ID:                       uuid.New().String(),
+		ID:                       common.GenerateUUIDv7().String(),
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
 		Template:                 transaction.Template,

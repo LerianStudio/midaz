@@ -13,7 +13,6 @@ import (
 	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
-	"github.com/google/uuid"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
@@ -56,7 +55,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 				}
 
 				save := &o.Operation{
-					ID:              uuid.New().String(),
+					ID:              common.GenerateUUIDv7().String(),
 					TransactionID:   transactionID,
 					Description:     description,
 					Type:            typeOperation,

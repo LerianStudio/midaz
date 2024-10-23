@@ -3,19 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetLedgerByIDSuccess is responsible to test GetLedgerByID with success
 func TestGetLedgerByIDSuccess(t *testing.T) {
-	id := uuid.New()
-	organizationID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 	ledger := &l.Ledger{ID: id.String()}
 
 	uc := UseCase{
@@ -35,8 +35,8 @@ func TestGetLedgerByIDSuccess(t *testing.T) {
 
 // TestGetLedgerByIDError is responsible to test GetLedgerByID with error
 func TestGetLedgerByIDError(t *testing.T) {
-	id := uuid.New()
-	organizationID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

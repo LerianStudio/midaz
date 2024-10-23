@@ -2,9 +2,8 @@ package product
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // ProductPostgreSQLModel represents the entity Product into SQL context in Database
@@ -88,7 +87,7 @@ func (t *ProductPostgreSQLModel) ToEntity() *Product {
 // FromEntity converts an entity.Product to ProductPostgreSQLModel
 func (t *ProductPostgreSQLModel) FromEntity(product *Product) {
 	*t = ProductPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              product.Name,
 		LedgerID:          product.LedgerID,
 		OrganizationID:    product.OrganizationID,

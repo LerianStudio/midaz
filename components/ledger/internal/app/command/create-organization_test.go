@@ -3,18 +3,18 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestCreateOrganizationSuccess is responsible to test CreateOrganization with success
 func TestCreateOrganizationSuccess(t *testing.T) {
-	id := uuid.New().String()
+	id := common.GenerateUUIDv7().String()
 	organization := &o.Organization{ID: id}
 
 	uc := UseCase{

@@ -3,19 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/asset"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllAssetsError is responsible to test GetAllAssets with success and error
 func TestGetAllAssets(t *testing.T) {
-	ledgerID := uuid.New()
-	organizationID := uuid.New()
+	ledgerID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

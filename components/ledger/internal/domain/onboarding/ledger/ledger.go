@@ -2,9 +2,8 @@ package ledger
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database
@@ -85,7 +84,7 @@ func (t *LedgerPostgreSQLModel) ToEntity() *Ledger {
 // FromEntity converts an entity.Ledger to LedgerPostgreSQLModel
 func (t *LedgerPostgreSQLModel) FromEntity(ledger *Ledger) {
 	*t = LedgerPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              ledger.Name,
 		OrganizationID:    ledger.OrganizationID,
 		Status:            ledger.Status.Code,

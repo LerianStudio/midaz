@@ -3,20 +3,20 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 	"time"
 
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateLedgerByIDSuccess is responsible to test UpdateLedgerByID with success
 func TestUpdateLedgerByIDSuccess(t *testing.T) {
-	id := uuid.New()
-	organizationID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 
 	ledger := &l.Ledger{
 		ID:             id.String(),
@@ -43,8 +43,8 @@ func TestUpdateLedgerByIDSuccess(t *testing.T) {
 func TestUpdateLedgerByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
-	id := uuid.New()
-	organizationID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 
 	ledger := &l.Ledger{
 		ID:             id.String(),

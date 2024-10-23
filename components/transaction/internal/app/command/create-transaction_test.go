@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	tran "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/transaction"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,9 +15,9 @@ import (
 // TestCreateTransactionSuccess is responsible to test CreateTransaction with success
 func TestCreateTransactionSuccess(t *testing.T) {
 	Transaction := &tran.Transaction{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -39,11 +39,11 @@ func TestCreateTransactionSuccess(t *testing.T) {
 func TestCreateTransactionError(t *testing.T) {
 	errMSG := "err to create Transaction on database"
 
-	ID := uuid.New().String()
+	ID := common.GenerateUUIDv7().String()
 	Transaction := &tran.Transaction{
 		ID:                  ID,
-		OrganizationID:      uuid.New().String(),
-		LedgerID:            uuid.New().String(),
+		OrganizationID:      common.GenerateUUIDv7().String(),
+		LedgerID:            common.GenerateUUIDv7().String(),
 		ParentTransactionID: &ID,
 	}
 
