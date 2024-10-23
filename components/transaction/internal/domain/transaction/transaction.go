@@ -3,9 +3,9 @@ package transaction
 import (
 	"database/sql"
 	"github.com/LerianStudio/midaz/common"
-	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"time"
 
+	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/google/uuid"
 )
