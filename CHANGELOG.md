@@ -1,3 +1,16 @@
+## [1.24.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.1...v1.24.0-beta.2) (2024-10-23)
+
+
+### Features
+
+* create operation const in commons :sparkles: ([b204230](https://github.com/LerianStudio/midaz/commit/b204230da55f4ebe699f45400bc3dc7350d37e91))
+
+
+### Bug Fixes
+
+* update casdoor logger named ping to health check :bug: ([528285e](https://github.com/LerianStudio/midaz/commit/528285e8c2b7421523a94b5b420903813ff3647d))
+* use operations const instead of account type to save operations :bug: ([e74ce4b](https://github.com/LerianStudio/midaz/commit/e74ce4b4703de7a538b4bf277ea3be4e438adb2f))
+
 ## [1.24.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.23.0...v1.24.0-beta.1) (2024-10-22)
 
 
