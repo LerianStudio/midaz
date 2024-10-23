@@ -240,3 +240,25 @@ func fieldsRequired(myMap common.FieldValidations) common.FieldValidations {
 
 	return result
 }
+
+// parseMetadata checks if struct has a "Metadata" field and, if the "metadata" field was
+// informed in the request but is nil, initializes the "Metadata" struct field with an empty map
+func parseMetadata(s any, originalMap map[string]any) {
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+		return
+	}
+
+	val = val.Elem()
+
+	metadataField := val.FieldByName("Metadata")
+	if !metadataField.IsValid() || !metadataField.CanSet() {
+		return
+	}
+
+	if metadataValue, exists := originalMap["metadata"]; exists {
+		if metadataValue == nil {
+			metadataField.Set(reflect.ValueOf(make(map[string]any)))
+		}
+	}
+}
