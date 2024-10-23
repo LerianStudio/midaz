@@ -5,7 +5,7 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
-	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
+	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 )
@@ -26,7 +26,7 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of AssetRate with ledger ID: %s", ledgerID.String())
 
-	payload := p.(*a.CreateAssetRateInput)
+	payload := p.(*ar.CreateAssetRateInput)
 	logger.Infof("Request to create an AssetRate with details: %#v", payload)
 
 	assetRate, err := handler.Command.CreateAssetRate(c.UserContext(), organizationID, ledgerID, payload)

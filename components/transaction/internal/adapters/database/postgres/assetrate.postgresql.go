@@ -6,7 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
+	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 )
 
 // AssetRatePostgreSQLRepository is a Postgresql-specific implementation of the AssetRateRepository.
@@ -31,13 +31,13 @@ func NewAssetRatePostgreSQLRepository(pc *mpostgres.PostgresConnection) *AssetRa
 }
 
 // Create a new AssetRate entity into Postgresql and returns it.
-func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *a.AssetRate) (*a.AssetRate, error) {
+func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *ar.AssetRate) (*ar.AssetRate, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
-	record := &a.AssetRatePostgreSQLModel{}
+	record := &ar.AssetRatePostgreSQLModel{}
 	record.FromEntity(assetRate)
 
 	result, err := db.ExecContext(ctx, `INSERT INTO asset_rate VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
@@ -62,7 +62,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *a
 
 	if rowsAffected == 0 {
 		return nil, common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(a.AssetRate{}).Name(),
+			EntityType: reflect.TypeOf(ar.AssetRate{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",

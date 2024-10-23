@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
+	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/assetrate"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +14,7 @@ import (
 
 // TestCreateAssetRateSuccess is responsible to test CreateAssetRate with success
 func TestCreateAssetRateSuccess(t *testing.T) {
-	assetRate := &a.AssetRate{
+	assetRate := &ar.AssetRate{
 		ID:             uuid.New().String(),
 		OrganizationID: uuid.New().String(),
 		LedgerID:       uuid.New().String(),
@@ -38,7 +38,7 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 // TestCreateAssetRateError is responsible to test CreateAssetRateError with error
 func TestCreateAssetRateError(t *testing.T) {
 	errMSG := "err to create asset rate on database"
-	assetRate := &a.AssetRate{
+	assetRate := &ar.AssetRate{
 		ID:             uuid.New().String(),
 		OrganizationID: uuid.New().String(),
 		LedgerID:       uuid.New().String(),
