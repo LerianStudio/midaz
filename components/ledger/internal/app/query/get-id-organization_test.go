@@ -3,18 +3,18 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetOrganizationByIDSuccess is responsible to test GetOrganizationByID with success
 func TestGetOrganizationByIDSuccess(t *testing.T) {
-	id := uuid.New()
+	id := common.GenerateUUIDv7()
 	organization := &o.Organization{ID: id.String()}
 
 	uc := UseCase{
@@ -34,7 +34,7 @@ func TestGetOrganizationByIDSuccess(t *testing.T) {
 
 // TestGetOrganizationByIDError is responsible to test GetOrganizationByID with error
 func TestGetOrganizationByIDError(t *testing.T) {
-	id := uuid.New()
+	id := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

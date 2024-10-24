@@ -3,19 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/product"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllProductsError is responsible to test GetAllProducts with success and error
 func TestGetAllProducts(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

@@ -2,10 +2,10 @@ package account
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
 
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/google/uuid"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
@@ -147,7 +147,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *Account {
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 	*t = AccountPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              account.Name,
 		ParentAccountID:   account.ParentAccountID,
 		EntityID:          account.EntityID,

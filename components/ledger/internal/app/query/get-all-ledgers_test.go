@@ -3,11 +3,11 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -18,7 +18,7 @@ func TestGetAllLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockLedgerRepo := mock.NewMockRepository(ctrl)
-	organizationID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

@@ -3,19 +3,19 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 	"time"
 
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateOrganizationByIDSuccess is responsible to test UpdateOrganizationByID with success
 func TestUpdateOrganizationByIDSuccess(t *testing.T) {
-	id := uuid.New()
+	id := common.GenerateUUIDv7()
 	organization := &o.Organization{ID: id.String(), UpdatedAt: time.Now()}
 
 	uc := UseCase{
@@ -35,7 +35,7 @@ func TestUpdateOrganizationByIDSuccess(t *testing.T) {
 
 // TestUpdateOrganizationByIDError is responsible to test UpdateOrganizationByID with error
 func TestUpdateOrganizationByIDError(t *testing.T) {
-	id := uuid.New()
+	id := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 	organization := &o.Organization{ID: id.String(), UpdatedAt: time.Now()}
 

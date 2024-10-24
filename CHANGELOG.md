@@ -1,3 +1,38 @@
+## [1.25.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.24.0...v1.25.0-beta.1) (2024-10-24)
+
+
+### Bug Fixes
+
+*  adjust normalization of values ​​with decimal places for remaining :bug: ([fc4f220](https://github.com/LerianStudio/midaz/commit/fc4f22035b622aa88f1c7ebb1652a2da96d278ff))
+* make lint issues; :bug: ([96fc0bf](https://github.com/LerianStudio/midaz/commit/96fc0bfcea8fe44f734b97dec6fddd2a6804d792))
+* update transaction table after on transaction; :bug: ([296fe6e](https://github.com/LerianStudio/midaz/commit/296fe6e0214a05569fb45d014ae81817b2314d9a))
+
+## [1.24.0](https://github.com/LerianStudio/midaz/compare/v1.23.0...v1.24.0) (2024-10-24)
+
+
+### Features
+
+* add update account with status approved after transfers :sparkles: ([f84ee03](https://github.com/LerianStudio/midaz/commit/f84ee038bd5792fb72b3bcfa12dec6fdcac2ce73))
+* Create asset rates - part 2 :sparkles: ([c2d636c](https://github.com/LerianStudio/midaz/commit/c2d636c32a2fd83aeff6005aaeb599994a260b3c))
+* Create asset rates :sparkles: ([5e4519f](https://github.com/LerianStudio/midaz/commit/5e4519f6e64e65b094bfff685e4ac0221e3183c7))
+* create operation const in commons :sparkles: ([b204230](https://github.com/LerianStudio/midaz/commit/b204230da55f4ebe699f45400bc3dc7350d37e91))
+* create update transaction by status; :sparkles: ([181ba8a](https://github.com/LerianStudio/midaz/commit/181ba8a0a621698069f348aabacfd8c741b1ec93))
+
+
+### Bug Fixes
+
+* add field sizing to onboarding and portfolio domain structs :bug: ([df44228](https://github.com/LerianStudio/midaz/commit/df44228ecdc667a818daf218aefcc0f5012e9821))
+* adjust import alias :bug: ([c31d28d](https://github.com/LerianStudio/midaz/commit/c31d28d20c30d72a5c7fe87c77aa2752124c269a))
+* adjust import; :bug: ([64b3456](https://github.com/LerianStudio/midaz/commit/64b345697ba0636247e742a27da6251dcb9efc2f))
+* adjust some validation to add and remove values from accounts using scale; :bug: ([d59e19d](https://github.com/LerianStudio/midaz/commit/d59e19d33b51cac8592faf991656cfb2fbf78f33))
+* **errors:** correcting invalid account type error message :bug: ([4df336d](https://github.com/LerianStudio/midaz/commit/4df336d420438fd4d7d0ec108006aae14afdf5bc))
+* update casdoor logger named ping to health check :bug: ([528285e](https://github.com/LerianStudio/midaz/commit/528285e8c2b7421523a94b5b420903813ff3647d))
+* update field sizing on onboarding and portfolio domain structs accordingly with rfc :bug: ([d8db53d](https://github.com/LerianStudio/midaz/commit/d8db53d506db76772c273f32df2f2c0875146868))
+* update find scale right; :bug: ([6e2b45c](https://github.com/LerianStudio/midaz/commit/6e2b45ca6db1b877c430af60bbb61fe85231a3d9))
+* use operations const instead of account type to save operations :bug: ([e74ce4b](https://github.com/LerianStudio/midaz/commit/e74ce4b4703de7a538b4bf277ea3be4e438adb2f))
+
+## [1.24.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.4...v1.24.0-beta.5) (2024-10-24)
+
 ## [1.24.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.3...v1.24.0-beta.4) (2024-10-23)
 
 

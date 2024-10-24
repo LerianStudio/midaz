@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS ledger
 (
-    id                            UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    id                            UUID PRIMARY KEY NOT NULL,
     name                          TEXT NOT NULL,
     organization_id               UUID NOT NULL,
     status                        TEXT NOT NULL,

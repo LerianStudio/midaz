@@ -3,22 +3,22 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 	"time"
 
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateAccountByIDSuccess is responsible to test UpdateAccountByID with success
 func TestUpdateAccountByIDSuccess(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
-	id := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
 	account := &a.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),
@@ -42,10 +42,10 @@ func TestUpdateAccountByIDSuccess(t *testing.T) {
 // TestUpdateAccountByIDError is responsible to test UpdateAccountByID with error
 func TestUpdateAccountByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
-	id := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
 	account := &a.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),

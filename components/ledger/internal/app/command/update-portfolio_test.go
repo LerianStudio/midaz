@@ -3,24 +3,24 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 	"time"
 
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/portfolio"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestUpdatePortfolioByIDSuccess is responsible to test UpdatePortfolioByID with success
 func TestUpdatePortfolioByIDSuccess(t *testing.T) {
-	id := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	portfolio := &p.Portfolio{
 		ID:             id.String(),
-		EntityID:       uuid.New().String(),
+		EntityID:       common.GenerateUUIDv7().String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
 		UpdatedAt:      time.Now(),
@@ -44,13 +44,13 @@ func TestUpdatePortfolioByIDSuccess(t *testing.T) {
 // TestUpdatePortfolioByIDError is responsible to test UpdatePortfolioByID with error
 func TestUpdatePortfolioByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	id := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	portfolio := &p.Portfolio{
 		ID:             id.String(),
-		OrganizationID: uuid.New().String(),
-		EntityID:       uuid.New().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		EntityID:       common.GenerateUUIDv7().String(),
 		LedgerID:       ledgerID.String(),
 		UpdatedAt:      time.Now(),
 	}

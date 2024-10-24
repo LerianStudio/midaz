@@ -3,19 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	tx "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/transaction"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetTransactionByID(t *testing.T) {
-	ID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	ID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 
 	tran := &tx.Transaction{
 		ID:             ID.String(),
@@ -40,9 +40,9 @@ func TestGetTransactionByID(t *testing.T) {
 
 func TestGetTransactionByIDError(t *testing.T) {
 	errMSG := "err to create account on database"
-	ID := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	ID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 
 	uc := UseCase{
 		TransactionRepo: mock.NewMockRepository(gomock.NewController(t)),

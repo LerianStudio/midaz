@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	op "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/operation"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,10 +15,10 @@ import (
 // TestCreateOperationSuccess is responsible to test CreateOperation with success
 func TestCreateOperationSuccess(t *testing.T) {
 	Operation := &op.Operation{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		PortfolioID:    uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
+		PortfolioID:    common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -41,10 +41,10 @@ func TestCreateOperationError(t *testing.T) {
 	errMSG := "err to create Operation on database"
 
 	Operation := &op.Operation{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		PortfolioID:    uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
+		PortfolioID:    common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

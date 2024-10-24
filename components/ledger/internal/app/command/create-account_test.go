@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,10 +15,10 @@ import (
 // TestCreateAccountSuccess is responsible to test CreateAccount with success
 func TestCreateAccountSuccess(t *testing.T) {
 	account := &a.Account{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		PortfolioID:    uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
+		PortfolioID:    common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -40,10 +40,10 @@ func TestCreateAccountSuccess(t *testing.T) {
 func TestCreateAccountError(t *testing.T) {
 	errMSG := "err to create account on database"
 	account := &a.Account{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		PortfolioID:    uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
+		PortfolioID:    common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
