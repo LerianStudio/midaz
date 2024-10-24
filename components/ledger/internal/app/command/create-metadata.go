@@ -26,7 +26,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, entityName, &meta); err != nil {
-			logger.Errorf("Error into creating metadata: %v", err)
+			logger.Errorf("Error into creating %s metadata: %v", entityName, err)
 			return nil, err
 		}
 
