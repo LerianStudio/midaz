@@ -48,7 +48,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), organizationUpdated.ID, uoi.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), id.String(), uoi.Metadata)
 	if err != nil {
 		return nil, err
 	}

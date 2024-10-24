@@ -35,7 +35,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), portfolioUpdated.ID, upi.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
 		return nil, err
 	}

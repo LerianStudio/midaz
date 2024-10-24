@@ -36,7 +36,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(l.Ledger{}).Name(), ledgerUpdated.ID, uli.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(l.Ledger{}).Name(), id.String(), uli.Metadata)
 	if err != nil {
 		return nil, err
 	}

@@ -35,7 +35,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), productUpdated.ID, upi.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
 		return nil, err
 	}

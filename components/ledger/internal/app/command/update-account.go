@@ -42,7 +42,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(a.Account{}).Name(), accountUpdated.ID, uai.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(a.Account{}).Name(), id.String(), uai.Metadata)
 	if err != nil {
 		return nil, err
 	}
