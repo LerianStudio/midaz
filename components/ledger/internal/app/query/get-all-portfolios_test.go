@@ -3,19 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/portfolio"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllPortfoliosError is responsible to test GetAllPortfolios with success and error
 func TestGetAllPortfolios(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

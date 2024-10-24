@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/asset"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,9 +15,9 @@ import (
 // TestCreateAssetSuccess is responsible to test CreateAsset with success
 func TestCreateAssetSuccess(t *testing.T) {
 	asset := &s.Asset{
-		ID:             uuid.New().String(),
-		LedgerID:       uuid.New().String(),
-		OrganizationID: uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -39,8 +39,8 @@ func TestCreateAssetSuccess(t *testing.T) {
 func TestCreateAssetError(t *testing.T) {
 	errMSG := "err to create asset on database"
 	asset := &s.Asset{
-		ID:       uuid.New().String(),
-		LedgerID: uuid.New().String(),
+		ID:       common.GenerateUUIDv7().String(),
+		LedgerID: common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

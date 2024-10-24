@@ -29,7 +29,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	}
 
 	portfolio := &p.Portfolio{
-		ID:             uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),

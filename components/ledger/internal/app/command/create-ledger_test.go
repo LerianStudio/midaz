@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,8 +15,8 @@ import (
 // TestCreateLedgerSuccess is responsible to test CreateLedger with success
 func TestCreateLedgerSuccess(t *testing.T) {
 	ledger := &l.Ledger{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -39,8 +39,8 @@ func TestCreateLedgerError(t *testing.T) {
 	errMSG := "err to create ledger on database"
 
 	ledger := &l.Ledger{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

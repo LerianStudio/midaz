@@ -3,20 +3,20 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestDeleteAccountByIDSuccess is responsible to test DeleteAccountByID with success
 func TestDeleteAccountByIDSuccess(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
-	id := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
 	uc := UseCase{
 		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
 	}
@@ -33,10 +33,10 @@ func TestDeleteAccountByIDSuccess(t *testing.T) {
 
 // TestDeleteAccountByIDError is responsible to test DeleteAccountByID with error
 func TestDeleteAccountByIDError(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
-	id := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

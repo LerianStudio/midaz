@@ -2,9 +2,8 @@ package operation
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -149,7 +148,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	*t = OperationPostgreSQLModel{
-		ID:                    uuid.New().String(),
+		ID:                    common.GenerateUUIDv7().String(),
 		TransactionID:         operation.TransactionID,
 		Description:           operation.Description,
 		Type:                  operation.Type,

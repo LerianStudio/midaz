@@ -2,9 +2,8 @@ package asset
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database
@@ -95,7 +94,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *Asset {
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
 func (t *AssetPostgreSQLModel) FromEntity(asset *Asset) {
 	*t = AssetPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              asset.Name,
 		Type:              asset.Type,
 		Code:              asset.Code,

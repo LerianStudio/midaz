@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
-	"github.com/google/uuid"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
@@ -39,7 +38,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	save := &t.Transaction{
-		ID:                       uuid.New().String(),
+		ID:                       common.GenerateUUIDv7().String(),
 		ParentTransactionID:      nil,
 		OrganizationID:           organizationID,
 		LedgerID:                 ledgerID,

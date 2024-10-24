@@ -2,9 +2,8 @@ package organization
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // OrganizationPostgreSQLModel represents the entity Organization into SQL context in Database
@@ -115,7 +114,7 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *Organization {
 // FromEntity converts an entity.Organization to OrganizationPostgresModel
 func (t *OrganizationPostgreSQLModel) FromEntity(organization *Organization) {
 	*t = OrganizationPostgreSQLModel{
-		ID:                   uuid.New().String(),
+		ID:                   common.GenerateUUIDv7().String(),
 		ParentOrganizationID: organization.ParentOrganizationID,
 		LegalName:            organization.LegalName,
 		DoingBusinessAs:      organization.DoingBusinessAs,

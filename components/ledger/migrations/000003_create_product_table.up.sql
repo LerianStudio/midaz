@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS product
 (
-    id                            UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    id                            UUID PRIMARY KEY NOT NULL,
     name                          TEXT,
     ledger_id                     UUID NOT NULL,
     organization_id               UUID NOT NULL,

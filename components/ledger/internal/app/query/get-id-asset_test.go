@@ -3,20 +3,20 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/asset"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAssetByIDSuccess is responsible to test GetAssetByID with success
 func TestGetAssetByIDSuccess(t *testing.T) {
-	id := uuid.New()
-	ledgerID := uuid.New()
-	organizationID := uuid.New()
+	id := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 	asset := &s.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
@@ -40,9 +40,9 @@ func TestGetAssetByIDSuccess(t *testing.T) {
 
 // TestGetAssetByIDError is responsible to test GetAssetByID with error
 func TestGetAssetByIDError(t *testing.T) {
-	id := uuid.New()
-	ledgerID := uuid.New()
-	organizationID := uuid.New()
+	id := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

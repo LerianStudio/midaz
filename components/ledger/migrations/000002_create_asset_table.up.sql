@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS asset
 (
-    id                            UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    id                            UUID PRIMARY KEY NOT NULL,
     name                          TEXT,
     type                          TEXT NOT NULL,
     code                          TEXT NOT NULL,
