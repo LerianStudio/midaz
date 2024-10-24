@@ -1,3 +1,10 @@
+## [1.25.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.3...v1.25.0-beta.4) (2024-10-24)
+
+
+### Bug Fixes
+
+* **account:** change error for create account with parent account id not found :bug: ([a2471a9](https://github.com/LerianStudio/midaz/commit/a2471a9bf76401015503e61fab6843f9f092bbca))
+
 ## [1.25.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.2...v1.25.0-beta.3) (2024-10-24)
 
 
