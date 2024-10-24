@@ -1,39 +1,40 @@
 package model
 
 type Organization struct {
-	LegalName       string   `json:"legalName"`
-	DoingBusinessAs string   `json:"doingBusinessAs"`
-	LegalDocument   string   `json:"legalDocument"`
-	Status          Status   `json:"status"`
-	Address         Address  `json:"address"`
-	Metadata        Metadata `json:"metadata"`
+	LegalName            string    `json:"legalName"`
+	ParentOrganizationID *string   `json:"parentOrganizationId,omitempty"`
+	DoingBusinessAs      string    `json:"doingBusinessAs"`
+	LegalDocument        string    `json:"legalDocument"`
+	Status               Status    `json:"status"`
+	Address              Address   `json:"address"`
+	Metadata             *Metadata `json:"metadata,omitempty"`
 }
 
 type Status struct {
-	Code        string `json:"code"`
-	Description string `json:"description"`
+	Code        *string `json:"code,omitempty"`
+	Description string  `json:"description"`
 }
 
 type Address struct {
-	Line1   string `json:"line1"`
-	Line2   string `json:"line2"`
-	ZipCode string `json:"zipCode"`
-	City    string `json:"city"`
-	State   string `json:"state"`
-	Country string `json:"country"`
+	Line1   *string `json:"line1,omitempty"`
+	Line2   *string `json:"line2,omitempty"`
+	ZipCode *string `json:"zipCode,omitempty"`
+	City    *string `json:"city,omitempty"`
+	State   *string `json:"state,omitempty"`
+	Country string  `json:"country"`
 }
 
 type Metadata struct {
-	Chave   string  `json:"chave"`
-	Bitcoin string  `json:"bitcoinn"`
-	Boolean bool    `json:"boolean"`
-	Double  float64 `json:"double"`
-	Int     int     `json:"int"`
+	Chave   *string  `json:"chave,omitempty"`
+	Bitcoin *string  `json:"bitcoinn,omitempty"`
+	Boolean *bool    `json:"boolean,omitempty"`
+	Double  *float64 `json:"double,omitempty"`
+	Int     *int     `json:"int"`
 }
 
 type OrganizationResponse struct {
 	ID                   string   `json:"id"`
-	ParentOrganizationID *string  `json:"parentOrganizationId"`
+	ParentOrganizationID string   `json:"parentOrganizationId"`
 	LegalName            string   `json:"legalName"`
 	DoingBusinessAs      string   `json:"doingBusinessAs"`
 	LegalDocument        string   `json:"legalDocument"`
@@ -41,6 +42,6 @@ type OrganizationResponse struct {
 	Status               Status   `json:"status"`
 	CreatedAt            string   `json:"createdAt"`
 	UpdatedAt            string   `json:"updatedAt"`
-	DeletedAt            *string  `json:"deletedAt"`
+	DeletedAt            string   `json:"deletedAt"`
 	Metadata             Metadata `json:"metadata"`
 }

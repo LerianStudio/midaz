@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,23 +28,23 @@ func TestCreateOrganization(t *testing.T) {
 				DoingBusinessAs: "The ledger.io",
 				LegalDocument:   "48784548000104",
 				Status: model.Status{
-					Code:        "ACTIVE",
+					Code:        ptr.StringPtr("ACTIVE"),
 					Description: "Teste Ledger",
 				},
 				Address: model.Address{
-					Line1:   "Avenida Paulista, 1234",
-					Line2:   "CJ 203",
-					ZipCode: "04696040",
-					City:    "Ozellaport",
-					State:   "MU",
+					Line1:   ptr.StringPtr("Avenida Paulista, 1234"),
+					Line2:   ptr.StringPtr("CJ 203"),
+					ZipCode: ptr.StringPtr("04696040"),
+					City:    ptr.StringPtr("Ozellaport"),
+					State:   ptr.StringPtr("MU"),
 					Country: "LV",
 				},
-				Metadata: model.Metadata{
-					Chave:   "metadata_chave",
-					Bitcoin: "3fozQHVceartTg14kwF4PkfgUU4JhsUX",
-					Boolean: true,
-					Double:  10.5,
-					Int:     1,
+				Metadata: &model.Metadata{
+					Chave:   ptr.StringPtr("metadata_chave"),
+					Bitcoin: ptr.StringPtr("3fozQHVceartTg14kwF4PkfgUU4JhsUX"),
+					Boolean: ptr.BoolPtr(true),
+					Double:  ptr.Float64Ptr(10.5),
+					Int:     ptr.IntPtr(1),
 				},
 			},
 			mockResponse: `{
@@ -81,23 +82,23 @@ func TestCreateOrganization(t *testing.T) {
 				DoingBusinessAs: "The ledger.io",
 				LegalDocument:   "48784548000104",
 				Address: model.Address{
-					Line1:   "Avenida Paulista, 1234",
-					Line2:   "CJ 203",
-					ZipCode: "04696040",
-					City:    "Ozellaport",
-					State:   "MU",
+					Line1:   ptr.StringPtr("Avenida Paulista, 1234"),
+					Line2:   ptr.StringPtr("CJ 203"),
+					ZipCode: ptr.StringPtr("04696040"),
+					City:    ptr.StringPtr("Ozellaport"),
+					State:   ptr.StringPtr("MU"),
 					Country: "LV",
 				},
 				Status: model.Status{
-					Code:        "ACTIVE",
+					Code:        ptr.StringPtr("ACTIVE"),
 					Description: "Teste Ledger",
 				},
 				Metadata: model.Metadata{
-					Bitcoin: "3fozQHVceartTg14kwF4PkfgUU4JhsUX",
-					Boolean: true,
-					Chave:   "metadata_chave",
-					Double:  10.5,
-					Int:     1,
+					Chave:   ptr.StringPtr("metadata_chave"),
+					Bitcoin: ptr.StringPtr("3fozQHVceartTg14kwF4PkfgUU4JhsUX"),
+					Boolean: ptr.BoolPtr(true),
+					Double:  ptr.Float64Ptr(10.5),
+					Int:     ptr.IntPtr(1),
 				},
 			},
 		},

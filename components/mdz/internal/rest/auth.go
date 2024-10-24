@@ -16,7 +16,8 @@ type Auth struct {
 	Factory *factory.Factory
 }
 
-func (r *Auth) AuthenticateWithCredentials(username, password string) (*model.TokenResponse, error) {
+func (r *Auth) AuthenticateWithCredentials(
+	username, password string) (*model.TokenResponse, error) {
 	data := url.Values{}
 	data.Set("grant_type", "password")
 	data.Set("client_id", r.Factory.Env.ClientID)

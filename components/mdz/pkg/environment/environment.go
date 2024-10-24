@@ -11,6 +11,7 @@ type Env struct {
 	ClientID     string `mapstructure:"CLIENT_ID"`
 	ClientSecret string `mapstructure:"CLIENT_SECRET"`
 	URLAPIAuth   string `mapstructure:"URL_API_AUTH"`
+	URLAPILedger string `mapstructure:"URL_API_LEDGER"`
 }
 
 func LoadEnv() (Env, error) {

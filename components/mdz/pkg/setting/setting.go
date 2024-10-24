@@ -1,23 +1,41 @@
 package setting
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 type Setting struct {
 	Token string
 }
 
-// Save saves the b file in the ~/.config/mdz/mdz.toml directory, creating the directory if necessary.
-func (s *Setting) Save(b []byte) error {
+// getPathSetting returns the path of the configuration directory of ~/.config/mdz/.
+// this is the path where some cli configs will be persisted
+func getPathSetting() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Set the full path of the directory ~/.config/mdz/
-	dir := filepath.Join(homeDir, ".config", "mdz")
+	return filepath.Join(homeDir, ".config", "mdz"), nil
+}
+
+// Save saves the b file in the ~/.config/mdz/mdz.toml directory, creating the directory if necessary.
+func Save(sett Setting) error {
+	b, err := toml.Marshal(sett)
+	if err != nil {
+		return errors.New("while marshalling toml file " + err.Error())
+	}
+
+	dir, err := getPathSetting()
+	if err != nil {
+		return err
+	}
 
 	// Create the directory if it doesn't exist
 	err = os.MkdirAll(dir, 0750)
@@ -33,4 +51,31 @@ func (s *Setting) Save(b []byte) error {
 	}
 
 	return nil
+}
+
+// Read loads the configuration TOML file and deserializes it to the struct Setting.
+func Read() (*Setting, error) {
+	dir, err := getPathSetting()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("file %s not found", dir)
+	}
+
+	dir = filepath.Join(dir, "mdz.toml")
+
+	fileContent, err := os.ReadFile(dir)
+	if err != nil {
+		return nil, errors.New("opening TOML file: " + err.Error())
+	}
+
+	var sett Setting
+
+	if err := toml.Unmarshal(fileContent, &sett); err != nil {
+		return nil, errors.New("decoding the TOML file: " + err.Error())
+	}
+
+	return &sett, nil
 }

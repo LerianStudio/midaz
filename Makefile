@@ -70,6 +70,14 @@ set-env:
 	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
 
+
+.PHONY : up 
+up: set-env 
+	docker-compose -f $(AUTH_DIR)/docker-compose.yml up --build -d && \
+	docker-compose -f $(INFRA_DIR)/docker-compose.yml up --build -d && \
+	docker-compose -f $(LEDGER_DIR)/docker-compose.yml up --build -d && \
+	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d 
+
 auth:
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
 
