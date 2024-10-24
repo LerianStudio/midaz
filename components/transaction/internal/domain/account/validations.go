@@ -164,6 +164,7 @@ func Scale(v, s float64) float64 {
 func UndoScale(value, scale float64) float64 {
 	v := strconv.FormatFloat(value*math.Pow(10, scale), 'f', 0, 64)
 	valueFinal, _ := strconv.ParseFloat(v, 64)
+	
 	return valueFinal
 }
 
