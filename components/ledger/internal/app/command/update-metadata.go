@@ -10,17 +10,29 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update metadata for %s: %v", entityName, entityID)
 
-	if len(metadata) > 0 {
+	metadataToUpdate := metadata
+
+	if metadataToUpdate != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
 			return nil, common.ValidateBusinessError(err, entityName)
 		}
 
-		if err := uc.MetadataRepo.Update(ctx, entityName, entityID, metadata); err != nil {
-			logger.Errorf("Error into updating %s metadata: %v", entityName, err)
+		existingMetadata, err := uc.MetadataRepo.FindByEntity(ctx, entityName, entityID)
+		if err != nil {
+			logger.Errorf("Error get metadata on mongodb: %v", err)
 			return nil, err
 		}
 
+		if existingMetadata != nil {
+			metadataToUpdate = common.MergeMaps(metadata, existingMetadata.Data)
+		}
+	} else {
+		metadataToUpdate = map[string]any{}
 	}
 
-	return metadata, nil
+	if err := uc.MetadataRepo.Update(ctx, entityName, entityID, metadataToUpdate); err != nil {
+		return nil, err
+	}
+
+	return metadataToUpdate, nil
 }
