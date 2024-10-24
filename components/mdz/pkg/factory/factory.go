@@ -11,6 +11,7 @@ const CLIVersion = "Mdz CLI 1.0.0"
 
 type Factory struct {
 	CLIVersion string
+	Token      string
 	HTTPClient *http.Client
 	IOStreams  *iostreams.IOStreams
 	Env        *environment.Env

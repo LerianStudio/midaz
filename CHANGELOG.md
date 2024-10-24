@@ -1,3 +1,25 @@
+## [1.25.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.1...v1.25.0-beta.2) (2024-10-24)
+
+
+### Features
+
+* create command create from organization ([c0742da](https://github.com/LerianStudio/midaz/commit/c0742daa8afa6dd4d3e45a38760a64c9b7559a2c))
+* post rest organization ([e7de90d](https://github.com/LerianStudio/midaz/commit/e7de90d241a9d0679a9ea57669784e9b5942a91c))
+
+
+### Bug Fixes
+
+* resolve G304 CWE-22 potential file inclusion via variable ([91a4350](https://github.com/LerianStudio/midaz/commit/91a43508fda108300aef26d1a5cb9195923ca21b))
+
+## [1.25.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.24.0...v1.25.0-beta.1) (2024-10-24)
+
+
+### Bug Fixes
+
+*  adjust normalization of values ​​with decimal places for remaining :bug: ([fc4f220](https://github.com/LerianStudio/midaz/commit/fc4f22035b622aa88f1c7ebb1652a2da96d278ff))
+* make lint issues; :bug: ([96fc0bf](https://github.com/LerianStudio/midaz/commit/96fc0bfcea8fe44f734b97dec6fddd2a6804d792))
+* update transaction table after on transaction; :bug: ([296fe6e](https://github.com/LerianStudio/midaz/commit/296fe6e0214a05569fb45d014ae81817b2314d9a))
+
 ## [1.24.0](https://github.com/LerianStudio/midaz/compare/v1.23.0...v1.24.0) (2024-10-24)
 
 

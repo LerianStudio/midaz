@@ -1,10 +1,14 @@
 package root
 
 import (
+	"errors"
+
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -16,10 +20,26 @@ type factoryRoot struct {
 func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(version.NewCmdVersion(f.factory))
 	cmd.AddCommand(login.NewCmdLogin(f.factory))
+	cmd.AddCommand(organization.NewCmdOrganization(f.factory))
 }
 
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
+}
+
+func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
+	if cmd.Name() != "login" &&
+		cmd.Name() != "completion" &&
+		cmd.Name() != "version" {
+		sett, err := setting.Read()
+		if err != nil {
+			return errors.New("Try the login command first " + err.Error())
+		}
+
+		f.factory.Token = sett.Token
+	}
+
+	return nil
 }
 
 func NewCmdRoot(f *factory.Factory) *cobra.Command {
@@ -40,8 +60,9 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 			"$ mdz -h",
 			"$ mdz --help",
 		),
-		SilenceErrors: true, // Silence errors, so the help message won't be shown on flag error
-		SilenceUsage:  true, // Silence usage on error
+		PersistentPreRunE: fRoot.persistentPreRunE,
+		SilenceErrors:     true, // Silence errors, so the help message won't be shown on flag error
+		SilenceUsage:      true, // Silence usage on error
 	}
 
 	cmd.SetIn(fRoot.factory.IOStreams.In)
