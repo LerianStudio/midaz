@@ -95,7 +95,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 		return BadRequest(c, err)
 	}
 
-	c.Locals(string(PayloadContextValue("fields")), diffFields)
+	c.Locals("fields", diffFields)
 
 	parseMetadata(s, originalMap)
 
