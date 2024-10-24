@@ -49,7 +49,7 @@ type Portfolio struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
