@@ -63,7 +63,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	if !common.IsNilOrEmpty(cai.ParentAccountID) {
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(cn.ErrInvalidParentAccountID, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		if acc.AssetCode != cai.AssetCode {

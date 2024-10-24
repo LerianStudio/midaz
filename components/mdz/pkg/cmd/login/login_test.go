@@ -16,7 +16,6 @@ import (
 )
 
 func TestRunE(t *testing.T) {
-	// Define test cases
 	tests := []struct {
 		name           string
 		username       string

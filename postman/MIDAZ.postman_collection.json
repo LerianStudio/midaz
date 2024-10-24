@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "e8fe1f8d-45fc-4ed1-a89b-ffe8d274f7b2",
+		"_postman_id": "f833b470-399c-4bb2-bf50-d3f714f4d5b4",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -2298,7 +2298,12 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									""
+									"const jsonData = JSON.parse(responseBody);\r",
+									"if (jsonData.hasOwnProperty('id')) {\r",
+									"    console.log(\"asset_rate_id before: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
+									"    pm.collectionVariables.set(\"asset_rate_id\", jsonData.id);\r",
+									"    console.log(\"asset_rate_id after: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
+									"}"
 								],
 								"type": "text/javascript",
 								"packages": {}
@@ -2329,6 +2334,59 @@
 								"ledgers",
 								"{{ledger_id}}",
 								"asset-rates"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+					},
+					"response": []
+				},
+				{
+					"name": "Asset rates",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);\r",
+									"if (jsonData.hasOwnProperty('id')) {\r",
+									"    console.log(\"asset_rate_id before: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
+									"    pm.collectionVariables.set(\"ledger_id\", jsonData.id);\r",
+									"    console.log(\"asset_rate_id after: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"baseAssetCode\": \"BRL\",\n    \"counterAssetCode\": \"BTC\",\n    \"amount\": 35000000,\n    \"scale\": 2,\n    \"source\": \"Chainlink database\",\n    \"metadata\": {\n        \"updateCycle\": 300,\n        \"urgent\": true\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/{{asset_rate_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"asset-rates",
+								"{{asset_rate_id}}"
 							]
 						},
 						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
@@ -2501,6 +2559,11 @@
 		},
 		{
 			"key": "operation_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "asset_rate_id",
 			"value": "",
 			"type": "string"
 		}
