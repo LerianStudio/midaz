@@ -36,17 +36,12 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		return nil, err
 	}
 
-	if len(uli.Metadata) > 0 {
-		if err := common.CheckMetadataKeyAndValueLength(100, uli.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(l.Ledger{}).Name())
-		}
-
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(l.Ledger{}).Name(), id.String(), uli.Metadata); err != nil {
-			return nil, err
-		}
-
-		ledgerUpdated.Metadata = uli.Metadata
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(l.Ledger{}).Name(), id.String(), uli.Metadata)
+	if err != nil {
+		return nil, err
 	}
+
+	ledgerUpdated.Metadata = metadataUpdated
 
 	return ledgerUpdated, nil
 }

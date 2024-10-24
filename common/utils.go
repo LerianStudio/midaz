@@ -161,3 +161,16 @@ func StructToJSONString(s any) (string, error) {
 
 	return string(jsonByte), nil
 }
+
+// MergeMaps Following the JSON Merge Patch
+func MergeMaps(source, target map[string]any) map[string]any {
+	for key, value := range source {
+		if value != nil {
+			target[key] = value
+		} else {
+			delete(target, key)
+		}
+	}
+
+	return target
+}

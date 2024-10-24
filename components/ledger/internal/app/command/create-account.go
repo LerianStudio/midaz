@@ -9,7 +9,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
@@ -97,32 +96,19 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		UpdatedAt:       time.Now(),
 	}
 
-	port, err := uc.AccountRepo.Create(ctx, account)
+	acc, err := uc.AccountRepo.Create(ctx, account)
 	if err != nil {
 		logger.Errorf("Error creating account: %v", err)
 		return nil, err
 	}
 
-	if cai.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cai.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   port.ID,
-			EntityName: reflect.TypeOf(a.Account{}).Name(),
-			Data:       cai.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(a.Account{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating account metadata: %v", err)
-			return nil, err
-		}
-
-		port.Metadata = cai.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(a.Account{}).Name(), acc.ID, cai.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating account metadata: %v", err)
+		return nil, err
 	}
 
-	return port, nil
+	acc.Metadata = metadata
+
+	return acc, nil
 }
