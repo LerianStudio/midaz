@@ -57,6 +57,7 @@ func InitializeService() *service.Service {
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
+		AssetRateRepo:   assetRatePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 	}
 	transactionHandler := &http.TransactionHandler{

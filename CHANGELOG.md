@@ -1,3 +1,11 @@
+## [1.25.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.2...v1.25.0-beta.3) (2024-10-24)
+
+
+### Features
+
+* Get asset rates - part 2 :sparkles: ([52d5be4](https://github.com/LerianStudio/midaz/commit/52d5be459eba786409cad4b9feee900a8c6451c4))
+* Get asset rates :sparkles: ([48c5dec](https://github.com/LerianStudio/midaz/commit/48c5deccfeebf564b55b6e492271f5dde4585055))
+
 ## [1.25.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.1...v1.25.0-beta.2) (2024-10-24)
 
 
