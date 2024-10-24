@@ -42,18 +42,12 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, err
 	}
 
-	if len(uai.Metadata) > 0 {
-		if err := common.CheckMetadataKeyAndValueLength(100, uai.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
-		}
-
-		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(a.Account{}).Name(), id.String(), uai.Metadata)
-		if err != nil {
-			return nil, err
-		}
-
-		accountUpdated.Metadata = uai.Metadata
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(a.Account{}).Name(), accountUpdated.ID, uai.Metadata)
+	if err != nil {
+		return nil, err
 	}
+
+	accountUpdated.Metadata = metadataUpdated
 
 	return accountUpdated, nil
 }
