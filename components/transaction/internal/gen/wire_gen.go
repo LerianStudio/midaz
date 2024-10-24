@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
+	"github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
@@ -42,12 +43,14 @@ func InitializeService() *service.Service {
 	grpcConnection := setupGRPCConnection(config, logger)
 	accountGRPCRepository := grpc.NewAccountGRPC(grpcConnection)
 	operationPostgreSQLRepository := postgres.NewOperationPostgreSQLRepository(postgresConnection)
+	assetRatePostgreSQLRepository := postgres.NewAssetRatePostgreSQLRepository(postgresConnection)
 	mongoConnection := setupMongoDBConnection(config, logger)
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
+		AssetRateRepo:   assetRatePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 	}
 	queryUseCase := &query.UseCase{
@@ -64,7 +67,11 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	app := http.NewRouter(logger, casdoorConnection, transactionHandler, operationHandler)
+	assetRateHandler := &http.AssetRateHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+	app := http.NewRouter(logger, casdoorConnection, transactionHandler, operationHandler, assetRateHandler)
 	server := service.NewServer(config, app, logger)
 	serviceService := &service.Service{
 		Server: server,
@@ -135,7 +142,7 @@ var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
-		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))

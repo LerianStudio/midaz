@@ -2,9 +2,8 @@ package portfolio
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
@@ -98,7 +97,7 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *Portfolio {
 // FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
 func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *Portfolio) {
 	*t = PortfolioPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              portfolio.Name,
 		EntityID:          portfolio.EntityID,
 		LedgerID:          portfolio.LedgerID,

@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/product"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,9 +15,9 @@ import (
 // TestCreateProductSuccess is responsible to test CreateProduct with success
 func TestCreateProductSuccess(t *testing.T) {
 	product := &p.Product{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -39,9 +39,9 @@ func TestCreateProductSuccess(t *testing.T) {
 func TestCreateProductError(t *testing.T) {
 	errMSG := "err to create product on database"
 	product := &p.Product{
-		ID:             uuid.New().String(),
-		OrganizationID: uuid.New().String(),
-		LedgerID:       uuid.New().String(),
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
