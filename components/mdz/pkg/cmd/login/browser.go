@@ -31,7 +31,8 @@ func (l *factoryLogin) browserLogin() {
 	redirectURI := "http://localhost:9000/callback"
 	state := "random_state"
 
-	authURL := fmt.Sprintf("http://localhost:8000/login/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=code&scope=openid&state=%s", clientID, url.QueryEscape(redirectURI), state)
+	authURL := fmt.Sprintf("%s/login/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=code&scope=openid&state=%s",
+		l.factory.Env.URLAPIAuth, clientID, url.QueryEscape(redirectURI), state)
 
 	err := l.openBrowser(authURL)
 	if err != nil {
@@ -53,7 +54,8 @@ func (l *factoryLogin) browserLogin() {
 
 		if err != http.ErrServerClosed {
 			l.browser.Err = err
-			output.Printf(l.factory.IOStreams.Out, "Error while serving server for browser login "+err.Error())
+			output.Printf(l.factory.IOStreams.Out,
+				"Error while serving server for browser login "+err.Error())
 
 			return
 		}
@@ -86,7 +88,7 @@ func (l *factoryLogin) openBrowser(u string) error {
 	}
 
 	if err != nil {
-		return errors.New("Error opening the browser: " + err.Error())
+		return errors.New("opening the browser: " + err.Error())
 	}
 
 	output.Printf(l.factory.IOStreams.Out, "Wait Authenticated via browser...")
@@ -108,7 +110,8 @@ func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 		l.browser.Err = err
 
 		http.Error(w,
-			"Failed to exchange authorization code for access token. Please try again or contact support. :(",
+			"Failed to exchange authorization code for access token. Please try "+
+				"again or contact support. :(",
 			http.StatusInternalServerError)
 		output.Printf(l.factory.IOStreams.Err, err.Error())
 

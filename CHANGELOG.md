@@ -1,3 +1,16 @@
+## [1.25.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.1...v1.25.0-beta.2) (2024-10-24)
+
+
+### Features
+
+* create command create from organization ([c0742da](https://github.com/LerianStudio/midaz/commit/c0742daa8afa6dd4d3e45a38760a64c9b7559a2c))
+* post rest organization ([e7de90d](https://github.com/LerianStudio/midaz/commit/e7de90d241a9d0679a9ea57669784e9b5942a91c))
+
+
+### Bug Fixes
+
+* resolve G304 CWE-22 potential file inclusion via variable ([91a4350](https://github.com/LerianStudio/midaz/commit/91a43508fda108300aef26d1a5cb9195923ca21b))
+
 ## [1.25.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.24.0...v1.25.0-beta.1) (2024-10-24)
 
 
