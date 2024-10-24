@@ -48,17 +48,12 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		return nil, err
 	}
 
-	if len(uoi.Metadata) > 0 {
-		if err := common.CheckMetadataKeyAndValueLength(100, uoi.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
-		}
-
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Organization{}).Name(), id.String(), uoi.Metadata); err != nil {
-			return nil, err
-		}
-
-		organizationUpdated.Metadata = uoi.Metadata
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), organizationUpdated.ID, uoi.Metadata)
+	if err != nil {
+		return nil, err
 	}
+
+	organizationUpdated.Metadata = metadataUpdated
 
 	return organizationUpdated, nil
 }
