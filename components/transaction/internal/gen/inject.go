@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
+	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
@@ -98,14 +99,17 @@ var (
 		service.NewServer,
 		postgres.NewTransactionPostgreSQLRepository,
 		postgres.NewOperationPostgreSQLRepository,
+		postgres.NewAssetRatePostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
 		grpc.NewAccountGRPC,
 		wire.Struct(new(httpHandler.TransactionHandler), "*"),
 		wire.Struct(new(httpHandler.OperationHandler), "*"),
+		wire.Struct(new(httpHandler.AssetRateHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),
 		wire.Bind(new(o.Repository), new(*postgres.OperationPostgreSQLRepository)),
+		wire.Bind(new(ar.Repository), new(*postgres.AssetRatePostgreSQLRepository)),
 		wire.Bind(new(a.Repository), new(*adapter.AccountGRPCRepository)),
 		wire.Bind(new(m.Repository), new(*mongodb.MetadataMongoDBRepository)),
 	)

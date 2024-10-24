@@ -1,3 +1,31 @@
+## [1.24.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.3...v1.24.0-beta.4) (2024-10-23)
+
+
+### Features
+
+* add update account with status approved after transfers :sparkles: ([f84ee03](https://github.com/LerianStudio/midaz/commit/f84ee038bd5792fb72b3bcfa12dec6fdcac2ce73))
+* create update transaction by status; :sparkles: ([181ba8a](https://github.com/LerianStudio/midaz/commit/181ba8a0a621698069f348aabacfd8c741b1ec93))
+
+
+### Bug Fixes
+
+* adjust import; :bug: ([64b3456](https://github.com/LerianStudio/midaz/commit/64b345697ba0636247e742a27da6251dcb9efc2f))
+* adjust some validation to add and remove values from accounts using scale; :bug: ([d59e19d](https://github.com/LerianStudio/midaz/commit/d59e19d33b51cac8592faf991656cfb2fbf78f33))
+* update find scale right; :bug: ([6e2b45c](https://github.com/LerianStudio/midaz/commit/6e2b45ca6db1b877c430af60bbb61fe85231a3d9))
+
+## [1.24.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.2...v1.24.0-beta.3) (2024-10-23)
+
+
+### Features
+
+* Create asset rates - part 2 :sparkles: ([c2d636c](https://github.com/LerianStudio/midaz/commit/c2d636c32a2fd83aeff6005aaeb599994a260b3c))
+* Create asset rates :sparkles: ([5e4519f](https://github.com/LerianStudio/midaz/commit/5e4519f6e64e65b094bfff685e4ac0221e3183c7))
+
+
+### Bug Fixes
+
+* adjust import alias :bug: ([c31d28d](https://github.com/LerianStudio/midaz/commit/c31d28d20c30d72a5c7fe87c77aa2752124c269a))
+
 ## [1.24.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.24.0-beta.1...v1.24.0-beta.2) (2024-10-23)
 
 
