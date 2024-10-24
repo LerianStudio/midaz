@@ -64,7 +64,7 @@ func Read() (*Setting, error) {
 		return nil, fmt.Errorf("file %s not found", dir)
 	}
 
-	dir = filepath.Join(dir, "mdz.toml")
+	dir = filepath.Join(filepath.Clean(dir), "mdz.toml")
 
 	fileContent, err := os.ReadFile(dir)
 	if err != nil {

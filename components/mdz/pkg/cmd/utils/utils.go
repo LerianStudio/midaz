@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -22,7 +23,7 @@ func FlagFileUnmarshalJSON(path string, request any) error {
 	if path == "-" {
 		file = os.Stdin
 	} else {
-		file, err = os.Open(path)
+		file, err = os.Open(filepath.Clean(path))
 		if err != nil {
 			return errors.New("Failed to open a file. Verify if the path and file " +
 				"exists and/or the file is corrupted and try the command again " + path)
