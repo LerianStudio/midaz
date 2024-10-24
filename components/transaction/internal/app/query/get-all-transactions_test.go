@@ -3,19 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	tx "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/transaction"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllTransactions is responsible to test GetAllTransactions with success and error
 func TestGetAllTransactions(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

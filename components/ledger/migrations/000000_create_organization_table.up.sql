@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS organization
 (
-    id                                   UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    id                                   UUID PRIMARY KEY NOT NULL,
     parent_organization_id               UUID,
     legal_name                           TEXT NOT NULL,
     doing_business_as                    TEXT,

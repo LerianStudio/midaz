@@ -2,10 +2,10 @@ package account
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
 
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/google/uuid"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
@@ -36,22 +36,22 @@ type AccountPostgreSQLModel struct {
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
 type CreateAccountInput struct {
-	AssetCode       string         `json:"assetCode" validate:"required"`
-	Name            string         `json:"name"`
-	Alias           *string        `json:"alias"`
+	AssetCode       string         `json:"assetCode" validate:"required,max=100"`
+	Name            string         `json:"name" validate:"max=256"`
+	Alias           *string        `json:"alias" validate:"max=100"`
 	Type            string         `json:"type" validate:"required"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
-	EntityID        *string        `json:"entityId"`
+	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata"`
 }
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
 type UpdateAccountInput struct {
-	Name      string         `json:"name"`
+	Name      string         `json:"name" validate:"max=256"`
 	Status    Status         `json:"status"`
-	Alias     *string        `json:"alias"`
+	Alias     *string        `json:"alias" validate:"max=100"`
 	ProductID *string        `json:"productId" validate:"uuid"`
 	Metadata  map[string]any `json:"metadata"`
 }
@@ -79,8 +79,8 @@ type Account struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code           string  `json:"code"`
-	Description    *string `json:"description"`
+	Code           string  `json:"code" validate:"max=100"`
+	Description    *string `json:"description" validate:"max=256"`
 	AllowSending   bool    `json:"allowSending"`
 	AllowReceiving bool    `json:"allowReceiving"`
 }
@@ -147,7 +147,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *Account {
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 	*t = AccountPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              account.Name,
 		ParentAccountID:   account.ParentAccountID,
 		EntityID:          account.EntityID,

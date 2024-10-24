@@ -2,9 +2,8 @@ package asset
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database
@@ -25,16 +24,16 @@ type AssetPostgreSQLModel struct {
 
 // CreateAssetInput is a struct design to encapsulate request create payload data.
 type CreateAssetInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"max=256"`
 	Type     string         `json:"type"`
-	Code     string         `json:"code" validate:"required"`
+	Code     string         `json:"code" validate:"required,max=100"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 type UpdateAssetInput struct {
-	Name     string         `json:"name"`
+	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata"`
 }
@@ -56,8 +55,8 @@ type Asset struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code"`
-	Description *string `json:"description"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -95,7 +94,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *Asset {
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
 func (t *AssetPostgreSQLModel) FromEntity(asset *Asset) {
 	*t = AssetPostgreSQLModel{
-		ID:                uuid.New().String(),
+		ID:                common.GenerateUUIDv7().String(),
 		Name:              asset.Name,
 		Type:              asset.Type,
 		Code:              asset.Code,

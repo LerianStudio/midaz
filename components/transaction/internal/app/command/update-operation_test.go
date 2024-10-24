@@ -3,22 +3,22 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 	"time"
 
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/operation"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateOperationSuccess is responsible to test UpdateOperationSuccess with success
 func TestUpdateOperationSuccess(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	transactionID := common.GenerateUUIDv7()
+	operationID := common.GenerateUUIDv7()
 
 	operation := &o.Operation{
 		ID:             operationID.String(),
@@ -46,10 +46,10 @@ func TestUpdateOperationSuccess(t *testing.T) {
 // TestUpdateOperationError is responsible to test UpdateOperationError with error
 func TestUpdateOperationError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	transactionID := uuid.New()
-	operationID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	transactionID := common.GenerateUUIDv7()
+	operationID := common.GenerateUUIDv7()
 
 	operation := &o.Operation{
 		ID:             operationID.String(),

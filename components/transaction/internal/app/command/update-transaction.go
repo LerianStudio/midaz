@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateTransaction update an transaction from the repository by given id.
+// UpdateTransaction update a transaction from the repository by given id.
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID string, uti *t.UpdateTransactionInput) (*t.Transaction, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update transaction: %v", uti)
@@ -49,6 +49,39 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		transUpdated.Metadata = uti.Metadata
+	}
+
+	return transUpdated, nil
+}
+
+// UpdateTransactionStatus update a status transaction from the repository by given id.
+func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID string, description string) (*t.Transaction, error) {
+	logger := mlog.NewLoggerFromContext(ctx)
+	logger.Infof("Trying to update transaction using status: : %v", description)
+
+	status := t.Status{
+		Code:        description,
+		Description: &description,
+	}
+
+	trans := &t.Transaction{
+		Status: status,
+	}
+
+	transUpdated, err := uc.TransactionRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(transactionID), trans)
+	if err != nil {
+		logger.Errorf("Error updating status transaction on repo by id: %v", err)
+
+		if errors.Is(err, app.ErrDatabaseItemNotFound) {
+			return nil, common.EntityNotFoundError{
+				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
+				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID),
+				Code:       "TRANSACTION_NOT_FOUND",
+				Err:        err,
+			}
+		}
+
+		return nil, err
 	}
 
 	return transUpdated, nil

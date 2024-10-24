@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/constant"
 	"reflect"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
-	"github.com/google/uuid"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
@@ -47,11 +47,18 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					description = dsl.Description
 				}
 
+				var typeOperation string
+				if fromTo[i].IsFrom {
+					typeOperation = constant.DEBIT
+				} else {
+					typeOperation = constant.CREDIT
+				}
+
 				save := &o.Operation{
-					ID:              uuid.New().String(),
+					ID:              common.GenerateUUIDv7().String(),
 					TransactionID:   transactionID,
 					Description:     description,
-					Type:            acc.Type,
+					Type:            typeOperation,
 					AssetCode:       dsl.Send.Asset,
 					ChartOfAccounts: fromTo[i].ChartOfAccounts,
 					Amount:          amount,

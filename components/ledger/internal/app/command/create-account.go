@@ -80,7 +80,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	account := &a.Account{
-		ID:              uuid.New().String(),
+		ID:              common.GenerateUUIDv7().String(),
 		AssetCode:       cai.AssetCode,
 		Alias:           cai.Alias,
 		Name:            cai.Name,

@@ -3,20 +3,20 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	mock "github.com/LerianStudio/midaz/components/transaction/internal/gen/mock/operation"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllOperationsByPortfolio is responsible to test GetAllOperationsByPortfolio with success and error
 func TestGetAllOperationsByPortfolio(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	portfolioID := uuid.New()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	portfolioID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/constant"
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common"
@@ -248,7 +249,23 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		return commonHTTP.WithError(c, err)
 	}
 
+	//TODO: use event driven and broken and parts
+	_, err = handler.Command.UpdateTransactionStatus(c.Context(), organizationID, ledgerID, tran.ID, constant.APPROVED)
+	if err != nil {
+		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	//TODO: use event driven and broken and parts
+	tran, err = handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, tran.ID)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", tran.ID, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
 	tran.Operations = operations
+
+	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID, ledgerID, tran.ID)
 
 	return commonHTTP.Created(c, tran)
 }
@@ -299,7 +316,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 
 	var update []*account.Account
 
-	go v.UpdateAccounts("sub", validate.From, accounts, result, e)
+	go v.UpdateAccounts(constant.DEBIT, validate.From, accounts, result, e)
 	select {
 	case r := <-result:
 		update = append(update, r...)
@@ -307,7 +324,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	go v.UpdateAccounts("add", validate.To, accounts, result, e)
+	go v.UpdateAccounts(constant.CREDIT, validate.To, accounts, result, e)
 	select {
 	case r := <-result:
 		update = append(update, r...)

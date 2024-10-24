@@ -3,20 +3,20 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common"
 	"testing"
 
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/product"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestGetProductByIDSuccess is responsible to test GetProductByID with success
 func TestGetProductByIDSuccess(t *testing.T) {
-	id := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	product := &p.Product{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
@@ -40,9 +40,9 @@ func TestGetProductByIDSuccess(t *testing.T) {
 
 // TestGetProductByIDError is responsible to test GetProductByID with error
 func TestGetProductByIDError(t *testing.T) {
-	id := uuid.New()
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
+	id := common.GenerateUUIDv7()
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
