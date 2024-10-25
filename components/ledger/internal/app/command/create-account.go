@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
 	"time"
 
@@ -88,9 +89,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		ParentAccountID: cai.ParentAccountID,
 		ProductID:       cai.ProductID,
 		OrganizationID:  organizationID.String(),
-		PortfolioID:     portfolioID.String(),
+		PortfolioID:     mpointers.String(portfolioID.String()),
 		LedgerID:        ledgerID.String(),
-		EntityID:        *cai.EntityID,
+		EntityID:        cai.EntityID,
 		Balance:         balance,
 		Status:          status,
 		CreatedAt:       time.Now(),

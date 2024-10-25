@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS account
     asset_code                      TEXT NOT NULL,
     organization_id                 UUID NOT NULL,
     ledger_id                       UUID NOT NULL,
-    portfolio_id                    UUID NOT NULL,
+    portfolio_id                    UUID,
     product_id                      UUID,
     available_balance               NUMERIC NOT NULL,
     on_hold_balance                 NUMERIC NOT NULL,

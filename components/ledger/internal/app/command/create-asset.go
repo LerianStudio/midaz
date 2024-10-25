@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
 	"time"
 
@@ -81,6 +82,59 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		}
 
 		inst.Metadata = cii.Metadata
+	}
+
+	aAlias := "@external/" + cii.Code
+	aStatusDescription := "Account external created by asset: " + cii.Code
+
+	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, []string{aAlias})
+	if err != nil {
+		logger.Errorf("Error retrieving asset external account: %v", err)
+
+		return nil, err
+	}
+
+	if len(account) == 0 {
+		logger.Infof("Creating external account for asset: %s", cii.Code)
+
+		balanceValue := float64(0)
+
+		aBalance := a.Balance{
+			Available: &balanceValue,
+			OnHold:    &balanceValue,
+			Scale:     &balanceValue,
+		}
+
+		eAccount := &a.Account{
+			ID:              common.GenerateUUIDv7().String(),
+			AssetCode:       cii.Code,
+			Alias:           &aAlias,
+			Name:            "External " + cii.Code,
+			Type:            "external",
+			OrganizationID:  organizationID.String(),
+			LedgerID:        ledgerID.String(),
+			ParentAccountID: nil,
+			ProductID:       nil,
+			PortfolioID:     nil,
+			EntityID:        nil,
+			Balance:         aBalance,
+			Status: a.Status{
+				Code:           "external",
+				Description:    &aStatusDescription,
+				AllowSending:   true,
+				AllowReceiving: true,
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		_, err = uc.AccountRepo.Create(ctx, eAccount)
+		if err != nil {
+			logger.Errorf("Error creating asset external account: %v", err)
+			return nil, err
+		}
+
+		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 	}
 
 	return inst, nil

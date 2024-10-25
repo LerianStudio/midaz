@@ -13,11 +13,11 @@ type AccountPostgreSQLModel struct {
 	ID                string
 	Name              string
 	ParentAccountID   *string
-	EntityID          string
+	EntityID          *string
 	AssetCode         string
 	OrganizationID    string
 	LedgerID          string
-	PortfolioID       string
+	PortfolioID       *string
 	ProductID         *string
 	AvailableBalance  *float64
 	OnHoldBalance     *float64
@@ -61,11 +61,11 @@ type Account struct {
 	ID              string         `json:"id"`
 	Name            string         `json:"name"`
 	ParentAccountID *string        `json:"parentAccountId"`
-	EntityID        string         `json:"entityId"`
+	EntityID        *string        `json:"entityId"`
 	AssetCode       string         `json:"assetCode"`
 	OrganizationID  string         `json:"organizationId"`
 	LedgerID        string         `json:"ledgerId"`
-	PortfolioID     string         `json:"portfolioId"`
+	PortfolioID     *string        `json:"portfolioId"`
 	ProductID       *string        `json:"productId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
@@ -193,11 +193,11 @@ func (e *Account) ToProto() *proto.Account {
 	account := &proto.Account{
 		Id:             e.ID,
 		Name:           e.Name,
-		EntityId:       e.EntityID,
+		EntityId:       *e.EntityID,
 		AssetCode:      e.AssetCode,
 		OrganizationId: e.OrganizationID,
 		LedgerId:       e.LedgerID,
-		PortfolioId:    e.PortfolioID,
+		PortfolioId:    *e.PortfolioID,
 		ProductId:      *e.ProductID,
 		Balance:        &balance,
 		Status:         &status,
