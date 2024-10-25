@@ -60,7 +60,7 @@ func TestRunE(t *testing.T) {
 			"--int", "1",
 		})
 
-		gotOrg := model.OrganizationResponse{
+		gotOrg := model.OrganizationCreate{
 			ID:              "123",
 			LegalName:       "Test Organization",
 			DoingBusinessAs: "The ledger.io",
@@ -73,7 +73,7 @@ func TestRunE(t *testing.T) {
 			},
 		}
 
-		mockRepo.EXPECT().Create(gomock.Any()).DoAndReturn(func(org model.Organization) (*model.OrganizationResponse, error) {
+		mockRepo.EXPECT().Create(gomock.Any()).DoAndReturn(func(org model.Organization) (*model.OrganizationCreate, error) {
 			assert.Equal(t, "Test Organization", org.LegalName)
 			assert.Equal(t, "The ledger.io", org.DoingBusinessAs)
 			assert.Equal(t, "48784548000104", org.LegalDocument)
@@ -145,7 +145,7 @@ func TestRunE(t *testing.T) {
 			"--int", "1",
 		})
 
-		gotOrg := model.OrganizationResponse{
+		gotOrg := model.OrganizationCreate{
 			ID:              "123",
 			LegalName:       "Gislason LLC",
 			DoingBusinessAs: "The ledger.io",
@@ -171,7 +171,7 @@ func TestRunE(t *testing.T) {
 			},
 		}
 
-		mockRepo.EXPECT().Create(gomock.Any()).DoAndReturn(func(org model.Organization) (*model.OrganizationResponse, error) {
+		mockRepo.EXPECT().Create(gomock.Any()).DoAndReturn(func(org model.Organization) (*model.OrganizationCreate, error) {
 			assert.Equal(t, "Gislason LLC", org.LegalName)
 			assert.Equal(t, "The ledger.io", org.DoingBusinessAs)
 			assert.Equal(t, "48784548000104", org.LegalDocument)

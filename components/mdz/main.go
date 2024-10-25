@@ -10,14 +10,9 @@ import (
 )
 
 func main() {
-	env, err := environment.LoadEnv()
-	if err != nil {
-		output.Printf(os.Stderr, "Failed load envs: "+err.Error())
+	env := environment.New()
 
-		os.Exit(1)
-	}
-
-	f := factory.NewFactory(&env)
+	f := factory.NewFactory(env)
 	cmd := root.NewCmdRoot(f)
 
 	if err := cmd.Execute(); err != nil {
