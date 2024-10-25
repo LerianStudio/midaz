@@ -5,6 +5,16 @@ ifeq (, $(GO))
 $(error "No go binary found in your system, please install go version go1.23.2 before continuing")
 endif
 
+ifneq (,$(wildcard .env))
+    include .env
+endif
+
+
+LDFLAGS=-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.ClientID=$(CLIENT_ID)'\
+	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.ClientSecret=$(CLIENT_SECRET)' \
+	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.URLAPIAuth=$(URL_API_AUTH)' \
+	-X 'github.com/LerianStudio/midaz/components/mdz/pkg/environment.URLAPILedger=$(URL_API_LEDGER)'
+
 .PHONY: get-lint-deps
 get-lint-deps:
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
@@ -44,4 +54,4 @@ test:
 .PHONY : build
 build:
 	go version
-	go build -o ./bin/$(NAME) ./main.go
+	go build -ldflags "$(LDFLAGS)" -o ./bin/$(NAME) ./main.go

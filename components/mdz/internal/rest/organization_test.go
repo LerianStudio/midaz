@@ -19,7 +19,7 @@ func TestCreateOrganization(t *testing.T) {
 		mockResponse   string
 		mockStatusCode int
 		expectError    bool
-		expectedResult *model.OrganizationResponse
+		expectedResult *model.OrganizationCreate
 	}{
 		{
 			name: "success",
@@ -76,7 +76,7 @@ func TestCreateOrganization(t *testing.T) {
 			}`,
 			mockStatusCode: 201,
 			expectError:    false,
-			expectedResult: &model.OrganizationResponse{
+			expectedResult: &model.OrganizationCreate{
 				ID:              "1a259e90-8f28-491d-8c09-c047293b1a0f",
 				LegalName:       "Corwin LLC",
 				DoingBusinessAs: "The ledger.io",
