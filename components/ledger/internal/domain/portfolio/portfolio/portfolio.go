@@ -28,14 +28,14 @@ type CreatePortfolioInput struct {
 	EntityID string         `json:"entityId" validate:"required,max=256"`
 	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdatePortfolioInput is a struct design to encapsulate payload data.
 type UpdatePortfolioInput struct {
 	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // Portfolio is a struct designed to encapsulate request update payload data.
