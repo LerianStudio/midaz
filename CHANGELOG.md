@@ -1,3 +1,19 @@
+## [1.25.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.5...v1.25.0-beta.6) (2024-10-25)
+
+
+### Features
+
+* implements new function to parse Metadata from requests :sparkles: ([d933a58](https://github.com/LerianStudio/midaz/commit/d933a58ee7abee5893399ce3bc19bb25ad7207f7))
+
+
+### Bug Fixes
+
+* fixes file name typo :bug: ([3cbab1a](https://github.com/LerianStudio/midaz/commit/3cbab1ab19171144d33ee16bbaa87f0b925062e1))
+* implements RFC merge patch rules for metadata update :bug: ([7cf7bcd](https://github.com/LerianStudio/midaz/commit/7cf7bcdddad9a5b3fd6e548eae6acae3efa1860c))
+* logging entity name for metadata creation error :bug: ([1f70e1b](https://github.com/LerianStudio/midaz/commit/1f70e1b1df0c0a67d092ab882e5f57a15d6f49d0))
+* omitting empty metadata from responses :bug: ([7878b44](https://github.com/LerianStudio/midaz/commit/7878b44171d326e6cd157c8a4500c17636dca294))
+* uses id sent over path to update metadata :bug: ([0918712](https://github.com/LerianStudio/midaz/commit/0918712c9252a3aac93bc6db96cdc2ae879a017f))
+
 ## [1.25.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.4...v1.25.0-beta.5) (2024-10-24)
 
 
