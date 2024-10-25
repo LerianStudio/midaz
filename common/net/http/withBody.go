@@ -95,7 +95,9 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 		return BadRequest(c, err)
 	}
 
-	c.Locals(string(PayloadContextValue("fields")), diffFields)
+	c.Locals("fields", diffFields)
+
+	parseMetadata(s, originalMap)
 
 	return d.handler(s, c)
 }
@@ -239,4 +241,23 @@ func fieldsRequired(myMap common.FieldValidations) common.FieldValidations {
 	}
 
 	return result
+}
+
+// parseMetadata For compliance with RFC7396 JSON Merge Patch
+func parseMetadata(s any, originalMap map[string]any) {
+	val := reflect.ValueOf(s)
+	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+		return
+	}
+
+	val = val.Elem()
+
+	metadataField := val.FieldByName("Metadata")
+	if !metadataField.IsValid() || !metadataField.CanSet() {
+		return
+	}
+
+	if _, exists := originalMap["metadata"]; !exists {
+		metadataField.Set(reflect.ValueOf(make(map[string]any)))
+	}
 }

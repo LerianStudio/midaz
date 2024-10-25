@@ -35,17 +35,12 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		return nil, err
 	}
 
-	if len(upi.Metadata) > 0 {
-		if err := common.CheckMetadataKeyAndValueLength(100, upi.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
-		}
-
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id.String(), upi.Metadata); err != nil {
-			return nil, err
-		}
-
-		portfolioUpdated.Metadata = upi.Metadata
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), id.String(), upi.Metadata)
+	if err != nil {
+		return nil, err
 	}
+
+	portfolioUpdated.Metadata = metadataUpdated
 
 	return portfolioUpdated, nil
 }
