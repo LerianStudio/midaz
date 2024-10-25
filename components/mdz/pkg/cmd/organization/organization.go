@@ -11,7 +11,8 @@ type factoryOrganization struct {
 }
 
 func (f *factoryOrganization) setCmds(cmd *cobra.Command) {
-	cmd.AddCommand(newCmdOrganizationCreate(newInjectFac(f.factory)))
+	cmd.AddCommand(newCmdOrganizationCreate(newInjectFacCreate(f.factory)))
+	cmd.AddCommand(newCmdOrganizationList(newInjectFacList(f.factory)))
 }
 
 func NewCmdOrganization(f *factory.Factory) *cobra.Command {
