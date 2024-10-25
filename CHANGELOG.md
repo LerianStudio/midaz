@@ -1,3 +1,10 @@
+## [1.25.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.4...v1.25.0-beta.5) (2024-10-24)
+
+
+### Bug Fixes
+
+* **auth:** remove ids from the auth init sql insert :bug: ([0965a7b](https://github.com/LerianStudio/midaz/commit/0965a7b2c46498735ba9d2804fb3e704a49154bd))
+
 ## [1.25.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.3...v1.25.0-beta.4) (2024-10-24)
 
 
