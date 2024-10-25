@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 
 	cn "github.com/LerianStudio/midaz/common/constant"
@@ -150,6 +152,18 @@ func ValidateStruct(s any) error {
 
 	err := v.Struct(s)
 	if err != nil {
+
+		for _, fieldError := range err.(validator.ValidationErrors) {
+			switch fieldError.Tag() {
+			case "keymax":
+				return common.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans))
+			case "valuemax":
+				return common.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans))
+			case "nonested":
+				return common.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+			}
+		}
+
 		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
 		return &errPtr
 	}
@@ -203,7 +217,97 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return name
 	})
 
+	_ = v.RegisterValidation("keymax", validateMetadataKeyMaxLength)
+	_ = v.RegisterValidation("nonested", validateMetadataNestedValues)
+	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
+
+	_ = v.RegisterTranslation("keymax", trans, func(ut ut.Translator) error {
+		return ut.Add("keymax", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("keymax", formatErrorFieldName(fe.Field()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("valuemax", trans, func(ut ut.Translator) error {
+		return ut.Add("valuemax", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("valuemax", formatErrorFieldName(fe.Field()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("nonested", trans, func(ut ut.Translator) error {
+		return ut.Add("nonested", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("nonested", formatErrorFieldName(fe.Field()))
+
+		return t
+	})
+
 	return v, trans
+}
+
+// validateMetadataNestedValues checks if there are nested metadata structures
+func validateMetadataNestedValues(fl validator.FieldLevel) bool {
+	if fl.Field().Kind() == reflect.Map {
+		return false
+	}
+	return true
+}
+
+// validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
+func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
+	limitParam := fl.Param()
+
+	limit := 100 // default limit if no param configured
+	if limitParam != "" {
+		if parsedParam, err := strconv.Atoi(limitParam); err == nil {
+			limit = parsedParam
+		}
+	}
+
+	return len(fl.Field().String()) <= limit
+}
+
+// validateMetadataValueMaxLength checks metadata value max length
+func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
+	limitParam := fl.Param()
+
+	limit := 2000 // default limit if no param configured
+	if limitParam != "" {
+		if parsedParam, err := strconv.Atoi(limitParam); err == nil {
+			limit = parsedParam
+		}
+	}
+
+	var value string
+	switch fl.Field().Kind() {
+	case reflect.Int:
+		value = strconv.Itoa(int(fl.Field().Int()))
+	case reflect.Float64:
+		value = strconv.FormatFloat(fl.Field().Float(), 'f', -1, 64)
+	case reflect.String:
+		value = fl.Field().String()
+	case reflect.Bool:
+		value = strconv.FormatBool(fl.Field().Bool())
+	default:
+		return false
+	}
+
+	return len(value) <= limit
+}
+
+// formatErrorFieldName formats metadata field error names for error messages
+func formatErrorFieldName(text string) string {
+	re, _ := regexp.Compile(`\[(.+?)]`)
+
+	matches := re.FindStringSubmatch(text)
+	if len(matches) > 1 {
+		return matches[1]
+	} else {
+		return text
+	}
 }
 
 func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) common.ValidationKnownFieldsError {
