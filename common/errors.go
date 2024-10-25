@@ -697,6 +697,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Account Type",
 			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
 		},
+		cn.ErrInvalidMetadataNesting: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrInvalidMetadataNesting.Error(),
+			Title:      "Invalid Metadata Nesting",
+			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %s is not nested and try again.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
