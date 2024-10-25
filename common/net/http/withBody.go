@@ -152,7 +152,6 @@ func ValidateStruct(s any) error {
 
 	err := v.Struct(s)
 	if err != nil {
-
 		for _, fieldError := range err.(validator.ValidationErrors) {
 			switch fieldError.Tag() {
 			case "keymax":
@@ -165,6 +164,7 @@ func ValidateStruct(s any) error {
 		}
 
 		errPtr := malformedRequestErr(err.(validator.ValidationErrors), trans)
+
 		return &errPtr
 	}
 
@@ -250,10 +250,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 
 // validateMetadataNestedValues checks if there are nested metadata structures
 func validateMetadataNestedValues(fl validator.FieldLevel) bool {
-	if fl.Field().Kind() == reflect.Map {
-		return false
-	}
-	return true
+	return fl.Field().Kind() != reflect.Map
 }
 
 // validateMetadataKeyMaxLength checks if metadata key (always a string) length is allowed
@@ -261,6 +258,7 @@ func validateMetadataKeyMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
 	limit := 100 // default limit if no param configured
+
 	if limitParam != "" {
 		if parsedParam, err := strconv.Atoi(limitParam); err == nil {
 			limit = parsedParam
@@ -275,6 +273,7 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 	limitParam := fl.Param()
 
 	limit := 2000 // default limit if no param configured
+
 	if limitParam != "" {
 		if parsedParam, err := strconv.Atoi(limitParam); err == nil {
 			limit = parsedParam
@@ -282,6 +281,7 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 	}
 
 	var value string
+
 	switch fl.Field().Kind() {
 	case reflect.Int:
 		value = strconv.Itoa(int(fl.Field().Int()))
