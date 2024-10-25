@@ -161,23 +161,11 @@ func Scale(v, s float64) float64 {
 }
 
 // UndoScale Function to undo the scale calculation
-func UndoScale(v, s float64) float64 {
-	return v * math.Pow(10, s)
-}
+func UndoScale(value, scale float64) float64 {
+	v := strconv.FormatFloat(value*math.Pow(10, scale), 'f', 0, 64)
+	valueFinal, _ := strconv.ParseFloat(v, 64)
 
-// TranslateScale Function that translate string values to use scale
-func TranslateScale(value, scale string) (float64, error) {
-	v, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	s, err := strconv.ParseFloat(scale, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return Scale(v, s), nil
+	return valueFinal
 }
 
 // FindScaleForPercentage Function to find the scale for a percentage of a value
@@ -194,12 +182,10 @@ func FindScaleForPercentage(value float64, scale string, share gold.Share) (gold
 	v := strconv.FormatFloat(shareValue, 'f', -1, 64)
 	vf := strings.Replace(v, ".", "", -1)
 
-	valueFinal, _ := strconv.ParseFloat(vf, 64)
-
 	if shareValue != math.Trunc(shareValue) {
 		newScale := int(math.Ceil(math.Log10(shareValue)))
 
-		if scale == strconv.Itoa(newScale) && value <= valueFinal {
+		if scale == strconv.Itoa(newScale) {
 			newScale += 1
 		}
 
@@ -217,12 +203,21 @@ func FindScaleForPercentage(value float64, scale string, share gold.Share) (gold
 // CalculateRemaining Function to calculate the remaining value when previous values are known
 func CalculateRemaining(asset string, remainingValue float64, scale string) gold.Amount {
 	if remainingValue != math.Trunc(remainingValue) {
-		scale = strconv.Itoa(int(math.Ceil(math.Log10(remainingValue))))
+		newScale := int(math.Ceil(math.Log10(remainingValue)))
+
+		if scale == strconv.Itoa(newScale) {
+			newScale += 1
+		}
+
+		scale = strconv.Itoa(newScale)
 	}
+
+	v := strconv.FormatFloat(remainingValue, 'f', -1, 64)
+	vf := strings.Replace(v, ".", "", -1)
 
 	acc := gold.Amount{
 		Asset: asset,
-		Value: strconv.FormatFloat(remainingValue, 'f', -1, 64),
+		Value: vf,
 		Scale: scale,
 	}
 

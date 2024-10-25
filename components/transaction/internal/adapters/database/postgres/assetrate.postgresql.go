@@ -2,11 +2,15 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
+	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
+	"github.com/google/uuid"
 )
 
 // AssetRatePostgreSQLRepository is a Postgresql-specific implementation of the AssetRateRepository.
@@ -67,6 +71,42 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *a
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
 		}
+	}
+
+	return record.ToEntity(), nil
+}
+
+// Find an AssetRate entity by its ID in Postgresql and returns it.
+func (r *AssetRatePostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, assetRateID uuid.UUID) (*ar.AssetRate, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	record := &ar.AssetRatePostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE id = $1 AND organization_id = $2 AND ledger_id = $3`, assetRateID, organizationID, ledgerID)
+	if err := row.Scan(
+		&record.ID,
+		&record.BaseAssetCode,
+		&record.CounterAssetCode,
+		&record.Amount,
+		&record.Scale,
+		&record.Source,
+		&record.OrganizationID,
+		&record.LedgerID,
+		&record.CreatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, common.EntityNotFoundError{
+				EntityType: reflect.TypeOf(o.Operation{}).Name(),
+				Title:      "Entity not found.",
+				Code:       "0007",
+				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
+			}
+		}
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil

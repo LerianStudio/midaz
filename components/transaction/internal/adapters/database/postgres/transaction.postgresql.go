@@ -257,6 +257,14 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		args = append(args, record.Description)
 	}
 
+	if !transaction.Status.IsEmpty() {
+		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.Status)
+
+		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.StatusDescription)
+	}
+
 	record.UpdatedAt = time.Now()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
