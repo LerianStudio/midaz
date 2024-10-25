@@ -65,11 +65,11 @@ func (e EntityNotFoundError) Unwrap() error {
 // ValidationError records an error indicating an entity was not found in any case that caused it.
 // You can use it to representing a Database not found, cache not found or any other repository.
 type ValidationError struct {
-	EntityType string
+	EntityType string `json:"entityType,omitempty"`
 	Title      string
 	Message    string
 	Code       string
-	Err        error
+	Err        error `json:"err,omitempty"`
 }
 
 // Error implements the error interface.
