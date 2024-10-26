@@ -96,6 +96,7 @@ func (r *organization) GetByID(organizationID string) (*model.OrganizationItem, 
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
