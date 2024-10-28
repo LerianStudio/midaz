@@ -1,3 +1,15 @@
+## [1.25.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.9...v1.25.0-beta.10) (2024-10-28)
+
+
+### Features
+
+* **asset:** create external account if it does not exist during asset creation :sparkles: ([c88b220](https://github.com/LerianStudio/midaz/commit/c88b220e240c0924e1077797ab91d6e05c23472c))
+
+
+### Bug Fixes
+
+* **account:** add organizationID and ledgerID to the grpc account funcs :bug: ([39b29e7](https://github.com/LerianStudio/midaz/commit/39b29e7e41288360a5cffe2a3bbb60e63738f98e))
+
 ## [1.25.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.8...v1.25.0-beta.9) (2024-10-28)
 
 
