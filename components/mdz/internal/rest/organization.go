@@ -89,6 +89,40 @@ func (r *organization) Get(limit, page int) (*model.OrganizationList, error) {
 	return &orgListResp, nil
 }
 
+func (r *organization) GetByID(organizationID string) (*model.OrganizationItem, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, errors.New("unauthorized invalid credentials")
+		}
+
+		return nil, fmt.Errorf("failed to get organization, status code: %d",
+			resp.StatusCode)
+	}
+
+	var orgItemResp model.OrganizationItem
+	if err := json.NewDecoder(resp.Body).Decode(&orgItemResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &orgItemResp, nil
+}
+
 func NewOrganization(f *factory.Factory) *organization {
 	return &organization{f}
 }
