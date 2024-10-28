@@ -40,10 +40,10 @@ func (m *MockOrganization) EXPECT() *MockOrganizationMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockOrganization) Create(org model.Organization) (*model.OrganizationResponse, error) {
+func (m *MockOrganization) Create(org model.Organization) (*model.OrganizationCreate, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", org)
-	ret0, _ := ret[0].(*model.OrganizationResponse)
+	ret0, _ := ret[0].(*model.OrganizationCreate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -52,4 +52,19 @@ func (m *MockOrganization) Create(org model.Organization) (*model.OrganizationRe
 func (mr *MockOrganizationMockRecorder) Create(org any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOrganization)(nil).Create), org)
+}
+
+// Get mocks base method.
+func (m *MockOrganization) Get(limit, page int) (*model.OrganizationList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", limit, page)
+	ret0, _ := ret[0].(*model.OrganizationList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockOrganizationMockRecorder) Get(limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockOrganization)(nil).Get), limit, page)
 }
