@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -16,10 +17,14 @@ func runInput(m tea.Model) (string, error) {
 
 	finalModel, err := p.Run()
 	if err != nil {
-		return "", fmt.Errorf("error starting program: %w", err)
+		return "", fmt.Errorf("starting program: %w", err)
 	}
 
 	if im, ok := finalModel.(inputModel); ok && im.inputDone {
+		if len(im.textInput.Value()) < 1 {
+			return "", errors.New("the field cannot be empty")
+		}
+
 		return im.textInput.Value(), nil
 	}
 

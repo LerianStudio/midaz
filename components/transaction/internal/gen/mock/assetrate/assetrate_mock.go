@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	assetrate "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -53,4 +54,19 @@ func (m *MockRepository) Create(arg0 context.Context, arg1 *assetrate.AssetRate)
 func (mr *MockRepositoryMockRecorder) Create(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1)
+}
+
+// Find mocks base method.
+func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*assetrate.AssetRate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(*assetrate.AssetRate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Find indicates an expected call of Find.
+func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), arg0, arg1, arg2, arg3)
 }

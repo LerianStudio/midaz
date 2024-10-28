@@ -65,11 +65,11 @@ func (e EntityNotFoundError) Unwrap() error {
 // ValidationError records an error indicating an entity was not found in any case that caused it.
 // You can use it to representing a Database not found, cache not found or any other repository.
 type ValidationError struct {
-	EntityType string
+	EntityType string `json:"entityType,omitempty"`
 	Title      string
 	Message    string
 	Code       string
-	Err        error
+	Err        error `json:"err,omitempty"`
 }
 
 // Error implements the error interface.
@@ -605,13 +605,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       cn.ErrMetadataKeyLengthExceeded.Error(),
 			Title:      "Metadata Key Length Exceeded",
-			Message:    fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of 100 characters. Please use a shorter key.", args...),
+			Message:    fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of %s characters. Please use a shorter key.", args...),
 		},
 		cn.ErrMetadataValueLengthExceeded: ValidationError{
 			EntityType: entityType,
 			Code:       cn.ErrMetadataValueLengthExceeded.Error(),
 			Title:      "Metadata Value Length Exceeded",
-			Message:    fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of 100 characters. Please use a shorter value.", args...),
+			Message:    fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of %s characters. Please use a shorter value.", args...),
 		},
 		cn.ErrAccountIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -696,6 +696,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       cn.ErrInvalidAccountType.Error(),
 			Title:      "Invalid Account Type",
 			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
+		},
+		cn.ErrInvalidMetadataNesting: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrInvalidMetadataNesting.Error(),
+			Title:      "Invalid Metadata Nesting",
+			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %s is not nested and try again.", args...),
 		},
 	}
 

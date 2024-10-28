@@ -6,9 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 )
 
@@ -46,26 +44,13 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
-	if cli.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cli.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(l.Ledger{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   led.ID,
-			EntityName: reflect.TypeOf(l.Ledger{}).Name(),
-			Data:       cli.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(l.Ledger{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating ledger metadata: %v", err)
-			return nil, err
-		}
-
-		led.Metadata = cli.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(l.Ledger{}).Name(), led.ID, cli.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating ledger metadata: %v", err)
+		return nil, err
 	}
+
+	led.Metadata = metadata
 
 	return led, nil
 }
