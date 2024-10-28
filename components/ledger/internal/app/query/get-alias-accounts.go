@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/google/uuid"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -14,11 +15,11 @@ import (
 )
 
 // ListAccountsByAlias get Accounts from the repository by given alias.
-func (uc *UseCase) ListAccountsByAlias(ctx context.Context, aliases []string) ([]*a.Account, error) {
+func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving account for alias: %s", aliases)
 
-	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, aliases)
+	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
 		logger.Errorf("Error getting accounts on repo: %v", err)
 

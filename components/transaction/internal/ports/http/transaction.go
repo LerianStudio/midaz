@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common/constant"
+	"github.com/google/uuid"
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common"
@@ -211,7 +212,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	token := commonHTTP.GetTokenHeader(c)
 
-	accounts, err := handler.getAccounts(c.Context(), logger, token, validate.Aliases)
+	accounts, err := handler.getAccounts(c.Context(), logger, token, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -271,7 +272,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, token string, input []string) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, token, organizationID, ledgerID string, input []string) ([]*account.Account, error) {
 	var ids []string
 
 	var aliases []string
@@ -287,7 +288,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	var accounts []*account.Account
 
 	if len(ids) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, token, ids)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, token, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), ids)
 		if err != nil {
 			logger.Error("Failed to get account gRPC by ids on Ledger", err.Error())
 			return nil, err
@@ -297,7 +298,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	}
 
 	if len(aliases) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, token, aliases)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, token, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), aliases)
 		if err != nil {
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 			return nil, err
