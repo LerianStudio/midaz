@@ -155,9 +155,9 @@ func ValidateStruct(s any) error {
 		for _, fieldError := range err.(validator.ValidationErrors) {
 			switch fieldError.Tag() {
 			case "keymax":
-				return common.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans))
+				return common.ValidateBusinessError(cn.ErrMetadataKeyLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 			case "valuemax":
-				return common.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans))
+				return common.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 			case "nonested":
 				return common.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
 			}

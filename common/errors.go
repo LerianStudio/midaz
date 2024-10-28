@@ -605,13 +605,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       cn.ErrMetadataKeyLengthExceeded.Error(),
 			Title:      "Metadata Key Length Exceeded",
-			Message:    fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of 100 characters. Please use a shorter key.", args...),
+			Message:    fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of %s characters. Please use a shorter key.", args...),
 		},
 		cn.ErrMetadataValueLengthExceeded: ValidationError{
 			EntityType: entityType,
 			Code:       cn.ErrMetadataValueLengthExceeded.Error(),
 			Title:      "Metadata Value Length Exceeded",
-			Message:    fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of 100 characters. Please use a shorter value.", args...),
+			Message:    fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of %s characters. Please use a shorter value.", args...),
 		},
 		cn.ErrAccountIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
