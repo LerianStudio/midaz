@@ -3,15 +3,14 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
-
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
+	"github.com/google/uuid"
 )
 
 // ListAccountsByAlias get Accounts from the repository by given alias.
