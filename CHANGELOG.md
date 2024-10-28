@@ -1,3 +1,12 @@
+## [1.25.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.8...v1.25.0-beta.9) (2024-10-28)
+
+
+### Features
+
+* added sub command list from organization ([32ecea1](https://github.com/LerianStudio/midaz/commit/32ecea1811ace742647b8dfa3ee4b20a69c9a7bb))
+* create rest getby id organization ([3959de5](https://github.com/LerianStudio/midaz/commit/3959de5ccb65804255e96b9c455f7dfbc87563dc))
+* create sub command describe from command organization ([af35793](https://github.com/LerianStudio/midaz/commit/af35793c0c1b1f27ab46b735daf48a3ce52c598d))
+
 ## [1.25.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.7...v1.25.0-beta.8) (2024-10-28)
 
 
