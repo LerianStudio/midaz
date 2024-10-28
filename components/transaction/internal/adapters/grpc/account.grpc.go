@@ -81,7 +81,7 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 }
 
 // UpdateAccounts update a grpc accounts on ledger.
-func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, accounts []*proto.Account) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -90,7 +90,9 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 	client := proto.NewAccountProtoClient(conn)
 
 	accountsRequest := &proto.AccountsRequest{
-		Accounts: accounts,
+		OrganizationId: organizationID.String(),
+		LedgerId:       ledgerID.String(),
+		Accounts:       accounts,
 	}
 
 	md := gmtdt.Pairs("authorization", "Bearer "+token)

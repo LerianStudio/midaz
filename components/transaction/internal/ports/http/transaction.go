@@ -245,7 +245,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		return commonHTTP.WithError(c, err)
 	}
 
-	err = handler.processAccounts(c.Context(), logger, token, *validate, accounts)
+	err = handler.processAccounts(c.Context(), logger, *validate, token, organizationID, ledgerID, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -311,7 +311,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 }
 
 // processAccounts is a function that adjust balance on Accounts
-func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, token string, validate v.Responses, accounts []*account.Account) error {
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, token, organizationID, ledgerID string, accounts []*account.Account) error {
 	e := make(chan error)
 	result := make(chan []*account.Account)
 
@@ -333,7 +333,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, token, update)
+	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, token, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), update)
 	if err != nil {
 		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
 		return err
