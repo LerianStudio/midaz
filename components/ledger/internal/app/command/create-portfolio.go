@@ -17,7 +17,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status p.Status
-	if cpi.Status.IsEmpty() {
+	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
 		status = p.Status{
 			Code:           "ACTIVE",
 			AllowReceiving: true,
@@ -26,6 +26,8 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	} else {
 		status = cpi.Status
 	}
+
+	status.Description = cpi.Status.Description
 
 	portfolio := &p.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),

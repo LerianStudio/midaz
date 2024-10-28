@@ -18,13 +18,15 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	logger.Infof("Trying to create asset: %v", cii)
 
 	var status s.Status
-	if cii.Status.IsEmpty() {
+	if cii.Status.IsEmpty() || common.IsNilOrEmpty(&cii.Status.Code) {
 		status = s.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = cii.Status
 	}
+
+	status.Description = cii.Status.Description
 
 	if err := common.ValidateType(cii.Type); err != nil {
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())

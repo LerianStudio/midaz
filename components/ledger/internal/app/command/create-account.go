@@ -28,7 +28,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	var status a.Status
-	if cai.Status.IsEmpty() {
+	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
 		status = a.Status{
 			Code:           "ACTIVE",
 			AllowReceiving: true,
@@ -37,6 +37,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	} else {
 		status = cai.Status
 	}
+
+	status.Description = cai.Status.Description
 
 	balanceValue := float64(0)
 
