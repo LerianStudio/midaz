@@ -18,6 +18,7 @@ info:
 	@echo "                                                                                                                                       "
 	@echo "## App commands:"
 	@echo "                                                                                                                         "
+	@echo "  COMMAND=\"grpc-ledger-gen\"                      Generate proto files for ledger service."
 	@echo "  COMMAND=\"wire\"                                 Generates all project code to connect components using Wire."
 	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
 	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
@@ -40,6 +41,8 @@ info:
 	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the ledger container, logging in as the postgres user."
 
 
+grpc-ledger-gen:
+	protoc --proto_path=../../common/mgrpc --go-grpc_out=../../common/mgrpc --go_out=../../common/mgrpc ../../common/mgrpc/account/account.proto
 
 wire:
 	@go generate ./...

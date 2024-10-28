@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
@@ -28,7 +29,7 @@ func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
 }
 
 // GetAccountsByIds returns a grpc accounts on ledger bi given ids.
-func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, ids []string) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -37,7 +38,9 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 	client := proto.NewAccountProtoClient(conn)
 
 	accountsID := &proto.AccountsID{
-		Ids: ids,
+		OrganizationId: organizationID.String(),
+		LedgerId:       ledgerID.String(),
+		Ids:            ids,
 	}
 
 	md := gmtdt.Pairs("authorization", "Bearer "+token)
@@ -52,7 +55,7 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 }
 
 // GetAccountsByAlias returns a grpc accounts on ledger bi given aliases.
-func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, aliases []string) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error) {
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
 		return nil, err
@@ -61,7 +64,9 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 	client := proto.NewAccountProtoClient(conn)
 
 	accountsAlias := &proto.AccountsAlias{
-		Aliases: aliases,
+		OrganizationId: organizationID.String(),
+		LedgerId:       ledgerID.String(),
+		Aliases:        aliases,
 	}
 
 	md := gmtdt.Pairs("authorization", "Bearer "+token)

@@ -32,7 +32,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 		uuids = append(uuids, uuid.MustParse(id))
 	}
 
-	acc, err := ap.Query.ListAccountsByIDs(ctx, uuids)
+	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(ids.GetOrganizationId()), uuid.MustParse(ids.GetLedgerId()), uuids)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
 
@@ -55,7 +55,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto.AccountsAlias) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 
-	acc, err := ap.Query.ListAccountsByAlias(ctx, aliases.GetAliases())
+	acc, err := ap.Query.ListAccountsByAlias(ctx, uuid.MustParse(aliases.GetOrganizationId()), uuid.MustParse(aliases.GetLedgerId()), aliases.GetAliases())
 	if err != nil {
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
 
@@ -95,9 +95,9 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			Scale:     &account.Balance.Scale,
 		}
 
-		_, err := ap.Command.UpdateAccountByID(ctx, account.Id, &balance)
+		_, err := ap.Command.UpdateAccountByID(ctx, uuid.MustParse(account.OrganizationId), uuid.MustParse(account.LedgerId), account.Id, &balance)
 		if err != nil {
-			logger.Errorf("Failed to update balance in Account by id for grpc, Error: %s", err.Error())
+			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", account.OrganizationId, account.LedgerId, err.Error())
 
 			return nil, common.ValidateBusinessError(cn.ErrBalanceUpdateFailed, reflect.TypeOf(a.Account{}).Name())
 		}
@@ -105,9 +105,12 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 		uuids = append(uuids, uuid.MustParse(account.Id))
 	}
 
-	acc, err := ap.Query.ListAccountsByIDs(ctx, uuids)
+	organizationID := update.GetOrganizationId()
+	ledgerID := update.GetLedgerId()
+
+	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
+		logger.Errorf("Failed to retrieve Accounts by ids for organizationId %s and ledgerId %s in grpc, Error: %s", organizationID, ledgerID, err.Error())
 
 		return nil, common.ValidationError{
 			Code:    "0001",

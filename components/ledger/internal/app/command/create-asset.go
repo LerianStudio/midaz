@@ -87,7 +87,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	aAlias := "@external/" + cii.Code
 	aStatusDescription := "Account external created by asset: " + cii.Code
 
-	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, []string{aAlias})
+	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
