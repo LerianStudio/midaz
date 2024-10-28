@@ -1,3 +1,57 @@
+## [1.25.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.6...v1.25.0-beta.7) (2024-10-28)
+
+
+### Features
+
+* adds new error message for metadata nested structures :sparkles: ([4a7c634](https://github.com/LerianStudio/midaz/commit/4a7c634194f1b614e6754cd94e4d1416716e51b5))
+* implements custom validators for metadata fields :sparkles: ([005446e](https://github.com/LerianStudio/midaz/commit/005446ef8e5cb6ae6b3aa879586328e28046bd34))
+
+
+### Bug Fixes
+
+* fixes metadata error messages max length parameters :bug: ([d9f334e](https://github.com/LerianStudio/midaz/commit/d9f334ee8c57b8e3d1ac70ccb4479749380ea3c2))
+* omits validation error fields if empty :bug: ([313a3cd](https://github.com/LerianStudio/midaz/commit/313a3cd6b60f7dc05f760efbf95b68ffa8885fad))
+* remove deprecated metadata validation calls :bug: ([549aa99](https://github.com/LerianStudio/midaz/commit/549aa99b25b0d5e98c27c5de7144206bf8b18c6d))
+* set new metadata validators for necessary inputs :bug: ([ead05ab](https://github.com/LerianStudio/midaz/commit/ead05ab8c3cd87e0e87e06f5b112a2c235a7f146))
+
+## [1.25.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.5...v1.25.0-beta.6) (2024-10-25)
+
+
+### Features
+
+* implements new function to parse Metadata from requests :sparkles: ([d933a58](https://github.com/LerianStudio/midaz/commit/d933a58ee7abee5893399ce3bc19bb25ad7207f7))
+
+
+### Bug Fixes
+
+* fixes file name typo :bug: ([3cbab1a](https://github.com/LerianStudio/midaz/commit/3cbab1ab19171144d33ee16bbaa87f0b925062e1))
+* implements RFC merge patch rules for metadata update :bug: ([7cf7bcd](https://github.com/LerianStudio/midaz/commit/7cf7bcdddad9a5b3fd6e548eae6acae3efa1860c))
+* logging entity name for metadata creation error :bug: ([1f70e1b](https://github.com/LerianStudio/midaz/commit/1f70e1b1df0c0a67d092ab882e5f57a15d6f49d0))
+* omitting empty metadata from responses :bug: ([7878b44](https://github.com/LerianStudio/midaz/commit/7878b44171d326e6cd157c8a4500c17636dca294))
+* uses id sent over path to update metadata :bug: ([0918712](https://github.com/LerianStudio/midaz/commit/0918712c9252a3aac93bc6db96cdc2ae879a017f))
+
+## [1.25.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.4...v1.25.0-beta.5) (2024-10-24)
+
+
+### Bug Fixes
+
+* **auth:** remove ids from the auth init sql insert :bug: ([0965a7b](https://github.com/LerianStudio/midaz/commit/0965a7b2c46498735ba9d2804fb3e704a49154bd))
+
+## [1.25.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.3...v1.25.0-beta.4) (2024-10-24)
+
+
+### Bug Fixes
+
+* **account:** change error for create account with parent account id not found :bug: ([a2471a9](https://github.com/LerianStudio/midaz/commit/a2471a9bf76401015503e61fab6843f9f092bbca))
+
+## [1.25.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.2...v1.25.0-beta.3) (2024-10-24)
+
+
+### Features
+
+* Get asset rates - part 2 :sparkles: ([52d5be4](https://github.com/LerianStudio/midaz/commit/52d5be459eba786409cad4b9feee900a8c6451c4))
+* Get asset rates :sparkles: ([48c5dec](https://github.com/LerianStudio/midaz/commit/48c5deccfeebf564b55b6e492271f5dde4585055))
+
 ## [1.25.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.1...v1.25.0-beta.2) (2024-10-24)
 
 

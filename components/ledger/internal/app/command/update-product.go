@@ -35,17 +35,12 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		return nil, err
 	}
 
-	if len(upi.Metadata) > 0 {
-		if err := common.CheckMetadataKeyAndValueLength(100, upi.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(r.Product{}).Name())
-		}
-
-		if err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(r.Product{}).Name(), id.String(), upi.Metadata); err != nil {
-			return nil, err
-		}
-
-		productUpdated.Metadata = upi.Metadata
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), id.String(), upi.Metadata)
+	if err != nil {
+		return nil, err
 	}
+
+	productUpdated.Metadata = metadataUpdated
 
 	return productUpdated, nil
 }

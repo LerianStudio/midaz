@@ -39,3 +39,27 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 
 	return commonHTTP.Created(c, assetRate)
 }
+
+// GetAssetRate retrieves an asset rate.
+func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
+	logger := mlog.NewLoggerFromContext(c.UserContext())
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	logger.Infof("Initiating get of AssetRate with organization ID: %s", organizationID.String())
+
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	logger.Infof("Initiating get of AssetRate with ledger ID: %s", ledgerID.String())
+
+	assetRateID := c.Locals("asset_rate_id").(uuid.UUID)
+	logger.Infof("Initiating get of AssetRate with asset rate ID: %s", assetRateID.String())
+
+	assetRate, err := handler.Query.GetAssetRateByID(c.UserContext(), organizationID, ledgerID, assetRateID)
+	if err != nil {
+		logger.Infof("Error to get AssetRate: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully get AssetRate")
+
+	return commonHTTP.OK(c, assetRate)
+}

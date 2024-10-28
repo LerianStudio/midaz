@@ -8,7 +8,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/google/uuid"
 )
@@ -64,25 +63,13 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	if cii.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cii.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   inst.ID,
-			EntityName: reflect.TypeOf(s.Asset{}).Name(),
-			Data:       cii.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(s.Asset{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating asset metadata: %v", err)
-			return nil, err
-		}
-
-		inst.Metadata = cii.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(s.Asset{}).Name(), inst.ID, cii.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating asset metadata: %v", err)
+		return nil, err
 	}
+
+	inst.Metadata = metadata
 
 	aAlias := "@external/" + cii.Code
 	aStatusDescription := "Account external created by asset: " + cii.Code
