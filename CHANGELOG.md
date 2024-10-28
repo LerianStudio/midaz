@@ -1,3 +1,10 @@
+## [1.25.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.7...v1.25.0-beta.8) (2024-10-28)
+
+
+### Features
+
+* added sub command list from organization ([dfcaab0](https://github.com/LerianStudio/midaz/commit/dfcaab041769dd87f313d1effe21dda384f01286))
+
 ## [1.25.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.6...v1.25.0-beta.7) (2024-10-28)
 
 
