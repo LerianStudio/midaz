@@ -31,11 +31,17 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
 		status = a.Status{
 			Code:           "ACTIVE",
-			AllowReceiving: true,
-			AllowSending:   true,
+			AllowReceiving: mpointers.Bool(true),
+			AllowSending:   mpointers.Bool(true),
 		}
 	} else {
 		status = cai.Status
+		if status.AllowReceiving == nil {
+			status.AllowReceiving = mpointers.Bool(true)
+		}
+		if status.AllowSending == nil {
+			status.AllowSending = mpointers.Bool(true)
+		}
 	}
 
 	status.Description = cai.Status.Description

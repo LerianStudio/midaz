@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
 	"time"
@@ -110,8 +111,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			Status: a.Status{
 				Code:           "external",
 				Description:    &aStatusDescription,
-				AllowSending:   true,
-				AllowReceiving: true,
+				AllowSending:   mpointers.Bool(true),
+				AllowReceiving: mpointers.Bool(true),
 			},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
