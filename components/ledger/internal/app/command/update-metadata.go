@@ -13,10 +13,6 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	metadataToUpdate := metadata
 
 	if metadataToUpdate != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, entityName)
-		}
-
 		existingMetadata, err := uc.MetadataRepo.FindByEntity(ctx, entityName, entityID)
 		if err != nil {
 			logger.Errorf("Error get metadata on mongodb: %v", err)
