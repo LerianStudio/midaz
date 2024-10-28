@@ -177,7 +177,7 @@ func UndoScale(v float64, s int) int {
 }
 
 // FindScale Function to find the scale for any value of a value
-func FindScale(a string, v float64, s int) gold.Amount {
+func FindScale(asset string, v float64, s int) gold.Amount {
 	valueString := big.NewFloat(v).String()
 	parts := strings.Split(valueString, ".")
 
@@ -189,7 +189,7 @@ func FindScale(a string, v float64, s int) gold.Amount {
 	}
 
 	amount := gold.Amount{
-		Asset: a,
+		Asset: asset,
 		Value: value,
 		Scale: scale,
 	}
@@ -207,6 +207,7 @@ func normalize(total, amount, remaining *gold.Amount) {
 		} else {
 			total.Value += amount.Value
 		}
+
 		total.Scale = amount.Scale
 	} else {
 		if total.Value != 0 {
@@ -232,12 +233,12 @@ func normalize(total, amount, remaining *gold.Amount) {
 
 		remaining.Value -= int(v0)
 	}
-
 }
 
 // OperateAmounts Function to sum or sub two amounts and normalize the scale
 func OperateAmounts(amount gold.Amount, balance *a.Balance, operation string) (o.Balance, error) {
 	var scale float64
+
 	var total float64
 
 	switch operation {
@@ -273,7 +274,7 @@ func OperateAmounts(amount gold.Amount, balance *a.Balance, operation string) (o
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
-func calculateTotal(fromTos []gold.FromTo, send, scale int, asset string, result chan *Response, e chan error) {
+func calculateTotal(fromTos []gold.FromTo, send, scale int, asset string, result chan *Response) {
 	response := Response{
 		Total:  0,
 		FromTo: make(map[string]gold.Amount),
@@ -335,7 +336,6 @@ func calculateTotal(fromTos []gold.FromTo, send, scale int, asset string, result
 	}
 
 	result <- &response
-
 }
 
 // ValidateSendSourceAndDistribute Validate send and distribute totals
@@ -353,30 +353,21 @@ func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, 
 
 	var destinationsTotal int
 
-	e := make(chan error)
 	result := make(chan *Response)
 
-	go calculateTotal(transaction.Send.Source.From, transaction.Send.Value, transaction.Send.Scale, transaction.Send.Asset, result, e)
-	select {
-	case from := <-result:
-		sourcesTotal = from.Total
-		response.From = from.FromTo
-		response.Sources = from.SD
-		response.Aliases = append(response.Aliases, from.SD...)
-	case err := <-e:
-		return nil, err
-	}
+	go calculateTotal(transaction.Send.Source.From, transaction.Send.Value, transaction.Send.Scale, transaction.Send.Asset, result)
+	from := <-result
+	sourcesTotal = from.Total
+	response.From = from.FromTo
+	response.Sources = from.SD
+	response.Aliases = append(response.Aliases, from.SD...)
 
-	go calculateTotal(transaction.Distribute.To, transaction.Send.Value, transaction.Send.Scale, transaction.Send.Asset, result, e)
-	select {
-	case from := <-result:
-		destinationsTotal = from.Total
-		response.To = from.FromTo
-		response.Destinations = from.SD
-		response.Aliases = append(response.Aliases, from.SD...)
-	case err := <-e:
-		return nil, err
-	}
+	go calculateTotal(transaction.Distribute.To, transaction.Send.Value, transaction.Send.Scale, transaction.Send.Asset, result)
+	to := <-result
+	destinationsTotal = to.Total
+	response.To = to.FromTo
+	response.Destinations = to.SD
+	response.Aliases = append(response.Aliases, to.SD...)
 
 	if math.Abs(float64(sourcesTotal)-float64(destinationsTotal)) > 0.00001 {
 		return nil, common.ValidationError{
