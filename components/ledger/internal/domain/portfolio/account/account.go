@@ -44,7 +44,7 @@ type CreateAccountInput struct {
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
 	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
 	Status          Status         `json:"status"`
-	Metadata        map[string]any `json:"metadata"`
+	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
@@ -53,7 +53,7 @@ type UpdateAccountInput struct {
 	Status    Status         `json:"status"`
 	Alias     *string        `json:"alias" validate:"max=100"`
 	ProductID *string        `json:"productId" validate:"uuid"`
-	Metadata  map[string]any `json:"metadata"`
+	Metadata  map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // Account is a struct designed to encapsulate response payload data.

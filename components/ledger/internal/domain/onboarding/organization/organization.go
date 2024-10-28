@@ -30,7 +30,7 @@ type CreateOrganizationInput struct {
 	LegalDocument        string         `json:"legalDocument" validate:"required,max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
-	Metadata             map[string]any `json:"metadata"`
+	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
@@ -40,7 +40,7 @@ type UpdateOrganizationInput struct {
 	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
-	Metadata             map[string]any `json:"metadata"`
+	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // Organization is a struct designed to encapsulate response payload data.

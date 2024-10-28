@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	"time"
@@ -13,10 +12,6 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 	logger.Infof("Trying to create metadata for %s: %v", entityName, entityID)
 
 	if metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, entityName)
-		}
-
 		meta := m.Metadata{
 			EntityID:   entityID,
 			EntityName: entityName,
