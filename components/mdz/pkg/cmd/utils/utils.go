@@ -48,6 +48,20 @@ func UnmarshalJSONFromReader(file io.Reader, object any) error {
 	return nil
 }
 
+func WriteDetailsToFile(data []byte, outPath string) error {
+	err := os.MkdirAll(filepath.Dir(outPath), 0750)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(outPath, data, 0600)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func FormatAskFieldRequired(field string) string {
 	return fmt.Sprintf("Enter the %s field", field)
 }

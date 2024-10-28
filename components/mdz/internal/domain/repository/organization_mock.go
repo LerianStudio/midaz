@@ -68,3 +68,18 @@ func (mr *MockOrganizationMockRecorder) Get(limit, page any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockOrganization)(nil).Get), limit, page)
 }
+
+// GetByID mocks base method.
+func (m *MockOrganization) GetByID(organizationID string) (*model.OrganizationItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByID", organizationID)
+	ret0, _ := ret[0].(*model.OrganizationItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByID indicates an expected call of GetByID.
+func (mr *MockOrganizationMockRecorder) GetByID(organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockOrganization)(nil).GetByID), organizationID)
+}
