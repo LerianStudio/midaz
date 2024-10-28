@@ -15,11 +15,11 @@ import (
 )
 
 // ListAccountsByIDs get Accounts from the repository by given ids.
-func (uc *UseCase) ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*a.Account, error) {
+func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving account for id: %s", ids)
 
-	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, ids)
+	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, ids)
 	if err != nil {
 		logger.Errorf("Error getting accounts on repo: %v", err)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"testing"
 
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -18,7 +19,7 @@ func TestCreateAccountSuccess(t *testing.T) {
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
-		PortfolioID:    common.GenerateUUIDv7().String(),
+		PortfolioID:    mpointers.String(common.GenerateUUIDv7().String()),
 	}
 
 	uc := UseCase{
@@ -43,7 +44,7 @@ func TestCreateAccountError(t *testing.T) {
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
-		PortfolioID:    common.GenerateUUIDv7().String(),
+		PortfolioID:    mpointers.String(common.GenerateUUIDv7().String()),
 	}
 
 	uc := UseCase{
