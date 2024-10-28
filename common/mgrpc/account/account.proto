@@ -45,15 +45,21 @@ message AccountsResponse {
 }
 
 message AccountsRequest {
-  repeated Account accounts = 1;
+  string   organization_id = 1;
+  string   ledger_id = 2;
+  repeated Account accounts = 3;
 }
 
 message AccountsID {
-  repeated string ids = 1;
+  string   organization_id = 1;
+  string   ledger_id = 2;
+  repeated string ids = 3;
 }
 
 message AccountsAlias {
-  repeated string aliases = 1;
+  string   organization_id = 1;
+  string   ledger_id = 2;
+  repeated string aliases = 3;
 }
 
 service AccountProto {

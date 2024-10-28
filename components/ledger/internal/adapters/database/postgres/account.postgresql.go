@@ -43,14 +43,14 @@ func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPo
 }
 
 // Create a new account entity into Postgresql and returns it.
-func (r *AccountPostgreSQLRepository) Create(ctx context.Context, account *a.Account) (*a.Account, error) {
+func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
 	record := &a.AccountPostgreSQLModel{}
-	record.FromEntity(account)
+	record.FromEntity(acc)
 
 	result, err := db.ExecContext(ctx, `INSERT INTO account VALUES 
         (
@@ -343,25 +343,25 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 }
 
 // Update an Account entity into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, account *a.Account) (*a.Account, error) {
+func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
 	record := &a.AccountPostgreSQLModel{}
-	record.FromEntity(account)
+	record.FromEntity(acc)
 
 	var updates []string
 
 	var args []any
 
-	if account.Name != "" {
+	if acc.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Name)
 	}
 
-	if !account.Status.IsEmpty() {
+	if !acc.Status.IsEmpty() {
 		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Status)
 
@@ -375,12 +375,12 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.AllowReceiving)
 	}
 
-	if !common.IsNilOrEmpty(account.Alias) {
+	if !common.IsNilOrEmpty(acc.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Alias)
 	}
 
-	if !common.IsNilOrEmpty(account.ProductID) {
+	if !common.IsNilOrEmpty(acc.ProductID) {
 		updates = append(updates, "product_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.ProductID)
 	}
@@ -436,7 +436,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 }
 
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.
-func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, ids []uuid.UUID) ([]*a.Account, error) {
+func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -444,7 +444,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, ids
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(ids))
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -489,7 +489,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, ids
 }
 
 // ListAccountsByAlias list Accounts entity from the database using the provided alias.
-func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, aliases []string) ([]*a.Account, error) {
+func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -497,7 +497,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, a
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE alias = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", pq.Array(aliases))
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(aliases))
 	if err != nil {
 		return nil, err
 	}
@@ -542,20 +542,20 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, a
 }
 
 // UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id uuid.UUID, account *a.Account) (*a.Account, error) {
+func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
 	record := &a.AccountPostgreSQLModel{}
-	record.FromEntity(account)
+	record.FromEntity(acc)
 
 	var updates []string
 
 	var args []any
 
-	if !account.Balance.IsEmpty() {
+	if !acc.Balance.IsEmpty() {
 		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.AvailableBalance)
 
@@ -569,9 +569,11 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, id 
 	record.UpdatedAt = time.Now()
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, record.UpdatedAt, id)
+	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` WHERE id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 

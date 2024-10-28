@@ -15,7 +15,7 @@ import (
 )
 
 // UpdateAccountByID update an account from the repository by given id.
-func (uc *UseCase) UpdateAccountByID(ctx context.Context, id string, balance *a.Balance) (*a.Account, error) {
+func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id string, balance *a.Balance) (*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update account by id: %v", id)
 
@@ -23,7 +23,7 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, id string, balance *a.
 		Balance: *balance,
 	}
 
-	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, uuid.MustParse(id), account)
+	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, organizationID, ledgerID, uuid.MustParse(id), account)
 	if err != nil {
 		logger.Errorf("Error updating account on repo by id: %v", err)
 

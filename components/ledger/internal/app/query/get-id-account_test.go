@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"testing"
 
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -23,7 +24,7 @@ func TestGetAccountByIDSuccess(t *testing.T) {
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
-		PortfolioID:    portfolioID.String(),
+		PortfolioID:    mpointers.String(portfolioID.String()),
 	}
 
 	uc := UseCase{
