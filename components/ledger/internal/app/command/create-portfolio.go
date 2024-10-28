@@ -29,6 +29,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		if status.AllowReceiving == nil {
 			status.AllowReceiving = mpointers.Bool(true)
 		}
+
 		if status.AllowSending == nil {
 			status.AllowSending = mpointers.Bool(true)
 		}
