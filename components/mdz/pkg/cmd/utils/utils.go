@@ -49,12 +49,12 @@ func UnmarshalJSONFromReader(file io.Reader, object any) error {
 }
 
 func WriteDetailsToFile(data []byte, outPath string) error {
-	err := os.MkdirAll(filepath.Dir(outPath), os.ModePerm)
+	err := os.MkdirAll(filepath.Dir(outPath), 0750)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(outPath, data, 0644)
+	err = os.WriteFile(outPath, data, 0600)
 	if err != nil {
 		return err
 	}
