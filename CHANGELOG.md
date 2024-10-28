@@ -1,3 +1,19 @@
+## [1.25.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.6...v1.25.0-beta.7) (2024-10-28)
+
+
+### Features
+
+* adds new error message for metadata nested structures :sparkles: ([4a7c634](https://github.com/LerianStudio/midaz/commit/4a7c634194f1b614e6754cd94e4d1416716e51b5))
+* implements custom validators for metadata fields :sparkles: ([005446e](https://github.com/LerianStudio/midaz/commit/005446ef8e5cb6ae6b3aa879586328e28046bd34))
+
+
+### Bug Fixes
+
+* fixes metadata error messages max length parameters :bug: ([d9f334e](https://github.com/LerianStudio/midaz/commit/d9f334ee8c57b8e3d1ac70ccb4479749380ea3c2))
+* omits validation error fields if empty :bug: ([313a3cd](https://github.com/LerianStudio/midaz/commit/313a3cd6b60f7dc05f760efbf95b68ffa8885fad))
+* remove deprecated metadata validation calls :bug: ([549aa99](https://github.com/LerianStudio/midaz/commit/549aa99b25b0d5e98c27c5de7144206bf8b18c6d))
+* set new metadata validators for necessary inputs :bug: ([ead05ab](https://github.com/LerianStudio/midaz/commit/ead05ab8c3cd87e0e87e06f5b112a2c235a7f146))
+
 ## [1.25.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.5...v1.25.0-beta.6) (2024-10-25)
 
 
