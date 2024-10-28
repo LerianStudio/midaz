@@ -444,7 +444,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(ids))
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +497,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(aliases))
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(aliases))
 	if err != nil {
 		return nil, err
 	}
@@ -574,7 +574,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` WHERE id = $` + strconv.Itoa(len(args)) +
+		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
 	result, err := db.ExecContext(ctx, query, args...)

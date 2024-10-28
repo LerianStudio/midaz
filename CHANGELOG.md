@@ -1,3 +1,20 @@
+## [1.25.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.10...v1.25.0-beta.11) (2024-10-28)
+
+
+### Features
+
+* update go version 1.22 to 1.23; :sparkles: ([1d32f7e](https://github.com/LerianStudio/midaz/commit/1d32f7eebd3018ad83d2d7f86a0a502d859ff08e))
+
+
+### Bug Fixes
+
+* adjust transaction model and parse :bug: ([060ff1d](https://github.com/LerianStudio/midaz/commit/060ff1d29a02dc71a1d2a761b10d664c7304fcbd))
+* change midaz url :bug: ([acbaf9e](https://github.com/LerianStudio/midaz/commit/acbaf9eb081fab39c7ff1c5e53bd12d2063af5eb))
+* sec and lint; :bug: ([a60cb56](https://github.com/LerianStudio/midaz/commit/a60cb56960d1d3103e9530e890eeaadc3edb587a))
+* some adjusts :bug: ([8e90ad8](https://github.com/LerianStudio/midaz/commit/8e90ad877f4d6a4c9384492b465b19abe5c29260))
+* update imports; :bug: ([a42bbcf](https://github.com/LerianStudio/midaz/commit/a42bbcf083288eb58c97075ab4bafd7a52286dec))
+* validations to transaction rules :bug: ([769abba](https://github.com/LerianStudio/midaz/commit/769abbae61503e7b916a6246ddc1e6d1155250cc))
+
 ## [1.25.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.9...v1.25.0-beta.10) (2024-10-28)
 
 

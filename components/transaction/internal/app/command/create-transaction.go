@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"reflect"
-	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
@@ -25,17 +24,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		Description: &description,
 	}
 
-	amount, err := strconv.ParseFloat(transaction.Send.Value, 64)
-	if err != nil {
-		logger.Errorf("Error converting amount string to float64: %v", err)
-		return nil, err
-	}
-
-	scale, err := strconv.ParseFloat(transaction.Send.Scale, 64)
-	if err != nil {
-		logger.Errorf("Error converting scale string to float64: %v", err)
-		return nil, err
-	}
+	amount := float64(transaction.Send.Value)
+	scale := float64(transaction.Send.Scale)
 
 	save := &t.Transaction{
 		ID:                       common.GenerateUUIDv7().String(),

@@ -2,13 +2,13 @@ package model
 
 type Metadata struct {
 	Key   string `json:"key,omitempty"`
-	Value string `json:"value,omitempty"`
+	Value any    `json:"value,omitempty"`
 }
 
 type Amount struct {
 	Asset string `json:"asset,omitempty"`
-	Value string `json:"value,omitempty"`
-	Scale string `json:"scale,omitempty"`
+	Value int    `json:"value,omitempty"`
+	Scale int    `json:"scale,omitempty"`
 }
 
 type Share struct {
@@ -19,8 +19,8 @@ type Share struct {
 
 type Send struct {
 	Asset  string `json:"asset,omitempty"`
-	Value  string `json:"value,omitempty"`
-	Scale  string `json:"scale,omitempty"`
+	Value  int    `json:"value,omitempty"`
+	Scale  int    `json:"scale,omitempty"`
 	Source Source `json:"source,omitempty"`
 }
 
