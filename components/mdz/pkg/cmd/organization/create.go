@@ -197,7 +197,7 @@ func (f *factoryOrganizationCreate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
-func newInjectFac(f *factory.Factory) *factoryOrganizationCreate {
+func newInjectFacCreate(f *factory.Factory) *factoryOrganizationCreate {
 	return &factoryOrganizationCreate{
 		factory:         f,
 		repoOrganiztion: rest.NewOrganization(f),

@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type Organization struct {
 	LegalName            string    `json:"legalName"`
 	ParentOrganizationID *string   `json:"parentOrganizationId,omitempty"`
@@ -32,7 +34,7 @@ type Metadata struct {
 	Int     *int     `json:"int"`
 }
 
-type OrganizationResponse struct {
+type OrganizationCreate struct {
 	ID                   string   `json:"id"`
 	ParentOrganizationID string   `json:"parentOrganizationId"`
 	LegalName            string   `json:"legalName"`
@@ -44,4 +46,24 @@ type OrganizationResponse struct {
 	UpdatedAt            string   `json:"updatedAt"`
 	DeletedAt            string   `json:"deletedAt"`
 	Metadata             Metadata `json:"metadata"`
+}
+
+type OrganizationList struct {
+	Items []OrganizationItem `json:"items"`
+	Page  int                `json:"page"`
+	Limit int                `json:"limit"`
+}
+
+type OrganizationItem struct {
+	ID                   string     `json:"id"`
+	ParentOrganizationID *string    `json:"parentOrganizationId"`
+	LegalName            string     `json:"legalName"`
+	DoingBusinessAs      string     `json:"doingBusinessAs"`
+	LegalDocument        string     `json:"legalDocument"`
+	Address              Address    `json:"address"`
+	Status               Status     `json:"status"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	UpdatedAt            time.Time  `json:"updatedAt"`
+	DeletedAt            *time.Time `json:"deletedAt"`
+	Metadata             *Metadata  `json:"metadata"`
 }
