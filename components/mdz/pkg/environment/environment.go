@@ -1,35 +1,24 @@
 package environment
 
-import (
-	"fmt"
-	"os"
-
-	"github.com/spf13/viper"
+var (
+	ClientID     string
+	ClientSecret string
+	URLAPIAuth   string
+	URLAPILedger string
 )
 
 type Env struct {
-	ClientID     string `mapstructure:"CLIENT_ID"`
-	ClientSecret string `mapstructure:"CLIENT_SECRET"`
-	URLAPIAuth   string `mapstructure:"URL_API_AUTH"`
-	URLAPILedger string `mapstructure:"URL_API_LEDGER"`
+	ClientID     string
+	ClientSecret string
+	URLAPIAuth   string
+	URLAPILedger string
 }
 
-func LoadEnv() (Env, error) {
-	viper.AutomaticEnv()
-
-	if _, err := os.Stat(".env"); err == nil {
-		viper.SetConfigFile(".env")
-
-		if err := viper.ReadInConfig(); err != nil {
-			fmt.Printf("Error reading config file: %s\n", err)
-			return Env{}, err
-		}
+func New() *Env {
+	return &Env{
+		ClientID:     ClientID,
+		ClientSecret: ClientSecret,
+		URLAPIAuth:   URLAPIAuth,
+		URLAPILedger: URLAPILedger,
 	}
-
-	e := Env{}
-	if err := viper.Unmarshal(&e); err != nil {
-		return Env{}, err
-	}
-
-	return e, nil
 }
