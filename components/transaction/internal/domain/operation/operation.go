@@ -181,7 +181,6 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	if common.IsNilOrEmpty(operation.PortfolioID) {
 		t.PortfolioID = nil
 	}
-
 }
 
 // UpdateOperationInput is a struct design to encapsulate payload data.
