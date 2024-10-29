@@ -55,9 +55,9 @@ type Portfolio struct {
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"max=256"`
-	AllowSending   bool    `json:"allowSending"`
-	AllowReceiving bool    `json:"allowReceiving"`
+	Description    *string `json:"description" validate:"omitempty,max=256"`
+	AllowSending   *bool   `json:"allowSending"`
+	AllowReceiving *bool   `json:"allowReceiving"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -70,8 +70,8 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *Portfolio {
 	status := Status{
 		Code:           t.Status,
 		Description:    t.StatusDescription,
-		AllowSending:   t.AllowSending,
-		AllowReceiving: t.AllowReceiving,
+		AllowSending:   &t.AllowSending,
+		AllowReceiving: &t.AllowReceiving,
 	}
 
 	portfolio := &Portfolio{
@@ -104,8 +104,8 @@ func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *Portfolio) {
 		OrganizationID:    portfolio.OrganizationID,
 		Status:            portfolio.Status.Code,
 		StatusDescription: portfolio.Status.Description,
-		AllowSending:      portfolio.Status.AllowSending,
-		AllowReceiving:    portfolio.Status.AllowReceiving,
+		AllowSending:      *portfolio.Status.AllowSending,
+		AllowReceiving:    *portfolio.Status.AllowReceiving,
 		CreatedAt:         portfolio.CreatedAt,
 		UpdatedAt:         portfolio.UpdatedAt,
 	}
