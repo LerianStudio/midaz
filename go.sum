@@ -18,8 +18,8 @@ github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiE
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
 github.com/bxcodec/dbresolver/v2 v2.2.0 h1:3Xg5Cw64khndjnWYiadP1mL1XU8eVxtkqcDadfihP6k=
 github.com/bxcodec/dbresolver/v2 v2.2.0/go.mod h1:xWb3HT8vrWUnoLVA7KQ+IcD9RvnzfRBqOkO9rKsg1rQ=
-github.com/casdoor/casdoor-go-sdk v1.2.0 h1:DHLO8joZwgrAgdhhEZCPdrtLHdV89cXAa9UKxT7kwXg=
-github.com/casdoor/casdoor-go-sdk v1.2.0/go.mod h1:cMnkCQJgMYpgAlgEx8reSt1AVaDIQLcJ1zk5pzBaz+4=
+github.com/casdoor/casdoor-go-sdk v1.3.0 h1:iUZKsrNUkhtAoyitFIFw3e6TchctAdoxmVgLDtNAgpc=
+github.com/casdoor/casdoor-go-sdk v1.3.0/go.mod h1:cMnkCQJgMYpgAlgEx8reSt1AVaDIQLcJ1zk5pzBaz+4=
 github.com/charmbracelet/bubbles v0.20.0 h1:jSZu6qD8cRQ6k9OMfR1WlM+ruM8fkPWkHvQWD9LIutE=
 github.com/charmbracelet/bubbles v0.20.0/go.mod h1:39slydyswPy+uVOHZ5x/GjwVAFkCsV8IIVy+4MhzwwU=
 github.com/charmbracelet/bubbletea v1.1.2 h1:naQXF2laRxyLyil/i7fxdpiz1/k06IKquhm4vBfHsIc=
