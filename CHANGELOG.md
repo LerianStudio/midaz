@@ -1,3 +1,12 @@
+## [1.25.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.11...v1.25.0-beta.12) (2024-10-29)
+
+
+### Bug Fixes
+
+* add omitempty to all status domain structs :bug: ([c946146](https://github.com/LerianStudio/midaz/commit/c94614651d1a14683cc53808227a2d3c3753b8b7))
+* add validation for allowReceiving and allowSending status fields in create endpoints for all components :bug: ([3dad79d](https://github.com/LerianStudio/midaz/commit/3dad79d7a5ea23ff26c6976ced69c5083a4c31cf))
+* add validation for status fields in create endpoints for all components :bug: ([0779976](https://github.com/LerianStudio/midaz/commit/077997648bdf3f156291208fdc85c30614e2ff93))
+
 ## [1.25.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.10...v1.25.0-beta.11) (2024-10-28)
 
 
