@@ -1,3 +1,11 @@
+## [1.25.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.15...v1.25.0-beta.16) (2024-10-29)
+
+
+### Bug Fixes
+
+* lint :bug: ([9e5ebf1](https://github.com/LerianStudio/midaz/commit/9e5ebf1f3442efbaffcc4df2dbfe3924c37810f0))
+* validate share to int :bug: ([db12411](https://github.com/LerianStudio/midaz/commit/db1241131d64ae6bd6ea437b0fec98d3f6ea0332))
+
 ## [1.25.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.14...v1.25.0-beta.15) (2024-10-29)
 
 
