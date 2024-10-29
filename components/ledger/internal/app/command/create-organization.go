@@ -16,13 +16,15 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	logger.Infof("Trying to create organization: %v", coi)
 
 	var status o.Status
-	if coi.Status.IsEmpty() {
+	if coi.Status.IsEmpty() || common.IsNilOrEmpty(&coi.Status.Code) {
 		status = o.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = coi.Status
 	}
+
+	status.Description = coi.Status.Description
 
 	if common.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
