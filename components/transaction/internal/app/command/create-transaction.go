@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"reflect"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
-func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID string, transaction *gold.Transaction) (*t.Transaction, error) {
+func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transaction *gold.Transaction) (*t.Transaction, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create new transaction")
 
@@ -30,8 +31,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	save := &t.Transaction{
 		ID:                       common.GenerateUUIDv7().String(),
 		ParentTransactionID:      nil,
-		OrganizationID:           organizationID,
-		LedgerID:                 ledgerID,
+		OrganizationID:           organizationID.String(),
+		LedgerID:                 ledgerID.String(),
 		Description:              transaction.Description,
 		Template:                 transaction.ChartOfAccountsGroupName,
 		Status:                   status,
