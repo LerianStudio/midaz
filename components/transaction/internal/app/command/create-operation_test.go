@@ -18,7 +18,6 @@ func TestCreateOperationSuccess(t *testing.T) {
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
-		PortfolioID:    common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -44,7 +43,6 @@ func TestCreateOperationError(t *testing.T) {
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
-		PortfolioID:    common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

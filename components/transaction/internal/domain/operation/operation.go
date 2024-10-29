@@ -25,7 +25,7 @@ type OperationPostgreSQLModel struct {
 	StatusDescription     *string
 	AccountID             string
 	AccountAlias          string
-	PortfolioID           string
+	PortfolioID           *string
 	ChartOfAccounts       string
 	OrganizationID        string
 	LedgerID              string
@@ -83,7 +83,7 @@ type Operation struct {
 	Status          Status         `json:"status"`
 	AccountID       string         `json:"accountId"`
 	AccountAlias    string         `json:"accountAlias"`
-	PortfolioID     string         `json:"portfolioId"`
+	PortfolioID     *string        `json:"portfolioId"`
 	OrganizationID  string         `json:"organizationId"`
 	LedgerID        string         `json:"ledgerId"`
 	CreatedAt       time.Time      `json:"createdAt"`
@@ -176,6 +176,10 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+
+	if common.IsNilOrEmpty(operation.PortfolioID) {
+		t.PortfolioID = nil
 	}
 }
 

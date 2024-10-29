@@ -100,8 +100,8 @@ func ValidateFromToOperation(ft gold.FromTo, validate Responses, acc *a.Account)
 			return amount, balanceAfter, err
 		}
 
-		amt := float64(validate.From[ft.Account].Value)
-		scl := float64(validate.From[ft.Account].Scale)
+		amt := float64(validate.To[ft.Account].Value)
+		scl := float64(validate.To[ft.Account].Scale)
 		amount = o.Amount{
 			Amount: &amt,
 			Scale:  &scl,

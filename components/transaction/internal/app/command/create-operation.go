@@ -66,7 +66,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					BalanceAfter:    balanceAfter,
 					AccountID:       acc.Id,
 					AccountAlias:    acc.Alias,
-					PortfolioID:     acc.PortfolioId,
+					PortfolioID:     &acc.PortfolioId,
 					OrganizationID:  acc.OrganizationId,
 					LedgerID:        acc.LedgerId,
 					CreatedAt:       time.Now(),

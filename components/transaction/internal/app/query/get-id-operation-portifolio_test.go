@@ -22,7 +22,6 @@ func TestGetOperationByPortfolio(t *testing.T) {
 		ID:             ID.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
-		PortfolioID:    portfolioID.String(),
 	}
 
 	uc := UseCase{
