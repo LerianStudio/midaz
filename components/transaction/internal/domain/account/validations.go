@@ -183,6 +183,7 @@ func FindScale(asset string, v float64, s int) gold.Amount {
 
 	scale := s
 	value := int(v)
+
 	if len(parts) > 1 {
 		scale = len(parts[1])
 		value = UndoScale(v, scale)
