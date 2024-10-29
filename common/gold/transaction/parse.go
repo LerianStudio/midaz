@@ -113,9 +113,12 @@ func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableCon
 
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	asset := ctx.UUID().GetText()
-	value := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
-	scale := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
+	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
+	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(model.Source)
+
+	value, _ := strconv.Atoi(val)
+	scale, _ := strconv.Atoi(scl)
 
 	return model.Send{
 		Asset:  asset,
@@ -163,8 +166,11 @@ func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	asset := ctx.UUID().GetText()
-	value := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
-	scale := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
+	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
+	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
+
+	value, _ := strconv.Atoi(val)
+	scale, _ := strconv.Atoi(scl)
 
 	return model.Amount{
 		Asset: asset,

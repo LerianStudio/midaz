@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	account "github.com/LerianStudio/midaz/common/mgrpc/account"
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -41,46 +42,46 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // GetAccountsByAlias mocks base method.
-func (m *MockRepository) GetAccountsByAlias(arg0 context.Context, arg1 string, arg2 []string) (*account.AccountsResponse, error) {
+func (m *MockRepository) GetAccountsByAlias(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []string) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAccountsByAlias", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetAccountsByAlias", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*account.AccountsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAccountsByAlias indicates an expected call of GetAccountsByAlias.
-func (mr *MockRepositoryMockRecorder) GetAccountsByAlias(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) GetAccountsByAlias(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountsByAlias", reflect.TypeOf((*MockRepository)(nil).GetAccountsByAlias), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountsByAlias", reflect.TypeOf((*MockRepository)(nil).GetAccountsByAlias), arg0, arg1, arg2, arg3, arg4)
 }
 
 // GetAccountsByIds mocks base method.
-func (m *MockRepository) GetAccountsByIds(arg0 context.Context, arg1 string, arg2 []string) (*account.AccountsResponse, error) {
+func (m *MockRepository) GetAccountsByIds(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []string) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAccountsByIds", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetAccountsByIds", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*account.AccountsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAccountsByIds indicates an expected call of GetAccountsByIds.
-func (mr *MockRepositoryMockRecorder) GetAccountsByIds(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) GetAccountsByIds(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountsByIds", reflect.TypeOf((*MockRepository)(nil).GetAccountsByIds), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountsByIds", reflect.TypeOf((*MockRepository)(nil).GetAccountsByIds), arg0, arg1, arg2, arg3, arg4)
 }
 
 // UpdateAccounts mocks base method.
-func (m *MockRepository) UpdateAccounts(arg0 context.Context, arg1 string, arg2 []*account.Account) (*account.AccountsResponse, error) {
+func (m *MockRepository) UpdateAccounts(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []*account.Account) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAccounts", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "UpdateAccounts", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*account.AccountsResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // UpdateAccounts indicates an expected call of UpdateAccounts.
-func (mr *MockRepositoryMockRecorder) UpdateAccounts(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) UpdateAccounts(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccounts", reflect.TypeOf((*MockRepository)(nil).UpdateAccounts), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccounts", reflect.TypeOf((*MockRepository)(nil).UpdateAccounts), arg0, arg1, arg2, arg3, arg4)
 }

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS operation (
     status_description                 TEXT,
     account_id                         UUID NOT NULL,
     account_alias                      TEXT NOT NULL,
-    portfolio_id                       UUID NOT NULL,
+    portfolio_id                       UUID NULL,
     chart_of_accounts                  TEXT NOT NULL,
     organization_id                    UUID NOT NULL,
     ledger_id                          UUID NOT NULL,

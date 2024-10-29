@@ -2,9 +2,9 @@ package transaction
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common"
 	"time"
 
+	"github.com/LerianStudio/midaz/common"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/google/uuid"
@@ -33,7 +33,7 @@ type TransactionPostgreSQLModel struct {
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code        string  `json:"code" validate:"max=100"`
-	Description *string `json:"description" validate:"max=256"`
+	Description *string `json:"description" validate:"omitempty,max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields

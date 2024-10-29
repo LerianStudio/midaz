@@ -7,7 +7,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/google/uuid"
 )
@@ -18,13 +17,15 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 	logger.Infof("Trying to create product: %v", cpi)
 
 	var status r.Status
-	if cpi.Status.IsEmpty() {
+	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
 		status = r.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = cpi.Status
 	}
+
+	status.Description = cpi.Status.Description
 
 	product := &r.Product{
 		ID:             common.GenerateUUIDv7().String(),
@@ -47,25 +48,13 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	if cpi.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cpi.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(r.Product{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   prod.ID,
-			EntityName: reflect.TypeOf(r.Product{}).Name(),
-			Data:       cpi.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(r.Product{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating product metadata: %v", err)
-			return nil, err
-		}
-
-		prod.Metadata = cpi.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), prod.ID, cpi.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating product metadata: %v", err)
+		return nil, err
 	}
+
+	prod.Metadata = metadata
 
 	return prod, nil
 }

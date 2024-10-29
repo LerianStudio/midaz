@@ -1,26 +1,27 @@
 package account
 
 import (
+	"math"
+	"math/big"
+	"strings"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	a "github.com/LerianStudio/midaz/common/mgrpc/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
-	"math"
-	"strconv"
-	"strings"
 )
 
 // Response return struct with total and per-account amounts
 type Response struct {
-	Total  float64
+	Total  int
 	SD     []string
 	FromTo map[string]gold.Amount
 }
 
 // Responses return struct with total send and per-accounts
 type Responses struct {
-	Total        float64
+	Total        int
 	From         map[string]gold.Amount
 	To           map[string]gold.Amount
 	Sources      []string
@@ -80,21 +81,31 @@ func ValidateFromToOperation(ft gold.FromTo, validate Responses, acc *a.Account)
 	balanceAfter := o.Balance{}
 
 	if ft.IsFrom {
-		amt, ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
+		ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
 		if err != nil {
 			return amount, balanceAfter, err
 		}
 
-		amount = amt
+		amt := float64(validate.From[ft.Account].Value)
+		scl := float64(validate.From[ft.Account].Scale)
+		amount = o.Amount{
+			Amount: &amt,
+			Scale:  &scl,
+		}
 
 		balanceAfter = ba
 	} else {
-		amt, ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, constant.CREDIT)
+		ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, constant.CREDIT)
 		if err != nil {
 			return amount, balanceAfter, err
 		}
 
-		amount = amt
+		amt := float64(validate.To[ft.Account].Value)
+		scl := float64(validate.To[ft.Account].Scale)
+		amount = o.Amount{
+			Amount: &amt,
+			Scale:  &scl,
+		}
 
 		balanceAfter = ba
 	}
@@ -109,7 +120,7 @@ func UpdateAccounts(operation string, fromTo map[string]gold.Amount, accounts []
 	for _, acc := range accounts {
 		for key := range fromTo {
 			if acc.Id == key || acc.Alias == key {
-				_, b, err := OperateAmounts(fromTo[key], acc.Balance, operation)
+				b, err := OperateAmounts(fromTo[key], acc.Balance, operation)
 				if err != nil {
 					e <- err
 				}
@@ -155,195 +166,187 @@ func UpdateAccounts(operation string, fromTo map[string]gold.Amount, accounts []
 	result <- accs
 }
 
-// Scale func scale: (V * 10^-S)
-func Scale(v, s float64) float64 {
-	return v * math.Pow(10, -s)
+// Scale func scale: (V * 10^ (S0-S1))
+func Scale(v, s0, s1 int) float64 {
+	return float64(v) * math.Pow10(s1-s0)
 }
 
 // UndoScale Function to undo the scale calculation
-func UndoScale(v, s float64) float64 {
-	return v * math.Pow(10, s)
+func UndoScale(v float64, s int) int {
+	return int(v * math.Pow10(s))
 }
 
-// TranslateScale Function that translate string values to use scale
-func TranslateScale(value, scale string) (float64, error) {
-	v, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return 0, err
-	}
+// FindScale Function to find the scale for any value of a value
+func FindScale(asset string, v float64, s int) gold.Amount {
+	valueString := big.NewFloat(v).String()
+	parts := strings.Split(valueString, ".")
 
-	s, err := strconv.ParseFloat(scale, 64)
-	if err != nil {
-		return 0, err
-	}
+	scale := s
+	value := int(v)
 
-	return Scale(v, s), nil
-}
+	if len(parts) > 1 {
+		scale = len(parts[1])
+		value = UndoScale(v, scale)
 
-// FindScaleForPercentage Function to find the scale for a percentage of a value
-func FindScaleForPercentage(value float64, scale string, share gold.Share) (gold.Amount, float64) {
-	sh := share.Percentage
-
-	of := share.PercentageOfPercentage
-	if of == 0 {
-		of = 100
-	}
-
-	shareValue := value * (float64(sh) / float64(of))
-
-	v := strconv.FormatFloat(shareValue, 'f', -1, 64)
-	vf := strings.Replace(v, ".", "", -1)
-
-	valueFinal, _ := strconv.ParseFloat(vf, 64)
-
-	if shareValue != math.Trunc(shareValue) {
-		newScale := int(math.Ceil(math.Log10(shareValue)))
-
-		if scale == strconv.Itoa(newScale) && value <= valueFinal {
-			newScale += 1
+		if parts[1] != "0" {
+			scale += s
 		}
-
-		scale = strconv.Itoa(newScale)
 	}
 
 	amount := gold.Amount{
-		Value: vf,
+		Asset: asset,
+		Value: value,
 		Scale: scale,
 	}
 
-	return amount, shareValue
+	return amount
 }
 
-// CalculateRemaining Function to calculate the remaining value when previous values are known
-func CalculateRemaining(asset string, remainingValue float64, scale string) gold.Amount {
-	if remainingValue != math.Trunc(remainingValue) {
-		scale = strconv.Itoa(int(math.Ceil(math.Log10(remainingValue))))
+// normalize func that normalize scale from all values
+func normalize(total, amount, remaining *gold.Amount) {
+	if total.Scale < amount.Scale {
+		if total.Value != 0 {
+			v0 := Scale(total.Value, total.Scale, amount.Scale)
+
+			total.Value = int(v0) + amount.Value
+		} else {
+			total.Value += amount.Value
+		}
+
+		total.Scale = amount.Scale
+	} else {
+		if total.Value != 0 {
+			v0 := Scale(amount.Value, amount.Scale, total.Scale)
+
+			total.Value += int(v0)
+
+			amount.Value = int(v0)
+			amount.Scale = total.Scale
+		} else {
+			total.Value += amount.Value
+			total.Scale = amount.Scale
+		}
 	}
 
-	acc := gold.Amount{
-		Asset: asset,
-		Value: strconv.FormatFloat(remainingValue, 'f', -1, 64),
-		Scale: scale,
-	}
+	if remaining.Scale < amount.Scale {
+		v0 := Scale(remaining.Value, remaining.Scale, amount.Scale)
 
-	return acc
+		remaining.Value = int(v0) - amount.Value
+		remaining.Scale = amount.Scale
+	} else {
+		v0 := Scale(amount.Value, amount.Scale, remaining.Scale)
+
+		remaining.Value -= int(v0)
+	}
 }
 
 // OperateAmounts Function to sum or sub two amounts and normalize the scale
-func OperateAmounts(amount gold.Amount, balance *a.Balance, operation string) (o.Amount, o.Balance, error) {
-	value, err := strconv.ParseFloat(amount.Value, 64)
-	if err != nil {
-		return o.Amount{}, o.Balance{}, err
-	}
-
-	scale, err := strconv.ParseFloat(amount.Scale, 64)
-	if err != nil {
-		return o.Amount{}, o.Balance{}, err
-	}
-
-	amt := o.Amount{
-		Amount: &value,
-		Scale:  &scale,
-	}
+func OperateAmounts(amount gold.Amount, balance *a.Balance, operation string) (o.Balance, error) {
+	var scale float64
 
 	var total float64
 
 	switch operation {
 	case constant.DEBIT:
-		total = Scale(balance.Available, balance.Scale) - Scale(value, scale)
+		if int(balance.Scale) < amount.Scale {
+			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
+			total = v0 - float64(amount.Value)
+			scale = float64(amount.Scale)
+		} else {
+			v0 := Scale(amount.Value, amount.Scale, int(balance.Scale))
+			total = balance.Available - v0
+			scale = balance.Scale
+		}
 	default:
-		total = Scale(balance.Available, balance.Scale) + Scale(value, scale)
+		if int(balance.Scale) < amount.Scale {
+			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
+			total = v0 + float64(amount.Value)
+			scale = float64(amount.Scale)
+		} else {
+			v0 := Scale(amount.Value, amount.Scale, int(balance.Scale))
+			total = balance.Available + v0
+			scale = balance.Scale
+		}
 	}
 
-	s := balance.Scale
-	if int(balance.Scale) < int(scale) {
-		s = scale
-	}
-
-	undo := UndoScale(total, s)
-	b := o.Balance{
-		Available: &undo,
+	blc := o.Balance{
+		Available: &total,
 		OnHold:    &balance.OnHold,
-		Scale:     &s,
+		Scale:     &scale,
 	}
 
-	return amt, b, nil
+	return blc, nil
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
-func calculateTotal(fromTos []gold.FromTo, totalSend float64, scale, asset string, result chan *Response, e chan error) {
-	total := 0.0
-	remaining := totalSend
+func calculateTotal(fromTos []gold.FromTo, send, scale int, asset string, result chan *Response) {
 	response := Response{
-		Total:  0.0,
+		Total:  0,
 		FromTo: make(map[string]gold.Amount),
 		SD:     make([]string, 0),
 	}
 
+	total := gold.Amount{
+		Asset: asset,
+		Scale: 0,
+		Value: 0,
+	}
+
+	remaining := gold.Amount{
+		Asset: asset,
+		Scale: scale,
+		Value: send,
+	}
+
 	for i := range fromTos {
-		if fromTos[i].Remaining != "" {
-			continue
-		}
-
-		amount := gold.Amount{
-			Asset: asset,
-		}
-
 		if fromTos[i].Share.Percentage != 0 {
-			amt, shareValue := FindScaleForPercentage(totalSend, scale, *fromTos[i].Share)
+			percentage := fromTos[i].Share.Percentage
 
-			amount.Value = amt.Value
-			amount.Scale = amt.Scale
+			percentageOfPercentage := fromTos[i].Share.PercentageOfPercentage
+			if percentageOfPercentage == 0 {
+				percentageOfPercentage = 100
+			}
 
-			total += shareValue
+			shareValue := float64(send) * (float64(percentage) / float64(percentageOfPercentage))
+			amount := FindScale(asset, shareValue, scale)
 
-			remaining -= shareValue
+			normalize(&total, &amount, &remaining)
+			response.FromTo[fromTos[i].Account] = amount
 		}
 
-		if !common.IsNilOrEmpty(&fromTos[i].Amount.Value) && !common.IsNilOrEmpty(&fromTos[i].Amount.Scale) {
-			amount.Scale = fromTos[i].Amount.Scale
-			amount.Value = fromTos[i].Amount.Value
-
-			if !common.IsNilOrEmpty(&fromTos[i].Amount.Asset) {
-				amount.Asset = fromTos[i].Amount.Asset
+		if fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > 0 {
+			amount := gold.Amount{
+				Asset: fromTos[i].Amount.Asset,
+				Scale: fromTos[i].Amount.Scale,
+				Value: fromTos[i].Amount.Value,
 			}
 
-			amountValue, err := strconv.ParseFloat(fromTos[i].Amount.Value, 64)
-			if err != nil {
-				e <- err
-			}
+			normalize(&total, &amount, &remaining)
+			response.FromTo[fromTos[i].Account] = amount
+		}
 
-			total += amountValue
-			remaining -= amountValue
+		if fromTos[i].Remaining != "" {
+			total.Value += remaining.Value
+
+			response.FromTo[fromTos[i].Account] = remaining
+			fromTos[i].Amount = &remaining
 		}
 
 		response.SD = append(response.SD, fromTos[i].Account)
-		response.FromTo[fromTos[i].Account] = amount
 	}
 
-	for i, tos := range fromTos {
-		if tos.Remaining != "" {
-			total += remaining
-
-			response.SD = append(response.SD, tos.Account)
-
-			amount := CalculateRemaining(asset, remaining, scale)
-
-			response.FromTo[tos.Account] = amount
-			fromTos[i].Amount = &amount
-
-			break
-		}
+	response.Total = total.Value
+	if total.Scale > scale {
+		response.Total = int(Scale(total.Value, total.Scale, scale))
 	}
 
-	response.Total = total
 	result <- &response
 }
 
 // ValidateSendSourceAndDistribute Validate send and distribute totals
 func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, error) {
 	response := &Responses{
-		Total:        0.0,
+		Total:        transaction.Send.Value,
 		From:         make(map[string]gold.Amount),
 		To:           make(map[string]gold.Amount),
 		Sources:      make([]string, 0),
@@ -351,43 +354,27 @@ func ValidateSendSourceAndDistribute(transaction gold.Transaction) (*Responses, 
 		Aliases:      make([]string, 0),
 	}
 
-	send, err := strconv.ParseFloat(transaction.Send.Value, 64)
-	if err != nil {
-		return nil, err
-	}
+	var sourcesTotal int
 
-	response.Total = send
+	var destinationsTotal int
 
-	e := make(chan error)
 	result := make(chan *Response)
 
-	var sourcesTotal float64
+	go calculateTotal(transaction.Send.Source.From, transaction.Send.Value, transaction.Send.Scale, transaction.Send.Asset, result)
+	from := <-result
+	sourcesTotal = from.Total
+	response.From = from.FromTo
+	response.Sources = from.SD
+	response.Aliases = append(response.Aliases, from.SD...)
 
-	var destinationsTotal float64
+	go calculateTotal(transaction.Distribute.To, transaction.Send.Value, transaction.Send.Scale, transaction.Send.Asset, result)
+	to := <-result
+	destinationsTotal = to.Total
+	response.To = to.FromTo
+	response.Destinations = to.SD
+	response.Aliases = append(response.Aliases, to.SD...)
 
-	go calculateTotal(transaction.Send.Source.From, send, transaction.Send.Scale, transaction.Send.Asset, result, e)
-	select {
-	case from := <-result:
-		sourcesTotal = from.Total
-		response.From = from.FromTo
-		response.Sources = from.SD
-		response.Aliases = append(response.Aliases, from.SD...)
-	case err := <-e:
-		return nil, err
-	}
-
-	go calculateTotal(transaction.Distribute.To, send, transaction.Send.Scale, transaction.Send.Asset, result, e)
-	select {
-	case from := <-result:
-		destinationsTotal = from.Total
-		response.To = from.FromTo
-		response.Destinations = from.SD
-		response.Aliases = append(response.Aliases, from.SD...)
-	case err := <-e:
-		return nil, err
-	}
-
-	if math.Abs(sourcesTotal-send) > 0.00001 || math.Abs(destinationsTotal-send) > 0.00001 {
+	if math.Abs(float64(sourcesTotal)-float64(destinationsTotal)) > 0.00001 {
 		return nil, common.ValidationError{
 			Code:    "0018",
 			Title:   "Insufficient Funds",

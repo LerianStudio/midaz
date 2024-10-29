@@ -2,12 +2,12 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/google/uuid"
 )
@@ -18,15 +18,24 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status p.Status
-	if cpi.Status.IsEmpty() {
+	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
 		status = p.Status{
 			Code:           "ACTIVE",
-			AllowReceiving: true,
-			AllowSending:   true,
+			AllowReceiving: mpointers.Bool(true),
+			AllowSending:   mpointers.Bool(true),
 		}
 	} else {
 		status = cpi.Status
+		if status.AllowReceiving == nil {
+			status.AllowReceiving = mpointers.Bool(true)
+		}
+
+		if status.AllowSending == nil {
+			status.AllowSending = mpointers.Bool(true)
+		}
 	}
+
+	status.Description = cpi.Status.Description
 
 	portfolio := &p.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
@@ -45,25 +54,13 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
-	if cpi.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cpi.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(p.Portfolio{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   port.ID,
-			EntityName: reflect.TypeOf(p.Portfolio{}).Name(),
-			Data:       cpi.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(p.Portfolio{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating portfolio metadata: %v", err)
-			return nil, err
-		}
-
-		port.Metadata = cpi.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), port.ID, cpi.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating portfolio metadata: %v", err)
+		return nil, err
 	}
+
+	port.Metadata = metadata
 
 	return port, nil
 }

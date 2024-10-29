@@ -28,14 +28,14 @@ type CreateAssetInput struct {
 	Type     string         `json:"type"`
 	Code     string         `json:"code" validate:"required,max=100"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 type UpdateAssetInput struct {
 	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // Asset is a struct designed to encapsulate payload data.
@@ -50,13 +50,13 @@ type Asset struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code        string  `json:"code" validate:"max=100"`
-	Description *string `json:"description" validate:"max=256"`
+	Description *string `json:"description" validate:"omitempty,max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields

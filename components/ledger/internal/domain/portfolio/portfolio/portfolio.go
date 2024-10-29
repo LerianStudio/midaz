@@ -28,14 +28,14 @@ type CreatePortfolioInput struct {
 	EntityID string         `json:"entityId" validate:"required,max=256"`
 	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdatePortfolioInput is a struct design to encapsulate payload data.
 type UpdatePortfolioInput struct {
 	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // Portfolio is a struct designed to encapsulate request update payload data.
@@ -49,15 +49,15 @@ type Portfolio struct {
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"max=256"`
-	AllowSending   bool    `json:"allowSending"`
-	AllowReceiving bool    `json:"allowReceiving"`
+	Description    *string `json:"description" validate:"omitempty,max=256"`
+	AllowSending   *bool   `json:"allowSending"`
+	AllowReceiving *bool   `json:"allowReceiving"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -70,8 +70,8 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *Portfolio {
 	status := Status{
 		Code:           t.Status,
 		Description:    t.StatusDescription,
-		AllowSending:   t.AllowSending,
-		AllowReceiving: t.AllowReceiving,
+		AllowSending:   &t.AllowSending,
+		AllowReceiving: &t.AllowReceiving,
 	}
 
 	portfolio := &Portfolio{
@@ -104,8 +104,8 @@ func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *Portfolio) {
 		OrganizationID:    portfolio.OrganizationID,
 		Status:            portfolio.Status.Code,
 		StatusDescription: portfolio.Status.Description,
-		AllowSending:      portfolio.Status.AllowSending,
-		AllowReceiving:    portfolio.Status.AllowReceiving,
+		AllowSending:      *portfolio.Status.AllowSending,
+		AllowReceiving:    *portfolio.Status.AllowReceiving,
 		CreatedAt:         portfolio.CreatedAt,
 		UpdatedAt:         portfolio.UpdatedAt,
 	}

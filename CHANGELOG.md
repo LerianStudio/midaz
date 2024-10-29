@@ -1,3 +1,154 @@
+## [1.25.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.15...v1.25.0-beta.16) (2024-10-29)
+
+
+### Bug Fixes
+
+* lint :bug: ([9e5ebf1](https://github.com/LerianStudio/midaz/commit/9e5ebf1f3442efbaffcc4df2dbfe3924c37810f0))
+* validate share to int :bug: ([db12411](https://github.com/LerianStudio/midaz/commit/db1241131d64ae6bd6ea437b0fec98d3f6ea0332))
+
+## [1.25.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.14...v1.25.0-beta.15) (2024-10-29)
+
+
+### Bug Fixes
+
+* adjust balance_scale can not be inserted on balance_on_hold :bug: ([9482b5a](https://github.com/LerianStudio/midaz/commit/9482b5a11ab75f823cbdbbcf3b279c08716564a4))
+* adjust portfolio, allowreceiving and allowsending; :bug: ([4f16cd1](https://github.com/LerianStudio/midaz/commit/4f16cd10c89504d82eeaa3b89ab498178b2be00a))
+* update lint; :bug: ([90c929f](https://github.com/LerianStudio/midaz/commit/90c929f6c6cd502acad9aaf70302f8df8970a505))
+
+## [1.25.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.13...v1.25.0-beta.14) (2024-10-29)
+
+## [1.25.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.12...v1.25.0-beta.13) (2024-10-29)
+
+## [1.25.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.11...v1.25.0-beta.12) (2024-10-29)
+
+
+### Bug Fixes
+
+* add omitempty to all status domain structs :bug: ([c946146](https://github.com/LerianStudio/midaz/commit/c94614651d1a14683cc53808227a2d3c3753b8b7))
+* add validation for allowReceiving and allowSending status fields in create endpoints for all components :bug: ([3dad79d](https://github.com/LerianStudio/midaz/commit/3dad79d7a5ea23ff26c6976ced69c5083a4c31cf))
+* add validation for status fields in create endpoints for all components :bug: ([0779976](https://github.com/LerianStudio/midaz/commit/077997648bdf3f156291208fdc85c30614e2ff93))
+
+## [1.25.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.10...v1.25.0-beta.11) (2024-10-28)
+
+
+### Features
+
+* update go version 1.22 to 1.23; :sparkles: ([1d32f7e](https://github.com/LerianStudio/midaz/commit/1d32f7eebd3018ad83d2d7f86a0a502d859ff08e))
+
+
+### Bug Fixes
+
+* adjust transaction model and parse :bug: ([060ff1d](https://github.com/LerianStudio/midaz/commit/060ff1d29a02dc71a1d2a761b10d664c7304fcbd))
+* change midaz url :bug: ([acbaf9e](https://github.com/LerianStudio/midaz/commit/acbaf9eb081fab39c7ff1c5e53bd12d2063af5eb))
+* sec and lint; :bug: ([a60cb56](https://github.com/LerianStudio/midaz/commit/a60cb56960d1d3103e9530e890eeaadc3edb587a))
+* some adjusts :bug: ([8e90ad8](https://github.com/LerianStudio/midaz/commit/8e90ad877f4d6a4c9384492b465b19abe5c29260))
+* update imports; :bug: ([a42bbcf](https://github.com/LerianStudio/midaz/commit/a42bbcf083288eb58c97075ab4bafd7a52286dec))
+* validations to transaction rules :bug: ([769abba](https://github.com/LerianStudio/midaz/commit/769abbae61503e7b916a6246ddc1e6d1155250cc))
+
+## [1.25.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.9...v1.25.0-beta.10) (2024-10-28)
+
+
+### Features
+
+* **asset:** create external account if it does not exist during asset creation :sparkles: ([c88b220](https://github.com/LerianStudio/midaz/commit/c88b220e240c0924e1077797ab91d6e05c23472c))
+
+
+### Bug Fixes
+
+* **account:** add organizationID and ledgerID to the grpc account funcs :bug: ([39b29e7](https://github.com/LerianStudio/midaz/commit/39b29e7e41288360a5cffe2a3bbb60e63738f98e))
+
+## [1.25.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.8...v1.25.0-beta.9) (2024-10-28)
+
+
+### Features
+
+* added sub command list from organization ([32ecea1](https://github.com/LerianStudio/midaz/commit/32ecea1811ace742647b8dfa3ee4b20a69c9a7bb))
+* create rest getby id organization ([3959de5](https://github.com/LerianStudio/midaz/commit/3959de5ccb65804255e96b9c455f7dfbc87563dc))
+* create sub command describe from command organization ([af35793](https://github.com/LerianStudio/midaz/commit/af35793c0c1b1f27ab46b735daf48a3ce52c598d))
+
+## [1.25.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.7...v1.25.0-beta.8) (2024-10-28)
+
+
+### Features
+
+* added sub command list from organization ([dfcaab0](https://github.com/LerianStudio/midaz/commit/dfcaab041769dd87f313d1effe21dda384f01286))
+
+## [1.25.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.6...v1.25.0-beta.7) (2024-10-28)
+
+
+### Features
+
+* adds new error message for metadata nested structures :sparkles: ([4a7c634](https://github.com/LerianStudio/midaz/commit/4a7c634194f1b614e6754cd94e4d1416716e51b5))
+* implements custom validators for metadata fields :sparkles: ([005446e](https://github.com/LerianStudio/midaz/commit/005446ef8e5cb6ae6b3aa879586328e28046bd34))
+
+
+### Bug Fixes
+
+* fixes metadata error messages max length parameters :bug: ([d9f334e](https://github.com/LerianStudio/midaz/commit/d9f334ee8c57b8e3d1ac70ccb4479749380ea3c2))
+* omits validation error fields if empty :bug: ([313a3cd](https://github.com/LerianStudio/midaz/commit/313a3cd6b60f7dc05f760efbf95b68ffa8885fad))
+* remove deprecated metadata validation calls :bug: ([549aa99](https://github.com/LerianStudio/midaz/commit/549aa99b25b0d5e98c27c5de7144206bf8b18c6d))
+* set new metadata validators for necessary inputs :bug: ([ead05ab](https://github.com/LerianStudio/midaz/commit/ead05ab8c3cd87e0e87e06f5b112a2c235a7f146))
+
+## [1.25.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.5...v1.25.0-beta.6) (2024-10-25)
+
+
+### Features
+
+* implements new function to parse Metadata from requests :sparkles: ([d933a58](https://github.com/LerianStudio/midaz/commit/d933a58ee7abee5893399ce3bc19bb25ad7207f7))
+
+
+### Bug Fixes
+
+* fixes file name typo :bug: ([3cbab1a](https://github.com/LerianStudio/midaz/commit/3cbab1ab19171144d33ee16bbaa87f0b925062e1))
+* implements RFC merge patch rules for metadata update :bug: ([7cf7bcd](https://github.com/LerianStudio/midaz/commit/7cf7bcdddad9a5b3fd6e548eae6acae3efa1860c))
+* logging entity name for metadata creation error :bug: ([1f70e1b](https://github.com/LerianStudio/midaz/commit/1f70e1b1df0c0a67d092ab882e5f57a15d6f49d0))
+* omitting empty metadata from responses :bug: ([7878b44](https://github.com/LerianStudio/midaz/commit/7878b44171d326e6cd157c8a4500c17636dca294))
+* uses id sent over path to update metadata :bug: ([0918712](https://github.com/LerianStudio/midaz/commit/0918712c9252a3aac93bc6db96cdc2ae879a017f))
+
+## [1.25.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.4...v1.25.0-beta.5) (2024-10-24)
+
+
+### Bug Fixes
+
+* **auth:** remove ids from the auth init sql insert :bug: ([0965a7b](https://github.com/LerianStudio/midaz/commit/0965a7b2c46498735ba9d2804fb3e704a49154bd))
+
+## [1.25.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.3...v1.25.0-beta.4) (2024-10-24)
+
+
+### Bug Fixes
+
+* **account:** change error for create account with parent account id not found :bug: ([a2471a9](https://github.com/LerianStudio/midaz/commit/a2471a9bf76401015503e61fab6843f9f092bbca))
+
+## [1.25.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.2...v1.25.0-beta.3) (2024-10-24)
+
+
+### Features
+
+* Get asset rates - part 2 :sparkles: ([52d5be4](https://github.com/LerianStudio/midaz/commit/52d5be459eba786409cad4b9feee900a8c6451c4))
+* Get asset rates :sparkles: ([48c5dec](https://github.com/LerianStudio/midaz/commit/48c5deccfeebf564b55b6e492271f5dde4585055))
+
+## [1.25.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.1...v1.25.0-beta.2) (2024-10-24)
+
+
+### Features
+
+* create command create from organization ([c0742da](https://github.com/LerianStudio/midaz/commit/c0742daa8afa6dd4d3e45a38760a64c9b7559a2c))
+* post rest organization ([e7de90d](https://github.com/LerianStudio/midaz/commit/e7de90d241a9d0679a9ea57669784e9b5942a91c))
+
+
+### Bug Fixes
+
+* resolve G304 CWE-22 potential file inclusion via variable ([91a4350](https://github.com/LerianStudio/midaz/commit/91a43508fda108300aef26d1a5cb9195923ca21b))
+
+## [1.25.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.24.0...v1.25.0-beta.1) (2024-10-24)
+
+
+### Bug Fixes
+
+*  adjust normalization of values ​​with decimal places for remaining :bug: ([fc4f220](https://github.com/LerianStudio/midaz/commit/fc4f22035b622aa88f1c7ebb1652a2da96d278ff))
+* make lint issues; :bug: ([96fc0bf](https://github.com/LerianStudio/midaz/commit/96fc0bfcea8fe44f734b97dec6fddd2a6804d792))
+* update transaction table after on transaction; :bug: ([296fe6e](https://github.com/LerianStudio/midaz/commit/296fe6e0214a05569fb45d014ae81817b2314d9a))
+
 ## [1.24.0](https://github.com/LerianStudio/midaz/compare/v1.23.0...v1.24.0) (2024-10-24)
 
 

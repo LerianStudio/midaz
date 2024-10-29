@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
@@ -27,17 +27,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	var status a.Status
-	if cai.Status.IsEmpty() {
-		status = a.Status{
-			Code:           "ACTIVE",
-			AllowReceiving: true,
-			AllowSending:   true,
-		}
-	} else {
-		status = cai.Status
-	}
-
+	status := uc.determineStatus(cai)
 	balanceValue := float64(0)
 
 	balance := a.Balance{
@@ -64,7 +54,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	if !common.IsNilOrEmpty(cai.ParentAccountID) {
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
-			return nil, err
+			return nil, common.ValidateBusinessError(cn.ErrInvalidParentAccountID, reflect.TypeOf(a.Account{}).Name())
 		}
 
 		if acc.AssetCode != cai.AssetCode {
@@ -88,41 +78,54 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		ParentAccountID: cai.ParentAccountID,
 		ProductID:       cai.ProductID,
 		OrganizationID:  organizationID.String(),
-		PortfolioID:     portfolioID.String(),
+		PortfolioID:     mpointers.String(portfolioID.String()),
 		LedgerID:        ledgerID.String(),
-		EntityID:        *cai.EntityID,
+		EntityID:        cai.EntityID,
 		Balance:         balance,
 		Status:          status,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
 
-	port, err := uc.AccountRepo.Create(ctx, account)
+	acc, err := uc.AccountRepo.Create(ctx, account)
 	if err != nil {
 		logger.Errorf("Error creating account: %v", err)
 		return nil, err
 	}
 
-	if cai.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cai.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   port.ID,
-			EntityName: reflect.TypeOf(a.Account{}).Name(),
-			Data:       cai.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(a.Account{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating account metadata: %v", err)
-			return nil, err
-		}
-
-		port.Metadata = cai.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(a.Account{}).Name(), acc.ID, cai.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating account metadata: %v", err)
+		return nil, err
 	}
 
-	return port, nil
+	acc.Metadata = metadata
+
+	return acc, nil
+}
+
+// determineStatus determines the status of the account.
+func (uc *UseCase) determineStatus(cai *a.CreateAccountInput) a.Status {
+	var status a.Status
+	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
+		status = a.Status{
+			Code:           "ACTIVE",
+			AllowReceiving: mpointers.Bool(true),
+			AllowSending:   mpointers.Bool(true),
+		}
+	} else {
+		status = cai.Status
+	}
+
+	if status.AllowReceiving == nil {
+		status.AllowReceiving = mpointers.Bool(true)
+	}
+
+	if status.AllowSending == nil {
+		status.AllowSending = mpointers.Bool(true)
+	}
+
+	status.Description = cai.Status.Description
+
+	return status
 }

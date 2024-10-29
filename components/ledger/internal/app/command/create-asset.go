@@ -2,12 +2,13 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
+	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/google/uuid"
 )
@@ -18,13 +19,15 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	logger.Infof("Trying to create asset: %v", cii)
 
 	var status s.Status
-	if cii.Status.IsEmpty() {
+	if cii.Status.IsEmpty() || common.IsNilOrEmpty(&cii.Status.Code) {
 		status = s.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = cii.Status
 	}
+
+	status.Description = cii.Status.Description
 
 	if err := common.ValidateType(cii.Type); err != nil {
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
@@ -63,24 +66,65 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	if cii.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cii.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(s.Asset{}).Name(), inst.ID, cii.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating asset metadata: %v", err)
+		return nil, err
+	}
+
+	inst.Metadata = metadata
+
+	aAlias := "@external/" + cii.Code
+	aStatusDescription := "Account external created by asset: " + cii.Code
+
+	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+	if err != nil {
+		logger.Errorf("Error retrieving asset external account: %v", err)
+
+		return nil, err
+	}
+
+	if len(account) == 0 {
+		logger.Infof("Creating external account for asset: %s", cii.Code)
+
+		balanceValue := float64(0)
+
+		aBalance := a.Balance{
+			Available: &balanceValue,
+			OnHold:    &balanceValue,
+			Scale:     &balanceValue,
 		}
 
-		meta := m.Metadata{
-			EntityID:   inst.ID,
-			EntityName: reflect.TypeOf(s.Asset{}).Name(),
-			Data:       cii.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+		eAccount := &a.Account{
+			ID:              common.GenerateUUIDv7().String(),
+			AssetCode:       cii.Code,
+			Alias:           &aAlias,
+			Name:            "External " + cii.Code,
+			Type:            "external",
+			OrganizationID:  organizationID.String(),
+			LedgerID:        ledgerID.String(),
+			ParentAccountID: nil,
+			ProductID:       nil,
+			PortfolioID:     nil,
+			EntityID:        nil,
+			Balance:         aBalance,
+			Status: a.Status{
+				Code:           "external",
+				Description:    &aStatusDescription,
+				AllowSending:   mpointers.Bool(true),
+				AllowReceiving: mpointers.Bool(true),
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		}
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(s.Asset{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating asset metadata: %v", err)
+
+		_, err = uc.AccountRepo.Create(ctx, eAccount)
+		if err != nil {
+			logger.Errorf("Error creating asset external account: %v", err)
 			return nil, err
 		}
 
-		inst.Metadata = cii.Metadata
+		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
 	}
 
 	return inst, nil

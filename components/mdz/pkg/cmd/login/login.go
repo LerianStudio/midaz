@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
 	"github.com/fatih/color"
-	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -72,13 +71,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 		Token: l.token,
 	}
 
-	b, err := toml.Marshal(sett)
-	if err != nil {
-		output.Printf(l.factory.IOStreams.Err, "Error while marshalling toml file "+err.Error())
-		return err
-	}
-
-	if err := sett.Save(b); err != nil {
+	if err := setting.Save(sett); err != nil {
 		return err
 	}
 

@@ -7,7 +7,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 )
 
@@ -17,13 +16,15 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	logger.Infof("Trying to create organization: %v", coi)
 
 	var status o.Status
-	if coi.Status.IsEmpty() {
+	if coi.Status.IsEmpty() || common.IsNilOrEmpty(&coi.Status.Code) {
 		status = o.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = coi.Status
 	}
+
+	status.Description = coi.Status.Description
 
 	if common.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
@@ -50,26 +51,13 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		return nil, err
 	}
 
-	if coi.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, coi.Metadata); err != nil {
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
-		}
-
-		meta := m.Metadata{
-			EntityID:   org.ID,
-			EntityName: reflect.TypeOf(o.Organization{}).Name(),
-			Data:       coi.Metadata,
-			CreatedAt:  organization.CreatedAt,
-			UpdatedAt:  organization.UpdatedAt,
-		}
-
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(o.Organization{}).Name(), &meta); err != nil {
-			logger.Errorf("Error into creating organization metadata: %v", err)
-			return nil, err
-		}
-
-		org.Metadata = coi.Metadata
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), org.ID, coi.Metadata)
+	if err != nil {
+		logger.Errorf("Error creating organization metadata: %v", err)
+		return nil, err
 	}
+
+	org.Metadata = metadata
 
 	return org, nil
 }
