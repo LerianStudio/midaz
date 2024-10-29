@@ -95,7 +95,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			Scale:     &account.Balance.Scale,
 		}
 
-		_, err := ap.Command.UpdateAccountByID(ctx, uuid.MustParse(account.OrganizationId), uuid.MustParse(account.LedgerId), account.Id, &balance)
+		_, err := ap.Command.UpdateAccountByID(ctx, uuid.MustParse(account.OrganizationId), uuid.MustParse(account.LedgerId), uuid.MustParse(account.Id), &balance)
 		if err != nil {
 			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", account.OrganizationId, account.LedgerId, err.Error())
 

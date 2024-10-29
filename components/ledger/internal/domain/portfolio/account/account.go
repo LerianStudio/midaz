@@ -154,19 +154,28 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 		AssetCode:         account.AssetCode,
 		OrganizationID:    account.OrganizationID,
 		LedgerID:          account.LedgerID,
-		PortfolioID:       account.PortfolioID,
 		ProductID:         account.ProductID,
 		AvailableBalance:  account.Balance.Available,
 		OnHoldBalance:     account.Balance.OnHold,
 		BalanceScale:      account.Balance.Scale,
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
-		AllowSending:      *account.Status.AllowSending,
-		AllowReceiving:    *account.Status.AllowReceiving,
 		Alias:             account.Alias,
 		Type:              account.Type,
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
+	}
+
+	if account.Status.AllowSending != nil {
+		t.AllowSending = *account.Status.AllowSending
+	}
+
+	if account.Status.AllowReceiving != nil {
+		t.AllowReceiving = *account.Status.AllowReceiving
+	}
+
+	if !common.IsNilOrEmpty(account.PortfolioID) {
+		t.PortfolioID = account.PortfolioID
 	}
 
 	if account.DeletedAt != nil {
@@ -193,15 +202,11 @@ func (e *Account) ToProto() *proto.Account {
 	account := &proto.Account{
 		Id:             e.ID,
 		Name:           e.Name,
-		EntityId:       *e.EntityID,
 		AssetCode:      e.AssetCode,
 		OrganizationId: e.OrganizationID,
 		LedgerId:       e.LedgerID,
-		PortfolioId:    *e.PortfolioID,
-		ProductId:      *e.ProductID,
 		Balance:        &balance,
 		Status:         &status,
-		Alias:          *e.Alias,
 		Type:           e.Type,
 	}
 
@@ -219,6 +224,22 @@ func (e *Account) ToProto() *proto.Account {
 
 	if !e.CreatedAt.IsZero() {
 		account.CreatedAt = e.CreatedAt.String()
+	}
+
+	if e.EntityID != nil {
+		account.EntityId = *e.EntityID
+	}
+
+	if e.PortfolioID != nil {
+		account.PortfolioId = *e.PortfolioID
+	}
+
+	if e.ProductID != nil {
+		account.ProductId = *e.ProductID
+	}
+
+	if e.Alias != nil {
+		account.Alias = *e.Alias
 	}
 
 	return account

@@ -542,7 +542,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 }
 
 // UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
+func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
