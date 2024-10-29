@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
 	"github.com/google/uuid"
 	"reflect"
 	"time"
@@ -16,13 +17,15 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	logger.Infof("Trying to create ledger: %v", cli)
 
 	var status l.Status
-	if cli.Status.IsEmpty() {
+	if cli.Status.IsEmpty() || common.IsNilOrEmpty(&cli.Status.Code) {
 		status = l.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = cli.Status
 	}
+
+	status.Description = cli.Status.Description
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {

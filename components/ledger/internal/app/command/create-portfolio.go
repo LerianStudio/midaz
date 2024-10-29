@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
 	"time"
 
@@ -17,15 +18,24 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status p.Status
-	if cpi.Status.IsEmpty() {
+	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
 		status = p.Status{
 			Code:           "ACTIVE",
-			AllowReceiving: true,
-			AllowSending:   true,
+			AllowReceiving: mpointers.Bool(true),
+			AllowSending:   mpointers.Bool(true),
 		}
 	} else {
 		status = cpi.Status
+		if status.AllowReceiving == nil {
+			status.AllowReceiving = mpointers.Bool(true)
+		}
+
+		if status.AllowSending == nil {
+			status.AllowSending = mpointers.Bool(true)
+		}
 	}
+
+	status.Description = cpi.Status.Description
 
 	portfolio := &p.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
