@@ -80,9 +80,9 @@ type Account struct {
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"max=256"`
-	AllowSending   bool    `json:"allowSending"`
-	AllowReceiving bool    `json:"allowReceiving"`
+	Description    *string `json:"description" validate:"omitempty,max=256"`
+	AllowSending   *bool   `json:"allowSending"`
+	AllowReceiving *bool   `json:"allowReceiving"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -107,8 +107,8 @@ func (t *AccountPostgreSQLModel) ToEntity() *Account {
 	status := Status{
 		Code:           t.Status,
 		Description:    t.StatusDescription,
-		AllowSending:   t.AllowSending,
-		AllowReceiving: t.AllowReceiving,
+		AllowSending:   &t.AllowSending,
+		AllowReceiving: &t.AllowReceiving,
 	}
 
 	balance := Balance{
@@ -161,8 +161,8 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 		BalanceScale:      account.Balance.Scale,
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
-		AllowSending:      account.Status.AllowSending,
-		AllowReceiving:    account.Status.AllowReceiving,
+		AllowSending:      *account.Status.AllowSending,
+		AllowReceiving:    *account.Status.AllowReceiving,
 		Alias:             account.Alias,
 		Type:              account.Type,
 		CreatedAt:         account.CreatedAt,
@@ -180,8 +180,8 @@ func (e *Account) ToProto() *proto.Account {
 	status := proto.Status{
 		Code:           e.Status.Code,
 		Description:    *e.Status.Description,
-		AllowSending:   e.Status.AllowSending,
-		AllowReceiving: e.Status.AllowReceiving,
+		AllowSending:   *e.Status.AllowSending,
+		AllowReceiving: *e.Status.AllowReceiving,
 	}
 
 	balance := proto.Balance{

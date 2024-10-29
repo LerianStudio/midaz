@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
 	"time"
@@ -18,13 +19,15 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	logger.Infof("Trying to create asset: %v", cii)
 
 	var status s.Status
-	if cii.Status.IsEmpty() {
+	if cii.Status.IsEmpty() || common.IsNilOrEmpty(&cii.Status.Code) {
 		status = s.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = cii.Status
 	}
+
+	status.Description = cii.Status.Description
 
 	if err := common.ValidateType(cii.Type); err != nil {
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
@@ -108,8 +111,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			Status: a.Status{
 				Code:           "external",
 				Description:    &aStatusDescription,
-				AllowSending:   true,
-				AllowReceiving: true,
+				AllowSending:   mpointers.Bool(true),
+				AllowReceiving: mpointers.Bool(true),
 			},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),

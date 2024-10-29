@@ -27,17 +27,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	var status a.Status
-	if cai.Status.IsEmpty() {
-		status = a.Status{
-			Code:           "ACTIVE",
-			AllowReceiving: true,
-			AllowSending:   true,
-		}
-	} else {
-		status = cai.Status
-	}
-
+	status := uc.determineStatus(cai)
 	balanceValue := float64(0)
 
 	balance := a.Balance{
@@ -112,4 +102,30 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	acc.Metadata = metadata
 
 	return acc, nil
+}
+
+// determineStatus determines the status of the account.
+func (uc *UseCase) determineStatus(cai *a.CreateAccountInput) a.Status {
+	var status a.Status
+	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
+		status = a.Status{
+			Code:           "ACTIVE",
+			AllowReceiving: mpointers.Bool(true),
+			AllowSending:   mpointers.Bool(true),
+		}
+	} else {
+		status = cai.Status
+	}
+
+	if status.AllowReceiving == nil {
+		status.AllowReceiving = mpointers.Bool(true)
+	}
+
+	if status.AllowSending == nil {
+		status.AllowSending = mpointers.Bool(true)
+	}
+
+	status.Description = cai.Status.Description
+
+	return status
 }

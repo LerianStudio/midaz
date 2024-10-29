@@ -17,13 +17,15 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 	logger.Infof("Trying to create product: %v", cpi)
 
 	var status r.Status
-	if cpi.Status.IsEmpty() {
+	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
 		status = r.Status{
 			Code: "ACTIVE",
 		}
 	} else {
 		status = cpi.Status
 	}
+
+	status.Description = cpi.Status.Description
 
 	product := &r.Product{
 		ID:             common.GenerateUUIDv7().String(),
