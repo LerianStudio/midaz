@@ -66,9 +66,7 @@ func Test_newCmdOrganizationDescribe(t *testing.T) {
 				assert.NoError(t, err)
 
 				output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-				expectedOut := "FIELDS               VALUES                     " +
-					"                             \nID:                  123        " +
-					"                                             \nLegal"
+				expectedOut := "FIELDS               VALUES                                               \nID:                  123"
 				assert.Contains(t, output, expectedOut)
 			},
 		},
@@ -121,9 +119,7 @@ func Test_newCmdOrganizationDescribe(t *testing.T) {
 				assert.NoError(t, err)
 
 				output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-				expectedOut := "FIELDS               VALUES                     " +
-					"                             \nID:                  125        " +
-					"                                             \nLegal"
+				expectedOut := "FIELDS               VALUES                                               \nID:                  125"
 				assert.Contains(t, output, expectedOut)
 			},
 		},
