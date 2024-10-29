@@ -12,11 +12,11 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID string) (*o.Operation, error) {
+func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID uuid.UUID) (*o.Operation, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving operation by account")
 
-	op, err := uc.OperationRepo.FindByAccount(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(accountID), uuid.MustParse(operationID))
+	op, err := uc.OperationRepo.FindByAccount(ctx, organizationID, ledgerID, accountID, operationID)
 	if err != nil {
 		logger.Errorf("Error getting operation on repo: %v", err)
 
@@ -33,7 +33,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 	}
 
 	if op != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Operation{}).Name(), operationID)
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Operation{}).Name(), operationID.String())
 		if err != nil {
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 			return nil, err
