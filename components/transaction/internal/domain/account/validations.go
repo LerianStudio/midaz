@@ -181,11 +181,16 @@ func FindScale(asset string, v float64, s int) gold.Amount {
 	valueString := big.NewFloat(v).String()
 	parts := strings.Split(valueString, ".")
 
-	scale := len(parts[1])
-	value := UndoScale(v, scale)
+	scale := s
+	value := int(v)
 
-	if parts[1] != "0" {
-		scale += s
+	if len(parts) > 1 {
+		scale = len(parts[1])
+		value = UndoScale(v, scale)
+
+		if parts[1] != "0" {
+			scale += s
+		}
 	}
 
 	amount := gold.Amount{
