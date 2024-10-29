@@ -1,3 +1,12 @@
+## [1.25.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.14...v1.25.0-beta.15) (2024-10-29)
+
+
+### Bug Fixes
+
+* adjust balance_scale can not be inserted on balance_on_hold :bug: ([9482b5a](https://github.com/LerianStudio/midaz/commit/9482b5a11ab75f823cbdbbcf3b279c08716564a4))
+* adjust portfolio, allowreceiving and allowsending; :bug: ([4f16cd1](https://github.com/LerianStudio/midaz/commit/4f16cd10c89504d82eeaa3b89ab498178b2be00a))
+* update lint; :bug: ([90c929f](https://github.com/LerianStudio/midaz/commit/90c929f6c6cd502acad9aaf70302f8df8970a505))
+
 ## [1.25.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.13...v1.25.0-beta.14) (2024-10-29)
 
 ## [1.25.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.25.0-beta.12...v1.25.0-beta.13) (2024-10-29)
