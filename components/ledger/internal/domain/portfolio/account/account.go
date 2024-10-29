@@ -56,6 +56,11 @@ type UpdateAccountInput struct {
 	Metadata  map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
+// SearchAccountsInput is a struct design to encapsulate request search payload data.
+type SearchAccountsInput struct {
+	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid"`
+}
+
 // Account is a struct designed to encapsulate response payload data.
 type Account struct {
 	ID              string         `json:"id"`

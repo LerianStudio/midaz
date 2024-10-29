@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -42,16 +43,23 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	return commonHTTP.Created(c, account)
 }
 
-// GetAllAccounts is a method that retrieves all Accounts.
-func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
+// SearchAllAccounts is a method that retrieves all Accounts.
+func (handler *AccountHandler) SearchAllAccounts(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	payload := i.(*a.SearchAccountsInput)
 
-	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID.String())
+	var portfolioID *uuid.UUID
+
+	if !common.IsNilOrEmpty(payload.PortfolioID) {
+		parsedID := uuid.MustParse(*payload.PortfolioID)
+		portfolioID = &parsedID
+
+		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
+	}
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -93,8 +101,63 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, pagination)
 }
 
-// GetAccountByID is a method that retrieves Account information by a given id.
-func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
+// GetAllAccountsByIDFromPortfolio is a method that retrieves all Accounts by a given portfolio id.
+//
+// Will be deprecated in the future. Use SearchAllAccounts instead.
+func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+
+	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID.String())
+
+	headerParams := commonHTTP.ValidateParameters(c.Queries())
+
+	pagination := mpostgres.Pagination{
+		Limit: headerParams.Limit,
+		Page:  headerParams.Page,
+	}
+
+	if headerParams.Metadata != nil {
+		logger.Infof("Initiating retrieval of all Accounts by metadata")
+
+		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, &portfolioID, *headerParams)
+		if err != nil {
+			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
+			return commonHTTP.WithError(c, err)
+		}
+
+		logger.Infof("Successfully retrieved all Accounts by metadata")
+
+		pagination.SetItems(accounts)
+
+		return commonHTTP.OK(c, pagination)
+	}
+
+	logger.Infof("Initiating retrieval of all Accounts ")
+
+	headerParams.Metadata = &bson.M{}
+
+	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, *headerParams)
+	if err != nil {
+		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved all Accounts")
+
+	pagination.SetItems(accounts)
+
+	return commonHTTP.OK(c, pagination)
+}
+
+// GetAccountByIDFromPortfolio is a method that retrieves Account information by a given portfolio id and account id.
+//
+// Will be deprecated in the future. Use GetAccountByID instead.
+func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -106,13 +169,35 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, portfolioID, id)
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, &portfolioID, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
+
+	return commonHTTP.OK(c, account)
+}
+
+// GetAccountByID is a method that retrieves Account information by a given account id.
+func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
+
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
 
 	return commonHTTP.OK(c, account)
 }
@@ -138,7 +223,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	account, err := handler.Query.GetAccountByID(c.Context(), organizationID, ledgerID, portfolioID, id)
+	account, err := handler.Query.GetAccountByID(c.Context(), organizationID, ledgerID, &portfolioID, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 		return commonHTTP.WithError(c, err)

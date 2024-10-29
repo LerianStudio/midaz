@@ -101,7 +101,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *a.Account
 }
 
 // FindAll retrieves an Account entities from the database.
-func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*a.Account, error) {
+func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -113,8 +113,13 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		From(r.tableName).
 		Where(sqrl.Expr("organization_id = ?", organizationID)).
 		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
-		Where(sqrl.Expr("portfolio_id = ?", portfolioID)).
-		Where(sqrl.Eq{"deleted_at": nil}).
+		Where(sqrl.Eq{"deleted_at": nil})
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		findAll = findAll.Where(sqrl.Expr("portfolio_id = ?", portfolioID))
+	}
+
+	findAll = findAll.
 		OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
@@ -170,16 +175,26 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 }
 
 // Find retrieves an Account entity from the database using the provided ID.
-func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*a.Account, error) {
+func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
 	}
 
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, id}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		query += " AND portfolio_id = $4"
+
+		args = append(args, portfolioID)
+	}
+
+	query += " ORDER BY created_at DESC"
+
 	account := &a.AccountPostgreSQLModel{}
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = $4 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, portfolioID, id)
+	row := db.QueryRowContext(ctx, query, args...)
 	if err := row.Scan(
 		&account.ID,
 		&account.Name,
@@ -235,7 +250,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 }
 
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
-func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
+func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -243,8 +258,18 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var accounts []*a.Account
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = ANY($4) AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, portfolioID, pq.Array(ids))
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, ids}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		query += " AND portfolio_id = $4"
+
+		args = append(args, portfolioID)
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
