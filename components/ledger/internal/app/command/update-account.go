@@ -21,6 +21,11 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, 
 
 	if common.IsNilOrEmpty(uai.Alias) {
 		uai.Alias = nil
+	} else {
+		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *uai.Alias)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	account := &a.Account{
