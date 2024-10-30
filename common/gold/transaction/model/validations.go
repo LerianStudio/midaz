@@ -257,8 +257,6 @@ func OperateAmounts(amount Amount, balance *a.Balance, operation string) (Balanc
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
 func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]Amount, sd chan []string) {
-
-	ttl := 0
 	fmto := make(map[string]Amount)
 	scdt := make([]string, 0)
 
@@ -311,7 +309,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 		scdt = append(scdt, fromTos[i].Account)
 	}
 
-	ttl = total.Value
+	ttl := total.Value
 	if total.Scale > send.Scale {
 		ttl = int(Scale(total.Value, total.Scale, send.Scale))
 	}
