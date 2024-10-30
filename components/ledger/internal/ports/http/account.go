@@ -43,29 +43,28 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	return commonHTTP.Created(c, account)
 }
 
-// SearchAllAccounts is a method that retrieves all Accounts.
-func (handler *AccountHandler) SearchAllAccounts(i any, c *fiber.Ctx) error {
+// GetAllAccounts is a method that retrieves all Accounts.
+func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	payload := i.(*a.SearchAccountsInput)
 
 	var portfolioID *uuid.UUID
-
-	if !common.IsNilOrEmpty(payload.PortfolioID) {
-		parsedID := uuid.MustParse(*payload.PortfolioID)
-		portfolioID = &parsedID
-
-		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
-	}
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
 		Page:  headerParams.Page,
+	}
+
+	if !common.IsNilOrEmpty(&headerParams.PortfolioID) {
+		parsedID := uuid.MustParse(headerParams.PortfolioID)
+		portfolioID = &parsedID
+
+		logger.Infof("Search of all Accounts with Portfolio ID: %s", portfolioID)
 	}
 
 	if headerParams.Metadata != nil {
@@ -103,7 +102,7 @@ func (handler *AccountHandler) SearchAllAccounts(i any, c *fiber.Ctx) error {
 
 // GetAllAccountsByIDFromPortfolio is a method that retrieves all Accounts by a given portfolio id.
 //
-// Will be deprecated in the future. Use SearchAllAccounts instead.
+// Will be deprecated in the future. Use GetAllAccounts instead.
 func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)

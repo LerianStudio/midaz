@@ -21,6 +21,7 @@ type QueryHeader struct {
 	Limit       int
 	Page        int
 	UseMetadata bool
+	PortfolioID string
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -33,6 +34,8 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 
 	useMetadata := false
 
+	var portfolioID string
+
 	for key, value := range params {
 		switch {
 		case strings.Contains(key, "metadata."):
@@ -42,6 +45,8 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 			limit, _ = strconv.Atoi(value)
 		case strings.Contains(key, "page"):
 			page, _ = strconv.Atoi(value)
+		case strings.Contains(key, "portfolio_id"):
+			portfolioID = value
 		}
 	}
 
@@ -50,6 +55,7 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 		Limit:       limit,
 		Page:        page,
 		UseMetadata: useMetadata,
+		PortfolioID: portfolioID,
 	}
 
 	return query

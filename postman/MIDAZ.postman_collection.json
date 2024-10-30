@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "a4ddd405-aa36-40c8-a417-6ba7bdf109a3",
+		"_postman_id": "686cb43c-ad36-4b3a-a7dd-b6962f2dd1fa",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -1556,56 +1556,6 @@
 					"response": []
 				},
 				{
-					"name": "Accounts Search",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    // \"portfolioId\": \"{{portfolio_id}}\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/search?limit=10&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"search"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "Accounts",
 					"event": [
 						{
@@ -1742,6 +1692,52 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts?limit=10&page=1",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "mymetadata",
+									"description": "Search on MongoDB",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10"
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Default 1"
+								},
+								{
+									"key": "portfolio_id",
+									"value": "{{portfolio_id}}",
+									"description": "Retrives only accounts from the specified portfolio",
+									"disabled": true
 								}
 							]
 						}
