@@ -63,7 +63,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if !common.IsNilOrEmpty(cai.Alias) {
-		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, portfolioID, *cai.Alias)
+		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			return nil, err
 		}
