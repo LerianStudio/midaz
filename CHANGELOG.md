@@ -1,3 +1,11 @@
+## [1.26.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.4...v1.26.0-beta.5) (2024-10-30)
+
+
+### Bug Fixes
+
+* remove portfolioID for duplicated alias validation on create account :bug: ([d043045](https://github.com/LerianStudio/midaz/commit/d0430453e5a548d84fab88e6283c298f78e384f6))
+* validate duplicated alias when updating account :bug: ([60f19c8](https://github.com/LerianStudio/midaz/commit/60f19c89065800cef5172dc43a9772fb425af1af))
+
 ## [1.26.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.3...v1.26.0-beta.4) (2024-10-30)
 
 
