@@ -260,9 +260,9 @@ func newCmdOrganizationUpdate(f *factoryOrganizationUpdate) *cobra.Command {
 			"$ mdz organization update",
 			"$ mdz organization update -h",
 			"$ mdz organization update --json-file payload.json",
-			"$ cat payload.json | mdz organization Update --json-file -",
-			"$ echo '{...}' | mdz organization Update --json-file -",
-			"$ mdz organization Update --legal-name 'Gislason LLCT' --doing-business-as 'The ledger.io' --legal-document '48784548000104' --code 'ACTIVE' --description 'Test Ledger' --line1 'Av Santso' --line2 'VJ 222' --zip-code '04696040' --city 'West' --state 'VJ' --country 'MG' --bitcoin '1YLHctiipHZupwrT5sGwuYbks5rn64bm' --boolean true --chave 'metadata_chave' --double '10.5' --int 1",
+			"$ cat payload.json | mdz organization Update --organization-id '1234' --json-file -",
+			"$ echo '{...}' | mdz organization Update --organization-id '1234' --json-file -",
+			"$ mdz organization update --organization-id '1234' --legal-name 'Gislason LLCT' --doing-business-as 'The ledger.io' --legal-document '48784548000104' --code 'ACTIVE' --description 'Test Ledger' --line1 'Av Santso' --line2 'VJ 222' --zip-code '04696040' --city 'West' --state 'VJ' --country 'MG' --bitcoin '1YLHctiipHZupwrT5sGwuYbks5rn64bm' --boolean true --chave 'metadata_chave' --double '10.5' --int 1",
 		),
 		RunE: f.runE,
 	}

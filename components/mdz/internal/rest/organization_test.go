@@ -287,3 +287,31 @@ func TestOrganizationUpdate(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["PATCH http://127.0.0.1:3000/v1/organizations/1a259e90-8f28-491d-8c09-c047293b1a0f"])
 }
+
+func Test_organization_Delete(t *testing.T) {
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	URIAPILedger := "http://127.0.0.1:3000"
+	organizationID := "1a259e90-8f28-491d-8c09-c047293b1a0f"
+
+	httpmock.RegisterResponder(http.MethodDelete, URIAPILedger+"/v1/organizations/"+organizationID,
+		httpmock.NewStringResponder(http.StatusNoContent, ""))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	orgService := NewOrganization(factory)
+
+	err := orgService.Delete(organizationID)
+
+	assert.NoError(t, err)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["DELETE http://127.0.0.1:3000/v1/organizations/1a259e90-8f28-491d-8c09-c047293b1a0f"])
+}
