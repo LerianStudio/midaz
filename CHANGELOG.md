@@ -1,3 +1,10 @@
+## [1.26.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.1...v1.26.0-beta.2) (2024-10-30)
+
+
+### Features
+
+* added sub command update from organization ([7945691](https://github.com/LerianStudio/midaz/commit/7945691afb1c4c434b7c96cc50c0c200f6a4d513))
+
 ## [1.26.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0-beta.1) (2024-10-30)
 
 
