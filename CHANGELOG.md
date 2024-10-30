@@ -1,3 +1,10 @@
+## [1.26.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.5...v1.26.0-beta.6) (2024-10-30)
+
+
+### Bug Fixes
+
+* sec and lint; :bug: ([46bf3b2](https://github.com/LerianStudio/midaz/commit/46bf3b29524b286b5361fcb209c3ec5e84714547))
+
 ## [1.26.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.4...v1.26.0-beta.5) (2024-10-30)
 
 
