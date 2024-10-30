@@ -1,3 +1,15 @@
+## [1.26.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.6...v1.26.0-beta.7) (2024-10-30)
+
+
+### Features
+
+* add endpoint for account deleting without portfolioID :sparkles: ([075ba90](https://github.com/LerianStudio/midaz/commit/075ba9032fe35f4ac125807a8e6cf719babcf33b))
+
+
+### Bug Fixes
+
+* remove deleted_at is null condition from account consult endpoints and related functions :bug: ([af6e15a](https://github.com/LerianStudio/midaz/commit/af6e15a4798357991e6c1cca5ba9911c0f987bb3))
+
 ## [1.26.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.5...v1.26.0-beta.6) (2024-10-30)
 
 
