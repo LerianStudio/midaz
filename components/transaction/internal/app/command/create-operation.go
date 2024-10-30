@@ -10,13 +10,12 @@ import (
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/common/mlog"
-	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
-func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *gold.Transaction, validate v.Responses, result chan []*o.Operation, err chan error) {
+func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *gold.Transaction, validate gold.Responses, result chan []*o.Operation, err chan error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create new oeprations")
 
@@ -37,9 +36,27 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					Scale:     &acc.Balance.Scale,
 				}
 
-				amount, balanceAfter, er := v.ValidateFromToOperation(fromTo[i], validate, acc)
+				amt, bat, er := gold.ValidateFromToOperation(fromTo[i], validate, acc)
 				if er != nil {
 					err <- er
+				}
+
+				v := float64(amt.Value)
+				s := float64(amt.Scale)
+
+				amount := o.Amount{
+					Amount: &v,
+					Scale:  &s,
+				}
+
+				ba := float64(bat.Available)
+				boh := float64(bat.OnHold)
+				bs := float64(bat.Scale)
+
+				balanceAfter := o.Balance{
+					Available: &ba,
+					OnHold:    &boh,
+					Scale:     &bs,
 				}
 
 				description := fromTo[i].Description
