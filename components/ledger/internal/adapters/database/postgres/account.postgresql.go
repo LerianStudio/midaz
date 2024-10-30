@@ -504,8 +504,16 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 		return err
 	}
 
-	if _, err := db.ExecContext(ctx, `UPDATE account SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = $4 AND deleted_at IS NULL`,
-		organizationID, ledgerID, portfolioID, id); err != nil {
+	query := "UPDATE account SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, id}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		query += " AND portfolio_id = $4"
+
+		args = append(args, portfolioID)
+	}
+
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 

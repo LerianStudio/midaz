@@ -23,10 +23,29 @@ func TestDeleteAccountByIDSuccess(t *testing.T) {
 
 	uc.AccountRepo.(*mock.MockRepository).
 		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, portfolioID, id).
+		Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(nil).
 		Times(1)
-	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, portfolioID, id)
+	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, &portfolioID, id)
+
+	assert.Nil(t, err)
+}
+
+// TestDeleteAccountByIDWithoutPortfolioSuccess is responsible to test DeleteAccountByID without portfolio with success
+func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
+	uc := UseCase{
+		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+	}
+
+	uc.AccountRepo.(*mock.MockRepository).
+		EXPECT().
+		Delete(gomock.Any(), organizationID, ledgerID, nil, id).
+		Return(nil).
+		Times(1)
+	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, nil, id)
 
 	assert.Nil(t, err)
 }
@@ -45,10 +64,10 @@ func TestDeleteAccountByIDError(t *testing.T) {
 
 	uc.AccountRepo.(*mock.MockRepository).
 		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, portfolioID, id).
+		Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(errors.New(errMSG)).
 		Times(1)
-	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, portfolioID, id)
+	err := uc.AccountRepo.Delete(context.TODO(), organizationID, ledgerID, &portfolioID, id)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

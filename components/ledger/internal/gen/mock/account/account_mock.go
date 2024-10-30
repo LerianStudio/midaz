@@ -58,7 +58,7 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, acc any) *gomock.Call {
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error {
+func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", ctx, organizationID, ledgerID, portfolioID, id)
 	ret0, _ := ret[0].(error)
