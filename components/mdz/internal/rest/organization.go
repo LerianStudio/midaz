@@ -164,6 +164,36 @@ func (r *organization) Update(organizationID string, orgInput model.Organization
 	return &orgItemResp, nil
 }
 
+func (r *organization) Delete(organizationID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return errors.New("making GET request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return errors.New("unauthorized invalid credentials")
+		}
+
+		return fmt.Errorf("failed to update organization, status code: %d",
+			resp.StatusCode)
+	}
+
+	return nil
+}
+
 func NewOrganization(f *factory.Factory) *organization {
 	return &organization{f}
 }
