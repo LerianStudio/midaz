@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -22,9 +23,9 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	accountID := c.Params("account_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	accountID := c.Locals("account_id").(uuid.UUID)
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -54,10 +55,10 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	accountID := c.Params("account_id")
-	operationID := c.Params("operation_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	accountID := c.Locals("account_id").(uuid.UUID)
+	operationID := c.Locals("operation_id").(uuid.UUID)
 
 	logger.Infof("Initiating retrieval of Operation by account")
 
@@ -76,9 +77,9 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -108,10 +109,10 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	portfolioID := c.Params("portfolio_id")
-	operationID := c.Params("operation_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	operationID := c.Locals("operation_id").(uuid.UUID)
 
 	logger.Infof("Initiating retrieval of Operation by portfolio")
 
@@ -130,12 +131,12 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	transactionID := c.Params("transaction_id")
-	operationID := c.Params("operation_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	operationID := c.Locals("operation_id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
+	logger.Infof("Initiating update of Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String(), operationID.String())
 
 	payload := p.(*o.UpdateOperationInput)
 	logger.Infof("Request to update an Operation with details: %#v", payload)

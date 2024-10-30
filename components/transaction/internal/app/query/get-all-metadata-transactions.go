@@ -14,7 +14,7 @@ import (
 )
 
 // GetAllMetadataTransactions fetch all Transacntions from the repository
-func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*t.Transaction, error) {
+func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*t.Transaction, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving transactions")
 
@@ -36,7 +36,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 		metadataMap[meta.EntityID] = meta.Data
 	}
 
-	trans, err := uc.TransactionRepo.ListByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
+	trans, err := uc.TransactionRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
 		logger.Errorf("Error getting transactions on repo by query params: %v", err)
 
