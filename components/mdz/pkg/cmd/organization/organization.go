@@ -15,6 +15,7 @@ func (f *factoryOrganization) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdOrganizationList(newInjectFacList(f.factory)))
 	cmd.AddCommand(newCmdOrganizationDescribe(newInjectFacDescribe(f.factory)))
 	cmd.AddCommand(newCmdOrganizationUpdate(newInjectFacUpdate(f.factory)))
+	cmd.AddCommand(newCmdOrganizationDelete(newInjectFacDelete(f.factory)))
 }
 
 func NewCmdOrganization(f *factory.Factory) *cobra.Command {

@@ -102,18 +102,18 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, por
 }
 
 // FindByAlias mocks base method.
-func (m *MockRepository) FindByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias string) (bool, error) {
+func (m *MockRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByAlias", ctx, organizationID, ledgerID, portfolioID, alias)
+	ret := m.ctrl.Call(m, "FindByAlias", ctx, organizationID, ledgerID, alias)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByAlias indicates an expected call of FindByAlias.
-func (mr *MockRepositoryMockRecorder) FindByAlias(ctx, organizationID, ledgerID, portfolioID, alias any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByAlias(ctx, organizationID, ledgerID, alias any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), ctx, organizationID, ledgerID, portfolioID, alias)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), ctx, organizationID, ledgerID, alias)
 }
 
 // FindWithDeleted mocks base method.

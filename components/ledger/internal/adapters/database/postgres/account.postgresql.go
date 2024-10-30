@@ -280,15 +280,15 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	return account.ToEntity(), nil
 }
 
-// FindByAlias find account from the database using Organization and Ledger id and Alias.
-func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias string) (bool, error) {
+// FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
+func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return false, err
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND alias LIKE $4 AND deleted_at IS NULL ORDER BY created_at DESC",
-		organizationID, ledgerID, portfolioID, alias)
+	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
+		organizationID, ledgerID, alias)
 	if err != nil {
 		return false, err
 	}

@@ -55,6 +55,20 @@ func (mr *MockOrganizationMockRecorder) Create(org any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOrganization)(nil).Create), org)
 }
 
+// Delete mocks base method.
+func (m *MockOrganization) Delete(organizationID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", organizationID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockOrganizationMockRecorder) Delete(organizationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockOrganization)(nil).Delete), organizationID)
+}
+
 // Get mocks base method.
 func (m *MockOrganization) Get(limit, page int) (*model.OrganizationList, error) {
 	m.ctrl.T.Helper()
