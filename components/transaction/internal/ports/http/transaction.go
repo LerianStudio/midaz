@@ -2,11 +2,11 @@ package http
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/google/uuid"
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
@@ -15,7 +15,6 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
-	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
@@ -204,7 +203,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	validate, err := v.ValidateSendSourceAndDistribute(parserDSL)
+	validate, err := gold.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
 		logger.Error("Validation failed:", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -217,7 +216,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		return commonHTTP.WithError(c, err)
 	}
 
-	err = v.ValidateAccounts(*validate, accounts)
+	err = gold.ValidateAccounts(*validate, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -312,13 +311,13 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 }
 
 // processAccounts is a function that adjust balance on Accounts
-func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, token string, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate gold.Responses, token string, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
 	e := make(chan error)
 	result := make(chan []*account.Account)
 
 	var update []*account.Account
 
-	go v.UpdateAccounts(constant.DEBIT, validate.From, accounts, result, e)
+	go gold.UpdateAccounts(constant.DEBIT, validate.From, accounts, result, e)
 	select {
 	case r := <-result:
 		update = append(update, r...)
@@ -326,7 +325,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	go v.UpdateAccounts(constant.CREDIT, validate.To, accounts, result, e)
+	go gold.UpdateAccounts(constant.CREDIT, validate.To, accounts, result, e)
 	select {
 	case r := <-result:
 		update = append(update, r...)
