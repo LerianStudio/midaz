@@ -1,3 +1,10 @@
+## [1.26.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0-beta.1) (2024-10-30)
+
+
+### Features
+
+* add endpoints for account consulting with optional portfolioID :sparkles: ([910228b](https://github.com/LerianStudio/midaz/commit/910228bc2da1231d3a6f516d39cca63a44dfa787))
+
 ## [1.25.0](https://github.com/LerianStudio/midaz/compare/v1.24.0...v1.25.0) (2024-10-29)
 
 
