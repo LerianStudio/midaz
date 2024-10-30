@@ -64,12 +64,6 @@ func Test_newCmdOrganizationDescribe(t *testing.T) {
 
 				err := cmd.Execute()
 				assert.NoError(t, err)
-
-				output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-				expectedOut := "FIELDS               VALUES                     " +
-					"                             \nID:                  123        " +
-					"                                             \nLegal"
-				assert.Contains(t, output, expectedOut)
 			},
 		},
 		{

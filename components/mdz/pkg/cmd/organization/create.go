@@ -19,10 +19,10 @@ type factoryOrganizationCreate struct {
 	factory         *factory.Factory
 	repoOrganiztion repository.Organization
 	tuiInput        func(message string) (string, error)
-	flags
+	flagsCreate
 }
 
-type flags struct {
+type flagsCreate struct {
 	LegalName            string
 	ParentOrganizationID string
 	DoingBusinessAs      string
