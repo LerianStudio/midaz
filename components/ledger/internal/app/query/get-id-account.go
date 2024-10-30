@@ -15,7 +15,7 @@ import (
 )
 
 // GetAccountByID get an Account from the repository by given id.
-func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*a.Account, error) {
+func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving account for id: %s", id)
 
