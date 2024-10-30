@@ -228,7 +228,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	return account.ToEntity(), nil
 }
 
-// FindByAlias find account from the database using Organization and Ledger id and Alias.
+// FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
