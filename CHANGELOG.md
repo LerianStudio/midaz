@@ -1,3 +1,10 @@
+## [1.26.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.3...v1.26.0-beta.4) (2024-10-30)
+
+
+### Features
+
+* added sub command delete from organization ([99dbf17](https://github.com/LerianStudio/midaz/commit/99dbf176bd39cb81585d589158061d633aee65c7))
+
 ## [1.26.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.2...v1.26.0-beta.3) (2024-10-30)
 
 
