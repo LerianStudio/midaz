@@ -193,9 +193,12 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 func (e *Account) ToProto() *proto.Account {
 	status := proto.Status{
 		Code:           e.Status.Code,
-		Description:    *e.Status.Description,
 		AllowSending:   *e.Status.AllowSending,
 		AllowReceiving: *e.Status.AllowReceiving,
+	}
+
+	if e.Status.Description != nil {
+		status.Description = *e.Status.Description
 	}
 
 	balance := proto.Balance{
