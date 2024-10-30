@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "f833b470-399c-4bb2-bf50-d3f714f4d5b4",
+		"_postman_id": "6d2fa71b-13a6-46c0-bb04-573fdb0684f7",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "38753084"
+		"_exporter_id": "38928920"
 	},
 	"item": [
 		{
@@ -278,7 +278,7 @@
 										"header": [],
 										"body": {
 											"mode": "raw",
-											"raw": "{\n    \"grant_type\": \"password\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\",\n    \"username\": \"user_john\",\n    \"password\": \"Leriand@123\"\n}",
+											"raw": "{\n    \"grant_type\": \"password\",\n    \"client_id\": \"{{client_id}}\",\n    \"client_secret\": \"{{client_secret}}\",\n    \"username\": \"user_john\",\n    \"password\": \"Lerian@123\"\n}",
 											"options": {
 												"raw": {
 													"language": "json"
@@ -510,7 +510,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"48784548000104\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"78425230000190\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Ledger Test\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"01310916\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -554,7 +554,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    \"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Blocked\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"04696040\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    \"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked organization\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"01310916\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -609,7 +609,7 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "teste",
+									"value": "mymetadata",
 									"description": "Search on MongoDB",
 									"disabled": true
 								},
@@ -731,7 +731,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomCompanyName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomCompanyName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Ledger Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -772,7 +772,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"BLOCKED Tech LTDA\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste BLOCKED Ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"BLOCKED Tech LTDA\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -826,7 +826,7 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "teste",
+									"value": "mymetadata",
 									"description": "Search on MongoDB",
 									"disabled": true
 								},
@@ -940,7 +940,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Brazilian Real\",\n    //\"name\": \"{{$randomCurrencyName}}\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    //\"code\": \"{{$randomCurrencyCode}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste asset 1\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Brazilian Real\",\n    //\"name\": \"{{$randomCurrencyName}}\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    //\"code\": \"{{$randomCurrencyCode}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Asset Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -983,7 +983,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Bitcoin\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"McGregor 2 BLOCKED ASSET\"\n    },\n    \"metadata\": {\n        \"chave\": \"jacare\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Bitcoin\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked asset\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1029,7 +1029,7 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlf",
+									"value": "mymetadata",
 									"description": "Search on MongoDB",
 									"disabled": true
 								},
@@ -1134,7 +1134,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"{{$randomUserName}} Portfolio\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Portfolio\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"{{$randomUserName}} Portfolio\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Portfolio Test\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1177,7 +1177,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomUserName}} Portfolio 3 UPDATE\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Portfolio 3 Update\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomUserName}} Blocked Portfolio\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Portfolio\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1223,7 +1223,7 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "teste",
+									"value": "mymetadata",
 									"description": "Search on MongoDB",
 									"disabled": true
 								},
@@ -1328,7 +1328,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Product {{$randomProductName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Product\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Product {{$randomProductName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Product Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1371,7 +1371,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Product {{$randomProductName}} BLOCKED\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"Teste Product BLOCKED\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Product {{$randomProductName}} BLOCKED\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Product\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1424,7 +1424,7 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "metadata_chave",
+									"value": "mymetadata",
 									"description": "Search on MongoDB",
 									"disabled": true
 								},
@@ -1529,7 +1529,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"credit\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1556,6 +1556,56 @@
 					"response": []
 				},
 				{
+					"name": "Accounts Search",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    // \"portfolioId\": \"{{portfolio_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/search?limit=10&page=1",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts",
+								"search"
+							],
+							"query": [
+								{
+									"key": "metadata.chave",
+									"value": "mymetadata",
+									"description": "Search on MongoDB",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10"
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Default 1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Accounts",
 					"event": [
 						{
@@ -1574,7 +1624,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Teste Account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1602,7 +1652,30 @@
 					"response": []
 				},
 				{
-					"name": "Accounts",
+					"name": "Accounts by Id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts from Portfolio",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -1624,7 +1697,7 @@
 							"query": [
 								{
 									"key": "metadata.chave",
-									"value": "xuxa",
+									"value": "mymetadata",
 									"description": "Search on MongoDB",
 									"disabled": true
 								},
@@ -1644,7 +1717,7 @@
 					"response": []
 				},
 				{
-					"name": "Accounts by Id",
+					"name": "Accounts from Portfolio by Id",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -1736,7 +1809,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": \"100\",\n        \"scale\": \"1\",\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"@mcgregor\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": \"100\",\n                        \"scale\": \"1\"\n                    },\n                    \"share\": {},\n                    \"description\": \"pagamento de emprestimo jeff e teste de devolucao\",\n                    \"chartOfAccountsG\": \"\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    },\n                    \"isFrom\": true\n                }\n            ],\n            \"source\": {}\n        }\n    },\n    \"distribute\": {\n        \"to\": [\n            {\n                \"account\": \"@jeff\",\n                \"amount\": {},\n                \"share\": {\n                    \"percentage\": 50\n                },\n                \"chartOfAccountsG\": \"\",\n                \"metadata\": {\n                    \"mensagem\": \"tks\"\n                }\n            },\n            {\n                \"account\": \"@wallet_46631173\",\n                \"amount\": {},\n                \"share\": {\n                    \"percentage\": 35\n                },\n                \"chartOfAccountsG\": \"\"\n            },\n            {\n                \"account\": \"@wallet_03621341\",\n                \"amount\": {},\n                \"share\": {},\n                \"remaining\": \"remaining\",\n                \"chartOfAccountsG\": \"\"\n            }\n        ],\n        \"distribute\": {}\n    }\n}",
+									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": \"100\",\n        \"scale\": \"1\",\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"@person1\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": \"100\",\n                        \"scale\": \"1\"\n                    },\n                    \"share\": {},\n                    \"description\": \"pagamento de emprestimo person1 e teste de devolucao\",\n                    \"chartOfAccountsG\": \"\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    },\n                    \"isFrom\": true\n                }\n            ],\n            \"source\": {}\n        }\n    },\n    \"distribute\": {\n        \"to\": [\n            {\n                \"account\": \"@person2\",\n                \"amount\": {},\n                \"share\": {\n                    \"percentage\": 50\n                },\n                \"chartOfAccountsG\": \"\",\n                \"metadata\": {\n                    \"mensagem\": \"tks\"\n                }\n            },\n            {\n                \"account\": \"@wallet_46631173\",\n                \"amount\": {},\n                \"share\": {\n                    \"percentage\": 35\n                },\n                \"chartOfAccountsG\": \"\"\n            },\n            {\n                \"account\": \"@wallet_03621341\",\n                \"amount\": {},\n                \"share\": {},\n                \"remaining\": \"remaining\",\n                \"chartOfAccountsG\": \"\"\n            }\n        ],\n        \"distribute\": {}\n    }\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -1808,7 +1881,7 @@
 											"key": "dsl",
 											"description": "test 1",
 											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/POSTMAN/examples/mcgregor-to-jeff.gold"
+											"src": "/home/gbrecci/Downloads/file.gold"
 										}
 									]
 								},
@@ -1860,7 +1933,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"transactionType\": \"{{$randomUUID}}\",\n    \"transactionTypeCode\": \"P2P_TRANSFER\",\n    \"variables\": {\n        \"amount\": 100,\n        \"destination\": \"@Wallet_16750673\",\n        \"sourceAccount\": \"@Gabriel\",\n        \"scale\": 0\n    }\n}",
+									"raw": "{\n    \"transactionType\": \"{{$randomUUID}}\",\n    \"transactionTypeCode\": \"P2P_TRANSFER\",\n    \"variables\": {\n        \"amount\": 100,\n        \"destination\": \"@Wallet_16750673\",\n        \"sourceAccount\": \"@person1\",\n        \"scale\": 0\n    }\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -2047,7 +2120,7 @@
 					]
 				},
 				{
-					"name": "transactions",
+					"name": "Transactions",
 					"event": [
 						{
 							"listen": "test",
@@ -2065,7 +2138,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
+							"raw": "{\n    \"description\": \"transaction description person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2142,7 +2215,7 @@
 			"name": "Operations",
 			"item": [
 				{
-					"name": "operations",
+					"name": "Operations",
 					"event": [
 						{
 							"listen": "test",
@@ -2160,7 +2233,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"description\": \"description for the transaction mcgregor to jeff value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
+							"raw": "{\n    \"description\": \"transaction description person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2359,21 +2432,9 @@
 							}
 						}
 					],
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
 					"request": {
 						"method": "GET",
 						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"baseAssetCode\": \"BRL\",\n    \"counterAssetCode\": \"BTC\",\n    \"amount\": 35000000,\n    \"scale\": 2,\n    \"source\": \"Chainlink database\",\n    \"metadata\": {\n        \"updateCycle\": 300,\n        \"urgent\": true\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
 						"url": {
 							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/{{asset_rate_id}}",
 							"host": [
