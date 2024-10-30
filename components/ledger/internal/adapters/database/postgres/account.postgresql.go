@@ -100,7 +100,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *a.Account
 	return record.ToEntity(), nil
 }
 
-// FindAll retrieves an Account entities from the database.
+// FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
 func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -112,15 +112,13 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	findAll := sqrl.Select("*").
 		From(r.tableName).
 		Where(sqrl.Expr("organization_id = ?", organizationID)).
-		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
-		Where(sqrl.Eq{"deleted_at": nil})
+		Where(sqrl.Expr("ledger_id = ?", ledgerID))
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
 		findAll = findAll.Where(sqrl.Expr("portfolio_id = ?", portfolioID))
 	}
 
-	findAll = findAll.
-		OrderBy("created_at DESC").
+	findAll = findAll.OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(sqrl.Dollar)
@@ -228,6 +226,60 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	return account.ToEntity(), nil
 }
 
+// FindWithDeleted retrieves an Account entity from the database using the provided ID (including soft-deleted ones).
+func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*a.Account, error) {
+	db, err := r.connection.GetDB()
+	if err != nil {
+		return nil, err
+	}
+
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = $3"
+	args := []any{organizationID, ledgerID, id}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		query += " AND portfolio_id = $4"
+
+		args = append(args, portfolioID)
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	account := &a.AccountPostgreSQLModel{}
+
+	row := db.QueryRowContext(ctx, query, args...)
+	if err := row.Scan(
+		&account.ID,
+		&account.Name,
+		&account.ParentAccountID,
+		&account.EntityID,
+		&account.AssetCode,
+		&account.OrganizationID,
+		&account.LedgerID,
+		&account.PortfolioID,
+		&account.ProductID,
+		&account.AvailableBalance,
+		&account.OnHoldBalance,
+		&account.BalanceScale,
+		&account.Status,
+		&account.StatusDescription,
+		&account.AllowSending,
+		&account.AllowReceiving,
+		&account.Alias,
+		&account.Type,
+		&account.CreatedAt,
+		&account.UpdatedAt,
+		&account.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
+		}
+
+		return nil, err
+	}
+
+	return account.ToEntity(), nil
+}
+
 // FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	db, err := r.connection.GetDB()
@@ -249,7 +301,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	return false, nil
 }
 
-// ListByIDs retrieves Accounts entities from the database using the provided IDs.
+// ListByIDs retrieves Accounts entities from the database (including soft-deleted ones) using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
@@ -258,7 +310,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var accounts []*a.Account
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL"
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3)"
 	args := []any{organizationID, ledgerID, ids}
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
@@ -445,15 +497,23 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	return record.ToEntity(), nil
 }
 
-// Delete removes an Account entity from the database using the provided IDs.
-func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error {
+// Delete an Account entity from the database (soft delete) using the provided ID.
+func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return err
 	}
 
-	if _, err := db.ExecContext(ctx, `UPDATE account SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = $4 AND deleted_at IS NULL`,
-		organizationID, ledgerID, portfolioID, id); err != nil {
+	query := "UPDATE account SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL"
+	args := []any{organizationID, ledgerID, id}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		query += " AND portfolio_id = $4"
+
+		args = append(args, portfolioID)
+	}
+
+	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 

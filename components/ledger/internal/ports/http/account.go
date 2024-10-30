@@ -169,7 +169,7 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, &portfolioID, id)
+	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, &portfolioID, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
@@ -191,7 +191,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
+	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
@@ -234,8 +234,31 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	return commonHTTP.OK(c, account)
 }
 
-// DeleteAccountByID is a method that removes Account information by a given ids.
+// DeleteAccountByID is a method that removes Account information by a given account id.
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	logger.Infof("Initiating removal of Account with ID: %s", id.String())
+
+	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id); err != nil {
+		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully removed Account with ID: %s", id.String())
+
+	return commonHTTP.NoContent(c)
+}
+
+// DeleteAccountByIDFromPortfolio is a method that removes Account information by a given portfolio id and account id.
+//
+// Will be deprecated in the future. Use DeleteAccountByID instead.
+func (handler *AccountHandler) DeleteAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(ctx)
 
@@ -246,7 +269,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating removal of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
+	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, &portfolioID, id); err != nil {
 		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
