@@ -20,6 +20,7 @@ import (
 type MockOrganization struct {
 	ctrl     *gomock.Controller
 	recorder *MockOrganizationMockRecorder
+	isgomock struct{}
 }
 
 // MockOrganizationMockRecorder is the mock recorder for MockOrganization.
@@ -82,4 +83,19 @@ func (m *MockOrganization) GetByID(organizationID string) (*model.OrganizationIt
 func (mr *MockOrganizationMockRecorder) GetByID(organizationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockOrganization)(nil).GetByID), organizationID)
+}
+
+// Update mocks base method.
+func (m *MockOrganization) Update(organizationID string, orgInput model.OrganizationUpdate) (*model.OrganizationItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", organizationID, orgInput)
+	ret0, _ := ret[0].(*model.OrganizationItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Update indicates an expected call of Update.
+func (mr *MockOrganizationMockRecorder) Update(organizationID, orgInput any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockOrganization)(nil).Update), organizationID, orgInput)
 }

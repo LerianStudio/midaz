@@ -1,0 +1,20 @@
+{
+    "legalName": "Mx2",
+    "doingBusinessAs": "The ledger.io",
+    "legalDocument": "48784548000104",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste Ledger"
+    },
+    "address": {
+        "line1": "Avenida Paulista, 1234",
+        "line2": "CJ 203",
+        "zipCode": "04696040",
+        "country": "BR" 
+    },
+    "metadata": {
+        "chave": "metadata_chave",
+        "double": 10.5,
+        "int": 1
+    }
+}
