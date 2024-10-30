@@ -1,3 +1,17 @@
+## [1.26.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.2...v1.26.0-beta.3) (2024-10-30)
+
+
+### Features
+
+* add uuid handler for routes with path parammeters :sparkles: ([f95111e](https://github.com/LerianStudio/midaz/commit/f95111ec4c8dabcb81959b3e0306219fb95080b3))
+
+
+### Bug Fixes
+
+* add nil validation for status description in account toProto func :bug: ([387b856](https://github.com/LerianStudio/midaz/commit/387b8560029bdd49010e28312da7d0038db16dba))
+* **operation:** use parsed uuids :bug: ([0c5eff2](https://github.com/LerianStudio/midaz/commit/0c5eff2c3e0edeac2e76414557e115883f0e2350))
+* **transaction:** use parsed uuids :bug: ([dbb19ad](https://github.com/LerianStudio/midaz/commit/dbb19adf62fd400c0685292f2e4d79170c59d248))
+
 ## [1.26.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.1...v1.26.0-beta.2) (2024-10-30)
 
 
