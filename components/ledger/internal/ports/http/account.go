@@ -169,7 +169,7 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, &portfolioID, id)
+	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, &portfolioID, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
@@ -191,7 +191,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
-	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
+	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)

@@ -116,6 +116,21 @@ func (mr *MockRepositoryMockRecorder) FindByAlias(ctx, organizationID, ledgerID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), ctx, organizationID, ledgerID, portfolioID, alias)
 }
 
+// FindWithDeleted mocks base method.
+func (m *MockRepository) FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*account.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindWithDeleted", ctx, organizationID, ledgerID, portfolioID, id)
+	ret0, _ := ret[0].(*account.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindWithDeleted indicates an expected call of FindWithDeleted.
+func (mr *MockRepositoryMockRecorder) FindWithDeleted(ctx, organizationID, ledgerID, portfolioID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithDeleted", reflect.TypeOf((*MockRepository)(nil).FindWithDeleted), ctx, organizationID, ledgerID, portfolioID, id)
+}
+
 // ListAccountsByAlias mocks base method.
 func (m *MockRepository) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*account.Account, error) {
 	m.ctrl.T.Helper()
