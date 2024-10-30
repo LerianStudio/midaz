@@ -42,6 +42,7 @@ type CreateAccountInput struct {
 	Type            string         `json:"type" validate:"required"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
+	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid"`
 	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`

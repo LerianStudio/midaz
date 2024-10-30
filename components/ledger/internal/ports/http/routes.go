@@ -61,7 +61,9 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandle
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), lib.ParseUUIDPathParameters, rh.DeleteProductByID)
 
 	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
+	// Will be deprecated in the future. Use "POST /v1/organizations/:organization_id/ledgers/:ledger_id/accounts" instead.
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.CreateAccountInput), ah.CreateAccountFromPortfolio))
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAllAccounts)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAccountByID)
