@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "6d2fa71b-13a6-46c0-bb04-573fdb0684f7",
+		"_postman_id": "a4ddd405-aa36-40c8-a417-6ba7bdf109a3",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -1652,7 +1652,7 @@
 					"response": []
 				},
 				{
-					"name": "Accounts by Id",
+					"name": "Account by Id",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -1667,6 +1667,38 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Account from Portfolio by Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"portfolios",
+								"{{portfolio_id}}",
 								"accounts",
 								"{{account_id}}"
 							]
@@ -1717,19 +1749,16 @@
 					"response": []
 				},
 				{
-					"name": "Accounts from Portfolio by Id",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
+					"name": "Accounts",
 					"request": {
-						"method": "GET",
+						"method": "DELETE",
 						"header": [],
 						"body": {
 							"mode": "formdata",
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/accounts/{{account_id}}",
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
 							"host": [
 								"{{url_ledger}}"
 							],
@@ -1739,8 +1768,6 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"portfolios",
-								"{{portfolio_id}}",
 								"accounts",
 								"{{account_id}}"
 							]
@@ -1749,7 +1776,7 @@
 					"response": []
 				},
 				{
-					"name": "Accounts",
+					"name": "Accounts from Portfolio",
 					"request": {
 						"method": "DELETE",
 						"header": [],
