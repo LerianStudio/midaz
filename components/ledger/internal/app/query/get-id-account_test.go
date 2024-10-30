@@ -33,10 +33,38 @@ func TestGetAccountByIDSuccess(t *testing.T) {
 
 	uc.AccountRepo.(*mock.MockRepository).
 		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, portfolioID, id).
+		Find(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(account, nil).
 		Times(1)
-	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, portfolioID, id)
+	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, &portfolioID, id)
+
+	assert.Equal(t, res, account)
+	assert.Nil(t, err)
+}
+
+// TestGetAccountByIDWithoutPortfolioSuccess is responsible to test GetAccountByID without portfolio with success
+func TestGetAccountByIDWithoutPortfolioSuccess(t *testing.T) {
+	organizationID := common.GenerateUUIDv7()
+	ledgerID := common.GenerateUUIDv7()
+	id := common.GenerateUUIDv7()
+
+	account := &a.Account{
+		ID:             id.String(),
+		OrganizationID: organizationID.String(),
+		LedgerID:       ledgerID.String(),
+		PortfolioID:    nil,
+	}
+
+	uc := UseCase{
+		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+	}
+
+	uc.AccountRepo.(*mock.MockRepository).
+		EXPECT().
+		Find(gomock.Any(), organizationID, ledgerID, nil, id).
+		Return(account, nil).
+		Times(1)
+	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, nil, id)
 
 	assert.Equal(t, res, account)
 	assert.Nil(t, err)
@@ -57,10 +85,10 @@ func TestGetAccountByIDError(t *testing.T) {
 
 	uc.AccountRepo.(*mock.MockRepository).
 		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, portfolioID, id).
+		Find(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, portfolioID, id)
+	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, &portfolioID, id)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
