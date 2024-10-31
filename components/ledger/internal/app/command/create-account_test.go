@@ -37,6 +37,29 @@ func TestCreateAccountSuccess(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+// TestCreateWithoutPortfolioAccountSuccess is responsible to test CreateAccountWithoutPortfolio with success
+func TestCreateWithoutPortfolioAccountSuccess(t *testing.T) {
+	account := &a.Account{
+		ID:             common.GenerateUUIDv7().String(),
+		OrganizationID: common.GenerateUUIDv7().String(),
+		LedgerID:       common.GenerateUUIDv7().String(),
+	}
+
+	uc := UseCase{
+		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+	}
+
+	uc.AccountRepo.(*mock.MockRepository).
+		EXPECT().
+		Create(gomock.Any(), account).
+		Return(account, nil).
+		Times(1)
+	res, err := uc.AccountRepo.Create(context.TODO(), account)
+
+	assert.Equal(t, account, res)
+	assert.Nil(t, err)
+}
+
 // TestCreateAccountError is responsible to test CreateAccount with error
 func TestCreateAccountError(t *testing.T) {
 	errMSG := "err to create account on database"
