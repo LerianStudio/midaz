@@ -420,7 +420,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 }
 
 // Update an Account entity into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
+func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
 	db, err := r.connection.GetDB()
 	if err != nil {
 		return nil, err
@@ -466,14 +466,18 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, portfolioID, id)
+	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
-		` AND portfolio_id = $` + strconv.Itoa(len(args)-1) +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		args = append(args, portfolioID)
+		query += ` AND portfolio_id = $` + strconv.Itoa(len(args))
+	}
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {

@@ -192,7 +192,7 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, p
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, acc *account.Account) (*account.Account, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *account.Account) (*account.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, portfolioID, id, acc)
 	ret0, _ := ret[0].(*account.Account)
