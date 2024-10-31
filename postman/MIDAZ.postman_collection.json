@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "686cb43c-ad36-4b3a-a7dd-b6962f2dd1fa",
+		"_postman_id": "d793a589-8710-4422-acc3-634a373f2922",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -1506,7 +1506,7 @@
 			"name": "Accounts",
 			"item": [
 				{
-					"name": "Accounts",
+					"name": "Accounts from Portfolio",
 					"event": [
 						{
 							"listen": "test",
@@ -1562,6 +1562,54 @@
 							"listen": "test",
 							"script": {
 								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"account_id before: \" + pm.collectionVariables.get(\"account_id\"));",
+									"    pm.collectionVariables.set(\"account_id\", jsonData.id);",
+									"    console.log(\"account_id after: \" + pm.collectionVariables.get(\"account_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"portfolioId\": \"{{portfolio_id}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts from Portfolio",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
 									""
 								],
 								"type": "text/javascript",
@@ -1602,10 +1650,31 @@
 					"response": []
 				},
 				{
-					"name": "Account by Id",
+					"name": "Accounts",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
 					"request": {
-						"method": "GET",
+						"method": "PATCH",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
 							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
 							"host": [
@@ -1699,6 +1768,29 @@
 					"response": []
 				},
 				{
+					"name": "Account by Id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Accounts",
 					"request": {
 						"method": "GET",
@@ -1745,33 +1837,6 @@
 					"response": []
 				},
 				{
-					"name": "Accounts",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "Accounts from Portfolio",
 					"request": {
 						"method": "DELETE",
@@ -1793,6 +1858,33 @@
 								"{{ledger_id}}",
 								"portfolios",
 								"{{portfolio_id}}",
+								"accounts",
+								"{{account_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Accounts",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": []
+						},
+						"url": {
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
+							"host": [
+								"{{url_ledger}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
 								"accounts",
 								"{{account_id}}"
 							]

@@ -1,3 +1,17 @@
+## [1.26.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.9...v1.26.0-beta.10) (2024-10-31)
+
+
+### Features
+
+* add account update endpoint without portfolioId :sparkles: ([3d7ea8f](https://github.com/LerianStudio/midaz/commit/3d7ea8f754faef82d07fdbc519ebe7595fe1ee89))
+
+## [1.26.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.8...v1.26.0-beta.9) (2024-10-31)
+
+
+### Features
+
+* add account creation endpoint with optional portfolioId :sparkles: ([eb51270](https://github.com/LerianStudio/midaz/commit/eb51270a3c36d32975140a0e6df6188080e31fe1))
+
 ## [1.26.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.7...v1.26.0-beta.8) (2024-10-30)
 
 ## [1.26.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.6...v1.26.0-beta.7) (2024-10-30)

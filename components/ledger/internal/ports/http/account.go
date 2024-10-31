@@ -26,14 +26,44 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
-
-	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioID.String())
 
 	payload := i.(*a.CreateAccountInput)
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
-	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, portfolioID, payload)
+	if !common.IsNilOrEmpty(payload.PortfolioID) {
+		logger.Infof("Initiating create of Account with Portfolio ID: %s", *payload.PortfolioID)
+	}
+
+	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
+	if err != nil {
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully created Account")
+
+	return commonHTTP.Created(c, account)
+}
+
+// CreateAccountFromPortfolio is a method that creates account information from a given portfolio id.
+//
+// Will be deprecated in the future. Use CreateAccount instead.
+func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
+	portfolioIDStr := portfolioID.String()
+
+	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioIDStr)
+
+	payload := i.(*a.CreateAccountInput)
+	payload.PortfolioID = &portfolioIDStr
+
+	logger.Infof("Request to create a Account with details: %#v", payload)
+
+	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -208,6 +238,39 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	id := c.Locals("id").(uuid.UUID)
+
+	logger.Infof("Initiating update of Account with ID: %s", id.String())
+
+	payload := i.(*a.UpdateAccountInput)
+	logger.Infof("Request to update an Account with details: %#v", payload)
+
+	_, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
+	if err != nil {
+		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	account, err := handler.Query.GetAccountByID(c.Context(), organizationID, ledgerID, nil, id)
+	if err != nil {
+		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
+		return commonHTTP.WithError(c, err)
+	}
+
+	logger.Infof("Successfully updated Account with ID: %s", id.String())
+
+	return commonHTTP.OK(c, account)
+}
+
+// UpdateAccountFromPortfolio is a method that updates Account information from a given portfolio id and account id.
+//
+// Will be deprecated in the future. Use UpdateAccount instead.
+func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	logger := mlog.NewLoggerFromContext(ctx)
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
@@ -216,7 +279,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*a.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
-	_, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, portfolioID, id, payload)
+	_, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, &portfolioID, id, payload)
 	if err != nil {
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 		return commonHTTP.WithError(c, err)
