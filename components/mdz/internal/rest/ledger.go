@@ -55,8 +55,8 @@ func (r *ledger) Create(organizationID string, inp model.LedgerInput) (*model.Le
 	return &ledResp, nil
 }
 
-func (r *ledger) List(organizationID string, limit, page string) (*model.LedgerList, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%s&page=%s",
+func (r *ledger) Get(organizationID string, limit, page int) (*model.LedgerList, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d",
 		r.Factory.Env.URLAPILedger, organizationID, limit, page)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)

@@ -183,10 +183,10 @@ func Test_ledger_List(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
-	limit := "5"
-	page := "1"
+	limit := 5
+	page := 1
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%s&page=%s", URIAPILedger, organizationID, limit, page)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d", URIAPILedger, organizationID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/ledger_response_list.json"))
@@ -200,7 +200,7 @@ func Test_ledger_List(t *testing.T) {
 
 	ledServ := NewLedger(factory)
 
-	result, err := ledServ.List(organizationID, limit, page)
+	result, err := ledServ.Get(organizationID, limit, page)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

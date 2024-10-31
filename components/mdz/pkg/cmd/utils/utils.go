@@ -99,3 +99,24 @@ func AssignOptionalStringPtr(flagValue string) *string {
 
 	return &flagValue
 }
+
+func SafeNestedString[T any](parent *T, fieldFunc func(*T) *string) string {
+	if parent == nil {
+		return ""
+	}
+
+	value := fieldFunc(parent)
+	if value == nil {
+		return ""
+	}
+
+	return *value
+}
+
+func SafeString(value *string) string {
+	if value != nil {
+		return *value
+	}
+
+	return ""
+}
