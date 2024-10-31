@@ -54,3 +54,18 @@ func (mr *MockLedgerMockRecorder) Create(organizationID, inp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockLedger)(nil).Create), organizationID, inp)
 }
+
+// List mocks base method.
+func (m *MockLedger) List(organizationID, limit, page string) (*model.LedgerList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "List", organizationID, limit, page)
+	ret0, _ := ret[0].(*model.LedgerList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// List indicates an expected call of List.
+func (mr *MockLedgerMockRecorder) List(organizationID, limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockLedger)(nil).List), organizationID, limit, page)
+}
