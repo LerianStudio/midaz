@@ -1,3 +1,10 @@
+## [1.26.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.12...v1.26.0-beta.13) (2024-11-01)
+
+
+### Features
+
+* gitaction to update midaz submodule in midaz-full :sparkles: ([5daafa6](https://github.com/LerianStudio/midaz/commit/5daafa6d397cb975db329ff83f80992903407eb1))
+
 ## [1.26.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.11...v1.26.0-beta.12) (2024-11-01)
 
 
