@@ -1,3 +1,11 @@
+## [1.26.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.13...v1.26.0-beta.14) (2024-11-01)
+
+
+### Features
+
+* create sub command describe from ledger and test unit ([418e660](https://github.com/LerianStudio/midaz/commit/418e6600e37cc2ab303b6fe278477c66ef6865f0))
+* rest get id command describe ([4e80174](https://github.com/LerianStudio/midaz/commit/4e80174534057e0e3fbcfdce231c66103308946f))
+
 ## [1.26.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.12...v1.26.0-beta.13) (2024-11-01)
 
 
