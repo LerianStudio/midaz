@@ -1,0 +1,75 @@
+{
+    "items": [
+        {
+            "id": "0192e362-b270-7158-a647-7a59e4e26a27",
+            "name": "Ankunding - Paucek",
+            "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Ledger"
+            },
+            "createdAt": "2024-10-31T16:22:29.232078Z",
+            "updatedAt": "2024-10-31T16:22:29.232078Z",
+            "deletedAt": null,
+            "metadata": {
+                "bitcoin": "3HH89s3LPALardk1jLt2PcjAJng",
+                "boolean": true,
+                "chave": "metadata_chave",
+                "double": 10.5,
+                "int": 1
+            }
+        },
+        {
+            "id": "0192e258-2c81-7e37-b6ba-a2007495c652",
+            "name": "Zieme - Mante",
+            "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Ledger"
+            },
+            "createdAt": "2024-10-31T11:31:22.369928Z",
+            "updatedAt": "2024-10-31T11:31:22.369928Z",
+            "deletedAt": null,
+            "metadata": {
+                "bitcoinn": "329aaP47xTc8hQxXB92896U2RBXGEt",
+                "boolean": true,
+                "chave": "metadata_chave",
+                "double": 10.5,
+                "int": 1
+            }
+        },
+        {
+            "id": "0192e257-f5c0-7687-8534-303bae7aa4aa",
+            "name": "Lang LLC",
+            "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+            "status": {
+                "code": "ACTIVE",
+                "description": null
+            },
+            "createdAt": "2024-10-31T11:31:08.352409Z",
+            "updatedAt": "2024-10-31T11:31:08.352409Z",
+            "deletedAt": null
+        },
+        {
+            "id": "0192e251-328d-7390-99f5-5c54980115ed",
+            "name": "Romaguera and Sons",
+            "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Ledger"
+            },
+            "createdAt": "2024-10-31T11:23:45.165229Z",
+            "updatedAt": "2024-10-31T11:23:45.165229Z",
+            "deletedAt": null,
+            "metadata": {
+                "bitcoinn": "1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq",
+                "boolean": false,
+                "chave": "metadata_chave",
+                "double": 10.5,
+                "int": 1
+            }
+        }
+    ],
+    "page": 1,
+    "limit": 5
+}

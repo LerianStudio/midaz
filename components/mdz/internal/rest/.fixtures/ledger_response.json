@@ -1,0 +1,19 @@
+{
+    "id": "0192e251-328d-7390-99f5-5c54980115ed",
+    "name": "Romaguera and Sons",
+    "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste Ledger"
+    },
+    "createdAt": "2024-10-31T11:23:45.165229097Z",
+    "updatedAt": "2024-10-31T11:23:45.16522918Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq",
+        "boolean": false,
+        "chave": "metadata_chave",
+        "double": 10.5,
+        "int": 1
+    }
+}

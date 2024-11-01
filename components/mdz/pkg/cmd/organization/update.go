@@ -47,7 +47,7 @@ type flagsUpdate struct {
 func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	org := model.OrganizationUpdate{}
 
-	if !cmd.Flags().Changed("username") && len(f.OrganizationID) < 1 {
+	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
 			return err
@@ -167,7 +167,7 @@ func buildMetadata(f *factoryOrganizationUpdate) (*model.Metadata, error) {
 
 		tempMetadata.Boolean, err = utils.ParseAndAssign(f.Boolean, strconv.ParseBool)
 		if err != nil {
-			return nil, fmt.Errorf("campo boolean inválido: %v", err)
+			return nil, fmt.Errorf("invalid boolean field: %v", err)
 		}
 	}
 
@@ -178,7 +178,7 @@ func buildMetadata(f *factoryOrganizationUpdate) (*model.Metadata, error) {
 		})
 
 		if err != nil {
-			return nil, fmt.Errorf("campo double inválido: %v", err)
+			return nil, fmt.Errorf("invalid double field: %v", err)
 		}
 	}
 
@@ -187,7 +187,7 @@ func buildMetadata(f *factoryOrganizationUpdate) (*model.Metadata, error) {
 
 		tempMetadata.Int, err = utils.ParseAndAssign(f.Int, strconv.Atoi)
 		if err != nil {
-			return nil, fmt.Errorf("campo int inválido: %v", err)
+			return nil, fmt.Errorf("invalid int field: %v", err)
 		}
 	}
 
