@@ -90,6 +90,41 @@ func (r *ledger) Get(organizationID string, limit, page int) (*model.LedgerList,
 	return &ledResp, nil
 }
 
+func (r *ledger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, errors.New("unauthorized invalid credentials")
+		}
+
+		return nil, fmt.Errorf("failed to get organization, status code: %d",
+			resp.StatusCode)
+	}
+
+	var ledItemResp model.LedgerItems
+	if err := json.NewDecoder(resp.Body).Decode(&ledItemResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &ledItemResp, nil
+}
+
 func NewLedger(f *factory.Factory) *ledger {
 	return &ledger{f}
 }
