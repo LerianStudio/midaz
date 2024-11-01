@@ -1,3 +1,12 @@
+## [1.26.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.10...v1.26.0-beta.11) (2024-11-01)
+
+
+### Features
+
+* create comamnd ledger and sub command create ([d4a8538](https://github.com/LerianStudio/midaz/commit/d4a85386237e2ca040587591cc7c8a489d9c44dd))
+* create rest create ledger ([a0435ac](https://github.com/LerianStudio/midaz/commit/a0435acd44ececb0977c90e92a402809b7348bad))
+* test unit command create ledger ([93754de](https://github.com/LerianStudio/midaz/commit/93754deae69c2167e4ca9d3bc2def0b1fdd9e8ff))
+
 ## [1.26.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.9...v1.26.0-beta.10) (2024-10-31)
 
 
