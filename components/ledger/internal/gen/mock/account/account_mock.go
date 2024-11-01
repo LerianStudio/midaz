@@ -58,7 +58,7 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, acc any) *gomock.Call {
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error {
+func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", ctx, organizationID, ledgerID, portfolioID, id)
 	ret0, _ := ret[0].(error)
@@ -72,7 +72,7 @@ func (mr *MockRepositoryMockRecorder) Delete(ctx, organizationID, ledgerID, port
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*account.Account, error) {
+func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*account.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Find", ctx, organizationID, ledgerID, portfolioID, id)
 	ret0, _ := ret[0].(*account.Account)
@@ -87,7 +87,7 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, portfo
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*account.Account, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*account.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, portfolioID, limit, page)
 	ret0, _ := ret[0].([]*account.Account)
@@ -102,18 +102,33 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, por
 }
 
 // FindByAlias mocks base method.
-func (m *MockRepository) FindByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias string) (bool, error) {
+func (m *MockRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByAlias", ctx, organizationID, ledgerID, portfolioID, alias)
+	ret := m.ctrl.Call(m, "FindByAlias", ctx, organizationID, ledgerID, alias)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByAlias indicates an expected call of FindByAlias.
-func (mr *MockRepositoryMockRecorder) FindByAlias(ctx, organizationID, ledgerID, portfolioID, alias any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByAlias(ctx, organizationID, ledgerID, alias any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), ctx, organizationID, ledgerID, portfolioID, alias)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAlias", reflect.TypeOf((*MockRepository)(nil).FindByAlias), ctx, organizationID, ledgerID, alias)
+}
+
+// FindWithDeleted mocks base method.
+func (m *MockRepository) FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*account.Account, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindWithDeleted", ctx, organizationID, ledgerID, portfolioID, id)
+	ret0, _ := ret[0].(*account.Account)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindWithDeleted indicates an expected call of FindWithDeleted.
+func (mr *MockRepositoryMockRecorder) FindWithDeleted(ctx, organizationID, ledgerID, portfolioID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindWithDeleted", reflect.TypeOf((*MockRepository)(nil).FindWithDeleted), ctx, organizationID, ledgerID, portfolioID, id)
 }
 
 // ListAccountsByAlias mocks base method.
@@ -162,7 +177,7 @@ func (mr *MockRepositoryMockRecorder) ListByAlias(ctx, organizationID, ledgerID,
 }
 
 // ListByIDs mocks base method.
-func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, ids []uuid.UUID) ([]*account.Account, error) {
+func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*account.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByIDs", ctx, organizationID, ledgerID, portfolioID, ids)
 	ret0, _ := ret[0].([]*account.Account)
@@ -177,7 +192,7 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, p
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, acc *account.Account) (*account.Account, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *account.Account) (*account.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, portfolioID, id, acc)
 	ret0, _ := ret[0].(*account.Account)

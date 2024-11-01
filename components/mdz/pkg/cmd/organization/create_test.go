@@ -30,7 +30,7 @@ func TestRunE(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return "name", nil
 			},
-			flags: flags{
+			flagsCreate: flagsCreate{
 				LegalName:       "Test Organization",
 				DoingBusinessAs: "The ledger.io",
 				LegalDocument:   "48784548000104",
@@ -105,7 +105,7 @@ func TestRunE(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return "name", nil
 			},
-			flags: flags{
+			flagsCreate: flagsCreate{
 				LegalName:       "Gislason LLC",
 				DoingBusinessAs: "The ledger.io",
 				LegalDocument:   "48784548000104",
@@ -218,7 +218,7 @@ func TestRunE(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return "", errorFieldRequired
 			},
-			flags: flags{
+			flagsCreate: flagsCreate{
 				LegalName:       "Gislason LLC",
 				DoingBusinessAs: "The ledger.io",
 				Code:            "ACTIVE",

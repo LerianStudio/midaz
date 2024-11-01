@@ -61,11 +61,21 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandle
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), lib.ParseUUIDPathParameters, rh.DeleteProductByID)
 
 	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAllAccounts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAccountByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.DeleteAccountByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.CreateAccountInput), ah.CreateAccount))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccount))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAllAccounts)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAccountByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.DeleteAccountByID)
+	// Will be deprecated in the future. Use "POST /v1/organizations/:organization_id/ledgers/:ledger_id/accounts" instead.
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.CreateAccountInput), ah.CreateAccountFromPortfolio))
+	// Will be deprecated in the future. Use "PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id" instead.
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, lib.WithBody(new(a.UpdateAccountInput), ah.UpdateAccountFromPortfolio))
+	// Will be deprecated in the future. Use "GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts" instead.
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAllAccountsByIDFromPortfolio)
+	// Will be deprecated in the future. Use "GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id" instead.
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.GetAccountByIDFromPortfolio)
+	// Will be deprecated in the future. Use "DELETE /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id" instead.
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), lib.ParseUUIDPathParameters, ah.DeleteAccountByIDFromPortfolio)
 
 	// Health
 	f.Get("/health", lib.Ping)

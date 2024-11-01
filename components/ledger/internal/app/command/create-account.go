@@ -15,7 +15,7 @@ import (
 )
 
 // CreateAccount creates a new account persists data in the repository.
-func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, cai *a.CreateAccountInput) (*a.Account, error) {
+func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *a.CreateAccountInput) (*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create account: %v", cai)
 
@@ -41,8 +41,12 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
-	if cai.EntityID == nil {
-		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioID)
+	var portfolioUUID uuid.UUID
+
+	if common.IsNilOrEmpty(cai.EntityID) && !common.IsNilOrEmpty(cai.PortfolioID) {
+		portfolioUUID = uuid.MustParse(*cai.PortfolioID)
+
+		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
 		if err != nil {
 			logger.Errorf("Error find portfolio to get Entity ID: %v", err)
 			return nil, err
@@ -52,7 +56,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if !common.IsNilOrEmpty(cai.ParentAccountID) {
-		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, uuid.MustParse(*cai.ParentAccountID))
+		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
 			return nil, common.ValidateBusinessError(cn.ErrInvalidParentAccountID, reflect.TypeOf(a.Account{}).Name())
 		}
@@ -63,7 +67,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 	}
 
 	if !common.IsNilOrEmpty(cai.Alias) {
-		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, portfolioID, *cai.Alias)
+		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +82,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID, 
 		ParentAccountID: cai.ParentAccountID,
 		ProductID:       cai.ProductID,
 		OrganizationID:  organizationID.String(),
-		PortfolioID:     mpointers.String(portfolioID.String()),
+		PortfolioID:     cai.PortfolioID,
 		LedgerID:        ledgerID.String(),
 		EntityID:        cai.EntityID,
 		Balance:         balance,

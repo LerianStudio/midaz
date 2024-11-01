@@ -14,11 +14,11 @@ import (
 )
 
 // GetAllTransactions fetch all Transactions from the repository
-func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID string, filter commonHTTP.QueryHeader) ([]*t.Transaction, error) {
+func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*t.Transaction, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving transactions")
 
-	trans, err := uc.TransactionRepo.FindAll(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), filter.Limit, filter.Page)
+	trans, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting transactions on repo: %v", err)
 

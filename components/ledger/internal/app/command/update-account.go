@@ -15,12 +15,17 @@ import (
 )
 
 // UpdateAccount update an account from the repository by given id.
-func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID, uai *a.UpdateAccountInput) (*a.Account, error) {
+func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *a.UpdateAccountInput) (*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update account: %v", uai)
 
 	if common.IsNilOrEmpty(uai.Alias) {
 		uai.Alias = nil
+	} else {
+		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *uai.Alias)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	account := &a.Account{

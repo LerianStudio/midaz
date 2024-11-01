@@ -67,3 +67,18 @@ type OrganizationItem struct {
 	DeletedAt            *time.Time `json:"deletedAt"`
 	Metadata             *Metadata  `json:"metadata"`
 }
+
+type OrganizationUpdate struct {
+	ParentOrganizationID *string       `json:"parentOrganizationId,omitempty"`
+	LegalName            string        `json:"legalName"`
+	DoingBusinessAs      string        `json:"doingBusinessAs"`
+	LegalDocument        *string       `json:"legalDocument,omitempty"`
+	Address              Address       `json:"address"`
+	Status               *StatusUpdate `json:"status,omitempty"`
+	Metadata             *Metadata     `json:"metadata,omitempty"`
+}
+
+type StatusUpdate struct {
+	Code        *string `json:"code,omitempty"`
+	Description *string `json:"description,omitempty"`
+}

@@ -2,11 +2,11 @@ package http
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/google/uuid"
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
@@ -15,7 +15,6 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
-	v "github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/gofiber/fiber/v2"
@@ -107,28 +106,28 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	transactionID := c.Params("transaction_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
-	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID, ledgerID, transactionID)
+	logger.Infof("Initiating update of Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
 	payload := p.(*t.UpdateTransactionInput)
 	logger.Infof("Request to update an Transaction with details: %#v", payload)
 
 	_, err := handler.Command.UpdateTransaction(c.Context(), organizationID, ledgerID, transactionID, payload)
 	if err != nil {
-		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", transactionID, err.Error())
+		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	trans, err := handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID, err.Error())
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID, ledgerID, transactionID)
+	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), transactionID.String())
 
 	return commonHTTP.OK(c, trans)
 }
@@ -137,17 +136,17 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
-	transactionID := c.Params("transaction_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID := c.Locals("transaction_id").(uuid.UUID)
 
 	tran, err := handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
 	if err != nil {
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID, err.Error())
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID)
+	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
 
 	return commonHTTP.OK(c, tran)
 }
@@ -156,8 +155,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := mlog.NewLoggerFromContext(c.UserContext())
 
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
 	headerParams := commonHTTP.ValidateParameters(c.Queries())
 
@@ -201,10 +200,10 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 // createTransaction func that received struct from DSL parsed and create Transaction
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.Logger, parserDSL gold.Transaction) error {
-	organizationID := c.Params("organization_id")
-	ledgerID := c.Params("ledger_id")
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	validate, err := v.ValidateSendSourceAndDistribute(parserDSL)
+	validate, err := gold.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
 		logger.Error("Validation failed:", err.Error())
 		return commonHTTP.WithError(c, err)
@@ -217,7 +216,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		return commonHTTP.WithError(c, err)
 	}
 
-	err = v.ValidateAccounts(*validate, accounts)
+	err = gold.ValidateAccounts(*validate, accounts)
 	if err != nil {
 		return commonHTTP.WithError(c, err)
 	}
@@ -230,6 +229,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
+	transactionID := uuid.MustParse(tran.ID)
 
 	e := make(chan error)
 	result := make(chan []*o.Operation)
@@ -251,14 +251,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	}
 
 	//TODO: use event driven and broken and parts
-	_, err = handler.Command.UpdateTransactionStatus(c.Context(), organizationID, ledgerID, tran.ID, constant.APPROVED)
+	_, err = handler.Command.UpdateTransactionStatus(c.Context(), organizationID, ledgerID, transactionID, constant.APPROVED)
 	if err != nil {
 		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
 		return commonHTTP.WithError(c, err)
 	}
 
 	//TODO: use event driven and broken and parts
-	tran, err = handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, tran.ID)
+	tran, err = handler.Query.GetTransactionByID(c.Context(), organizationID, ledgerID, transactionID)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", tran.ID, err.Error())
 		return commonHTTP.WithError(c, err)
@@ -266,13 +266,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	tran.Operations = operations
 
-	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID, ledgerID, tran.ID)
+	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
 	return commonHTTP.Created(c, tran)
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, token, organizationID, ledgerID string, input []string) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, input []string) ([]*account.Account, error) {
 	var ids []string
 
 	var aliases []string
@@ -288,7 +288,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	var accounts []*account.Account
 
 	if len(ids) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, token, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), ids)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByIds(c, token, organizationID, ledgerID, ids)
 		if err != nil {
 			logger.Error("Failed to get account gRPC by ids on Ledger", err.Error())
 			return nil, err
@@ -298,7 +298,7 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 	}
 
 	if len(aliases) > 0 {
-		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, token, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), aliases)
+		gRPCAccounts, err := handler.Query.AccountGRPCRepo.GetAccountsByAlias(c, token, organizationID, ledgerID, aliases)
 		if err != nil {
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 			return nil, err
@@ -311,13 +311,13 @@ func (handler *TransactionHandler) getAccounts(c context.Context, logger mlog.Lo
 }
 
 // processAccounts is a function that adjust balance on Accounts
-func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate v.Responses, token, organizationID, ledgerID string, accounts []*account.Account) error {
+func (handler *TransactionHandler) processAccounts(c context.Context, logger mlog.Logger, validate gold.Responses, token string, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
 	e := make(chan error)
 	result := make(chan []*account.Account)
 
 	var update []*account.Account
 
-	go v.UpdateAccounts(constant.DEBIT, validate.From, accounts, result, e)
+	go gold.UpdateAccounts(constant.DEBIT, validate.From, accounts, result, e)
 	select {
 	case r := <-result:
 		update = append(update, r...)
@@ -325,7 +325,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	go v.UpdateAccounts(constant.CREDIT, validate.To, accounts, result, e)
+	go gold.UpdateAccounts(constant.CREDIT, validate.To, accounts, result, e)
 	select {
 	case r := <-result:
 		update = append(update, r...)
@@ -333,7 +333,7 @@ func (handler *TransactionHandler) processAccounts(c context.Context, logger mlo
 		return err
 	}
 
-	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, token, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), update)
+	acc, err := handler.Command.AccountGRPCRepo.UpdateAccounts(c, token, organizationID, ledgerID, update)
 	if err != nil {
 		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
 		return err

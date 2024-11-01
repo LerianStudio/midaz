@@ -15,7 +15,7 @@ import (
 )
 
 // DeleteAccountByID delete an account from the repository by ids.
-func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) error {
+func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Remove account for id: %s", id.String())
 

@@ -123,6 +123,77 @@ func (r *organization) GetByID(organizationID string) (*model.OrganizationItem, 
 	return &orgItemResp, nil
 }
 
+func (r *organization) Update(organizationID string, orgInput model.OrganizationUpdate) (*model.OrganizationItem, error) {
+	payloadBytes, err := json.Marshal(orgInput)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	body := bytes.NewReader(payloadBytes)
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+
+	req, err := http.NewRequest(http.MethodPatch, uri, body)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return nil, errors.New("unauthorized invalid credentials")
+		}
+
+		return nil, fmt.Errorf("failed to update organization, status code: %d",
+			resp.StatusCode)
+	}
+
+	var orgItemResp model.OrganizationItem
+	if err := json.NewDecoder(resp.Body).Decode(&orgItemResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &orgItemResp, nil
+}
+
+func (r *organization) Delete(organizationID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return errors.New("making GET request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		if resp.StatusCode == http.StatusUnauthorized {
+			return errors.New("unauthorized invalid credentials")
+		}
+
+		return fmt.Errorf("failed to update organization, status code: %d",
+			resp.StatusCode)
+	}
+
+	return nil
+}
+
 func NewOrganization(f *factory.Factory) *organization {
 	return &organization{f}
 }

@@ -14,7 +14,7 @@ import (
 )
 
 // UpdateTransaction update a transaction from the repository by given id.
-func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID string, uti *t.UpdateTransactionInput) (*t.Transaction, error) {
+func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *t.UpdateTransactionInput) (*t.Transaction, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update transaction: %v", uti)
 
@@ -22,14 +22,14 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		Description: uti.Description,
 	}
 
-	transUpdated, err := uc.TransactionRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(transactionID), trans)
+	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
 		logger.Errorf("Error updating transaction on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID),
+				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID.String()),
 				Code:       "TRANSACTION_NOT_FOUND",
 				Err:        err,
 			}
@@ -43,7 +43,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 			return nil, err
 		}
 
-		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(t.Transaction{}).Name(), transactionID, uti.Metadata)
+		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(t.Transaction{}).Name(), transactionID.String(), uti.Metadata)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +55,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 }
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
-func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID string, description string) (*t.Transaction, error) {
+func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, description string) (*t.Transaction, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update transaction using status: : %v", description)
 
@@ -68,14 +68,14 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		Status: status,
 	}
 
-	transUpdated, err := uc.TransactionRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(transactionID), trans)
+	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
 		logger.Errorf("Error updating status transaction on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID),
+				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID.String()),
 				Code:       "TRANSACTION_NOT_FOUND",
 				Err:        err,
 			}

@@ -14,7 +14,7 @@ import (
 )
 
 // UpdateOperation update an operation from the repository by given id.
-func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID string, uoi *o.UpdateOperationInput) (*o.Operation, error) {
+func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *o.UpdateOperationInput) (*o.Operation, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update operation: %v", uoi)
 
@@ -22,14 +22,14 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		Description: uoi.Description,
 	}
 
-	operationUpdated, err := uc.OperationRepo.Update(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(transactionID), uuid.MustParse(operationID), operation)
+	operationUpdated, err := uc.OperationRepo.Update(ctx, organizationID, ledgerID, transactionID, operationID, operation)
 	if err != nil {
 		logger.Errorf("Error updating operation on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(o.Operation{}).Name(),
-				Message:    fmt.Sprintf("Operation with id %s was not found", operationID),
+				Message:    fmt.Sprintf("Operation with id %s was not found", operationID.String()),
 				Code:       "OPERATION_NOT_FOUND",
 				Err:        err,
 			}
@@ -43,7 +43,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 			return nil, err
 		}
 
-		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Operation{}).Name(), operationID, uoi.Metadata)
+		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(o.Operation{}).Name(), operationID.String(), uoi.Metadata)
 		if err != nil {
 			return nil, err
 		}

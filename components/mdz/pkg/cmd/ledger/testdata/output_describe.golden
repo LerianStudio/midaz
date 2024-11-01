@@ -1,0 +1,13 @@
+FIELDS               VALUES                                
+ID:                  0192e251-328d-7390-99f5-5c54980115ed  
+Name :               Romaguera and Sons                    
+Organization ID:     0192e250-ed9d-7e5c-a614-9b294151b572  
+Status Code:         ACTIVE                                
+Status Description:  Teste Ledger                          
+Created At:          2024-10-31 11:23:45.165229 +0000 UTC  
+Update At:           2024-10-31 11:23:45.165229 +0000 UTC  
+Metadata Chave:      metadata_chave                        
+Metadata Bitcoin:    1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq    
+Metadata Boolean:    false                                 
+Metadata Double:     10.5                                  
+Metadata Int:        1                                     

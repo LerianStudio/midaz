@@ -1,5 +1,20 @@
 package model
 
+type Balance struct {
+	Available int `json:"available"`
+	OnHold    int `json:"onHold"`
+	Scale     int `json:"scale"`
+}
+
+type Responses struct {
+	Total        int
+	From         map[string]Amount
+	To           map[string]Amount
+	Sources      []string
+	Destinations []string
+	Aliases      []string
+}
+
 type Metadata struct {
 	Key   string `json:"key,omitempty"`
 	Value any    `json:"value,omitempty"`

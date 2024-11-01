@@ -13,11 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID string, filter commonHTTP.QueryHeader) ([]*o.Operation, error) {
+func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter commonHTTP.QueryHeader) ([]*o.Operation, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving operations by account")
 
-	op, err := uc.OperationRepo.FindAllByAccount(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuid.MustParse(accountID), filter.Limit, filter.Page)
+	op, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.Limit, filter.Page)
 	if err != nil {
 		logger.Errorf("Error getting operations on repo: %v", err)
 

@@ -42,6 +42,7 @@ type CreateAccountInput struct {
 	Type            string         `json:"type" validate:"required"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
+	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid"`
 	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
 	Status          Status         `json:"status"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
@@ -54,6 +55,11 @@ type UpdateAccountInput struct {
 	Alias     *string        `json:"alias" validate:"max=100"`
 	ProductID *string        `json:"productId" validate:"uuid"`
 	Metadata  map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+}
+
+// SearchAccountsInput is a struct design to encapsulate request search payload data.
+type SearchAccountsInput struct {
+	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid"`
 }
 
 // Account is a struct designed to encapsulate response payload data.
@@ -188,9 +194,12 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 func (e *Account) ToProto() *proto.Account {
 	status := proto.Status{
 		Code:           e.Status.Code,
-		Description:    *e.Status.Description,
 		AllowSending:   *e.Status.AllowSending,
 		AllowReceiving: *e.Status.AllowReceiving,
+	}
+
+	if e.Status.Description != nil {
+		status.Description = *e.Status.Description
 	}
 
 	balance := proto.Balance{
