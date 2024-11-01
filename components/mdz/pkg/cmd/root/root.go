@@ -3,6 +3,7 @@ package root
 import (
 	"errors"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -21,6 +22,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(version.NewCmdVersion(f.factory))
 	cmd.AddCommand(login.NewCmdLogin(f.factory))
 	cmd.AddCommand(organization.NewCmdOrganization(f.factory))
+	cmd.AddCommand(ledger.NewCmdLedger(f.factory))
 }
 
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
