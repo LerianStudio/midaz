@@ -1,0 +1,19 @@
+{
+    "id": "0192e362-b270-7158-a647-7a59e4e26a27",
+    "name": "Ankunding - Paucek",
+    "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste Ledger"
+    },
+    "createdAt": "2024-10-31T16:22:29.232078Z",
+    "updatedAt": "2024-10-31T16:22:29.232078Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "3HH89s3LPALardk1jLt2PcjAJng",
+        "boolean": true,
+        "chave": "metadata_chave",
+        "double": 10.5,
+        "int": 1
+    }
+}
