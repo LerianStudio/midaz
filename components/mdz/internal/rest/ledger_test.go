@@ -102,9 +102,12 @@ func Test_ledger_Create(t *testing.T) {
 func Test_ledger_List(t *testing.T) {
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 
+	limit := 5
+	page := 1
+
 	expectedResult := model.LedgerList{
-		Page:  1,
-		Limit: 5,
+		Page:  page,
+		Limit: limit,
 		Items: []model.LedgerItems{
 			{
 				ID:             "0192e362-b270-7158-a647-7a59e4e26a27",
@@ -183,8 +186,6 @@ func Test_ledger_List(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
-	limit := 5
-	page := 1
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d", URIAPILedger, organizationID, limit, page)
 
@@ -208,7 +209,75 @@ func Test_ledger_List(t *testing.T) {
 	for i, v := range result.Items {
 		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
 	}
+	assert.Equal(t, expectedResult.Limit, limit)
+	assert.Equal(t, expectedResult.Page, page)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192e250-ed9d-7e5c-a614-9b294151b572/ledgers?limit=5&page=1"])
+}
+
+func Test_ledger_GetByID(t *testing.T) {
+	ledgerID := "0192e362-b270-7158-a647-7a59e4e26a27"
+	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
+
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	expectedResult := &model.LedgerItems{
+		ID:             ledgerID,
+		Name:           "Ankunding - Paucek",
+		OrganizationID: organizationID,
+		Status: &model.LedgerStatus{
+			Code:        ptr.StringPtr("ACTIVE"),
+			Description: ptr.StringPtr("Teste Ledger"),
+		},
+		CreatedAt: time.Date(2024, 10, 31, 16, 22, 29, 232078000, time.UTC),
+		UpdatedAt: time.Date(2024, 10, 31, 16, 22, 29, 232078000, time.UTC),
+		DeletedAt: nil,
+		Metadata: &model.LedgerMetadata{
+			Bitcoin: ptr.StringPtr("3HH89s3LPALardk1jLt2PcjAJng"),
+			Boolean: ptr.BoolPtr(true),
+			Chave:   ptr.StringPtr("metadata_chave"),
+			Double:  ptr.Float64Ptr(10.5),
+			Int:     ptr.IntPtr(1),
+		},
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
+		URIAPILedger, organizationID, ledgerID)
+
+	httpmock.RegisterResponder(http.MethodGet, uri,
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/ledger_response_item.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	ledServ := NewLedger(factory)
+
+	result, err := ledServ.GetByID(organizationID, ledgerID)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedResult.ID, result.ID)
+	assert.Equal(t, expectedResult.Name, result.Name)
+	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, expectedResult.Status.Description, result.Status.Description)
+	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
+	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
+	assert.Equal(t, expectedResult.DeletedAt, result.DeletedAt)
+	assert.Equal(t, expectedResult.Metadata.Bitcoin, result.Metadata.Bitcoin)
+	assert.Equal(t, expectedResult.Metadata.Boolean, result.Metadata.Boolean)
+	assert.Equal(t, expectedResult.Metadata.Chave, result.Metadata.Chave)
+	assert.Equal(t, expectedResult.Metadata.Double, result.Metadata.Double)
+	assert.Equal(t, expectedResult.Metadata.Int, result.Metadata.Int)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192e250-ed9d-7e5c-a614-9b294151b572/ledgers/0192e362-b270-7158-a647-7a59e4e26a27"])
 }
