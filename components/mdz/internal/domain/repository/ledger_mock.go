@@ -54,3 +54,18 @@ func (mr *MockLedgerMockRecorder) Create(organizationID, inp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockLedger)(nil).Create), organizationID, inp)
 }
+
+// Get mocks base method.
+func (m *MockLedger) Get(organizationID string, limit, page int) (*model.LedgerList, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", organizationID, limit, page)
+	ret0, _ := ret[0].(*model.LedgerList)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockLedgerMockRecorder) Get(organizationID, limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockLedger)(nil).Get), organizationID, limit, page)
+}

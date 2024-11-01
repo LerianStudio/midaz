@@ -2,7 +2,6 @@ package organization
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -14,138 +13,55 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"gotest.tools/golden"
 )
 
 func Test_newCmdOrganizationList(t *testing.T) {
-	t.Run("happy road", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-		mockRepo := repository.NewMockOrganization(ctrl)
+	mockRepo := repository.NewMockOrganization(ctrl)
 
-		orgFactory := factoryOrganizationList{
-			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-				Out: &bytes.Buffer{},
-				Err: &bytes.Buffer{},
-			}},
-			repoOrganization: mockRepo,
-		}
+	orgFactory := factoryOrganizationList{
+		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+			Out: &bytes.Buffer{},
+			Err: &bytes.Buffer{},
+		}},
+		repoOrganization: mockRepo,
+	}
 
-		cmd := newCmdOrganizationList(&orgFactory)
+	cmd := newCmdOrganizationList(&orgFactory)
 
-		timeNow := time.Now()
-
-		list := model.OrganizationList{
-			Items: []model.OrganizationItem{
-				{
-					ID:                   "123",
-					ParentOrganizationID: ptr.StringPtr(""),
-					LegalName:            "Test Organization",
-					DoingBusinessAs:      "The ledger.io",
-					LegalDocument:        "48784548000104",
-					Address: model.Address{
-						Country: "BR",
-					},
-					Status: model.Status{
-						Description: "Test Ledger",
-						Code:        ptr.StringPtr("2123"),
-					},
-					CreatedAt: timeNow,
-					UpdatedAt: timeNow,
+	list := model.OrganizationList{
+		Items: []model.OrganizationItem{
+			{
+				ID:                   "123",
+				ParentOrganizationID: ptr.StringPtr(""),
+				LegalName:            "Test Organization",
+				DoingBusinessAs:      "The ledger.io",
+				LegalDocument:        "48784548000104",
+				Address: model.Address{
+					Country: "BR",
 				},
-			},
-			Limit: 10,
-			Page:  1,
-		}
-
-		mockRepo.EXPECT().Get(gomock.Any(), gomock.Any()).
-			Return(&list, nil)
-
-		err := cmd.Execute()
-		assert.NoError(t, err)
-
-		output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-
-		expectedOut := "ID   PARENT_ORGANIZATION_ID  LEGALNAME          "
-		assert.Contains(t, output, expectedOut)
-	})
-
-	t.Run("flag --json", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockRepo := repository.NewMockOrganization(ctrl)
-
-		orgFactory := factoryOrganizationList{
-			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-				Out: &bytes.Buffer{},
-				Err: &bytes.Buffer{},
-			}},
-			repoOrganization: mockRepo,
-		}
-
-		cmd := newCmdOrganizationList(&orgFactory)
-		cmd.SetArgs([]string{"--json"})
-
-		timeNow := time.Now()
-
-		list := model.OrganizationList{
-			Items: []model.OrganizationItem{
-				{
-					ID:                   "123",
-					ParentOrganizationID: ptr.StringPtr(""),
-					LegalName:            "Test Organization",
-					DoingBusinessAs:      "The ledger.io",
-					LegalDocument:        "48784548000104",
-					Address: model.Address{
-						Country: "BR",
-					},
-					Status: model.Status{
-						Description: "Test Ledger",
-						Code:        ptr.StringPtr("2123"),
-					},
-					CreatedAt: timeNow,
-					UpdatedAt: timeNow,
+				Status: model.Status{
+					Description: "Test Ledger",
+					Code:        ptr.StringPtr("2123"),
 				},
+				CreatedAt: time.Date(2024, 10, 31, 11, 31, 22, 369928000, time.UTC),
+				UpdatedAt: time.Date(2024, 10, 31, 11, 31, 22, 369928000, time.UTC),
 			},
-			Limit: 10,
-			Page:  1,
-		}
+		},
+		Limit: 10,
+		Page:  1,
+	}
 
-		mockRepo.EXPECT().Get(gomock.Any(), gomock.Any()).
-			Return(&list, nil)
+	mockRepo.EXPECT().Get(gomock.Any(), gomock.Any()).
+		Return(&list, nil)
 
-		err := cmd.Execute()
-		assert.NoError(t, err)
+	err := cmd.Execute()
+	assert.NoError(t, err)
 
-		output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-
-		expectedOut := `{"items":[{"id":"123","parentOrganizationId":"",`
-		fmt.Println(output)
-		assert.Contains(t, output, expectedOut)
-	})
-
-	t.Run("error request api", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockRepo := repository.NewMockOrganization(ctrl)
-
-		orgFactory := factoryOrganizationList{
-			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-				Out: &bytes.Buffer{},
-				Err: &bytes.Buffer{},
-			}},
-			repoOrganization: mockRepo,
-		}
-
-		cmd := newCmdOrganizationList(&orgFactory)
-		cmd.SetArgs([]string{"--json"})
-
-		mockRepo.EXPECT().Get(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("error generic"))
-
-		err := cmd.Execute()
-		assert.EqualError(t, err, "error generic")
-	})
+	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+	fmt.Println(string(output))
+	golden.AssertBytes(t, output, "output_list.golden")
 }

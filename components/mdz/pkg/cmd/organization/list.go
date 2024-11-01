@@ -59,12 +59,12 @@ func (f *factoryOrganizationList) runE(cmd *cobra.Command, _ []string) error {
 	for _, i := range orgs.Items {
 		tbl.AddRow(
 			i.ID,
-			i.ParentOrganizationID,
+			utils.SafeString(i.ParentOrganizationID),
 			i.LegalName,
 			i.DoingBusinessAs,
 			i.LegalDocument,
 			i.Address.Country,
-			i.Status.Code,
+			utils.SafeString(i.Status.Code),
 			i.CreatedAt,
 			i.UpdatedAt,
 		)

@@ -31,3 +31,20 @@ type LedgerCreate struct {
 	DeletedAt      time.Time      `json:"deletedAt,omitempty"`
 	Metadata       LedgerMetadata `json:"metadata,omitempty"`
 }
+
+type LedgerList struct {
+	Items []LedgerItems `json:"items"`
+	Page  int           `json:"page"`
+	Limit int           `json:"limit"`
+}
+
+type LedgerItems struct {
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	OrganizationID string          `json:"organizationId"`
+	Status         *LedgerStatus   `json:"status"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
+	DeletedAt      *time.Time      `json:"deletedAt"`
+	Metadata       *LedgerMetadata `json:"metadata,omitempty"`
+}
