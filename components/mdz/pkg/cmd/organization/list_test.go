@@ -2,7 +2,6 @@ package organization
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 	"time"
 
@@ -43,8 +42,8 @@ func Test_newCmdOrganizationList(t *testing.T) {
 				Address: model.Address{
 					Country: "BR",
 				},
-				Status: model.Status{
-					Description: "Test Ledger",
+				Status: &model.Status{
+					Description: ptr.StringPtr("Test Ledger"),
 					Code:        ptr.StringPtr("2123"),
 				},
 				CreatedAt: time.Date(2024, 10, 31, 11, 31, 22, 369928000, time.UTC),
@@ -62,6 +61,5 @@ func Test_newCmdOrganizationList(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
-	fmt.Println(string(output))
 	golden.AssertBytes(t, output, "output_list.golden")
 }

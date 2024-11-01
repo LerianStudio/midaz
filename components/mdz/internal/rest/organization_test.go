@@ -46,9 +46,9 @@ func TestCreateOrganization(t *testing.T) {
 		LegalName:       "Corwin LLC",
 		DoingBusinessAs: "The ledger.io",
 		LegalDocument:   "48784548000104",
-		Status: model.Status{
+		Status: &model.Status{
 			Code:        ptr.StringPtr("ACTIVE"),
-			Description: "Teste Ledger",
+			Description: ptr.StringPtr("Teste Ledger"),
 		},
 		Address: model.Address{
 			Line1:   ptr.StringPtr("Avenida Paulista, 1234"),
@@ -82,7 +82,7 @@ func TestCreateOrganization(t *testing.T) {
 		},
 		Status: model.Status{
 			Code:        ptr.StringPtr("ACTIVE"),
-			Description: "Teste Ledger",
+			Description: ptr.StringPtr("Teste Ledger"),
 		},
 		Metadata: model.Metadata{
 			Chave:   ptr.StringPtr("metadata_chave"),
@@ -249,9 +249,9 @@ func TestOrganizationUpdate(t *testing.T) {
 			State:   ptr.StringPtr("MU"),
 			Country: "LV",
 		},
-		Status: model.Status{
+		Status: &model.Status{
 			Code:        ptr.StringPtr("ACTIVE"),
-			Description: "Teste Ledger",
+			Description: ptr.StringPtr("Teste Ledger"),
 		},
 	}
 

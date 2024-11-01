@@ -111,13 +111,8 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *model.Organizati
 	if len(f.Code) > 0 || len(f.Description) > 0 {
 		tempStatus := model.StatusUpdate{}
 
-		if len(f.Code) > 0 {
-			tempStatus.Code = &f.Code
-		}
-
-		if len(f.Description) > 0 {
-			tempStatus.Description = &f.Description
-		}
+		tempStatus.Code = utils.AssignOptionalStringPtr(f.Code)
+		tempStatus.Description = utils.AssignOptionalStringPtr(f.Description)
 
 		status = &tempStatus
 	}
@@ -137,7 +132,7 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *model.Organizati
 		return err
 	}
 
-	metadata, err := buildMetadata(f)
+	metadata, err := buildMetadataUpdate(f)
 	if err != nil {
 		return err
 	}
@@ -147,7 +142,7 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *model.Organizati
 	return nil
 }
 
-func buildMetadata(f *factoryOrganizationUpdate) (*model.Metadata, error) {
+func buildMetadataUpdate(f *factoryOrganizationUpdate) (*model.Metadata, error) {
 	if len(f.Chave) == 0 && len(f.Bitcoin) == 0 && len(f.Boolean) == 0 && len(f.Double) == 0 && len(f.Int) == 0 {
 		return nil, nil
 	}

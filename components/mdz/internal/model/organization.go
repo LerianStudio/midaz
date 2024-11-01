@@ -7,14 +7,14 @@ type Organization struct {
 	ParentOrganizationID *string   `json:"parentOrganizationId,omitempty"`
 	DoingBusinessAs      string    `json:"doingBusinessAs"`
 	LegalDocument        string    `json:"legalDocument"`
-	Status               Status    `json:"status"`
+	Status               *Status   `json:"status"`
 	Address              Address   `json:"address"`
 	Metadata             *Metadata `json:"metadata,omitempty"`
 }
 
 type Status struct {
 	Code        *string `json:"code,omitempty"`
-	Description string  `json:"description"`
+	Description *string `json:"description"`
 }
 
 type Address struct {
@@ -61,7 +61,7 @@ type OrganizationItem struct {
 	DoingBusinessAs      string     `json:"doingBusinessAs"`
 	LegalDocument        string     `json:"legalDocument"`
 	Address              Address    `json:"address"`
-	Status               Status     `json:"status"`
+	Status               *Status    `json:"status"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
 	DeletedAt            *time.Time `json:"deletedAt"`
