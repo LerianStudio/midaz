@@ -104,6 +104,21 @@ services:
       primary-ledger:
         condition: service_healthy
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
+      - ${RABBITMQ_PORT_AMPQ}:${RABBITMQ_PORT_AMPQ}
+    volumes:
+      - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+      - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+      - infra_network
+
 volumes:
   mongodb_data_container:
 
