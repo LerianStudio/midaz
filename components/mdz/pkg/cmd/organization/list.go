@@ -61,10 +61,10 @@ func (f *factoryOrganizationList) runE(cmd *cobra.Command, _ []string) error {
 			i.ID,
 			utils.SafeString(i.ParentOrganizationID),
 			i.LegalName,
-			i.DoingBusinessAs,
+			utils.SafeString(i.DoingBusinessAs),
 			i.LegalDocument,
 			i.Address.Country,
-			utils.SafeString(i.Status.Code),
+			i.Status.Code,
 			i.CreatedAt,
 			i.UpdatedAt,
 		)
