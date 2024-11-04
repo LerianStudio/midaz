@@ -1,3 +1,10 @@
+## [1.27.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.26.0...v1.27.0-beta.1) (2024-11-04)
+
+
+### Bug Fixes
+
+* ah metadata structure is totally optional now, it caused errors when trying to request with null fields in the api ([3dac45f](https://github.com/LerianStudio/midaz/commit/3dac45fea9bd1c2fef7990289d4c33eb5884d182))
+
 ## [1.26.0](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0) (2024-11-01)
 
 
