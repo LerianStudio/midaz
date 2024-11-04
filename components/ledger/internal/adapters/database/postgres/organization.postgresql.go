@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"reflect"
 	"strconv"
 	"strings"
@@ -44,17 +47,39 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 }
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
-func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *o.Organization) (*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, tracer trace.Tracer, organization *o.Organization) (*o.Organization, error) {
+	ctx, span := tracer.Start(ctx, reflect.TypeOf(r).PkgPath()+"."+reflect.TypeOf(o.Organization{}).Name()+".Create")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to get database connection: "+err.Error())
+		span.RecordError(err)
+
 		return nil, err
 	}
 
 	record := &o.OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
 
+	recordStr, err := common.StructToJSONString(record)
+	if err != nil {
+		span.SetStatus(codes.Error, "Failed to convert organization record from entity to JSON string: "+err.Error())
+		span.RecordError(err)
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   attribute.Key("organization_repository_output"),
+		Value: attribute.StringValue(recordStr),
+	})
+
 	address, err := json.Marshal(record.Address)
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to marshal address: "+err.Error())
+		span.RecordError(err)
+
 		return nil, err
 	}
 
@@ -71,6 +96,9 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		record.UpdatedAt,
 		record.DeletedAt)
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to execute query: "+err.Error())
+		span.RecordError(err)
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
@@ -81,11 +109,19 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to get rows affected: "+err.Error())
+		span.RecordError(err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		span.SetStatus(codes.Error, "Failed to create organization: "+reflect.TypeOf(o.Organization{}).Name())
+
+		err = common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		span.RecordError(err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil

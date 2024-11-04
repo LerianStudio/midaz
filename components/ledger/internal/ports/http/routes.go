@@ -20,6 +20,7 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandle
 		DisableStartupMessage: true,
 	})
 
+	f.Use(lib.WithTracing())
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
 	f.Use(lib.WithHTTPLogging(lib.WithCustomLogger(lg)))
@@ -82,6 +83,8 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandle
 
 	// Doc
 	lib.DocAPI("ledger", "Ledger API", f)
+
+	f.Use(lib.EndTracingSpans())
 
 	return f
 }

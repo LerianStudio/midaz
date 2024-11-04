@@ -2,6 +2,9 @@ package command
 
 import (
 	"context"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"reflect"
 	"time"
 
@@ -11,7 +14,10 @@ import (
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
-func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganizationInput) (*o.Organization, error) {
+func (uc *UseCase) CreateOrganization(ctx context.Context, tracer trace.Tracer, coi *o.CreateOrganizationInput) (*o.Organization, error) {
+	ctx, span := tracer.Start(ctx, reflect.TypeOf(uc).PkgPath()+".CreateOrganization")
+	defer span.End()
+
 	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create organization: %v", coi)
 
@@ -31,6 +37,9 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	}
 
 	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
+		span.SetStatus(codes.Error, "Failed to validate country address: "+err.Error())
+		span.RecordError(err)
+
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 	}
 
@@ -45,19 +54,43 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		UpdatedAt:            time.Now(),
 	}
 
-	org, err := uc.OrganizationRepo.Create(ctx, organization)
+	organizationStr, err := common.StructToJSONString(organization)
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to convert organization repository input to JSON string: "+err.Error())
+		span.RecordError(err)
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   attribute.Key("organization_repository_input"),
+		Value: attribute.StringValue(organizationStr),
+	})
+
+	org, err := uc.OrganizationRepo.Create(ctx, tracer, organization)
+	if err != nil {
+		span.SetStatus(codes.Error, "Failed to create organization on repository: "+err.Error())
+		span.RecordError(err)
+
 		logger.Errorf("Error creating organization: %v", err)
+
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to create organization metadata: "+err.Error())
+		span.RecordError(err)
+
 		logger.Errorf("Error creating organization metadata: %v", err)
+
 		return nil, err
 	}
 
 	org.Metadata = metadata
+
+	//TODO: verify if this is necessary
+	span.SetStatus(codes.Ok, "Successfully created organization 🎉🚀")
 
 	return org, nil
 }

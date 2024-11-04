@@ -1,6 +1,9 @@
 package http
 
 import (
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"os"
 	"reflect"
 
@@ -29,13 +32,33 @@ type OrganizationHandler struct {
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
+	tracer := c.Locals("tracer").(trace.Tracer)
+	ctx, span := tracer.Start(ctx, "create_organization")
+	defer span.End()
+
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	payload := p.(*o.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
 
-	organization, err := handler.Command.CreateOrganization(ctx, payload)
+	payloadStr, err := common.StructToJSONString(payload)
 	if err != nil {
+		span.SetStatus(codes.Error, "Failed to convert payload to JSON string: "+err.Error())
+		span.RecordError(err)
+
+		return commonHTTP.WithError(c, err)
+	}
+
+	span.SetAttributes(attribute.KeyValue{
+		Key:   attribute.Key("payload"),
+		Value: attribute.StringValue(payloadStr),
+	})
+
+	organization, err := handler.Command.CreateOrganization(ctx, tracer, payload)
+	if err != nil {
+		span.SetStatus(codes.Error, "Failed to create organization on command: "+err.Error())
+		span.RecordError(err)
+
 		return commonHTTP.WithError(c, err)
 	}
 

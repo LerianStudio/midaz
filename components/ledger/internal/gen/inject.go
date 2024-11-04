@@ -5,6 +5,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -81,6 +82,7 @@ var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
 		mzap.InitializeLogger,
+		mopentelemetry.InitializeTelemetry,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
