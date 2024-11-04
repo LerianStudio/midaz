@@ -69,16 +69,33 @@ func (f *factoryOrganizationDescribe) describePrint(org *model.OrganizationItem)
 	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
 	tbl.WithWriter(f.factory.IOStreams.Out)
 
+	f.addBasicFields(tbl, org)
+	f.addAddressFields(tbl, org)
+	f.addStatusFields(tbl, org)
+	f.addMetadataFields(tbl, org)
+
+	tbl.Print()
+}
+
+func (f *factoryOrganizationDescribe) addBasicFields(tbl table.Table, org *model.OrganizationItem) {
 	tbl.AddRow("ID:", org.ID)
+	tbl.AddRow("Legal Name:", org.LegalName)
+	tbl.AddRow("Doing Business As:", org.DoingBusinessAs)
+	tbl.AddRow("Legal Document:", org.LegalDocument)
 
 	if org.ParentOrganizationID != nil {
 		tbl.AddRow("Parent Organization ID:", *org.ParentOrganizationID)
 	}
 
-	tbl.AddRow("Legal Name:", org.LegalName)
-	tbl.AddRow("Doing Business As:", org.DoingBusinessAs)
-	tbl.AddRow("Legal Document:", org.LegalDocument)
+	tbl.AddRow("Created At:", org.CreatedAt)
+	tbl.AddRow("Update At:", org.UpdatedAt)
 
+	if org.DeletedAt != nil {
+		tbl.AddRow("Delete At:", *org.DeletedAt)
+	}
+}
+
+func (f *factoryOrganizationDescribe) addAddressFields(tbl table.Table, org *model.OrganizationItem) {
 	if org.Address.Line1 != nil {
 		tbl.AddRow("Address Line1:", *org.Address.Line1)
 	}
@@ -100,19 +117,21 @@ func (f *factoryOrganizationDescribe) describePrint(org *model.OrganizationItem)
 	}
 
 	tbl.AddRow("Address Country:", org.Address.Country)
+}
 
-	if org.Status.Code != nil {
-		tbl.AddRow("Status Code:", *org.Status.Code)
+func (f *factoryOrganizationDescribe) addStatusFields(tbl table.Table, org *model.OrganizationItem) {
+	if org.Status != nil {
+		if org.Status.Code != nil {
+			tbl.AddRow("Status Code:", *org.Status.Code)
+		}
+
+		if org.Status.Description != nil {
+			tbl.AddRow("Status Description:", *org.Status.Description)
+		}
 	}
+}
 
-	tbl.AddRow("Status Description:", org.Status.Description)
-	tbl.AddRow("Created At:", org.CreatedAt)
-	tbl.AddRow("Update At:", org.UpdatedAt)
-
-	if org.DeletedAt != nil {
-		tbl.AddRow("Delete At:", *org.DeletedAt)
-	}
-
+func (f *factoryOrganizationDescribe) addMetadataFields(tbl table.Table, org *model.OrganizationItem) {
 	if org.Metadata != nil {
 		if org.Metadata.Chave != nil {
 			tbl.AddRow("Metadata Chave:", *org.Metadata.Chave)
@@ -134,8 +153,6 @@ func (f *factoryOrganizationDescribe) describePrint(org *model.OrganizationItem)
 			tbl.AddRow("Metadata Int:", *org.Metadata.Int)
 		}
 	}
-
-	tbl.Print()
 }
 
 func (f *factoryOrganizationDescribe) setFlags(cmd *cobra.Command) {

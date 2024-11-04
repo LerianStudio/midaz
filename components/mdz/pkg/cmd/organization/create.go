@@ -72,12 +72,7 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 }
 
 func (f *factoryOrganizationCreate) createRequestFromFlags(org *model.Organization) error {
-	org.Status = model.Status{}
 	org.Address = model.Address{}
-
-	if org.Metadata == nil {
-		org.Metadata = &model.Metadata{}
-	}
 
 	var err error
 	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
@@ -102,16 +97,18 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *model.Organizati
 		return err
 	}
 
-	if len(f.Code) < 1 {
-		org.Status.Code = nil
-	} else {
-		org.Status.Code = &f.Code
+	var status *model.Status
+
+	if len(f.Code) > 0 || len(f.Description) > 0 {
+		tempStatus := model.Status{}
+
+		tempStatus.Code = utils.AssignOptionalStringPtr(f.Code)
+		tempStatus.Description = utils.AssignOptionalStringPtr(f.Description)
+
+		status = &tempStatus
 	}
 
-	org.Status.Description, err = utils.AssignStringField(f.Description, "description", f.tuiInput)
-	if err != nil {
-		return err
-	}
+	org.Status = status
 
 	org.Address.Line1 = utils.AssignOptionalStringPtr(f.Line1)
 	org.Address.Line2 = utils.AssignOptionalStringPtr(f.Line2)
@@ -124,32 +121,56 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *model.Organizati
 		return err
 	}
 
-	if len(f.Chave) > 0 {
-		org.Metadata.Chave = &f.Chave
-	}
-
-	if len(f.Bitcoin) > 0 {
-		org.Metadata.Bitcoin = &f.Bitcoin
-	}
-
-	org.Metadata.Boolean, err = utils.ParseAndAssign(f.Boolean, strconv.ParseBool)
+	metadata, err := buildMetadataCreate(f)
 	if err != nil {
-		return fmt.Errorf("invalid boolean field: %v", err)
+		return err
 	}
 
-	org.Metadata.Double, err = utils.ParseAndAssign(f.Double, func(s string) (float64, error) {
-		return strconv.ParseFloat(s, 64)
-	})
-	if err != nil {
-		return fmt.Errorf("invalid double field: %v", err)
-	}
-
-	org.Metadata.Int, err = utils.ParseAndAssign(f.Int, strconv.Atoi)
-	if err != nil {
-		return fmt.Errorf("invalid int field: %v", err)
-	}
+	org.Metadata = metadata
 
 	return nil
+}
+
+func buildMetadataCreate(f *factoryOrganizationCreate) (*model.Metadata, error) {
+	if len(f.Chave) == 0 && len(f.Bitcoin) == 0 && len(f.Boolean) == 0 && len(f.Double) == 0 && len(f.Int) == 0 {
+		return nil, nil
+	}
+
+	tempMetadata := model.Metadata{}
+
+	tempMetadata.Chave = utils.AssignOptionalStringPtr(f.Chave)
+	tempMetadata.Bitcoin = utils.AssignOptionalStringPtr(f.Bitcoin)
+
+	if len(f.Boolean) > 0 {
+		var err error
+
+		tempMetadata.Boolean, err = utils.ParseAndAssign(f.Boolean, strconv.ParseBool)
+		if err != nil {
+			return nil, fmt.Errorf("invalid boolean field: %v", err)
+		}
+	}
+
+	if len(f.Double) > 0 {
+		var err error
+		tempMetadata.Double, err = utils.ParseAndAssign(f.Double, func(s string) (float64, error) {
+			return strconv.ParseFloat(s, 64)
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("invalid double field: %v", err)
+		}
+	}
+
+	if len(f.Int) > 0 {
+		var err error
+
+		tempMetadata.Int, err = utils.ParseAndAssign(f.Int, strconv.Atoi)
+		if err != nil {
+			return nil, fmt.Errorf("invalid int field: %v", err)
+		}
+	}
+
+	return &tempMetadata, nil
 }
 
 func (f *factoryOrganizationCreate) setFlags(cmd *cobra.Command) {
