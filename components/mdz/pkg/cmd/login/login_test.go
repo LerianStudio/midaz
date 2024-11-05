@@ -35,7 +35,7 @@ func TestRunE(t *testing.T) {
 					AuthenticateWithCredentials("testuser", "testpass").
 					Return(&model.TokenResponse{AccessToken: "mock-token"}, nil)
 			},
-			expectedOutput: "Successfully logged in",
+			expectedOutput: "successfully logged in",
 		},
 		{
 			name:        "Invalid credentials",

@@ -39,8 +39,8 @@ func formatAPIError(jsonData []byte) error {
 	return errors.New(formattedError)
 }
 
-func checkResponse(resp *http.Response) error {
-	if resp.StatusCode != http.StatusOK {
+func checkResponse(resp *http.Response, statusCode int) error {
+	if resp.StatusCode != statusCode {
 
 		if resp.StatusCode == http.StatusUnauthorized {
 			return errors.New("unauthorized: invalid credentials")

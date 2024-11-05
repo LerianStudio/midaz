@@ -39,7 +39,7 @@ func (r *ledger) Create(organizationID string, inp model.LedgerInput) (*model.Le
 
 	defer resp.Body.Close()
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, http.StatusCreated); err != nil {
 		return nil, err
 	}
 
@@ -69,7 +69,7 @@ func (r *ledger) Get(organizationID string, limit, page int) (*model.LedgerList,
 	}
 	defer resp.Body.Close()
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, http.StatusOK); err != nil {
 		return nil, err
 	}
 
@@ -99,7 +99,7 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, e
 	}
 	defer resp.Body.Close()
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, http.StatusOK); err != nil {
 		return nil, err
 	}
 
@@ -135,7 +135,7 @@ func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedger
 
 	defer resp.Body.Close()
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, http.StatusOK); err != nil {
 		return nil, err
 	}
 
