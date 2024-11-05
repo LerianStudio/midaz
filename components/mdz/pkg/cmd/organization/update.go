@@ -16,9 +16,9 @@ import (
 )
 
 type factoryOrganizationUpdate struct {
-	factory         *factory.Factory
-	repoOrganiztion repository.Organization
-	tuiInput        func(message string) (string, error)
+	factory          *factory.Factory
+	repoOrganization repository.Organization
+	tuiInput         func(message string) (string, error)
 	flagsUpdate
 }
 
@@ -66,7 +66,7 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoOrganiztion.Update(f.OrganizationID, org)
+	resp, err := f.repoOrganization.Update(f.OrganizationID, org)
 	if err != nil {
 		return err
 	}
@@ -163,9 +163,9 @@ func (f *factoryOrganizationUpdate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacUpdate(f *factory.Factory) *factoryOrganizationUpdate {
 	return &factoryOrganizationUpdate{
-		factory:         f,
-		repoOrganiztion: rest.NewOrganization(f),
-		tuiInput:        tui.Input,
+		factory:          f,
+		repoOrganization: rest.NewOrganization(f),
+		tuiInput:         tui.Input,
 	}
 }
 

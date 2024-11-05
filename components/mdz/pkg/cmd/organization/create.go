@@ -16,9 +16,9 @@ import (
 )
 
 type factoryOrganizationCreate struct {
-	factory         *factory.Factory
-	repoOrganiztion repository.Organization
-	tuiInput        func(message string) (string, error)
+	factory          *factory.Factory
+	repoOrganization repository.Organization
+	tuiInput         func(message string) (string, error)
 	flagsCreate
 }
 
@@ -56,7 +56,7 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoOrganiztion.Create(org)
+	resp, err := f.repoOrganization.Create(org)
 	if err != nil {
 		return err
 	}
@@ -161,9 +161,9 @@ func (f *factoryOrganizationCreate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacCreate(f *factory.Factory) *factoryOrganizationCreate {
 	return &factoryOrganizationCreate{
-		factory:         f,
-		repoOrganiztion: rest.NewOrganization(f),
-		tuiInput:        tui.Input,
+		factory:          f,
+		repoOrganization: rest.NewOrganization(f),
+		tuiInput:         tui.Input,
 	}
 }
 

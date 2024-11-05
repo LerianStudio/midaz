@@ -24,7 +24,7 @@ func TestNewCmdOrganizationUpdate(t *testing.T) {
 			Out: &bytes.Buffer{},
 			Err: &bytes.Buffer{},
 		}},
-		repoOrganiztion: mockRepo,
+		repoOrganization: mockRepo,
 		tuiInput: func(message string) (string, error) {
 			return "name", nil
 		},
