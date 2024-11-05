@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
@@ -52,7 +53,7 @@ func setupPostgreSQLConnection(cfg *service.Config, log mlog.Logger) *mpostgres.
 }
 
 func setupMongoDBConnection(cfg *service.Config, log mlog.Logger) *mmongo.MongoConnection {
-	connStrSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
+	connStrSource := fmt.Sprintf("mongodb://%s:%s@%s:%s/",
 		cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	return &mmongo.MongoConnection{
@@ -86,6 +87,17 @@ func setupGRPCConnection(cfg *service.Config, log mlog.Logger) *mgrpc.GRPCConnec
 	}
 }
 
+func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq.RabbitMQConnection {
+	connStrSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
+		cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	return &mrabbitmq.RabbitMQConnection{
+		ConnectionStringSource: connStrSource,
+		Logger:                 log,
+	}
+
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
@@ -94,6 +106,7 @@ var (
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupGRPCConnection,
+		setupRabbitMQConnection,
 		service.NewConfig,
 		httpHandler.NewRouter,
 		service.NewServer,
