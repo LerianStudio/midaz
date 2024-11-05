@@ -105,8 +105,8 @@ services:
         condition: service_healthy
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: 'rabbitmq'
+    image: rabbitmq:4.0-management-alpine
+    container_name: midaz-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -114,6 +114,8 @@ services:
       - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
       - ${RABBITMQ_PORT_AMPQ}:${RABBITMQ_PORT_AMPQ}
     volumes:
+      - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
+      - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
       - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
       - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
     networks:
