@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -57,8 +56,7 @@ func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 		"ID",
 		"NAME",
 		"STATUS_CODE",
-		"METADATA_BITCOIN",
-		"METADATA_CHAVE",
+		"STATUS_DESCRIPTION",
 		"CREATED_AT",
 	)
 
@@ -69,9 +67,8 @@ func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 		tbl.AddRow(
 			i.ID,
 			i.Name,
-			utils.SafeNestedString(i.Status, func(s *model.LedgerStatus) *string { return s.Code }),
-			utils.SafeNestedString(i.Metadata, func(s *model.LedgerMetadata) *string { return s.Bitcoin }),
-			utils.SafeNestedString(i.Metadata, func(s *model.LedgerMetadata) *string { return s.Chave }),
+			i.Status.Code,
+			utils.SafeString(i.Status.Description),
 			i.CreatedAt,
 		)
 	}

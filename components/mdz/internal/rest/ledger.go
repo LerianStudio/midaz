@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 )
 
@@ -16,7 +15,7 @@ type ledger struct {
 	Factory *factory.Factory
 }
 
-func (r *ledger) Create(organizationID string, inp model.LedgerInput) (*model.LedgerCreate, error) {
+func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
@@ -43,7 +42,7 @@ func (r *ledger) Create(organizationID string, inp model.LedgerInput) (*model.Le
 		return nil, err
 	}
 
-	var ledResp model.LedgerCreate
+	var ledResp mmodel.Ledger
 	if err := json.NewDecoder(resp.Body).Decode(&ledResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -51,7 +50,7 @@ func (r *ledger) Create(organizationID string, inp model.LedgerInput) (*model.Le
 	return &ledResp, nil
 }
 
-func (r *ledger) Get(organizationID string, limit, page int) (*model.LedgerList, error) {
+func (r *ledger) Get(organizationID string, limit, page int) (*mmodel.Ledgers, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d",
 		r.Factory.Env.URLAPILedger, organizationID, limit, page)
 
@@ -73,15 +72,15 @@ func (r *ledger) Get(organizationID string, limit, page int) (*model.LedgerList,
 		return nil, err
 	}
 
-	var ledResp model.LedgerList
-	if err := json.NewDecoder(resp.Body).Decode(&ledResp); err != nil {
+	var ledsResp mmodel.Ledgers
+	if err := json.NewDecoder(resp.Body).Decode(&ledsResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &ledResp, nil
+	return &ledsResp, nil
 }
 
-func (r *ledger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, error) {
+func (r *ledger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
@@ -103,7 +102,7 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, e
 		return nil, err
 	}
 
-	var ledItemResp model.LedgerItems
+	var ledItemResp mmodel.Ledger
 	if err := json.NewDecoder(resp.Body).Decode(&ledItemResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}

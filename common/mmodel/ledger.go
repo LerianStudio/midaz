@@ -27,3 +27,9 @@ type Ledger struct {
 	DeletedAt      *time.Time     `json:"deletedAt" sql:"index"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
+
+type Ledgers struct {
+	Items []Ledger `json:"items"`
+	Page  int      `json:"page"`
+	Limit int      `json:"limit"`
+}

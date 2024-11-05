@@ -13,7 +13,6 @@ import (
 	reflect "reflect"
 
 	mmodel "github.com/LerianStudio/midaz/common/mmodel"
-	model "github.com/LerianStudio/midaz/components/mdz/internal/model"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,10 +41,10 @@ func (m *MockLedger) EXPECT() *MockLedgerMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockLedger) Create(organizationID string, inp model.LedgerInput) (*model.LedgerCreate, error) {
+func (m *MockLedger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", organizationID, inp)
-	ret0, _ := ret[0].(*model.LedgerCreate)
+	ret0, _ := ret[0].(*mmodel.Ledger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -57,10 +56,10 @@ func (mr *MockLedgerMockRecorder) Create(organizationID, inp any) *gomock.Call {
 }
 
 // Get mocks base method.
-func (m *MockLedger) Get(organizationID string, limit, page int) (*model.LedgerList, error) {
+func (m *MockLedger) Get(organizationID string, limit, page int) (*mmodel.Ledgers, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", organizationID, limit, page)
-	ret0, _ := ret[0].(*model.LedgerList)
+	ret0, _ := ret[0].(*mmodel.Ledgers)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -72,10 +71,10 @@ func (mr *MockLedgerMockRecorder) Get(organizationID, limit, page any) *gomock.C
 }
 
 // GetByID mocks base method.
-func (m *MockLedger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, error) {
+func (m *MockLedger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", organizationID, ledgerID)
-	ret0, _ := ret[0].(*model.LedgerItems)
+	ret0, _ := ret[0].(*mmodel.Ledger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

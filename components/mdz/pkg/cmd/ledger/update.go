@@ -108,8 +108,6 @@ func (f *factoryLedgerUpdate) setFlags(cmd *cobra.Command) {
 		"code for the organization (e.g., ACTIVE).")
 	cmd.Flags().StringVar(&f.Description, "description", "",
 		"Description of the current status of the organization.")
-
-	// Flags for Metadata
 	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
 		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
 

@@ -19,6 +19,7 @@ type APIError struct {
 // formatAPIError function that transforms the JSON error into an error type with customized formatting
 func formatAPIError(jsonData []byte) error {
 	var apiError APIError
+
 	err := json.Unmarshal(jsonData, &apiError)
 	if err != nil {
 		return errors.New("failed to parse error JSON")
@@ -41,7 +42,6 @@ func formatAPIError(jsonData []byte) error {
 
 func checkResponse(resp *http.Response, statusCode int) error {
 	if resp.StatusCode != statusCode {
-
 		if resp.StatusCode == http.StatusUnauthorized {
 			return errors.New("unauthorized: invalid credentials")
 		}
