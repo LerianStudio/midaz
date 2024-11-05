@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -280,4 +281,68 @@ func Test_ledger_GetByID(t *testing.T) {
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192e250-ed9d-7e5c-a614-9b294151b572/ledgers/0192e362-b270-7158-a647-7a59e4e26a27"])
+}
+
+func Test_ledger_Update(t *testing.T) {
+	metadata := map[string]any{
+		"bitcoin": "3CoFW67ZxypArpMGEwedb5KLL",
+		"chave":   "metadata_chave",
+		"boolean": true,
+	}
+
+	inp := mmodel.UpdateLedgerInput{
+		Name: "BLOCKED Tech LTDA",
+		Status: mmodel.Status{
+			Code:        "BLOCKED",
+			Description: ptr.StringPtr("Teste BLOCKED Ledger"),
+		},
+		Metadata: metadata,
+	}
+
+	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
+
+	expectedResult := &mmodel.Ledger{
+		ID:   ledgerID,
+		Name: "BLOCKED Tech LTDA",
+		Status: mmodel.Status{
+			Code:        "BLOCKED",
+			Description: ptr.StringPtr("Teste BLOCKED Ledger"),
+		},
+		Metadata: metadata,
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	URIAPILedger := "http://127.0.0.1:3000"
+	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
+		URIAPILedger, organizationID, ledgerID)
+
+	httpmock.RegisterResponder(http.MethodPatch, uri,
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/ledger_response_update.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	led := NewLedger(factory)
+
+	result, err := led.Update(organizationID, ledgerID, inp)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedResult.ID, result.ID)
+	assert.Equal(t, expectedResult.Name, result.Name)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, expectedResult.Status.Description, result.Status.Description)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["PATCH http://127.0.0.1:3000/v1/organizations/0192fc1d-f34d-78c9-9654-83e497349241/ledgers/0192fc1e-14bf-7894-b167-6e4a878b3a95"])
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 )
@@ -38,13 +39,8 @@ func (r *ledger) Create(organizationID string, inp model.LedgerInput) (*model.Le
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, errors.New("unauthorized invalid credentials")
-		}
-
-		return nil, fmt.Errorf("failed to create organization, status code: %d",
-			resp.StatusCode)
+	if err := checkResponse(resp); err != nil {
+		return nil, err
 	}
 
 	var ledResp model.LedgerCreate
@@ -73,13 +69,8 @@ func (r *ledger) Get(organizationID string, limit, page int) (*model.LedgerList,
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, errors.New("unauthorized invalid credentials")
-		}
-
-		return nil, fmt.Errorf("failed to create organization, status code: %d",
-			resp.StatusCode)
+	if err := checkResponse(resp); err != nil {
+		return nil, err
 	}
 
 	var ledResp model.LedgerList
@@ -108,13 +99,8 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, e
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, errors.New("unauthorized invalid credentials")
-		}
-
-		return nil, fmt.Errorf("failed to get organization, status code: %d",
-			resp.StatusCode)
+	if err := checkResponse(resp); err != nil {
+		return nil, err
 	}
 
 	var ledItemResp model.LedgerItems
@@ -123,6 +109,42 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*model.LedgerItems, e
 	}
 
 	return &ledItemResp, nil
+}
+
+func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
+	jsonData, err := json.Marshal(inp)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+
+	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp); err != nil {
+		return nil, err
+	}
+
+	var ledResp mmodel.Ledger
+	if err := json.NewDecoder(resp.Body).Decode(&ledResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &ledResp, nil
 }
 
 func NewLedger(f *factory.Factory) *ledger {

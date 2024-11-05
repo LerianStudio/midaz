@@ -1,0 +1,17 @@
+{
+    "id": "0192fc1e-14bf-7894-b167-6e4a878b3a95",
+    "name": "BLOCKED Tech LTDA",
+    "organizationId": "0192fc1d-f34d-78c9-9654-83e497349241",
+    "status": {
+        "code": "BLOCKED",
+        "description": "Teste BLOCKED Ledger"
+    },
+    "createdAt": "2024-11-05T11:38:02.815554Z",
+    "updatedAt": "2024-11-05T11:38:15.101838Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "3CoFW67ZxypArpMGEwedb5KLL",
+        "chave": "metadata_chave",
+        "boolean": true
+    }
+}
