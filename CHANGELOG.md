@@ -1,3 +1,5 @@
+## [1.26.1](https://github.com/LerianStudio/midaz/compare/v1.26.0...v1.26.1) (2024-11-05)
+
 ## [1.26.0](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0) (2024-11-01)
 
 
