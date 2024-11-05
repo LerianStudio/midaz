@@ -165,7 +165,7 @@ func (r *ledger) Delete(organizationID, ledgerID string) error {
 
 	defer resp.Body.Close()
 
-	if err := checkResponse(resp, http.StatusOK); err != nil {
+	if err := checkResponse(resp, http.StatusNoContent); err != nil {
 		return err
 	}
 
