@@ -1,0 +1,20 @@
+{
+    "id": "01930219-2c25-7a37-a5b9-610d44ae0a27",
+    "name": "Brazilian Real",
+    "type": "currency",
+    "code": "BRL",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste asset 1"
+    },
+    "ledgerId": "0192e251-328d-7390-99f5-5c54980115ed",
+    "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+    "createdAt": "2024-11-06T15:30:24.421664681Z",
+    "updatedAt": "2024-11-06T15:30:24.421664731Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "3oDTprwNG37nASsyLzQGLuUBzNac",
+        "chave": "metadata_chave",
+        "boolean": false
+    }
+}
