@@ -9,4 +9,5 @@ type Ledger interface {
 	Get(organizationID string, limit, page int) (*mmodel.Ledgers, error)
 	GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error)
 	Update(organizationID, ledgerID string, inp mmodel.UpdateLedgerInput) (*mmodel.Ledger, error)
+	Delete(organizationID, ledgerID string) error
 }
