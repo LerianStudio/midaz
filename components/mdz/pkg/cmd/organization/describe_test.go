@@ -2,155 +2,67 @@ package organization
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"gotest.tools/golden"
 )
 
 func Test_newCmdOrganizationDescribe(t *testing.T) {
-	tests := []struct {
-		name    string
-		runTest func(t *testing.T)
-	}{
-		{
-			name: "happy road no metadata",
-			runTest: func(t *testing.T) {
-				ctrl := gomock.NewController(t)
-				defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-				mockRepo := repository.NewMockOrganization(ctrl)
+	mockRepo := repository.NewMockOrganization(ctrl)
 
-				orgFactory := factoryOrganizationDescribe{
-					factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-						Out: &bytes.Buffer{},
-						Err: &bytes.Buffer{},
-					}},
-					repoOrganization: mockRepo,
-					organizationID:   "123",
-					Out:              "",
-					JSON:             false,
-				}
-
-				cmd := newCmdOrganizationDescribe(&orgFactory)
-
-				timeNow := time.Now()
-
-				item := model.OrganizationItem{
-					ID:                   "123",
-					ParentOrganizationID: nil,
-					LegalName:            "Test Organization",
-					DoingBusinessAs:      "The ledger.io",
-					LegalDocument:        "48784548000104",
-					Address: model.Address{
-						Country: "BR",
-					},
-					Status: model.Status{
-						Description: "Test Ledger",
-						Code:        ptr.StringPtr("2123"),
-					},
-					CreatedAt: timeNow,
-					UpdatedAt: timeNow,
-				}
-
-				mockRepo.EXPECT().GetByID(gomock.Any()).Return(&item, nil)
-
-				err := cmd.Execute()
-				assert.NoError(t, err)
-			},
-		},
-		{
-			name: "happy road with metadata",
-			runTest: func(t *testing.T) {
-				ctrl := gomock.NewController(t)
-				defer ctrl.Finish()
-
-				mockRepo := repository.NewMockOrganization(ctrl)
-
-				orgFactory := factoryOrganizationDescribe{
-					factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-						Out: &bytes.Buffer{},
-						Err: &bytes.Buffer{},
-					}},
-					repoOrganization: mockRepo,
-					organizationID:   "123",
-					Out:              "",
-					JSON:             false,
-				}
-
-				cmd := newCmdOrganizationDescribe(&orgFactory)
-
-				timeNow := time.Now()
-
-				item := model.OrganizationItem{
-					ID:                   "125",
-					ParentOrganizationID: nil,
-					LegalName:            "Test Organization",
-					DoingBusinessAs:      "The ledger.io",
-					LegalDocument:        "48784548000104",
-					Address: model.Address{
-						Country: "BR",
-					},
-					Status: model.Status{
-						Description: "Test Ledger",
-						Code:        ptr.StringPtr("2123"),
-					},
-					CreatedAt: timeNow,
-					UpdatedAt: timeNow,
-					Metadata: &model.Metadata{
-						Bitcoin: ptr.StringPtr("12312312"),
-					},
-				}
-
-				mockRepo.EXPECT().GetByID(gomock.Any()).Return(&item, nil)
-
-				err := cmd.Execute()
-				assert.NoError(t, err)
-
-				// TODO: The following contains assertion it's not working depending on the environment.
-				// output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-				// expectedOut := "FIELDS               VALUES                                               \nID:                  125"
-				// assert.Contains(t, output, expectedOut)
-			},
-		},
-		{
-			name: "error get id api",
-			runTest: func(t *testing.T) {
-				ctrl := gomock.NewController(t)
-				defer ctrl.Finish()
-
-				mockRepo := repository.NewMockOrganization(ctrl)
-
-				orgFactory := factoryOrganizationDescribe{
-					factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-						Out: &bytes.Buffer{},
-						Err: &bytes.Buffer{},
-					}},
-					repoOrganization: mockRepo,
-					organizationID:   "123",
-					Out:              "",
-					JSON:             false,
-				}
-
-				cmd := newCmdOrganizationDescribe(&orgFactory)
-
-				mockRepo.EXPECT().GetByID(gomock.Any()).Return(nil,
-					errors.New("error get item organization"))
-
-				err := cmd.Execute()
-				assert.EqualError(t, err, "error get item organization")
-			},
-		},
+	orgFactory := factoryOrganizationDescribe{
+		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+			Out: &bytes.Buffer{},
+			Err: &bytes.Buffer{},
+		}},
+		repoOrganization: mockRepo,
+		organizationID:   "123",
+		Out:              "",
+		JSON:             false,
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, tc.runTest)
+	cmd := newCmdOrganizationDescribe(&orgFactory)
+
+	metadata := map[string]any{
+		"chave1": "valor1",
+		"chave2": 2,
+		"chave3": true,
 	}
+
+	gotOrg := mmodel.Organization{
+		ID:                   "123",
+		ParentOrganizationID: nil,
+		LegalName:            "Test Organization",
+		DoingBusinessAs:      ptr.StringPtr("The ledger.io"),
+		LegalDocument:        "48784548000104",
+		Address: mmodel.Address{
+			Country: "BR",
+		},
+		Status: mmodel.Status{
+			Description: ptr.StringPtr("Test Ledger"),
+			Code:        "2123",
+		},
+		CreatedAt: time.Date(2024, 10, 31, 11, 31, 22, 369928000, time.UTC),
+		UpdatedAt: time.Date(2024, 10, 31, 11, 31, 22, 369928000, time.UTC),
+		Metadata:  metadata,
+	}
+
+	mockRepo.EXPECT().GetByID(gomock.Any()).Return(&gotOrg, nil)
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+
+	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+	golden.AssertBytes(t, output, "output_describe.golden")
 }

@@ -11,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -43,28 +42,25 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 
-		_, err := l.auth.AuthenticateWithCredentials(l.username, l.password)
-
+		t, err := l.auth.AuthenticateWithCredentials(l.username, l.password)
 		if err != nil {
 			return err
 		}
 
-		output.Printf(l.factory.IOStreams.Out, color.New(color.Bold).Sprint("Successfully logged in"))
+		l.token = t.AccessToken
+	} else {
+		option, err := tui.Select(
+			"Choose a login method:",
+			[]string{"Log in via browser", "Log in via terminal"},
+		)
+		if err != nil {
+			return err
+		}
 
-		return nil
-	}
-
-	option, err := tui.Select(
-		"Choose a login method:",
-		[]string{"Log in via browser", "Log in via terminal"},
-	)
-	if err != nil {
-		return err
-	}
-
-	err = l.execMethodLogin(option)
-	if err != nil {
-		return err
+		err = l.execMethodLogin(option)
+		if err != nil {
+			return err
+		}
 	}
 
 	sett := setting.Setting{

@@ -1,4 +1,30 @@
-## [1.26.1](https://github.com/LerianStudio/midaz/compare/v1.26.0...v1.26.1) (2024-11-05)
+## [1.27.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.2...v1.27.0-beta.3) (2024-11-06)
+
+
+### Features
+
+* create sub command delete from command ledger with test unit of the command delete ([63de66e](https://github.com/LerianStudio/midaz/commit/63de66eff8e604e13bae20d3842c4c6302f93503))
+* method delete rest api ledger ([e8917de](https://github.com/LerianStudio/midaz/commit/e8917ded93e7fb3d9bbaa38e66c5734e1fe8b41b))
+
+## [1.27.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.1...v1.27.0-beta.2) (2024-11-06)
+
+
+### Features
+
+* create rest update ledger ([b2f8129](https://github.com/LerianStudio/midaz/commit/b2f81295f8773a4d5b4c26e7d306122d1c2f1ee8))
+* create sub command update from command ledger ([57fc305](https://github.com/LerianStudio/midaz/commit/57fc305d5bfd7cd6eaab25c651b27c3bb604a02b))
+
+
+### Bug Fixes
+
+* login via flag no save token local ([656b15a](https://github.com/LerianStudio/midaz/commit/656b15a964a22eb400fae1716b7c10c649283265))
+
+## [1.27.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.26.0...v1.27.0-beta.1) (2024-11-04)
+
+
+### Bug Fixes
+
+* ah metadata structure is totally optional now, it caused errors when trying to request with null fields in the api ([3dac45f](https://github.com/LerianStudio/midaz/commit/3dac45fea9bd1c2fef7990289d4c33eb5884d182))
 
 ## [1.26.0](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0) (2024-11-01)
 

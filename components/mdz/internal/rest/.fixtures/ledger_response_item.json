@@ -11,9 +11,7 @@
     "deletedAt": null,
     "metadata": {
         "bitcoin": "3HH89s3LPALardk1jLt2PcjAJng",
-        "boolean": true,
         "chave": "metadata_chave",
-        "double": 10.5,
-        "int": 1
+        "boolean": true
     }
 }

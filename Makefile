@@ -2,6 +2,7 @@ AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 TRANSACTION_DIR := ./components/transaction
+MDZ_DIR := ./components/mdz
 
 .PHONY: auth ledger transaction
 
@@ -68,6 +69,7 @@ set-env:
 	cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
 	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
+	cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
 
 up: 
 	docker-compose -f $(AUTH_DIR)/docker-compose.yml up --build -d && \
