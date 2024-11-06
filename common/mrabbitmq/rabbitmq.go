@@ -79,7 +79,7 @@ func (rc *RabbitMQConnection) GetNewConnect() (*amqp.Channel, error) {
 func (rc *RabbitMQConnection) healthCheck() bool {
 	url := fmt.Sprintf("http://%s:%s/api/health/checks/alarms", rc.Host, rc.Port)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		rc.Logger.Errorf("failed to make GET request before client do: %v", err.Error())
 
@@ -89,6 +89,7 @@ func (rc *RabbitMQConnection) healthCheck() bool {
 	req.SetBasicAuth(rc.User, rc.Pass)
 
 	client := &http.Client{}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		rc.Logger.Errorf("failed to make GET request after client do: %v", err.Error())
@@ -105,7 +106,8 @@ func (rc *RabbitMQConnection) healthCheck() bool {
 		return false
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
+
 	err = json.Unmarshal(body, &result)
 	if err != nil {
 		rc.Logger.Errorf("failed to unmarshal response: %v", err.Error())
@@ -114,7 +116,6 @@ func (rc *RabbitMQConnection) healthCheck() bool {
 	}
 
 	if status, ok := result["status"].(string); ok && status == "ok" {
-
 		return true
 	}
 

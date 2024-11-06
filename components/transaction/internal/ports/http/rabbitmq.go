@@ -23,7 +23,6 @@ func (handler *RabbitMQHandler) CreateProducer(c context.Context) {
 	}
 
 	logger.Infof("Response to create producer: %v", response)
-
 }
 
 // CreateConsumer method that create consumers to rabbitmq.

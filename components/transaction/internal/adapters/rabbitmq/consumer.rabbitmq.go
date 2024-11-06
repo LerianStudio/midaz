@@ -25,6 +25,7 @@ func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ConsumerRabbitMQRepos
 }
 
 func (crmq *ConsumerRabbitMQRepository) Consumer(ctx context.Context, queue string, response chan string) {
+	crmq.conn.Logger.Infoln("init consumer message")
 
 	message, err := crmq.conn.Channel.Consume(
 		"transaction_operations_queue",
@@ -44,5 +45,4 @@ func (crmq *ConsumerRabbitMQRepository) Consumer(ctx context.Context, queue stri
 
 		response <- string(d.Body[:])
 	}
-
 }

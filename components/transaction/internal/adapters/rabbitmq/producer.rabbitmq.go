@@ -26,7 +26,7 @@ func NewProducerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ProducerRabbitMQRepos
 }
 
 func (prmq *ProducerRabbitMQRepository) Producer(ctx context.Context, exchange, key, body string) (*string, error) {
-	prmq.conn.Logger.Infoln("messages sent successfully")
+	prmq.conn.Logger.Infoln("init sent message")
 
 	err := prmq.conn.Channel.Publish(
 		"transaction_operations_exchange",
