@@ -1,9 +1,11 @@
 package mrabbitmq
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
-	"log"
+	"fmt"
+	"io"
+	"net/http"
 
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/streadway/amqp"
@@ -15,35 +17,37 @@ type RabbitMQConnection struct {
 	ConnectionStringSource string
 	Consumer               string
 	Producer               string
-	Channel                amqp.Channel
+	Host                   string
+	Port                   string
+	User                   string
+	Pass                   string
+	Channel                *amqp.Channel
 	Connected              bool
 	Logger                 mlog.Logger
 }
 
 // Connect keeps a singleton connection with rabbitmq.
-func (rc *RabbitMQConnection) Connect(ctx context.Context) error {
+func (rc *RabbitMQConnection) Connect() error {
 	rc.Logger.Info("Connecting on rabbitmq...")
 
 	conn, err := amqp.Dial(rc.ConnectionStringSource)
 	if err != nil {
 		rc.Logger.Fatal("failed to connect on rabbitmq", zap.Error(err))
-		return nil
-	}
 
-	defer conn.Close()
+		return err
+	}
 
 	ch, err := conn.Channel()
 	if err != nil {
 		rc.Logger.Fatal("failed to open channel on rabbitmq", zap.Error(err))
-		return nil
-	}
 
-	defer ch.Close()
+		return err
+	}
 
 	if ch == nil || !rc.healthCheck() {
 		rc.Connected = false
-		err := errors.New("can't connect rabbitmq")
-		rc.Logger.Fatalf("RabbitMQ.HealthCheck %v", zap.Error(err))
+		err = errors.New("can't connect rabbitmq")
+		rc.Logger.Fatalf("RabbitMQ.HealthCheck: %v", zap.Error(err))
 
 		return err
 	}
@@ -52,15 +56,15 @@ func (rc *RabbitMQConnection) Connect(ctx context.Context) error {
 
 	rc.Connected = true
 
-	rc.Channel = *ch
+	rc.Channel = ch
 
 	return nil
 }
 
-// GetChannel returns a pointer to the rabbitmq connection, initializing it if necessary.
-func (rc *RabbitMQConnection) GetChannel(ctx context.Context) (*amqp.Channel, error) {
+// GetNewConnect returns a pointer to the rabbitmq connection, initializing it if necessary.
+func (rc *RabbitMQConnection) GetNewConnect() (*amqp.Channel, error) {
 	if !rc.Connected {
-		err := rc.Connect(ctx)
+		err := rc.Connect()
 		if err != nil {
 			rc.Logger.Infof("ERRCONECT %s", err)
 
@@ -68,23 +72,50 @@ func (rc *RabbitMQConnection) GetChannel(ctx context.Context) (*amqp.Channel, er
 		}
 	}
 
-	return &rc.Channel, nil
+	return rc.Channel, nil
 }
 
 // healthCheck rabbitmq when server is started
 func (rc *RabbitMQConnection) healthCheck() bool {
-	_, err := rc.Channel.QueueDeclarePassive(
-		"health_check_queue",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
+	url := fmt.Sprintf("http://%s:%s/api/health/checks/alarms", rc.Host, rc.Port)
 
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Println("Erro ao verificar a fila no RabbitMQ:", err)
+		rc.Logger.Errorf("failed to make GET request before client do: %v", err.Error())
+
 		return false
+	}
+
+	req.SetBasicAuth(rc.User, rc.Pass)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		rc.Logger.Errorf("failed to make GET request after client do: %v", err.Error())
+
+		return false
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		rc.Logger.Errorf("failed to read response body: %v", err.Error())
+
+		return false
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		rc.Logger.Errorf("failed to unmarshal response: %v", err.Error())
+
+		return false
+	}
+
+	if status, ok := result["status"].(string); ok && status == "ok" {
+
+		return true
 	}
 
 	rc.Logger.Error("rabbitmq unhealthy...")
