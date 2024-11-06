@@ -1,5 +1,5 @@
-ID                                    NAME                STATUS_CODE  METADATA_BITCOIN                    METADATA_CHAVE  CREATED_AT                            
-0192e362-b270-7158-a647-7a59e4e26a27  Ankunding - Paucek  ACTIVE       3HH89s3LPALardk1jLt2PcjAJng         metadata_chave  2024-10-31 16:22:29.232078 +0000 UTC  
-0192e258-2c81-7e37-b6ba-a2007495c652  Zieme - Mante       ACTIVE       329aaP47xTc8hQxXB92896U2RBXGEt      metadata_chave  2024-10-31 11:31:22.369928 +0000 UTC  
-0192e257-f5c0-7687-8534-303bae7aa4aa  Lang LLC            ACTIVE                                                           2024-10-31 11:31:08.352409 +0000 UTC  
-0192e251-328d-7390-99f5-5c54980115ed  Romaguera and Sons  ACTIVE       1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq  metadata_chave  2024-10-31 11:23:45.165229 +0000 UTC  
+ID                                    NAME                STATUS_CODE  STATUS_DESCRIPTION  CREATED_AT                            
+0192e362-b270-7158-a647-7a59e4e26a27  Ankunding - Paucek  ACTIVE       Teste Ledger        2024-10-31 16:22:29.232078 +0000 UTC  
+0192e258-2c81-7e37-b6ba-a2007495c652  Zieme - Mante       ACTIVE       Teste Ledger        2024-10-31 11:31:22.369928 +0000 UTC  
+0192e257-f5c0-7687-8534-303bae7aa4aa  Lang LLC            ACTIVE                           2024-10-31 11:31:08.352409 +0000 UTC  
+0192e251-328d-7390-99f5-5c54980115ed  Romaguera and Sons  ACTIVE       Teste Ledger        2024-10-31 11:23:45.165229 +0000 UTC  

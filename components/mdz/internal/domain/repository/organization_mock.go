@@ -12,7 +12,7 @@ package repository
 import (
 	reflect "reflect"
 
-	model "github.com/LerianStudio/midaz/components/mdz/internal/model"
+	mmodel "github.com/LerianStudio/midaz/common/mmodel"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -41,10 +41,10 @@ func (m *MockOrganization) EXPECT() *MockOrganizationMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockOrganization) Create(org model.Organization) (*model.OrganizationCreate, error) {
+func (m *MockOrganization) Create(org mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", org)
-	ret0, _ := ret[0].(*model.OrganizationCreate)
+	ret0, _ := ret[0].(*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -70,10 +70,10 @@ func (mr *MockOrganizationMockRecorder) Delete(organizationID any) *gomock.Call 
 }
 
 // Get mocks base method.
-func (m *MockOrganization) Get(limit, page int) (*model.OrganizationList, error) {
+func (m *MockOrganization) Get(limit, page int) (*mmodel.Organizations, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", limit, page)
-	ret0, _ := ret[0].(*model.OrganizationList)
+	ret0, _ := ret[0].(*mmodel.Organizations)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -85,10 +85,10 @@ func (mr *MockOrganizationMockRecorder) Get(limit, page any) *gomock.Call {
 }
 
 // GetByID mocks base method.
-func (m *MockOrganization) GetByID(organizationID string) (*model.OrganizationItem, error) {
+func (m *MockOrganization) GetByID(organizationID string) (*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetByID", organizationID)
-	ret0, _ := ret[0].(*model.OrganizationItem)
+	ret0, _ := ret[0].(*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -100,10 +100,10 @@ func (mr *MockOrganizationMockRecorder) GetByID(organizationID any) *gomock.Call
 }
 
 // Update mocks base method.
-func (m *MockOrganization) Update(organizationID string, orgInput model.OrganizationUpdate) (*model.OrganizationItem, error) {
+func (m *MockOrganization) Update(organizationID string, orgInput mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", organizationID, orgInput)
-	ret0, _ := ret[0].(*model.OrganizationItem)
+	ret0, _ := ret[0].(*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

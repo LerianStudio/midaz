@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
@@ -25,11 +25,12 @@ func Test_newCmdLedgerCreate(t *testing.T) {
 	name := "Romaguera and Sons"
 	code := "ACTIVE"
 	description := "Teste Ledger"
-	bitcoin := "1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq"
-	bool := "false"
-	chave := "metadata_chave"
-	double := "10.5"
-	int := "1"
+
+	metadata := map[string]any{
+		"chave1": "valor1",
+		"chave2": 2,
+		"chave3": true,
+	}
 
 	orgFactory := factoryLedgerCreate{
 		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -45,11 +46,7 @@ func Test_newCmdLedgerCreate(t *testing.T) {
 			Name:           name,
 			Code:           code,
 			Description:    description,
-			Bitcoin:        bitcoin,
-			Boolean:        bool,
-			Chave:          chave,
-			Double:         double,
-			Int:            int,
+			Metadata:       "{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}",
 		},
 	}
 
@@ -59,28 +56,18 @@ func Test_newCmdLedgerCreate(t *testing.T) {
 		"--name", name,
 		"--code", code,
 		"--description", description,
-		"--bitcoin", bitcoin,
-		"--boolean", bool,
-		"--chave", chave,
-		"--double", double,
-		"--int", int,
+		"--metadata", "{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}",
 	})
 
-	result := &model.LedgerCreate{
+	result := &mmodel.Ledger{
 		ID:             ledgerID,
 		Name:           name,
 		OrganizationID: organizationID,
-		Status: model.LedgerStatus{
-			Code:        ptr.StringPtr(code),
+		Status: mmodel.Status{
+			Code:        code,
 			Description: ptr.StringPtr(description),
 		},
-		Metadata: model.LedgerMetadata{
-			Bitcoin: ptr.StringPtr(bitcoin),
-			Boolean: ptr.BoolPtr(true),
-			Chave:   ptr.StringPtr(chave),
-			Double:  ptr.Float64Ptr(10.5),
-			Int:     ptr.IntPtr(1),
-		},
+		Metadata: metadata,
 	}
 
 	mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(result, nil)
