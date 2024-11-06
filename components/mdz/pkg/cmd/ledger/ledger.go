@@ -13,6 +13,9 @@ type factoryLedger struct {
 func (f *factoryLedger) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdLedgerCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdLedgerList(newInjectFacList(f.factory)))
+	cmd.AddCommand(newCmdLedgerDescribe(newInjectFacDescribe(f.factory)))
+	cmd.AddCommand(newCmdLedgerUpdate(newInjectFacUpdate(f.factory)))
+	cmd.AddCommand(newCmdLedgerDelete(newInjectFacDelete(f.factory)))
 }
 
 func NewCmdLedger(f *factory.Factory) *cobra.Command {

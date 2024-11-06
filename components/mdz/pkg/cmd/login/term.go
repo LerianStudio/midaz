@@ -23,8 +23,8 @@ func (l *factoryLogin) terminalLogin() error {
 	}
 
 	r := rest.Auth{Factory: l.factory}
-	t, err := r.AuthenticateWithCredentials(l.username, l.password)
 
+	t, err := r.AuthenticateWithCredentials(l.username, l.password)
 	if err != nil {
 		return err
 	}

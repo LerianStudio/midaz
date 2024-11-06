@@ -1,12 +1,12 @@
 package ledger
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -27,16 +27,12 @@ type flagsCreate struct {
 	Name           string
 	Code           string
 	Description    string
-	Chave          string
-	Bitcoin        string
-	Boolean        string
-	Double         string
-	Int            string
+	Metadata       string
 	JSONFile       string
 }
 
 func (f *factoryLedgerCreate) runE(cmd *cobra.Command, _ []string) error {
-	led := model.LedgerInput{}
+	led := mmodel.CreateLedgerInput{}
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
@@ -72,7 +68,7 @@ func (f *factoryLedgerCreate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryLedgerCreate) createRequestFromFlags(led *model.LedgerInput) error {
+func (f *factoryLedgerCreate) createRequestFromFlags(led *mmodel.CreateLedgerInput) error {
 	var err error
 
 	led.Name, err = utils.AssignStringField(f.Name, "name", f.tuiInput)
@@ -80,79 +76,20 @@ func (f *factoryLedgerCreate) createRequestFromFlags(led *model.LedgerInput) err
 		return err
 	}
 
-	var status *model.LedgerStatus
+	led.Status.Code = f.Code
 
-	if len(f.Code) > 0 || len(f.Description) > 0 {
-		tempStatus := model.LedgerStatus{}
-
-		if len(f.Code) > 0 {
-			tempStatus.Code = &f.Code
-		}
-
-		if len(f.Description) > 0 {
-			tempStatus.Description = &f.Description
-		}
-
-		status = &tempStatus
+	if len(f.Description) > 0 {
+		led.Status.Description = &f.Description
 	}
 
-	led.Status = status
-
-	metadata, err := buildMetadata(f)
-	if err != nil {
-		return err
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+		return errors.New("Error parsing metadata: " + err.Error())
 	}
 
 	led.Metadata = metadata
 
 	return nil
-}
-
-func buildMetadata(f *factoryLedgerCreate) (*model.LedgerMetadata, error) {
-	if len(f.Chave) == 0 && len(f.Bitcoin) == 0 && len(f.Boolean) == 0 && len(f.Double) == 0 && len(f.Int) == 0 {
-		return nil, nil
-	}
-
-	tempMetadata := model.LedgerMetadata{}
-
-	if len(f.Chave) > 0 {
-		tempMetadata.Chave = &f.Chave
-	}
-
-	if len(f.Bitcoin) > 0 {
-		tempMetadata.Bitcoin = &f.Bitcoin
-	}
-
-	if len(f.Boolean) > 0 {
-		var err error
-
-		tempMetadata.Boolean, err = utils.ParseAndAssign(f.Boolean, strconv.ParseBool)
-		if err != nil {
-			return nil, fmt.Errorf("invalid boolean field: %v", err)
-		}
-	}
-
-	if len(f.Double) > 0 {
-		var err error
-		tempMetadata.Double, err = utils.ParseAndAssign(f.Double, func(s string) (float64, error) {
-			return strconv.ParseFloat(s, 64)
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("invalid double field: %v", err)
-		}
-	}
-
-	if len(f.Int) > 0 {
-		var err error
-
-		tempMetadata.Int, err = utils.ParseAndAssign(f.Int, strconv.Atoi)
-		if err != nil {
-			return nil, fmt.Errorf("invalid int field: %v", err)
-		}
-	}
-
-	return &tempMetadata, nil
 }
 
 func (f *factoryLedgerCreate) setFlags(cmd *cobra.Command) {
@@ -164,16 +101,8 @@ func (f *factoryLedgerCreate) setFlags(cmd *cobra.Command) {
 		"code for the organization (e.g., ACTIVE).")
 	cmd.Flags().StringVar(&f.Description, "description", "",
 		"Description of the current status of the ledger.")
-	cmd.Flags().StringVar(&f.Chave, "chave", "",
-		"Custom metadata key for the ledger.")
-	cmd.Flags().StringVar(&f.Bitcoin, "bitcoin", "",
-		"Bitcoin address or value associated with the ledger.")
-	cmd.Flags().StringVar(&f.Boolean, "boolean", "",
-		"Boolean metadata for custom use.")
-	cmd.Flags().StringVar(&f.Double, "double", "",
-		"Floating-point number metadata for custom use.")
-	cmd.Flags().StringVar(&f.Int, "int", "",
-		"Integer metadata for custom use.")
+	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
+		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "",
 		`Path to a JSON file containing the attributes of the Ledger being 
 		created; you can use - for reading from stdin`)

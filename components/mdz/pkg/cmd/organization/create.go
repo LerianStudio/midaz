@@ -1,12 +1,12 @@
 package organization
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -16,9 +16,9 @@ import (
 )
 
 type factoryOrganizationCreate struct {
-	factory         *factory.Factory
-	repoOrganiztion repository.Organization
-	tuiInput        func(message string) (string, error)
+	factory          *factory.Factory
+	repoOrganization repository.Organization
+	tuiInput         func(message string) (string, error)
 	flagsCreate
 }
 
@@ -35,16 +35,12 @@ type flagsCreate struct {
 	City                 string
 	State                string
 	Country              string
-	Chave                string
-	Bitcoin              string
-	Boolean              string
-	Double               string
-	Int                  string
+	Metadata             string
 	JSONFile             string
 }
 
 func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
-	org := model.Organization{}
+	org := mmodel.CreateOrganizationInput{}
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &org)
@@ -60,7 +56,7 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoOrganiztion.Create(org)
+	resp, err := f.repoOrganization.Create(org)
 	if err != nil {
 		return err
 	}
@@ -71,13 +67,8 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryOrganizationCreate) createRequestFromFlags(org *model.Organization) error {
-	org.Status = model.Status{}
-	org.Address = model.Address{}
-
-	if org.Metadata == nil {
-		org.Metadata = &model.Metadata{}
-	}
+func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrganizationInput) error {
+	org.Address = mmodel.Address{}
 
 	var err error
 	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
@@ -92,62 +83,42 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *model.Organizati
 		org.ParentOrganizationID = &f.ParentOrganizationID
 	}
 
-	org.DoingBusinessAs, err = utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
+	doingBusinessAsPtr, err := utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
 	if err != nil {
 		return err
 	}
+
+	org.DoingBusinessAs = &doingBusinessAsPtr
 
 	org.LegalDocument, err = utils.AssignStringField(f.LegalDocument, "legal-document", f.tuiInput)
 	if err != nil {
 		return err
 	}
 
-	if len(f.Code) < 1 {
-		org.Status.Code = nil
-	} else {
-		org.Status.Code = &f.Code
+	org.Status.Code = f.Code
+	org.Status.Description = utils.AssignOptionalStringPtr(f.Description)
+
+	org.Address.Line1 = f.Line1
+
+	if len(f.Line2) > 0 {
+		org.Address.Line2 = &f.Line2
 	}
 
-	org.Status.Description, err = utils.AssignStringField(f.Description, "description", f.tuiInput)
-	if err != nil {
-		return err
-	}
-
-	org.Address.Line1 = utils.AssignOptionalStringPtr(f.Line1)
-	org.Address.Line2 = utils.AssignOptionalStringPtr(f.Line2)
-	org.Address.ZipCode = utils.AssignOptionalStringPtr(f.ZipCode)
-	org.Address.City = utils.AssignOptionalStringPtr(f.City)
-	org.Address.State = utils.AssignOptionalStringPtr(f.State)
+	org.Address.ZipCode = f.ZipCode
+	org.Address.City = f.City
+	org.Address.State = f.State
 
 	org.Address.Country, err = utils.AssignStringField(f.Country, "country", f.tuiInput)
 	if err != nil {
 		return err
 	}
 
-	if len(f.Chave) > 0 {
-		org.Metadata.Chave = &f.Chave
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+		return errors.New("Error parsing metadata: " + err.Error())
 	}
 
-	if len(f.Bitcoin) > 0 {
-		org.Metadata.Bitcoin = &f.Bitcoin
-	}
-
-	org.Metadata.Boolean, err = utils.ParseAndAssign(f.Boolean, strconv.ParseBool)
-	if err != nil {
-		return fmt.Errorf("invalid boolean field: %v", err)
-	}
-
-	org.Metadata.Double, err = utils.ParseAndAssign(f.Double, func(s string) (float64, error) {
-		return strconv.ParseFloat(s, 64)
-	})
-	if err != nil {
-		return fmt.Errorf("invalid double field: %v", err)
-	}
-
-	org.Metadata.Int, err = utils.ParseAndAssign(f.Int, strconv.Atoi)
-	if err != nil {
-		return fmt.Errorf("invalid int field: %v", err)
-	}
+	org.Metadata = metadata
 
 	return nil
 }
@@ -179,17 +150,8 @@ func (f *factoryOrganizationCreate) setFlags(cmd *cobra.Command) {
 		"State or region of the organization.")
 	cmd.Flags().StringVar(&f.Country, "country", "",
 		"Country of the organization (ISO 3166-1 alpha-2 format).")
-
-	// Flags for Metadata
-	cmd.Flags().StringVar(&f.Chave, "chave", "",
-		"Custom metadata key for the organization.")
-	cmd.Flags().StringVar(&f.Bitcoin, "bitcoin", "",
-		"Bitcoin address or value associated with the organization.")
-	cmd.Flags().StringVar(&f.Boolean, "boolean", "",
-		"Boolean metadata for custom use.")
-	cmd.Flags().StringVar(&f.Double, "double", "",
-		"Floating-point number metadata for custom use.")
-	cmd.Flags().StringVar(&f.Int, "int", "", "Integer metadata for custom use.")
+	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
+		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
 
 	// Flags command create
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "Path to a JSON file containing "+
@@ -199,9 +161,9 @@ func (f *factoryOrganizationCreate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacCreate(f *factory.Factory) *factoryOrganizationCreate {
 	return &factoryOrganizationCreate{
-		factory:         f,
-		repoOrganiztion: rest.NewOrganization(f),
-		tuiInput:        tui.Input,
+		factory:          f,
+		repoOrganization: rest.NewOrganization(f),
+		tuiInput:         tui.Input,
 	}
 }
 
@@ -218,7 +180,7 @@ func newCmdOrganizationCreate(f *factoryOrganizationCreate) *cobra.Command {
 			"$ mdz organization create --json-file payload.json",
 			"$ cat payload.json | mdz organization create --json-file -",
 			"$ echo '{...}' | mdz organization create --json-file -",
-			"$ mdz organization create --legal-name 'Gislason LLCT' --doing-business-as 'The ledger.io' --legal-document '48784548000104' --code 'ACTIVE' --description 'Test Ledger' --line1 'Av Santso' --line2 'VJ 222' --zip-code '04696040' --city 'West' --state 'VJ' --country 'MG' --bitcoin '1YLHctiipHZupwrT5sGwuYbks5rn64bm' --boolean true --chave 'metadata_chave' --double '10.5' --int 1",
+			"$ mdz organization create --legal-name 'Gislason LLCT' --doing-business-as 'The ledger.io' --legal-document '48784548000104' --code 'ACTIVE' --description 'Test Ledger' --line1 'Av Santso' --line2 'VJ 222' --zip-code '04696040' --city 'West' --state 'VJ' --country 'MG' --metadata '{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}'",
 		),
 		RunE: f.runE,
 	}

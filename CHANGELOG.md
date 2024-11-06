@@ -1,3 +1,90 @@
+## [1.27.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.3...v1.27.0-beta.4) (2024-11-06)
+
+
+### Features
+
+* add grafana-lgtm and open telemetry collector to infra docker-compose :sparkles: ([6351d3b](https://github.com/LerianStudio/midaz/commit/6351d3bc5db24ac09afa693909ee2725c2a5b012))
+
+
+### Bug Fixes
+
+* uncomment grafana-lgtm and otel-collector on infra docker-compose :bug: ([07dabfd](https://github.com/LerianStudio/midaz/commit/07dabfd64fa09773e04253aa90ca54e90b356623))
+
+## [1.27.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.2...v1.27.0-beta.3) (2024-11-06)
+
+
+### Features
+
+* create sub command delete from command ledger with test unit of the command delete ([63de66e](https://github.com/LerianStudio/midaz/commit/63de66eff8e604e13bae20d3842c4c6302f93503))
+* method delete rest api ledger ([e8917de](https://github.com/LerianStudio/midaz/commit/e8917ded93e7fb3d9bbaa38e66c5734e1fe8b41b))
+
+## [1.27.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.1...v1.27.0-beta.2) (2024-11-06)
+
+
+### Features
+
+* create rest update ledger ([b2f8129](https://github.com/LerianStudio/midaz/commit/b2f81295f8773a4d5b4c26e7d306122d1c2f1ee8))
+* create sub command update from command ledger ([57fc305](https://github.com/LerianStudio/midaz/commit/57fc305d5bfd7cd6eaab25c651b27c3bb604a02b))
+
+
+### Bug Fixes
+
+* login via flag no save token local ([656b15a](https://github.com/LerianStudio/midaz/commit/656b15a964a22eb400fae1716b7c10c649283265))
+
+## [1.27.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.26.0...v1.27.0-beta.1) (2024-11-04)
+
+
+### Bug Fixes
+
+* ah metadata structure is totally optional now, it caused errors when trying to request with null fields in the api ([3dac45f](https://github.com/LerianStudio/midaz/commit/3dac45fea9bd1c2fef7990289d4c33eb5884d182))
+
+## [1.26.0](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0) (2024-11-01)
+
+
+### Features
+
+* add account creation endpoint with optional portfolioId :sparkles: ([eb51270](https://github.com/LerianStudio/midaz/commit/eb51270a3c36d32975140a0e6df6188080e31fe1))
+* add account update endpoint without portfolioId :sparkles: ([3d7ea8f](https://github.com/LerianStudio/midaz/commit/3d7ea8f754faef82d07fdbc519ebe7595fe1ee89))
+* add endpoint for account deleting without portfolioID :sparkles: ([075ba90](https://github.com/LerianStudio/midaz/commit/075ba9032fe35f4ac125807a8e6cf719babcf33b))
+* add endpoints for account consulting with optional portfolioID :sparkles: ([910228b](https://github.com/LerianStudio/midaz/commit/910228bc2da1231d3a6f516d39cca63a44dfa787))
+* add uuid handler for routes with path parammeters :sparkles: ([f95111e](https://github.com/LerianStudio/midaz/commit/f95111ec4c8dabcb81959b3e0306219fb95080b3))
+* added sub command delete from organization ([99dbf17](https://github.com/LerianStudio/midaz/commit/99dbf176bd39cb81585d589158061d633aee65c7))
+* added sub command update from organization ([7945691](https://github.com/LerianStudio/midaz/commit/7945691afb1c4c434b7c96cc50c0c200f6a4d513))
+* create comamnd ledger and sub command create ([d4a8538](https://github.com/LerianStudio/midaz/commit/d4a85386237e2ca040587591cc7c8a489d9c44dd))
+* create rest create ledger ([a0435ac](https://github.com/LerianStudio/midaz/commit/a0435acd44ececb0977c90e92a402809b7348bad))
+* create rest list ledger ([88102a2](https://github.com/LerianStudio/midaz/commit/88102a215dbbeec4089560da09f4c644c4743784))
+* create sub command describe from ledger and test unit ([418e660](https://github.com/LerianStudio/midaz/commit/418e6600e37cc2ab303b6fe278477c66ef6865f0))
+* create sub command list from ledger and test unit with output golden ([3d68791](https://github.com/LerianStudio/midaz/commit/3d68791977bb3ebfd8876de7c75d7c744bcb28f1))
+* gitaction to update midaz submodule in midaz-full :sparkles: ([5daafa6](https://github.com/LerianStudio/midaz/commit/5daafa6d397cb975db329ff83f80992903407eb1))
+* rest get id command describe ([4e80174](https://github.com/LerianStudio/midaz/commit/4e80174534057e0e3fbcfdce231c66103308946f))
+* test unit command create ledger ([93754de](https://github.com/LerianStudio/midaz/commit/93754deae69c2167e4ca9d3bc2def0b1fdd9e8ff))
+
+
+### Bug Fixes
+
+* add nil validation for status description in account toProto func :bug: ([387b856](https://github.com/LerianStudio/midaz/commit/387b8560029bdd49010e28312da7d0038db16dba))
+* remove deleted_at is null condition from account consult endpoints and related functions :bug: ([af6e15a](https://github.com/LerianStudio/midaz/commit/af6e15a4798357991e6c1cca5ba9911c0f987bb3))
+* remove portfolioID for duplicated alias validation on create account :bug: ([d043045](https://github.com/LerianStudio/midaz/commit/d0430453e5a548d84fab88e6283c298f78e384f6))
+* sec and lint; :bug: ([46bf3b2](https://github.com/LerianStudio/midaz/commit/46bf3b29524b286b5361fcb209c3ec5e84714547))
+* **operation:** use parsed uuids :bug: ([0c5eff2](https://github.com/LerianStudio/midaz/commit/0c5eff2c3e0edeac2e76414557e115883f0e2350))
+* **transaction:** use parsed uuids :bug: ([dbb19ad](https://github.com/LerianStudio/midaz/commit/dbb19adf62fd400c0685292f2e4d79170c59d248))
+* validate duplicated alias when updating account :bug: ([60f19c8](https://github.com/LerianStudio/midaz/commit/60f19c89065800cef5172dc43a9772fb425af1af))
+
+## [1.26.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.13...v1.26.0-beta.14) (2024-11-01)
+
+
+### Features
+
+* create sub command describe from ledger and test unit ([418e660](https://github.com/LerianStudio/midaz/commit/418e6600e37cc2ab303b6fe278477c66ef6865f0))
+* rest get id command describe ([4e80174](https://github.com/LerianStudio/midaz/commit/4e80174534057e0e3fbcfdce231c66103308946f))
+
+## [1.26.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.12...v1.26.0-beta.13) (2024-11-01)
+
+
+### Features
+
+* gitaction to update midaz submodule in midaz-full :sparkles: ([5daafa6](https://github.com/LerianStudio/midaz/commit/5daafa6d397cb975db329ff83f80992903407eb1))
+
 ## [1.26.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.26.0-beta.11...v1.26.0-beta.12) (2024-11-01)
 
 
