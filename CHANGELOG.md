@@ -1,3 +1,15 @@
+## [1.27.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.3...v1.27.0-beta.4) (2024-11-06)
+
+
+### Features
+
+* add grafana-lgtm and open telemetry collector to infra docker-compose :sparkles: ([6351d3b](https://github.com/LerianStudio/midaz/commit/6351d3bc5db24ac09afa693909ee2725c2a5b012))
+
+
+### Bug Fixes
+
+* uncomment grafana-lgtm and otel-collector on infra docker-compose :bug: ([07dabfd](https://github.com/LerianStudio/midaz/commit/07dabfd64fa09773e04253aa90ca54e90b356623))
+
 ## [1.27.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.2...v1.27.0-beta.3) (2024-11-06)
 
 
