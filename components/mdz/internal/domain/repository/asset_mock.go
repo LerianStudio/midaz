@@ -54,3 +54,18 @@ func (mr *MockAssetMockRecorder) Create(organizationID, ledgerID, inp any) *gomo
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAsset)(nil).Create), organizationID, ledgerID, inp)
 }
+
+// Get mocks base method.
+func (m *MockAsset) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Assets, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", organizationID, ledgerID, limit, page)
+	ret0, _ := ret[0].(*mmodel.Assets)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockAssetMockRecorder) Get(organizationID, ledgerID, limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockAsset)(nil).Get), organizationID, ledgerID, limit, page)
+}
