@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
 	lib "github.com/LerianStudio/midaz/common/net/http"
@@ -11,7 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, rh *RabbitMQHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -53,6 +54,9 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, th *TransactionHa
 
 	// Doc
 	lib.DocAPI("transaction", "Transaction API", f)
+
+	rh.CreateProducer(context.Background())
+	rh.CreateConsumer(context.Background())
 
 	return f
 }
