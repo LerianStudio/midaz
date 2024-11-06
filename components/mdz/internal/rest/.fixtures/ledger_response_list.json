@@ -13,10 +13,8 @@
             "deletedAt": null,
             "metadata": {
                 "bitcoin": "3HH89s3LPALardk1jLt2PcjAJng",
-                "boolean": true,
                 "chave": "metadata_chave",
-                "double": 10.5,
-                "int": 1
+                "boolean": true
             }
         },
         {
@@ -31,11 +29,9 @@
             "updatedAt": "2024-10-31T11:31:22.369928Z",
             "deletedAt": null,
             "metadata": {
-                "bitcoinn": "329aaP47xTc8hQxXB92896U2RBXGEt",
-                "boolean": true,
+                "bitcoin": "329aaP47xTc8hQxXB92896U2RBXGEt",
                 "chave": "metadata_chave",
-                "double": 10.5,
-                "int": 1
+                "boolean": true
             }
         },
         {
@@ -62,11 +58,9 @@
             "updatedAt": "2024-10-31T11:23:45.165229Z",
             "deletedAt": null,
             "metadata": {
-                "bitcoinn": "1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq",
-                "boolean": false,
+                "bitcoin": "1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq",
                 "chave": "metadata_chave",
-                "double": 10.5,
-                "int": 1
+                "boolean": false
             }
         }
     ],

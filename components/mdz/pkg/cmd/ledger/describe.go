@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -80,7 +80,7 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryLedgerDescribe) describePrint(led *model.LedgerItems) {
+func (f *factoryLedgerDescribe) describePrint(led *mmodel.Ledger) {
 	tbl := table.New("FIELDS", "VALUES")
 
 	headerFmt := color.New(color.FgYellow).SprintfFunc()
@@ -93,14 +93,10 @@ func (f *factoryLedgerDescribe) describePrint(led *model.LedgerItems) {
 	tbl.AddRow("Name :", led.Name)
 	tbl.AddRow("Organization ID:", led.OrganizationID)
 
-	if led.Status != nil {
-		if led.Status.Code != nil {
-			tbl.AddRow("Status Code:", *led.Status.Code)
-		}
+	tbl.AddRow("Status Code:", led.Status.Code)
 
-		if led.Status.Description != nil {
-			tbl.AddRow("Status Description:", *led.Status.Description)
-		}
+	if led.Status.Description != nil {
+		tbl.AddRow("Status Description:", *led.Status.Description)
 	}
 
 	tbl.AddRow("Created At:", led.CreatedAt)
@@ -110,27 +106,7 @@ func (f *factoryLedgerDescribe) describePrint(led *model.LedgerItems) {
 		tbl.AddRow("Delete At:", *led.DeletedAt)
 	}
 
-	if led.Metadata != nil {
-		if led.Metadata.Chave != nil {
-			tbl.AddRow("Metadata Chave:", *led.Metadata.Chave)
-		}
-
-		if led.Metadata.Bitcoin != nil {
-			tbl.AddRow("Metadata Bitcoin:", *led.Metadata.Bitcoin)
-		}
-
-		if led.Metadata.Boolean != nil {
-			tbl.AddRow("Metadata Boolean:", *led.Metadata.Boolean)
-		}
-
-		if led.Metadata.Double != nil {
-			tbl.AddRow("Metadata Double:", *led.Metadata.Double)
-		}
-
-		if led.Metadata.Int != nil {
-			tbl.AddRow("Metadata Int:", *led.Metadata.Int)
-		}
-	}
+	tbl.AddRow("Metadata:", led.Metadata)
 
 	tbl.Print()
 }

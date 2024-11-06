@@ -1,11 +1,13 @@
 package repository
 
-import "github.com/LerianStudio/midaz/components/mdz/internal/model"
+import (
+	"github.com/LerianStudio/midaz/common/mmodel"
+)
 
 type Organization interface {
-	Create(org model.Organization) (*model.OrganizationCreate, error)
-	Get(limit, page int) (*model.OrganizationList, error)
-	GetByID(organizationID string) (*model.OrganizationItem, error)
-	Update(organizationID string, orgInput model.OrganizationUpdate) (*model.OrganizationItem, error)
+	Create(org mmodel.CreateOrganizationInput) (*mmodel.Organization, error)
+	Get(limit, page int) (*mmodel.Organizations, error)
+	GetByID(organizationID string) (*mmodel.Organization, error)
+	Update(organizationID string, orgInput mmodel.UpdateOrganizationInput) (*mmodel.Organization, error)
 	Delete(organizationID string) error
 }

@@ -1,0 +1,32 @@
+{
+    "items": [
+        {
+            "id": "0192c559-62f4-738b-9be5-262b71f6375a",
+            "parentOrganizationId": null,
+            "legalName": "Koelpin - Marquardt",
+            "doingBusinessAs": "The ledger.io",
+            "legalDocument": "48784548000104",
+            "address": {
+                "line1": "Avenida Paulista, 1234",
+                "line2": null,
+                "zipCode": "",
+                "city": "",
+                "state": "",
+                "country": "KG"
+            },
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Ledger"
+            },
+            "createdAt": "2024-10-25T20:23:42.580221Z",
+            "updatedAt": "2024-10-25T20:23:42.580221Z",
+            "deletedAt": null,
+            "metadata": {
+                "bitcoin": "1R4DvodZi68SxKbvNeQGCkaPj25Ryumy",
+                "chave": "max"
+            }
+        }
+    ],
+    "page": 1,
+    "limit": 5
+}

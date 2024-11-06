@@ -1,0 +1,20 @@
+{
+    "id": "1a259e90-8f28-491d-8c09-c047293b1a0f",
+    "legalName": "Corwin LLC",
+    "doingBusinessAs": "The ledger.io",
+    "legalDocument": "48784548000104",
+    "address": {
+        "line1": "Avenida Paulista, 1234",
+        "line2": "CJ 203",
+        "zipCode": "04696040",
+        "city": "Ozellaport",
+        "state": "MU",
+        "country": "LV"
+    },
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste Ledger"
+    },
+    "createdAt": "2024-10-22T23:36:35.979331542Z",
+    "updatedAt": "2024-10-22T23:36:35.979334336Z"
+}

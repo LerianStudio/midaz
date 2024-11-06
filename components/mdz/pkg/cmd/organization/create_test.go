@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
@@ -24,7 +24,7 @@ func TestRunE(t *testing.T) {
 			Out: &bytes.Buffer{},
 			Err: &bytes.Buffer{},
 		}},
-		repoOrganiztion: mockRepo,
+		repoOrganization: mockRepo,
 		tuiInput: func(message string) (string, error) {
 			return "name", nil
 		},
@@ -36,10 +36,7 @@ func TestRunE(t *testing.T) {
 			Description:     "Teste Ledger",
 			City:            "Test City",
 			Country:         "BR",
-			Bitcoin:         "1YLHctiipHZupwrT5sGwuYbks5rn64bm",
-			Boolean:         "true",
-			Double:          "10.5",
-			Int:             "1",
+			Metadata:        "{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}",
 		},
 	}
 
@@ -52,34 +49,30 @@ func TestRunE(t *testing.T) {
 		"--city", "Test City",
 		"--description", "Test Ledger",
 		"--country", "BR",
-		"--bitcoin", "1YLHctiipHZupwrT5sGwuYbks5rn64bm",
-		"--boolean", "true",
-		"--double", "10.5",
-		"--int", "1",
+		"--metadata", "{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}",
 	})
 
-	gotOrg := model.OrganizationCreate{
-		ID:              "123",
-		LegalName:       "Test Organization",
-		DoingBusinessAs: "The ledger.io",
-		LegalDocument:   "48784548000104",
-		Address: model.Address{
-			Country: "BR",
-		},
-		Status: model.Status{
-			Description: ptr.StringPtr("Test Ledger"),
-		},
+	metadata := map[string]any{
+		"chave1": "valor1",
+		"chave2": 2,
+		"chave3": true,
 	}
 
-	mockRepo.EXPECT().Create(gomock.Any()).DoAndReturn(func(org model.Organization) (*model.OrganizationCreate, error) {
-		assert.Equal(t, "Test Organization", org.LegalName)
-		assert.Equal(t, "The ledger.io", org.DoingBusinessAs)
-		assert.Equal(t, "48784548000104", org.LegalDocument)
-		assert.Equal(t, "BR", org.Address.Country)
-		assert.Equal(t, ptr.StringPtr("Test Ledger"), org.Status.Description)
+	gotOrg := &mmodel.Organization{
+		ID:              "123",
+		LegalName:       "Test Organization",
+		DoingBusinessAs: ptr.StringPtr("The ledger.io"),
+		LegalDocument:   "48784548000104",
+		Address: mmodel.Address{
+			Country: "BR",
+		},
+		Status: mmodel.Status{
+			Description: ptr.StringPtr("Test Ledger"),
+		},
+		Metadata: metadata,
+	}
 
-		return &gotOrg, nil
-	})
+	mockRepo.EXPECT().Create(gomock.Any()).Return(gotOrg, nil)
 
 	err := cmd.Execute()
 	assert.NoError(t, err)

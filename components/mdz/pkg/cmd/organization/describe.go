@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -60,7 +60,7 @@ func (f *factoryOrganizationDescribe) runE(cmd *cobra.Command, _ []string) error
 	return nil
 }
 
-func (f *factoryOrganizationDescribe) describePrint(org *model.OrganizationItem) {
+func (f *factoryOrganizationDescribe) describePrint(org *mmodel.Organization) {
 	tbl := table.New("FIELDS", "VALUES")
 
 	headerFmt := color.New(color.FgYellow).SprintfFunc()
@@ -72,15 +72,19 @@ func (f *factoryOrganizationDescribe) describePrint(org *model.OrganizationItem)
 	f.addBasicFields(tbl, org)
 	f.addAddressFields(tbl, org)
 	f.addStatusFields(tbl, org)
-	f.addMetadataFields(tbl, org)
+	tbl.AddRow("Metadata:", org.Metadata)
 
 	tbl.Print()
 }
 
-func (f *factoryOrganizationDescribe) addBasicFields(tbl table.Table, org *model.OrganizationItem) {
+func (f *factoryOrganizationDescribe) addBasicFields(tbl table.Table, org *mmodel.Organization) {
 	tbl.AddRow("ID:", org.ID)
 	tbl.AddRow("Legal Name:", org.LegalName)
-	tbl.AddRow("Doing Business As:", org.DoingBusinessAs)
+
+	if org.DoingBusinessAs != nil {
+		tbl.AddRow("Doing Business As:", *org.DoingBusinessAs)
+	}
+
 	tbl.AddRow("Legal Document:", org.LegalDocument)
 
 	if org.ParentOrganizationID != nil {
@@ -95,63 +99,23 @@ func (f *factoryOrganizationDescribe) addBasicFields(tbl table.Table, org *model
 	}
 }
 
-func (f *factoryOrganizationDescribe) addAddressFields(tbl table.Table, org *model.OrganizationItem) {
-	if org.Address.Line1 != nil {
-		tbl.AddRow("Address Line1:", *org.Address.Line1)
-	}
+func (f *factoryOrganizationDescribe) addAddressFields(tbl table.Table, org *mmodel.Organization) {
+	tbl.AddRow("Address Line1:", org.Address.Line1)
 
 	if org.Address.Line2 != nil {
 		tbl.AddRow("Address Line2:", *org.Address.Line2)
 	}
 
-	if org.Address.ZipCode != nil {
-		tbl.AddRow("Address ZipCode:", *org.Address.ZipCode)
-	}
-
-	if org.Address.City != nil {
-		tbl.AddRow("Address City:", *org.Address.City)
-	}
-
-	if org.Address.State != nil {
-		tbl.AddRow("Address State:", *org.Address.State)
-	}
-
+	tbl.AddRow("Address City:", org.Address.City)
+	tbl.AddRow("Address State:", org.Address.State)
 	tbl.AddRow("Address Country:", org.Address.Country)
 }
 
-func (f *factoryOrganizationDescribe) addStatusFields(tbl table.Table, org *model.OrganizationItem) {
-	if org.Status != nil {
-		if org.Status.Code != nil {
-			tbl.AddRow("Status Code:", *org.Status.Code)
-		}
+func (f *factoryOrganizationDescribe) addStatusFields(tbl table.Table, org *mmodel.Organization) {
+	tbl.AddRow("Status Code:", org.Status.Code)
 
-		if org.Status.Description != nil {
-			tbl.AddRow("Status Description:", *org.Status.Description)
-		}
-	}
-}
-
-func (f *factoryOrganizationDescribe) addMetadataFields(tbl table.Table, org *model.OrganizationItem) {
-	if org.Metadata != nil {
-		if org.Metadata.Chave != nil {
-			tbl.AddRow("Metadata Chave:", *org.Metadata.Chave)
-		}
-
-		if org.Metadata.Bitcoin != nil {
-			tbl.AddRow("Metadata Bitcoin:", *org.Metadata.Bitcoin)
-		}
-
-		if org.Metadata.Boolean != nil {
-			tbl.AddRow("Metadata Boolean:", *org.Metadata.Boolean)
-		}
-
-		if org.Metadata.Double != nil {
-			tbl.AddRow("Metadata Double:", *org.Metadata.Double)
-		}
-
-		if org.Metadata.Int != nil {
-			tbl.AddRow("Metadata Int:", *org.Metadata.Int)
-		}
+	if org.Status.Description != nil {
+		tbl.AddRow("Status Description:", *org.Status.Description)
 	}
 }
 

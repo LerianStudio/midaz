@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 )
 
@@ -15,8 +15,8 @@ type organization struct {
 	Factory *factory.Factory
 }
 
-func (r *organization) Create(org model.Organization) (*model.OrganizationCreate, error) {
-	jsonData, err := json.Marshal(org)
+func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
+	jsonData, err := json.Marshal(inp)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -46,15 +46,15 @@ func (r *organization) Create(org model.Organization) (*model.OrganizationCreate
 			resp.StatusCode)
 	}
 
-	var orgResponse model.OrganizationCreate
-	if err := json.NewDecoder(resp.Body).Decode(&orgResponse); err != nil {
+	var org mmodel.Organization
+	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &orgResponse, nil
+	return &org, nil
 }
 
-func (r *organization) Get(limit, page int) (*model.OrganizationList, error) {
+func (r *organization) Get(limit, page int) (*mmodel.Organizations, error) {
 	uri := fmt.Sprintf("%s/v1/organizations?limit=%d&page=%d",
 		r.Factory.Env.URLAPILedger, limit, page)
 
@@ -81,15 +81,15 @@ func (r *organization) Get(limit, page int) (*model.OrganizationList, error) {
 			resp.StatusCode)
 	}
 
-	var orgListResp model.OrganizationList
-	if err := json.NewDecoder(resp.Body).Decode(&orgListResp); err != nil {
+	var orgs mmodel.Organizations
+	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &orgListResp, nil
+	return &orgs, nil
 }
 
-func (r *organization) GetByID(organizationID string) (*model.OrganizationItem, error) {
+func (r *organization) GetByID(organizationID string) (*mmodel.Organization, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
@@ -115,16 +115,16 @@ func (r *organization) GetByID(organizationID string) (*model.OrganizationItem, 
 			resp.StatusCode)
 	}
 
-	var orgItemResp model.OrganizationItem
-	if err := json.NewDecoder(resp.Body).Decode(&orgItemResp); err != nil {
+	var org mmodel.Organization
+	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &orgItemResp, nil
+	return &org, nil
 }
 
-func (r *organization) Update(organizationID string, orgInput model.OrganizationUpdate) (*model.OrganizationItem, error) {
-	payloadBytes, err := json.Marshal(orgInput)
+func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
+	payloadBytes, err := json.Marshal(inp)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -156,12 +156,12 @@ func (r *organization) Update(organizationID string, orgInput model.Organization
 			resp.StatusCode)
 	}
 
-	var orgItemResp model.OrganizationItem
-	if err := json.NewDecoder(resp.Body).Decode(&orgItemResp); err != nil {
+	var org mmodel.Organization
+	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &orgItemResp, nil
+	return &org, nil
 }
 
 func (r *organization) Delete(organizationID string) error {

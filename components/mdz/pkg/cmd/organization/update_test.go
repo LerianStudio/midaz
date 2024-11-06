@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
@@ -24,7 +24,7 @@ func TestNewCmdOrganizationUpdate(t *testing.T) {
 			Out: &bytes.Buffer{},
 			Err: &bytes.Buffer{},
 		}},
-		repoOrganiztion: mockRepo,
+		repoOrganization: mockRepo,
 		tuiInput: func(message string) (string, error) {
 			return "name", nil
 		},
@@ -48,15 +48,15 @@ func TestNewCmdOrganizationUpdate(t *testing.T) {
 		"--country", "BR",
 	})
 
-	gotOrg := &model.OrganizationItem{
+	gotOrg := &mmodel.Organization{
 		ID:              "123",
 		LegalName:       "Test Organization",
-		DoingBusinessAs: "The ledger.io",
+		DoingBusinessAs: ptr.StringPtr("The ledger.io"),
 		LegalDocument:   "48784548000104",
-		Address: model.Address{
+		Address: mmodel.Address{
 			Country: "BR",
 		},
-		Status: &model.Status{
+		Status: mmodel.Status{
 			Description: ptr.StringPtr("Test Ledger"),
 		},
 	}

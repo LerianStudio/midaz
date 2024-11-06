@@ -2,8 +2,9 @@ package ledger
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
 )
 
 // LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database
