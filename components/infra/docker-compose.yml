@@ -104,6 +104,29 @@ services:
       primary-ledger:
         condition: service_healthy
 
+#  grafana-lgtm:
+#    container_name: grafana
+#    image: grafana/otel-lgtm:0.7.1
+#    ports:
+#      - "3100:3000"
+#    networks:
+#      - infra_network
+#
+#  otel-collector
+#    depends_on:
+#      - grafana-lgtm
+#    container_name: otel-collector
+#    image: otel/opentelemetry-collector-contrib
+#    volumes:
+#      - ./otelcol/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+#    ports:
+#      - 4317:4317 # OTLP gRPC receiver
+#      - 4318:4318 # OTLP http receiver
+#      - 13133:13133 # health_check extension
+#      - 55679:55679 # zpages extension for debugging and performance monitoring [Reference](https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension/README.md)
+#    networks:
+#      - infra_network
+
 volumes:
   mongodb_data_container:
 
