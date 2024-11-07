@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
 	lib "github.com/LerianStudio/midaz/common/net/http"
