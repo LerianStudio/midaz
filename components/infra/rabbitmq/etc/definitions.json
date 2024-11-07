@@ -5,6 +5,18 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
+    },
+    {
+      "name":"ledger",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
+    },
+    {
+      "name":"transaction",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -15,6 +27,20 @@
   "permissions": [
     {
       "user": "midaz",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "ledger",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "transaction",
       "vhost": "/",
       "configure": ".*",
       "write": ".*",
