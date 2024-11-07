@@ -1,3 +1,41 @@
+## [1.27.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.6...v1.27.0-beta.7) (2024-11-07)
+
+
+### Features
+
+* add definitions and config :sparkles: ([a49b010](https://github.com/LerianStudio/midaz/commit/a49b010269122600bdf6ed0fa02a5b6aa9f703d4))
+* add repository on command and query :sparkles: ([94d254a](https://github.com/LerianStudio/midaz/commit/94d254ae9e74ce7ac9509e625228eba019b4e7a1))
+* adjust wire inject :sparkles: ([ca0ddb4](https://github.com/LerianStudio/midaz/commit/ca0ddb40cd490353126108fe36334241f7cb714c))
+* **transaction:** create connection files and add amqp on go.mod :sparkles: ([63f816f](https://github.com/LerianStudio/midaz/commit/63f816fcc7d64b570b8495a1ee338e6891ee520a))
+* create mocks based on repositories :sparkles: ([f737239](https://github.com/LerianStudio/midaz/commit/f737239876cf9ad944289e4d3ea1491bf37003dd))
+* create producer and consumer repositories :sparkles: ([474d2d0](https://github.com/LerianStudio/midaz/commit/474d2d052a32930b75e4abb3cd1be6dc04da1092))
+* create rabbitmq handler on ports/http :sparkles: ([96b6b23](https://github.com/LerianStudio/midaz/commit/96b6b23c9a0e6e8b31ea3329f3b7082a0ecdcb93))
+* create test to producer and consumer; :sparkles: ([929d825](https://github.com/LerianStudio/midaz/commit/929d825ba8749aab4520e4dac7a8109125f27952))
+* implement handler; :sparkles: ([dc9df25](https://github.com/LerianStudio/midaz/commit/dc9df25a6c770a7f361094bd835ae042ad5a1aec))
+* implement on cqrs; :sparkles: ([d122ba6](https://github.com/LerianStudio/midaz/commit/d122ba63d7652188622a7a6795616b19fdc86153))
+* implement on routes; :sparkles: ([db9b12f](https://github.com/LerianStudio/midaz/commit/db9b12fc69f37e63e7b2006638acd439d3f51035))
+* implement producer and consumer on adapters :sparkles: ([4ff04d4](https://github.com/LerianStudio/midaz/commit/4ff04d4295d7adf12f96815070c2f987bb6cc231))
+* implement rabbitmq config, inject and wire; :sparkles: ([5baae29](https://github.com/LerianStudio/midaz/commit/5baae29c08e680c65419c7457ec1adc1ce6d4f9a))
+* implement rabbitmq on ledger :sparkles: ([17a9c3d](https://github.com/LerianStudio/midaz/commit/17a9c3da33d2c6a8c9720b7d5d7c550a98b35a04))
+* implementation mock :sparkles: ([481e856](https://github.com/LerianStudio/midaz/commit/481e856bf004dc4539c0105cba7bd3d05859c1e5))
+* implements producer and consumer with interface and implementation :sparkles: ([5dccc86](https://github.com/LerianStudio/midaz/commit/5dccc86eeb1847dc8dc99d835b6a0fed5888b043))
+* init of implementing rabbitmq :sparkles: ([ba9dc6f](https://github.com/LerianStudio/midaz/commit/ba9dc6f567d592ba6628ea61273d970e867b53e6))
+
+
+### Bug Fixes
+
+* complete conn and health on rabbitmq :bug: ([61d1431](https://github.com/LerianStudio/midaz/commit/61d143170704a8cb35b33395e61812fc31f206f5))
+* create new users to separate ledger and transaction :bug: ([24f66c8](https://github.com/LerianStudio/midaz/commit/24f66c8bb43938a5e44206853153542b51a9471c))
+* make lint :bug: ([5a7847a](https://github.com/LerianStudio/midaz/commit/5a7847aea01f89d606604c4311e4539347ba26f3))
+* make lint; :bug: ([3e55c43](https://github.com/LerianStudio/midaz/commit/3e55c436db91bb34c2f61a3671313eaf449988a9))
+* mock :bug: ([5b2d152](https://github.com/LerianStudio/midaz/commit/5b2d152ff987638a36bc643796aa9d755b0e53fc))
+* remove producer and consumer from commons :bug: ([fec19a9](https://github.com/LerianStudio/midaz/commit/fec19a901d4af1ec05eaf488ab721c501d2b9714))
+* **transaction:** remove test handler :bug: ([8081dcf](https://github.com/LerianStudio/midaz/commit/8081dcf69a654132062a8915cff02b0213765d03))
+* **ledger:** remove test handler; :bug: ([2dc3803](https://github.com/LerianStudio/midaz/commit/2dc38035c3db16ea905fd5955eb99788af8edb70))
+* remove unusued alias common :bug: ([cdd77f1](https://github.com/LerianStudio/midaz/commit/cdd77f1681cc8a5ef90a8aaf62592ab7aec91b76))
+* update amqp :bug: ([b2d6d22](https://github.com/LerianStudio/midaz/commit/b2d6d22d48251c6b377b503dbf848b07e7c09fc9))
+* update injection; :bug: ([2da2b58](https://github.com/LerianStudio/midaz/commit/2da2b5808844b9f248c9d557647e5851d815393d))
+
 ## [1.27.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.5...v1.27.0-beta.6) (2024-11-07)
 
 
