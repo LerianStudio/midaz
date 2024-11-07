@@ -2,9 +2,9 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:4317
+        endpoint: ${env:OTEL_COLLECTOR_RECEIVER_ADDRESS}:${env:OTEL_COLLECTOR_RECEIVER_GRPC_PORT}
       http:
-        endpoint: 0.0.0.0:4318
+        endpoint: ${env:OTEL_COLLECTOR_RECEIVER_ADDRESS}:${env:OTEL_COLLECTOR_RECEIVER_HTTP_PORT}
 
 processors:
   batch:
@@ -14,15 +14,15 @@ processors:
 exporters:
   debug:
   otlp:
-    endpoint: grafana-lgtm:4317
+    endpoint: otel-lgtm:${env:OTEL_LGTM_RECEIVER_PORT}
     tls:
       insecure: true
 
 extensions:
   health_check:
-    endpoint: 0.0.0.0:13133
+    endpoint: ${env:OTEL_COLLECTOR_HEALTH_CHECK_EXTENSION_ADDRESS}:${env:OTEL_COLLECTOR_HEALTH_CHECK_EXTENSION_PORT}
   zpages:
-    endpoint: 0.0.0.0:55679
+    endpoint: ${env:OTEL_COLLECTOR_ZPAGES_EXTENSION_ADDRESS}:${env:OTEL_COLLECTOR_ZPAGES_EXTENSION_PORT}
 
 service:
   pipelines:
