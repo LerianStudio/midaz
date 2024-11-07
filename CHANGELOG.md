@@ -1,3 +1,10 @@
+## [1.27.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.5...v1.27.0-beta.6) (2024-11-07)
+
+
+### Features
+
+* created subcommand list of the command asset ([c2d19fc](https://github.com/LerianStudio/midaz/commit/c2d19fc6bdb29b64f9f5435dd8dcb5d23115ad04))
+
 ## [1.27.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.4...v1.27.0-beta.5) (2024-11-07)
 
 
