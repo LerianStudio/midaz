@@ -125,7 +125,6 @@ var (
 		wire.Struct(new(portsHTTP.PortfolioHandler), "*"),
 		wire.Struct(new(portsHTTP.ProductHandler), "*"),
 		wire.Struct(new(portsHTTP.AccountHandler), "*"),
-		wire.Struct(new(portsHTTP.RabbitMQHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)),
