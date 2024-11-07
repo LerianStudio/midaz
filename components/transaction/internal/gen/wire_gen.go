@@ -162,6 +162,9 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq2.R
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
 		Logger:                 log,
+		Exchange:               cfg.RabbitMQExchange,
+		Key:                    cfg.RabbitMQKey,
+		Queue:                  cfg.RabbitMQQueue,
 	}
 }
 
