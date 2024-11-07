@@ -1,3 +1,29 @@
+## [1.27.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.5...v1.27.0-beta.6) (2024-11-07)
+
+
+### Features
+
+* created subcommand list of the command asset ([c2d19fc](https://github.com/LerianStudio/midaz/commit/c2d19fc6bdb29b64f9f5435dd8dcb5d23115ad04))
+
+## [1.27.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.4...v1.27.0-beta.5) (2024-11-07)
+
+
+### Features
+
+* created asset command, creation of the create subcommand of the asset command ([bdace84](https://github.com/LerianStudio/midaz/commit/bdace84be5e1d8909439a5d91d67cf86e16d6e90))
+
+## [1.27.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.3...v1.27.0-beta.4) (2024-11-06)
+
+
+### Features
+
+* add grafana-lgtm and open telemetry collector to infra docker-compose :sparkles: ([6351d3b](https://github.com/LerianStudio/midaz/commit/6351d3bc5db24ac09afa693909ee2725c2a5b012))
+
+
+### Bug Fixes
+
+* uncomment grafana-lgtm and otel-collector on infra docker-compose :bug: ([07dabfd](https://github.com/LerianStudio/midaz/commit/07dabfd64fa09773e04253aa90ca54e90b356623))
+
 ## [1.27.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.2...v1.27.0-beta.3) (2024-11-06)
 
 
@@ -25,6 +51,7 @@
 ### Bug Fixes
 
 * ah metadata structure is totally optional now, it caused errors when trying to request with null fields in the api ([3dac45f](https://github.com/LerianStudio/midaz/commit/3dac45fea9bd1c2fef7990289d4c33eb5884d182))
+
 ## [1.26.1](https://github.com/LerianStudio/midaz/compare/v1.26.0...v1.26.1) (2024-11-05)
 
 ## [1.26.0](https://github.com/LerianStudio/midaz/compare/v1.25.0...v1.26.0) (2024-11-01)
