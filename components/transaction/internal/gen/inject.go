@@ -127,7 +127,6 @@ var (
 		wire.Struct(new(httpHandler.TransactionHandler), "*"),
 		wire.Struct(new(httpHandler.OperationHandler), "*"),
 		wire.Struct(new(httpHandler.AssetRateHandler), "*"),
-		wire.Struct(new(httpHandler.RabbitMQHandler), "*"),
 		wire.Struct(new(command.UseCase), "*"),
 		wire.Struct(new(query.UseCase), "*"),
 		wire.Bind(new(t.Repository), new(*postgres.TransactionPostgreSQLRepository)),

@@ -80,11 +80,7 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	rabbitMQHandler := &http.RabbitMQHandler{
-		Command: useCase,
-		Query:   queryUseCase,
-	}
-	app := http.NewRouter(logger, casdoorConnection, transactionHandler, operationHandler, assetRateHandler, rabbitMQHandler)
+	app := http.NewRouter(logger, casdoorConnection, transactionHandler, operationHandler, assetRateHandler)
 	server := service.NewServer(config, app, logger)
 	serviceService := &service.Service{
 		Server: server,
@@ -161,10 +157,10 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq2.R
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
-		Logger:                 log,
 		Exchange:               cfg.RabbitMQExchange,
 		Key:                    cfg.RabbitMQKey,
 		Queue:                  cfg.RabbitMQQueue,
+		Logger:                 log,
 	}
 }
 
@@ -173,7 +169,7 @@ var (
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupGRPCConnection,
-		setupRabbitMQConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(http.RabbitMQHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)),
+		setupRabbitMQConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))
