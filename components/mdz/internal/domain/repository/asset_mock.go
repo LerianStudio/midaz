@@ -84,3 +84,18 @@ func (mr *MockAssetMockRecorder) GetByID(organizationID, ledgerID, assetID any) 
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockAsset)(nil).GetByID), organizationID, ledgerID, assetID)
 }
+
+// Update mocks base method.
+func (m *MockAsset) Update(organizationID, ledgerID, assetID string, inp mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", organizationID, ledgerID, assetID, inp)
+	ret0, _ := ret[0].(*mmodel.Asset)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Update indicates an expected call of Update.
+func (mr *MockAssetMockRecorder) Update(organizationID, ledgerID, assetID, inp any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockAsset)(nil).Update), organizationID, ledgerID, assetID, inp)
+}
