@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -32,11 +33,11 @@ type OrganizationHandler struct {
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	tracer := c.Locals("tracer").(trace.Tracer)
-	ctx, span := tracer.Start(ctx, "create_organization")
-	defer span.End()
-
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_organization")
+	defer span.End()
 
 	payload := p.(*o.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
@@ -54,7 +55,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 		Value: attribute.StringValue(payloadStr),
 	})
 
-	organization, err := handler.Command.CreateOrganization(ctx, tracer, payload)
+	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
 		span.SetStatus(codes.Error, "Failed to create organization on command: "+err.Error())
 		span.RecordError(err)
@@ -70,6 +71,11 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 // UpdateOrganization is a method that updates Organization information.
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
+	tracer := c.Locals("tracer").(trace.Tracer)
+
+	ctx, span := tracer.Start(ctx, "handler.update_organization")
+	defer span.End()
+
 	logger := mlog.NewLoggerFromContext(ctx)
 
 	id := c.Locals("id").(uuid.UUID)

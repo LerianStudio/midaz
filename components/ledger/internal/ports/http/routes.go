@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -15,12 +16,13 @@ import (
 )
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
+	tlMid := lib.NewTelemetryMiddleware(tl)
 
-	f.Use(lib.WithTracing())
+	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
 	f.Use(lib.WithHTTPLogging(lib.WithCustomLogger(lg)))
@@ -84,7 +86,7 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandle
 	// Doc
 	lib.DocAPI("ledger", "Ledger API", f)
 
-	f.Use(lib.EndTracingSpans())
+	f.Use(tlMid.EndTracingSpans())
 
 	return f
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/pkg/errors"
 )
@@ -12,6 +13,7 @@ type Server struct {
 	app           *fiber.App
 	serverAddress string
 	mlog.Logger
+	mopentelemetry.Telemetry
 }
 
 // ServerAddress returns is a convenience method to return the server address.
@@ -20,16 +22,20 @@ func (s *Server) ServerAddress() string {
 }
 
 // NewServer creates an instance of Server.
-func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger) *Server {
+func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopentelemetry.Telemetry) *Server {
 	return &Server{
 		app:           app,
 		serverAddress: cfg.ServerAddress,
 		Logger:        logger,
+		Telemetry:     *telemetry,
 	}
 }
 
 // Run runs the server.
 func (s *Server) Run(l *common.Launcher) error {
+	s.InitializeTelemetry()
+	defer s.ShutdownTelemetry()
+
 	err := s.app.Listen(s.ServerAddress())
 	if err != nil {
 		return errors.Wrap(err, "failed to run the server")

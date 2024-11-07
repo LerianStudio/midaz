@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"reflect"
 	"strconv"
 	"strings"
@@ -47,8 +47,10 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 }
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
-func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, tracer trace.Tracer, organization *o.Organization) (*o.Organization, error) {
-	ctx, span := tracer.Start(ctx, reflect.TypeOf(r).PkgPath()+"."+reflect.TypeOf(o.Organization{}).Name()+".Create")
+func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *o.Organization) (*o.Organization, error) {
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create")
 	defer span.End()
 
 	db, err := r.connection.GetDB()

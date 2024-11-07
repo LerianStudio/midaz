@@ -31,6 +31,11 @@ type Config struct {
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorEnforcerName     string `env:"CASDOOR_ENFORCER_NAME"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
+	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 }
 
 // NewConfig creates an instance of Config.

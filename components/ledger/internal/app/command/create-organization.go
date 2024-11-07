@@ -2,9 +2,9 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"reflect"
 	"time"
 
@@ -14,11 +14,13 @@ import (
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
-func (uc *UseCase) CreateOrganization(ctx context.Context, tracer trace.Tracer, coi *o.CreateOrganizationInput) (*o.Organization, error) {
-	ctx, span := tracer.Start(ctx, reflect.TypeOf(uc).PkgPath()+".CreateOrganization")
+func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganizationInput) (*o.Organization, error) {
+	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
 
-	logger := mlog.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create organization: %v", coi)
 
 	var status o.Status
@@ -67,7 +69,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, tracer trace.Tracer, 
 		Value: attribute.StringValue(organizationStr),
 	})
 
-	org, err := uc.OrganizationRepo.Create(ctx, tracer, organization)
+	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
 		span.SetStatus(codes.Error, "Failed to create organization on repository: "+err.Error())
 		span.RecordError(err)

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"os"
 	"reflect"
 
@@ -28,6 +29,11 @@ type LedgerHandler struct {
 // CreateLedger is a method that creates Ledger information.
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
+
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_ledger")
+	defer span.End()
 
 	logger := mlog.NewLoggerFromContext(ctx)
 

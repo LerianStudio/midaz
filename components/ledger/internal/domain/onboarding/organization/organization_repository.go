@@ -2,8 +2,6 @@ package organization
 
 import (
 	"context"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/google/uuid"
 )
 
@@ -11,7 +9,7 @@ import (
 //
 //go:generate mockgen --destination=../../../gen/mock/organization/organization_mock.go --package=mock . Repository
 type Repository interface {
-	Create(ctx context.Context, tracer trace.Tracer, organization *Organization) (*Organization, error)
+	Create(ctx context.Context, organization *Organization) (*Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *Organization) (*Organization, error)
 	Find(ctx context.Context, id uuid.UUID) (*Organization, error)
 	FindAll(ctx context.Context, limit, page int) ([]*Organization, error)

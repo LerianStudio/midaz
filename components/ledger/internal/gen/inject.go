@@ -78,11 +78,24 @@ func setupCasdoorConnection(cfg *service.Config, log mlog.Logger) *mcasdoor.Casd
 	return casdoor
 }
 
+func setupTelemetryProviders(cfg *service.Config, log mlog.Logger) *mopentelemetry.Telemetry {
+	t := &mopentelemetry.Telemetry{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            cfg.OtelServiceVersion,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		Logger:                    log,
+	}
+
+	return t
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
 		mzap.InitializeLogger,
-		mopentelemetry.InitializeTelemetry,
+		setupTelemetryProviders,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
