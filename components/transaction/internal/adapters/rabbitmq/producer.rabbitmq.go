@@ -3,7 +3,7 @@ package mrabbitmq
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
@@ -29,8 +29,8 @@ func (prmq *ProducerRabbitMQRepository) Producer(ctx context.Context, exchange, 
 	prmq.conn.Logger.Infoln("init sent message")
 
 	err := prmq.conn.Channel.Publish(
-		"transaction_operations_exchange",
-		"transaction_operations_key",
+		prmq.conn.Exchange,
+		prmq.conn.Key,
 		false,
 		false,
 		amqp.Publishing{

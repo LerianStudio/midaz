@@ -28,7 +28,7 @@ func (crmq *ConsumerRabbitMQRepository) Consumer(ctx context.Context, queue stri
 	crmq.conn.Logger.Infoln("init consumer message")
 
 	message, err := crmq.conn.Channel.Consume(
-		"transaction_operations_queue",
+		crmq.conn.Queue,
 		"",
 		true,
 		false,
@@ -40,9 +40,15 @@ func (crmq *ConsumerRabbitMQRepository) Consumer(ctx context.Context, queue stri
 		crmq.conn.Logger.Errorf("Failed to register a consumer: %s", err)
 	}
 
-	for d := range message {
-		crmq.conn.Logger.Infof("message consumed: %s", d.Body)
+	forever := make(chan bool)
 
-		response <- string(d.Body[:])
-	}
+	go func() {
+		for d := range message {
+			crmq.conn.Logger.Infof("message consumed: %s", d.Body)
+
+			//response <- string(d.Body[:])
+		}
+	}()
+
+	<-forever
 }
