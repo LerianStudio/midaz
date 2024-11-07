@@ -1,7 +1,6 @@
 package mrabbitmq
 
 import (
-	"context"
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 )
 
@@ -24,7 +23,7 @@ func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ConsumerRabbitMQRepos
 	return crmq
 }
 
-func (crmq *ConsumerRabbitMQRepository) Consumer(ctx context.Context, queue string, response chan string) {
+func (crmq *ConsumerRabbitMQRepository) ConsumerDefault(response chan string) {
 	crmq.conn.Logger.Infoln("init consumer message")
 
 	message, err := crmq.conn.Channel.Consume(

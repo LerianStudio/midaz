@@ -1,7 +1,6 @@
 package mrabbitmq
 
 import (
-	"context"
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -25,7 +24,7 @@ func NewProducerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ProducerRabbitMQRepos
 	return prmq
 }
 
-func (prmq *ProducerRabbitMQRepository) Producer(ctx context.Context, exchange, key, body string) (*string, error) {
+func (prmq *ProducerRabbitMQRepository) ProducerDefault(message string) (*string, error) {
 	prmq.conn.Logger.Infoln("init sent message")
 
 	err := prmq.conn.Channel.Publish(
@@ -35,7 +34,7 @@ func (prmq *ProducerRabbitMQRepository) Producer(ctx context.Context, exchange, 
 		false,
 		amqp.Publishing{
 			ContentType: "text/plain",
-			Body:        []byte("Mensagem de conta contábil"),
+			Body:        []byte(message),
 		})
 	if err != nil {
 		prmq.conn.Logger.Errorf("Failed to publish a message: %s", err)
