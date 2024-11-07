@@ -13,9 +13,11 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	mrabbitmq2 "github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
@@ -25,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/domain/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	"github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
@@ -48,6 +51,8 @@ func InitializeService() *service.Service {
 	assetPostgreSQLRepository := postgres.NewAssetPostgreSQLRepository(postgresConnection)
 	mongoConnection := setupMongoDBConnection(config, logger)
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	rabbitMQConnection := setupRabbitMQConnection(config, logger)
+	producerRabbitMQRepository := mrabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	useCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
@@ -56,7 +61,9 @@ func InitializeService() *service.Service {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
+		RabbitMQRepo:     producerRabbitMQRepository,
 	}
+	consumerRabbitMQRepository := mrabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
 	queryUseCase := &query.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
@@ -65,6 +72,7 @@ func InitializeService() *service.Service {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
+		RabbitMQRepo:     consumerRabbitMQRepository,
 	}
 	accountHandler := &http.AccountHandler{
 		Command: useCase,
@@ -90,7 +98,11 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	app := http.NewRouter(logger, casdoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
+	rabbitMQHandler := &http.RabbitMQHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+	app := http.NewRouter(logger, casdoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler, rabbitMQHandler)
 	server := service.NewServer(config, app, logger)
 	grpcServer := grpc.NewRouterGRPC(logger, casdoorConnection, useCase, queryUseCase)
 	serverGRPC := service.NewServerGRPC(config, grpcServer, logger)
@@ -151,10 +163,28 @@ func setupCasdoorConnection(cfg *service.Config, log mlog.Logger) *mcasdoor.Casd
 	return casdoor
 }
 
+func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq2.RabbitMQConnection {
+	connStrSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
+		cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	return &mrabbitmq2.RabbitMQConnection{
+		ConnectionStringSource: connStrSource,
+		Host:                   cfg.RabbitMQHost,
+		Port:                   cfg.RabbitMQPortAMQP,
+		User:                   cfg.RabbitMQUser,
+		Pass:                   cfg.RabbitMQPass,
+		Exchange:               cfg.RabbitMQExchange,
+		Key:                    cfg.RabbitMQKey,
+		Queue:                  cfg.RabbitMQQueue,
+		Logger:                 log,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
-		setupCasdoorConnection, grpc.NewRouterGRPC, service.NewServerGRPC, http.NewRouter, service.NewConfig, service.NewServer, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewAssetPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, wire.Struct(new(http.OrganizationHandler), "*"), wire.Struct(new(http.LedgerHandler), "*"), wire.Struct(new(http.AssetHandler), "*"), wire.Struct(new(http.PortfolioHandler), "*"), wire.Struct(new(http.ProductHandler), "*"), wire.Struct(new(http.AccountHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(asset.Repository), new(*postgres.AssetPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		setupCasdoorConnection,
+		setupRabbitMQConnection, grpc.NewRouterGRPC, service.NewServerGRPC, http.NewRouter, service.NewConfig, service.NewServer, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewAssetPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, wire.Struct(new(http.OrganizationHandler), "*"), wire.Struct(new(http.LedgerHandler), "*"), wire.Struct(new(http.AssetHandler), "*"), wire.Struct(new(http.PortfolioHandler), "*"), wire.Struct(new(http.ProductHandler), "*"), wire.Struct(new(http.AccountHandler), "*"), wire.Struct(new(http.RabbitMQHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(asset.Repository), new(*postgres.AssetPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "ServerGRPC", "Logger"))
