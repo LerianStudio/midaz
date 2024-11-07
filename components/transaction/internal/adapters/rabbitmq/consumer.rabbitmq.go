@@ -43,9 +43,8 @@ func (crmq *ConsumerRabbitMQRepository) ConsumerDefault(response chan string) {
 
 	go func() {
 		for d := range message {
-			crmq.conn.Logger.Infof("message consumed: %s", d.Body)
-
 			//response <- string(d.Body[:])
+			crmq.conn.Logger.Infof("message consumed: %s", d.Body)
 		}
 	}()
 
