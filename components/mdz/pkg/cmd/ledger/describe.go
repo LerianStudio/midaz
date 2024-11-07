@@ -19,32 +19,32 @@ import (
 type factoryLedgerDescribe struct {
 	factory        *factory.Factory
 	repoLedger     repository.Ledger
-	organizationID string
-	ledgerID       string
+	OrganizationID string
+	LedgerID       string
 	Out            string
 	JSON           bool
 }
 
 func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
-	if !cmd.Flags().Changed("organization-id") && len(f.organizationID) < 1 {
+	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
 			return err
 		}
 
-		f.organizationID = id
+		f.OrganizationID = id
 	}
 
-	if !cmd.Flags().Changed("ledger-id") && len(f.ledgerID) < 1 {
+	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
 		if err != nil {
 			return err
 		}
 
-		f.organizationID = id
+		f.LedgerID = id
 	}
 
-	org, err := f.repoLedger.GetByID(f.organizationID, f.ledgerID)
+	org, err := f.repoLedger.GetByID(f.OrganizationID, f.LedgerID)
 	if err != nil {
 		return err
 	}
@@ -114,8 +114,8 @@ func (f *factoryLedgerDescribe) describePrint(led *mmodel.Ledger) {
 func (f *factoryLedgerDescribe) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.Out, "out", "", "Exports the output to the given <file_path/file_name.ext>")
 	cmd.Flags().BoolVar(&f.JSON, "json", false, "returns the table in json format")
-	cmd.Flags().StringVar(&f.organizationID, "organization-id", "", "Specify the organization ID.")
-	cmd.Flags().StringVar(&f.ledgerID, "ledger-id", "",
+	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
+	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "",
 		"Specify the ledger ID to retrieve details")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
