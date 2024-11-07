@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
 	lib "github.com/LerianStudio/midaz/common/net/http"
@@ -15,7 +16,7 @@ import (
 )
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler, rmqh *RabbitMQHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -82,6 +83,9 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, ah *AccountHandle
 
 	// Doc
 	lib.DocAPI("ledger", "Ledger API", f)
+
+	rmqh.CreateProducer(context.Background())
+	rmqh.CreateConsumer(context.Background())
 
 	return f
 }
