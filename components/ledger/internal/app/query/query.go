@@ -8,6 +8,7 @@ import (
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
+	rmq "github.com/LerianStudio/midaz/components/ledger/internal/domain/rabbitmq"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
@@ -32,4 +33,7 @@ type UseCase struct {
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo m.Repository
+
+	// RabbitMQRepo provides an abstraction on top of the consumer rabbitmq.
+	RabbitMQRepo rmq.ConsumerRepository
 }

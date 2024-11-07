@@ -5,6 +5,7 @@ import (
 	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
+	rmq "github.com/LerianStudio/midaz/components/transaction/internal/domain/rabbitmq"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 )
 
@@ -24,4 +25,7 @@ type UseCase struct {
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo m.Repository
+
+	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
+	RabbitMQRepo rmq.ProducerRepository
 }
