@@ -7,4 +7,5 @@ type Asset interface {
 	Get(organizationID, ledgerID string, limit, page int) (*mmodel.Assets, error)
 	GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset, error)
 	Update(organizationID, ledgerID, assetID string, inp mmodel.UpdateAssetInput) (*mmodel.Asset, error)
+	Delete(organizationID, ledgerID, assetID string) error
 }
