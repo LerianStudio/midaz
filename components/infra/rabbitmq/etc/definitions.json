@@ -1,0 +1,92 @@
+{
+  "users": [
+    {
+      "name":"midaz",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
+    },
+    {
+      "name":"ledger",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
+    },
+    {
+      "name":"transaction",
+      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
+      "hashing_algorithm":"rabbit_password_hashing_sha256",
+      "tags":"administrator"
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "midaz",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "ledger",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "transaction",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "queues": [
+    {
+      "name": "transaction_operations_queue",
+      "vhost": "/",
+      "durable": true
+    },
+    {
+      "name": "ledger_accounts_queue",
+      "vhost": "/",
+      "durable": true
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "transaction_operations_exchange",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    },
+    {
+      "name": "ledger_accounts_exchange",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true
+    }
+  ],
+  "bindings": [
+    {
+      "source": "transaction_operations_exchange",
+      "vhost": "/",
+      "destination": "transaction_operations_queue",
+      "destination_type": "queue",
+      "routing_key": "transaction_operations_key"
+    },
+    {
+      "source": "ledger_accounts_exchange",
+      "vhost": "/",
+      "destination": "ledger_accounts_queue",
+      "destination_type": "queue",
+      "routing_key": "ledger_accounts_key"
+    }
+  ]
+}

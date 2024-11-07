@@ -14,16 +14,19 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	mrabbitmq2 "github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/account"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/domain/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
@@ -46,19 +49,24 @@ func InitializeService() *service.Service {
 	assetRatePostgreSQLRepository := postgres.NewAssetRatePostgreSQLRepository(postgresConnection)
 	mongoConnection := setupMongoDBConnection(config, logger)
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+	rabbitMQConnection := setupRabbitMQConnection(config, logger)
+	producerRabbitMQRepository := mrabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
+		RabbitMQRepo:    producerRabbitMQRepository,
 	}
+	consumerRabbitMQRepository := mrabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
+		RabbitMQRepo:    consumerRabbitMQRepository,
 	}
 	transactionHandler := &http.TransactionHandler{
 		Command: useCase,
@@ -105,7 +113,7 @@ func setupPostgreSQLConnection(cfg *service.Config, log mlog.Logger) *mpostgres.
 }
 
 func setupMongoDBConnection(cfg *service.Config, log mlog.Logger) *mmongo.MongoConnection {
-	connStrSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
+	connStrSource := fmt.Sprintf("mongodb://%s:%s@%s:%s/",
 		cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	return &mmongo.MongoConnection{
@@ -139,11 +147,29 @@ func setupGRPCConnection(cfg *service.Config, log mlog.Logger) *mgrpc.GRPCConnec
 	}
 }
 
+func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq2.RabbitMQConnection {
+	connStrSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
+		cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	return &mrabbitmq2.RabbitMQConnection{
+		ConnectionStringSource: connStrSource,
+		Host:                   cfg.RabbitMQHost,
+		Port:                   cfg.RabbitMQPortAMQP,
+		User:                   cfg.RabbitMQUser,
+		Pass:                   cfg.RabbitMQPass,
+		Exchange:               cfg.RabbitMQExchange,
+		Key:                    cfg.RabbitMQKey,
+		Queue:                  cfg.RabbitMQQueue,
+		Logger:                 log,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
-		setupGRPCConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		setupGRPCConnection,
+		setupRabbitMQConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))
