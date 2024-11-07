@@ -1,3 +1,10 @@
+## [1.27.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.4...v1.27.0-beta.5) (2024-11-07)
+
+
+### Features
+
+* created asset command, creation of the create subcommand of the asset command ([bdace84](https://github.com/LerianStudio/midaz/commit/bdace84be5e1d8909439a5d91d67cf86e16d6e90))
+
 ## [1.27.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.3...v1.27.0-beta.4) (2024-11-06)
 
 
