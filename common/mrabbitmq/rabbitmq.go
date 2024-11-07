@@ -8,22 +8,23 @@ import (
 	"net/http"
 
 	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
 
 // RabbitMQConnection is a hub which deal with rabbitmq connections.
 type RabbitMQConnection struct {
 	ConnectionStringSource string
-	Consumer               string
-	Producer               string
+	Queue                  string
+	Exchange               string
+	Key                    string
 	Host                   string
 	Port                   string
 	User                   string
 	Pass                   string
 	Channel                *amqp.Channel
-	Connected              bool
 	Logger                 mlog.Logger
+	Connected              bool
 }
 
 // Connect keeps a singleton connection with rabbitmq.
