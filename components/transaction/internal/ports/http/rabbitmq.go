@@ -17,7 +17,7 @@ type RabbitMQHandler struct {
 func (handler *RabbitMQHandler) CreateProducer(c context.Context) {
 	logger := mlog.NewLoggerFromContext(c)
 
-	response, err := handler.Command.RabbitMQRepo.Producer(c, "", "", "")
+	response, err := handler.Command.RabbitMQRepo.ProducerDefault("test producer transaction")
 	if err != nil {
 		logger.Errorf("Failed to create producer: %s", err.Error())
 	}
@@ -28,5 +28,6 @@ func (handler *RabbitMQHandler) CreateProducer(c context.Context) {
 // CreateConsumer method that create consumers to rabbitmq.
 func (handler *RabbitMQHandler) CreateConsumer(c context.Context) {
 	message := make(chan string)
-	handler.Query.RabbitMQRepo.Consumer(c, "", message)
+
+	handler.Query.RabbitMQRepo.ConsumerDefault(message)
 }
