@@ -192,3 +192,70 @@ func Test_asset_Get(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192fc1d-f34d-78c9-9654-83e497349241/ledgers/01930218-bfb7-74fe-ba00-e52a17e9fb4e/assets?limit=2&page=1"])
 }
+
+func Test_asset_GetByID(t *testing.T) {
+	assetID := "01930365-4d46-7a09-a503-b932714f85af"
+	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
+	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
+
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	expectedResult := &mmodel.Asset{
+		ID:   assetID,
+		Name: "2Real",
+		Type: "commodity",
+		Code: "DOP",
+		Status: mmodel.Status{
+			Code:        "ACTIVE",
+			Description: ptr.StringPtr("Teste asset 1"),
+		},
+		LedgerID:       ledgerID,
+		OrganizationID: organizationID,
+		CreatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+		UpdatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+		DeletedAt:      nil,
+		Metadata: map[string]any{
+			"bitcoin": "1RuuEjC8CziKy6XbYU6uwsNSYjU7H2Mft",
+			"chave":   "metadata_chave",
+			"boolean": false,
+		},
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
+		URIAPILedger, organizationID, ledgerID, assetID)
+
+	httpmock.RegisterResponder(http.MethodGet, uri,
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/asset_response_get_by_id.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	asset := NewAsset(factory)
+
+	result, err := asset.GetByID(organizationID, ledgerID, assetID)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedResult.ID, result.ID)
+	assert.Equal(t, expectedResult.Name, result.Name)
+	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
+	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
+	assert.Equal(t, expectedResult.Code, result.Code)
+	assert.Equal(t, expectedResult.Type, result.Type)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, expectedResult.Status.Description, result.Status.Description)
+	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
+	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
+	assert.Equal(t, expectedResult.DeletedAt, result.DeletedAt)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192fc1d-f34d-78c9-9654-83e497349241/ledgers/01930218-bfb7-74fe-ba00-e52a17e9fb4e/assets/01930365-4d46-7a09-a503-b932714f85af"])
+}
