@@ -37,6 +37,9 @@ type Config struct {
 	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
 	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
+	RabbitMQKey             string `env:"RABBITMQ_KEY"`
+	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
 }
 
 // NewConfig creates an instance of Config.
