@@ -10,7 +10,6 @@
 package mock
 
 import (
-	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -39,17 +38,17 @@ func (m *MockProducerRepository) EXPECT() *MockProducerRepositoryMockRecorder {
 	return m.recorder
 }
 
-// Producer mocks base method.
-func (m *MockProducerRepository) Producer(arg0 context.Context, arg1, arg2, arg3 string) (*string, error) {
+// ProducerDefault mocks base method.
+func (m *MockProducerRepository) ProducerDefault(arg0 string) (*string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Producer", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "ProducerDefault", arg0)
 	ret0, _ := ret[0].(*string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Producer indicates an expected call of Producer.
-func (mr *MockProducerRepositoryMockRecorder) Producer(arg0, arg1, arg2, arg3 any) *gomock.Call {
+// ProducerDefault indicates an expected call of ProducerDefault.
+func (mr *MockProducerRepositoryMockRecorder) ProducerDefault(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Producer", reflect.TypeOf((*MockProducerRepository)(nil).Producer), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProducerDefault", reflect.TypeOf((*MockProducerRepository)(nil).ProducerDefault), arg0)
 }

@@ -10,7 +10,6 @@
 package mock
 
 import (
-	context "context"
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
@@ -39,14 +38,14 @@ func (m *MockConsumerRepository) EXPECT() *MockConsumerRepositoryMockRecorder {
 	return m.recorder
 }
 
-// Consumer mocks base method.
-func (m *MockConsumerRepository) Consumer(arg0 context.Context, arg1 string, arg2 chan string) {
+// ConsumerDefault mocks base method.
+func (m *MockConsumerRepository) ConsumerDefault(arg0 chan string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Consumer", arg0, arg1, arg2)
+	m.ctrl.Call(m, "ConsumerDefault", arg0)
 }
 
-// Consumer indicates an expected call of Consumer.
-func (mr *MockConsumerRepositoryMockRecorder) Consumer(arg0, arg1, arg2 any) *gomock.Call {
+// ConsumerDefault indicates an expected call of ConsumerDefault.
+func (mr *MockConsumerRepositoryMockRecorder) ConsumerDefault(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Consumer", reflect.TypeOf((*MockConsumerRepository)(nil).Consumer), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumerDefault", reflect.TypeOf((*MockConsumerRepository)(nil).ConsumerDefault), arg0)
 }
