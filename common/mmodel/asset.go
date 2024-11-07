@@ -33,7 +33,8 @@ type Asset struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// IsEmpty method that set empty or nil in fields
-func (s Status) IsEmpty() bool {
-	return s.Code == "" && s.Description == nil
+type Assets struct {
+	Items []Asset `json:"items"`
+	Page  int     `json:"page"`
+	Limit int     `json:"limit"`
 }
