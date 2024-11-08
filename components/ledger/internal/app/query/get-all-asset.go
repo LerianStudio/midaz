@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -18,10 +19,17 @@ import (
 // GetAllAssets fetch all Asset from the repository
 func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*s.Asset, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_assets")
+	defer span.End()
+
 	logger.Infof("Retrieving assets")
 
 	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get assets on repo", err)
+
 		logger.Errorf("Error getting assets on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
@@ -34,6 +42,8 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 	if assets != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(s.Asset{}).Name(), filter)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+
 			return nil, common.ValidateBusinessError(cn.ErrNoAssetsFound, reflect.TypeOf(s.Asset{}).Name())
 		}
 

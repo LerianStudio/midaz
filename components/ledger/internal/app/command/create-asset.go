@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpointers"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
@@ -16,6 +17,11 @@ import (
 // CreateAsset creates a new asset persists data in the repository.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *s.CreateAssetInput) (*s.Asset, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_asset")
+	defer span.End()
+
 	logger.Infof("Trying to create asset: %v", cii)
 
 	var status s.Status
@@ -30,22 +36,31 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	status.Description = cii.Status.Description
 
 	if err := common.ValidateType(cii.Type); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate asset type", err)
+
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	if err := common.ValidateCode(cii.Code); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
+
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 	}
 
 	if cii.Type == "currency" {
 		if err := common.ValidateCurrency(cii.Code); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
+
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
 		}
 	}
 
 	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to find asset by name or code", err)
+
 		logger.Errorf("Error creating asset: %v", err)
+
 		return nil, err
 	}
 
@@ -62,13 +77,19 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	inst, err := uc.AssetRepo.Create(ctx, asset)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create asset", err)
+
 		logger.Errorf("Error creating asset: %v", err)
+
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(s.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create asset metadata", err)
+
 		logger.Errorf("Error creating asset metadata: %v", err)
+
 		return nil, err
 	}
 
@@ -79,6 +100,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
+
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
 		return nil, err
@@ -120,7 +143,10 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		_, err = uc.AccountRepo.Create(ctx, eAccount)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to create asset external account", err)
+
 			logger.Errorf("Error creating asset external account: %v", err)
+
 			return nil, err
 		}
 
