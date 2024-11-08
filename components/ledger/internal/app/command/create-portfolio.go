@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
 	"time"
@@ -15,6 +16,11 @@ import (
 // CreatePortfolio creates a new portfolio persists data in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *p.CreatePortfolioInput) (*p.Portfolio, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_portfolio")
+	defer span.End()
+
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status p.Status
@@ -50,13 +56,19 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
+		mlog.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
+
 		logger.Errorf("Error creating portfolio: %v", err)
+
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
+		mlog.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
+
 		logger.Errorf("Error creating portfolio metadata: %v", err)
+
 		return nil, err
 	}
 
