@@ -42,8 +42,17 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	payload := i.(*l.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
+	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return commonHTTP.WithError(c, err)
+	}
+
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create ledger on command", err)
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -57,6 +66,10 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
+	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating retrieval of Ledger with ID: %s", id.String())
@@ -65,7 +78,10 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
+
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -77,7 +93,12 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 // GetAllLedgers is a method that retrieves all ledgers.
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
+
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
@@ -93,7 +114,10 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers by metadata", err)
+
 			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
+
 			return commonHTTP.WithError(c, err)
 		}
 
@@ -110,7 +134,10 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers on query", err)
+
 		logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -124,7 +151,12 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 // UpdateLedger is a method that updates Ledger information.
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
+
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_ledger")
+	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating update of Ledger with ID: %s", id.String())
@@ -134,15 +166,28 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	payload := p.(*l.UpdateLedgerInput)
 	logger.Infof("Request to update an Ledger with details: %#v", payload)
 
-	_, err := handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
+	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return commonHTTP.WithError(c, err)
+	}
+
+	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update ledger on command", err)
+
 		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
+
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -156,6 +201,10 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
+	defer span.End()
 
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating removal of Ledeger with ID: %s", id.String())
@@ -163,6 +212,8 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	if os.Getenv("ENV_NAME") == "production" {
+		mopentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", cn.ErrActionNotPermitted)
+
 		logger.Errorf("Failed to remove Ledger with ID: %s in ", id.String())
 
 		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(l.Ledger{}).Name())
@@ -171,7 +222,10 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", err)
+
 		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
