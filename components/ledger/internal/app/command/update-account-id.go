@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -17,6 +18,11 @@ import (
 // UpdateAccountByID update an account from the repository by given id.
 func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance *a.Balance) (*a.Account, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.UpdateAccountByID")
+	defer span.End()
+
 	logger.Infof("Trying to update account by id: %v", id)
 
 	account := &a.Account{
@@ -25,6 +31,8 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 
 	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, organizationID, ledgerID, id, account)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update account on repo by id", err)
+
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	cn "github.com/LerianStudio/midaz/common/constant"
@@ -26,6 +27,10 @@ type AccountProto struct {
 // GetAccountsByIds is a method that retrieves Account information by a given ids.
 func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.AccountsID) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.GetAccountsByIds")
+	defer span.End()
 
 	uuids := make([]uuid.UUID, len(ids.GetIds()))
 	for _, id := range ids.GetIds() {
@@ -34,6 +39,8 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 
 	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(ids.GetOrganizationId()), uuid.MustParse(ids.GetLedgerId()), uuids)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids for grpc", err)
+
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
 
 		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
@@ -54,9 +61,15 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 // GetAccountsByAliases is a method that retrieves Account information by a given aliases.
 func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto.AccountsAlias) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.GetAccountsByAliases")
+	defer span.End()
 
 	acc, err := ap.Query.ListAccountsByAlias(ctx, uuid.MustParse(aliases.GetOrganizationId()), uuid.MustParse(aliases.GetLedgerId()), aliases.GetAliases())
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases for grpc", err)
+
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
 
 		return nil, common.ValidateBusinessError(cn.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(a.Account{}).Name())
@@ -77,6 +90,10 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 // UpdateAccounts is a method that update Account balances by a given ids.
 func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.AccountsRequest) (*proto.AccountsResponse, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.UpdateAccounts")
+	defer span.End()
 
 	accounts := make([]*proto.Account, 0)
 
@@ -84,6 +101,8 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 	for _, account := range update.GetAccounts() {
 		if common.IsNilOrEmpty(&account.Id) {
+			mopentelemetry.HandleSpanError(&span, "Failed to update Accounts because id is empty", nil)
+
 			logger.Errorf("Failed to update Accounts because id is empty")
 
 			return nil, common.ValidateBusinessError(cn.ErrNoAccountIDsProvided, reflect.TypeOf(a.Account{}).Name())
@@ -97,6 +116,8 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 		_, err := ap.Command.UpdateAccountByID(ctx, uuid.MustParse(account.OrganizationId), uuid.MustParse(account.LedgerId), uuid.MustParse(account.Id), &balance)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
+
 			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", account.OrganizationId, account.LedgerId, err.Error())
 
 			return nil, common.ValidateBusinessError(cn.ErrBalanceUpdateFailed, reflect.TypeOf(a.Account{}).Name())
@@ -110,12 +131,11 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids for grpc", err)
+
 		logger.Errorf("Failed to retrieve Accounts by ids for organizationId %s and ledgerId %s in grpc, Error: %s", organizationID, ledgerID, err.Error())
 
-		return nil, common.ValidationError{
-			Code:    "0001",
-			Message: "Failed to retrieve Accounts by ids for grpc",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
 	}
 
 	for _, ac := range acc {
