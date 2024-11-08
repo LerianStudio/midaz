@@ -27,7 +27,7 @@ func Test_newCmdLedgerDescribe(t *testing.T) {
 			Err: &bytes.Buffer{},
 		}},
 		repoLedger:     mockRepo,
-		organizationID: "123",
+		OrganizationID: "123",
 		Out:            "",
 		JSON:           false,
 	}

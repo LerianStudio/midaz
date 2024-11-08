@@ -1,0 +1,20 @@
+{
+    "id": "01930365-4d46-7a09-a503-b932714f85af",
+    "name": "2Real",
+    "type": "commodity",
+    "code": "DOP",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste asset 1"
+    },
+    "ledgerId": "01930218-bfb7-74fe-ba00-e52a17e9fb4e",
+    "organizationId": "0192fc1d-f34d-78c9-9654-83e497349241",
+    "createdAt": "2024-11-06T21:33:10.854653Z",
+    "updatedAt": "2024-11-06T21:33:10.854653Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "1RuuEjC8CziKy6XbYU6uwsNSYjU7H2Mft",
+        "chave": "metadata_chave",
+        "boolean": false
+    }
+}
