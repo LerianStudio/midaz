@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -17,10 +18,17 @@ import (
 // GetProductByID get a Product from the repository by given id.
 func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_product_by_id")
+	defer span.End()
+
 	logger.Infof("Retrieving product for id: %s", id.String())
 
 	product, err := uc.ProductRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get product on repo by id", err)
+
 		logger.Errorf("Error getting product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
@@ -33,7 +41,10 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 	if product != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(r.Product{}).Name(), id.String())
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb product", err)
+
 			logger.Errorf("Error get metadata on mongodb product: %v", err)
+
 			return nil, err
 		}
 

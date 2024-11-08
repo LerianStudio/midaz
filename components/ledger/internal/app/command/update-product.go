@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	cn "github.com/LerianStudio/midaz/common/constant"
@@ -17,6 +18,11 @@ import (
 // UpdateProductByID update a product from the repository by given id.
 func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *r.UpdateProductInput) (*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.update_product_by_id")
+	defer span.End()
+
 	logger.Infof("Trying to update product: %v", upi)
 
 	product := &r.Product{
@@ -26,6 +32,8 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 
 	productUpdated, err := uc.ProductRepo.Update(ctx, organizationID, ledgerID, id, product)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update product on repo by id", err)
+
 		logger.Errorf("Error updating product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
@@ -37,6 +45,8 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+
 		return nil, err
 	}
 

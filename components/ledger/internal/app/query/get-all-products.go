@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -18,10 +19,17 @@ import (
 // GetAllProducts fetch all Product from the repository
 func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_products")
+	defer span.End()
+
 	logger.Infof("Retrieving products")
 
 	products, err := uc.ProductRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get products on repo", err)
+
 		logger.Errorf("Error getting products on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
@@ -34,6 +42,8 @@ func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID 
 	if products != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+
 			return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(r.Product{}).Name())
 		}
 
