@@ -1,3 +1,12 @@
+## [1.27.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.7...v1.27.0-beta.8) (2024-11-08)
+
+
+### Features
+
+* added new sub command describe on command asset ([5d14dab](https://github.com/LerianStudio/midaz/commit/5d14dabe4a67a3e97f2cd52fa33f50b27bec782a))
+* added new sub command update on command asset ([2edf239](https://github.com/LerianStudio/midaz/commit/2edf2397b13dbbc114937ad3e20192b34931c5a7))
+* create rest get by id asset ([059d6a1](https://github.com/LerianStudio/midaz/commit/059d6a187a9c4ef2905249e5dc60527451c3fbec))
+
 ## [1.27.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.6...v1.27.0-beta.7) (2024-11-07)
 
 
