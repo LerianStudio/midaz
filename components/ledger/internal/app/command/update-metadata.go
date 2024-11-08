@@ -4,10 +4,16 @@ import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 )
 
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.update_metadata")
+	defer span.End()
+
 	logger.Infof("Trying to update metadata for %s: %v", entityName, entityID)
 
 	metadataToUpdate := metadata
@@ -15,7 +21,10 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	if metadataToUpdate != nil {
 		existingMetadata, err := uc.MetadataRepo.FindByEntity(ctx, entityName, entityID)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb", err)
+
 			logger.Errorf("Error get metadata on mongodb: %v", err)
+
 			return nil, err
 		}
 
@@ -27,6 +36,8 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 	}
 
 	if err := uc.MetadataRepo.Update(ctx, entityName, entityID, metadataToUpdate); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb", err)
+
 		return nil, err
 	}
 

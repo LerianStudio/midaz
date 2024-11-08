@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -17,10 +18,17 @@ import (
 // GetOrganizationByID fetch a new organization from the repository
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_organization_by_id")
+	defer span.End()
+
 	logger.Infof("Retrieving organization for id: %s", id.String())
 
 	organization, err := uc.OrganizationRepo.Find(ctx, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get organization on repo by id", err)
+
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
@@ -33,7 +41,10 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Or
 	if organization != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Organization{}).Name(), id.String())
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb organization", err)
+
 			logger.Errorf("Error get metadata on mongodb organization: %v", err)
+
 			return nil, err
 		}
 

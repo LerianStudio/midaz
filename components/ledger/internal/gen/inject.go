@@ -5,6 +5,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -97,10 +98,24 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq.Ra
 	}
 }
 
+func setupTelemetryProviders(cfg *service.Config, log mlog.Logger) *mopentelemetry.Telemetry {
+	t := &mopentelemetry.Telemetry{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            cfg.OtelServiceVersion,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		Logger:                    log,
+	}
+
+	return t
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
 		mzap.InitializeLogger,
+		setupTelemetryProviders,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,

@@ -39,6 +39,11 @@ type Config struct {
 	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
 	RabbitMQKey             string `env:"RABBITMQ_KEY"`
 	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
+	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 }
 
 // NewConfig creates an instance of Config.

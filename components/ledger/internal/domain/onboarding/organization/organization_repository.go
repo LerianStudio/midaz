@@ -2,7 +2,6 @@ package organization
 
 import (
 	"context"
-
 	"github.com/google/uuid"
 )
 
