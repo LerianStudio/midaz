@@ -242,9 +242,11 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	spanQuery.End()
 
 	if rows.Next() {
-		mopentelemetry.HandleSpanError(&span, "Ledger name conflict", nil)
+		err := common.ValidateBusinessError(cn.ErrLedgerNameConflict, reflect.TypeOf(l.Ledger{}).Name(), name)
 
-		return true, common.ValidateBusinessError(cn.ErrLedgerNameConflict, reflect.TypeOf(l.Ledger{}).Name(), name)
+		mopentelemetry.HandleSpanError(&span, "Ledger name conflict", err)
+
+		return true, err
 	}
 
 	return false, nil
