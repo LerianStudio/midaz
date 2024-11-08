@@ -13,9 +13,11 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
 	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	rabbitmq "github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
@@ -25,6 +27,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
+	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/rabbitmq"
 	portsGRPC "github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	portsHTTP "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
@@ -78,6 +81,23 @@ func setupCasdoorConnection(cfg *service.Config, log mlog.Logger) *mcasdoor.Casd
 	return casdoor
 }
 
+func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq.RabbitMQConnection {
+	connStrSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
+		cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	return &mrabbitmq.RabbitMQConnection{
+		ConnectionStringSource: connStrSource,
+		Host:                   cfg.RabbitMQHost,
+		Port:                   cfg.RabbitMQPortAMQP,
+		User:                   cfg.RabbitMQUser,
+		Pass:                   cfg.RabbitMQPass,
+		Exchange:               cfg.RabbitMQExchange,
+		Key:                    cfg.RabbitMQKey,
+		Queue:                  cfg.RabbitMQQueue,
+		Logger:                 log,
+	}
+}
+
 func setupTelemetryProviders(cfg *service.Config, log mlog.Logger) *mopentelemetry.Telemetry {
 	t := &mopentelemetry.Telemetry{
 		LibraryName:               cfg.OtelLibraryName,
@@ -99,6 +119,7 @@ var (
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
+		setupRabbitMQConnection,
 		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
 		portsHTTP.NewRouter,
@@ -111,6 +132,8 @@ var (
 		postgres.NewProductPostgreSQLRepository,
 		postgres.NewAccountPostgreSQLRepository,
 		mongodb.NewMetadataMongoDBRepository,
+		rabbitmq.NewProducerRabbitMQ,
+		rabbitmq.NewConsumerRabbitMQ,
 		wire.Struct(new(portsHTTP.OrganizationHandler), "*"),
 		wire.Struct(new(portsHTTP.LedgerHandler), "*"),
 		wire.Struct(new(portsHTTP.AssetHandler), "*"),
@@ -126,6 +149,8 @@ var (
 		wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)),
 		wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)),
 		wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
+		wire.Bind(new(r.ConsumerRepository), new(*rabbitmq.ConsumerRabbitMQRepository)),
+		wire.Bind(new(r.ProducerRepository), new(*rabbitmq.ProducerRabbitMQRepository)),
 	)
 
 	svcSet = wire.NewSet(

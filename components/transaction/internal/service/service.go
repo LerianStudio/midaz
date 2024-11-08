@@ -1,7 +1,7 @@
 package service
 
 import (
-	common "github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 )
 
