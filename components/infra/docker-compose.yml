@@ -105,7 +105,7 @@ services:
         condition: service_healthy
 
   otel-lgtm:
-    container_name: otel-lgtm
+    container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
     env_file:
       - .env
@@ -115,7 +115,7 @@ services:
       - infra_network
 
   otel-collector:
-    container_name: otel-collector
+    container_name: midaz-otel-collector
     image: otel/opentelemetry-collector-contrib
     env_file:
       - .env
