@@ -3,8 +3,6 @@ package command
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"reflect"
 	"time"
 
@@ -38,12 +36,15 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		coi.ParentOrganizationID = nil
 	}
 
+	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
+
 	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
-		span.SetStatus(codes.Error, "Failed to validate country address: "+err.Error())
-		span.RecordError(err)
+		mopentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
 
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
 	}
+
+	spanAddressValidation.End()
 
 	organization := &o.Organization{
 		ParentOrganizationID: coi.ParentOrganizationID,
@@ -56,23 +57,16 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		UpdatedAt:            time.Now(),
 	}
 
-	organizationStr, err := common.StructToJSONString(organization)
+	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "organization_repository_input", organization)
 	if err != nil {
-		span.SetStatus(codes.Error, "Failed to convert organization repository input to JSON string: "+err.Error())
-		span.RecordError(err)
+		mopentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
 
 		return nil, err
 	}
 
-	span.SetAttributes(attribute.KeyValue{
-		Key:   attribute.Key("organization_repository_input"),
-		Value: attribute.StringValue(organizationStr),
-	})
-
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
-		span.SetStatus(codes.Error, "Failed to create organization on repository: "+err.Error())
-		span.RecordError(err)
+		mopentelemetry.HandleSpanError(&span, "Failed to create organization on repository", err)
 
 		logger.Errorf("Error creating organization: %v", err)
 
@@ -81,8 +75,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
-		span.SetStatus(codes.Error, "Failed to create organization metadata: "+err.Error())
-		span.RecordError(err)
+		mopentelemetry.HandleSpanError(&span, "Failed to create organization metadata", err)
 
 		logger.Errorf("Error creating organization metadata: %v", err)
 
@@ -90,9 +83,6 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	}
 
 	org.Metadata = metadata
-
-	//TODO: verify if this is necessary
-	span.SetStatus(codes.Ok, "Successfully created organization 🎉🚀")
 
 	return org, nil
 }

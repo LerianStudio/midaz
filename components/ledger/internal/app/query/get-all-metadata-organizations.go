@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
@@ -18,10 +19,17 @@ import (
 // GetAllMetadataOrganizations fetch all Organizations from the repository
 func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commonHTTP.QueryHeader) ([]*o.Organization, error) {
 	logger := mlog.NewLoggerFromContext(ctx)
+	tracer := mopentelemetry.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_metadata_organizations")
+	defer span.End()
+
 	logger.Infof("Retrieving organizations")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
 	if err != nil || metadata == nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+
 		return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
 	}
 
@@ -35,6 +43,8 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 
 	organizations, err := uc.OrganizationRepo.ListByIDs(ctx, uuids)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get organizations on repo", err)
+
 		logger.Errorf("Error getting organizations on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

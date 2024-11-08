@@ -2,8 +2,11 @@ package mopentelemetry
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -189,4 +192,24 @@ type tracerContextKey string
 // ContextWithTracer returns a context within a trace.Tracer in "tracer" value.
 func ContextWithTracer(ctx context.Context, tracer trace.Tracer) context.Context {
 	return context.WithValue(ctx, tracerContextKey("tracer"), tracer)
+}
+
+// SetSpanAttributesFromStruct converts a struct to a JSON string and sets it as an attribute on the span.
+func SetSpanAttributesFromStruct(span *trace.Span, key string, valueStruct any) error {
+	vStr, err := common.StructToJSONString(valueStruct)
+	if err != nil {
+		return err
+	}
+
+	(*span).SetAttributes(attribute.KeyValue{
+		Key:   attribute.Key(key),
+		Value: attribute.StringValue(vStr),
+	})
+
+	return nil
+}
+
+func HandleSpanError(span *trace.Span, message string, err error) {
+	(*span).SetStatus(codes.Error, message+": "+err.Error())
+	(*span).RecordError(err)
 }
