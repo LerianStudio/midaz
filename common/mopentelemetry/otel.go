@@ -19,7 +19,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"os"
-	"time"
 )
 
 type Telemetry struct {
@@ -93,9 +92,7 @@ func (tl *Telemetry) NewLoggerProvider(rsc *sdkresource.Resource, exp *otlploggr
 func (tl *Telemetry) newMeterProvider(res *sdkresource.Resource, exp *otlpmetricgrpc.Exporter) *sdkmetric.MeterProvider {
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(res),
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp,
-			// TODO: (REMOVE THIS) Default is 1m. Set to 5s for development purposes.
-			sdkmetric.WithInterval(5*time.Second))),
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp)),
 	)
 
 	return mp
