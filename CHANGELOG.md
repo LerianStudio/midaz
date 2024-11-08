@@ -1,3 +1,17 @@
+## [1.27.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.8...v1.27.0-beta.9) (2024-11-08)
+
+
+### Features
+
+* add traces to the ledger endpoints using opentelemetry :sparkles: ([4c7944b](https://github.com/LerianStudio/midaz/commit/4c7944baeb13f1a410960437b9306feb9c581f44))
+* add traces to the organization endpoints using opentelemetry :sparkles: ([cc3c62f](https://github.com/LerianStudio/midaz/commit/cc3c62f03688f6847122d6cb65dec8703d86b0b5))
+* add tracing telemetry to create organization endpoint :sparkles: ([b1b2f11](https://github.com/LerianStudio/midaz/commit/b1b2f115607b34777a1024226544f5c0e017b083))
+
+
+### Bug Fixes
+
+* update infra docker compose to use envs on otel containers and in his yaml config file :bug: ([a6ba7cb](https://github.com/LerianStudio/midaz/commit/a6ba7cbfc07baa095d785c6283c0048243333078))
+
 ## [1.27.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.7...v1.27.0-beta.8) (2024-11-08)
 
 
