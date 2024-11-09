@@ -171,26 +171,6 @@ func (tl *Telemetry) InitializeTelemetry() *Telemetry {
 	}
 }
 
-// NewTracerFromContext returns a new tracer from the context.
-//
-//nolint:ireturn
-func NewTracerFromContext(ctx context.Context) trace.Tracer {
-	if tracer := ctx.Value(tracerContextKey("tracer")); tracer != nil {
-		if l, ok := tracer.(trace.Tracer); ok {
-			return l
-		}
-	}
-
-	return otel.Tracer("default")
-}
-
-type tracerContextKey string
-
-// ContextWithTracer returns a context within a trace.Tracer in "tracer" value.
-func ContextWithTracer(ctx context.Context, tracer trace.Tracer) context.Context {
-	return context.WithValue(ctx, tracerContextKey("tracer"), tracer)
-}
-
 // SetSpanAttributesFromStruct converts a struct to a JSON string and sets it as an attribute on the span.
 func SetSpanAttributesFromStruct(span *trace.Span, key string, valueStruct any) error {
 	vStr, err := common.StructToJSONString(valueStruct)

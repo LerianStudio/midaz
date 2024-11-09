@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/google/uuid"
@@ -15,7 +14,7 @@ import (
 
 // UpdateOperation update an operation from the repository by given id.
 func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *o.UpdateOperationInput) (*o.Operation, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update operation: %v", uoi)
 
 	operation := &o.Operation{

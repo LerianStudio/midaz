@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -18,8 +17,8 @@ import (
 
 // GetAllMetadataAccounts fetch all Accounts from the repository
 func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter commonHTTP.QueryHeader) ([]*a.Account, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_accounts")
 	defer span.End()

@@ -8,7 +8,6 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
@@ -16,7 +15,7 @@ import (
 
 // GetAllOrganizations fetch all Organizations from the repository
 func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.QueryHeader) ([]*o.Organization, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving organizations")
 
 	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.Limit, filter.Page)

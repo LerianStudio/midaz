@@ -9,15 +9,14 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/google/uuid"
 )
 
 // CreateAsset creates a new asset persists data in the repository.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *s.CreateAssetInput) (*s.Asset, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
 	defer span.End()

@@ -45,7 +45,7 @@ func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPo
 
 // Create a new account entity into Postgresql and returns it.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *a.Account) (*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_account")
 	defer span.End()
@@ -129,7 +129,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *a.Account
 
 // FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
 func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
 	defer span.End()
@@ -220,7 +220,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // Find retrieves an Account entity from the database using the provided ID.
 func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account")
 	defer span.End()
@@ -288,7 +288,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // FindWithDeleted retrieves an Account entity from the database using the provided ID (including soft-deleted ones).
 func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_with_deleted_account")
 	defer span.End()
@@ -356,7 +356,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 // FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account_by_alias")
 	defer span.End()
@@ -394,7 +394,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 // ListByIDs retrieves Accounts entities from the database (including soft-deleted ones) using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
@@ -475,7 +475,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 // ListByAlias retrieves Accounts entities from the database using the provided alias.
 func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
@@ -546,7 +546,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
 	defer span.End()
@@ -654,7 +654,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete an Account entity from the database (soft delete) using the provided ID.
 func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_account")
 	defer span.End()
@@ -690,7 +690,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
@@ -760,7 +760,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 // ListAccountsByAlias list Accounts entity from the database using the provided alias.
 func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
@@ -830,7 +830,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 // UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, acc *a.Account) (*a.Account, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account_by_id")
 	defer span.End()

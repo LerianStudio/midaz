@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/google/uuid"
@@ -17,8 +16,8 @@ import (
 
 // GetPortfolioByID get a Portfolio from the repository by given id.
 func (uc *UseCase) GetPortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*p.Portfolio, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_portfolio_by_id")
 	defer span.End()

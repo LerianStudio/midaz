@@ -86,7 +86,7 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// Doc
 	lib.DocAPI("ledger", "Ledger API", f)
 
-	f.Use(tlMid.EndTracingSpans())
+	f.Use(tlMid.EndTracingSpans)
 
 	return f
 }

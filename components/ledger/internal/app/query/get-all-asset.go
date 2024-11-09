@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
@@ -18,8 +17,8 @@ import (
 
 // GetAllAssets fetch all Asset from the repository
 func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*s.Asset, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_assets")
 	defer span.End()

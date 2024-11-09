@@ -45,7 +45,7 @@ func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Portfol
 
 // Create a new portfolio entity into Postgresql and returns it.
 func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p.Portfolio) (*p.Portfolio, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_portfolio")
 	defer span.End()
@@ -116,7 +116,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *p
 
 // FindByIDEntity find portfolio from the database using the Entity id.
 func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*p.Portfolio, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio_by_id_entity")
 	defer span.End()
@@ -153,7 +153,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 
 // FindAll retrieves Portfolio entities from the database.
 func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*p.Portfolio, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_portfolios")
 	defer span.End()
@@ -219,7 +219,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 // Find retrieves a Portfolio entity from the database using the provided ID.
 func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*p.Portfolio, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio")
 	defer span.End()
@@ -256,7 +256,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 // ListByIDs retrieves Portfolios entities from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*p.Portfolio, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_portfolios_by_ids")
 	defer span.End()
@@ -306,7 +306,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 // Update a Portfolio entity into Postgresql and returns the Portfolio updated.
 func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *p.Portfolio) (*p.Portfolio, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_portfolio")
 	defer span.End()
@@ -399,7 +399,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Portfolio entity from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_portfolio")
 	defer span.End()

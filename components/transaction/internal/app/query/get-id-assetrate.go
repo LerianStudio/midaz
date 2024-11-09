@@ -2,16 +2,16 @@ package query
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	"github.com/google/uuid"
 )
 
 // GetAssetRateByID gets data in the repository.
 func (uc *UseCase) GetAssetRateByID(ctx context.Context, organizationID, ledgerID, assetRateID uuid.UUID) (*ar.AssetRate, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to get asset rate")
 
 	assetRate, err := uc.AssetRateRepo.Find(ctx, organizationID, ledgerID, assetRateID)

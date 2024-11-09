@@ -9,7 +9,6 @@ import (
 	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
@@ -17,8 +16,8 @@ import (
 
 // UpdateAccount update an account from the repository by given id.
 func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *a.UpdateAccountInput) (*a.Account, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account")
 	defer span.End()

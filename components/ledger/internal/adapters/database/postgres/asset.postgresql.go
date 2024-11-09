@@ -45,7 +45,7 @@ func NewAssetPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AssetPostgr
 
 // Create a new asset entity into Postgresql and returns it.
 func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *s.Asset) (*s.Asset, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset")
 	defer span.End()
@@ -115,7 +115,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *s.Asset) 
 
 // FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
@@ -153,7 +153,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 // FindAll retrieves Asset entities from the database.
 func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*s.Asset, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
 	defer span.End()
@@ -219,7 +219,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 // ListByIDs retrieves Assets entities from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*s.Asset, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
 	defer span.End()
@@ -269,7 +269,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 // Find retrieves an Asset entity from the database using the provided ID.
 func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*s.Asset, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset")
 	defer span.End()
@@ -306,7 +306,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 // Update an Asset entity into Postgresql and returns the Asset updated.
 func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *s.Asset) (*s.Asset, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")
 	defer span.End()
@@ -393,7 +393,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 // Delete removes an Asset entity from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_asset")
 	defer span.End()

@@ -2,15 +2,14 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/common"
 	m "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
 	"time"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	logger.Infof("Trying to create metadata for %s: %v", entityName, entityID)
 

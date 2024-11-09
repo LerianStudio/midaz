@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
@@ -23,8 +23,8 @@ type ProductHandler struct {
 func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_product")
 	defer span.End()
@@ -59,8 +59,8 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_products")
 	defer span.End()
@@ -119,8 +119,8 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_product_by_id")
 	defer span.End()
@@ -148,8 +148,8 @@ func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_product")
 	defer span.End()
@@ -196,8 +196,8 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 func (handler *ProductHandler) DeleteProductByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_product_by_id")
 	defer span.End()

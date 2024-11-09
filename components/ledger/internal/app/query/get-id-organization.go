@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/google/uuid"
@@ -17,8 +16,8 @@ import (
 
 // GetOrganizationByID fetch a new organization from the repository
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_organization_by_id")
 	defer span.End()

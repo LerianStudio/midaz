@@ -46,7 +46,7 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *o.Organization) (*o.Organization, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_organization")
 	defer span.End()
@@ -122,7 +122,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 // Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *o.Organization) (*o.Organization, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_organization")
 	defer span.End()
@@ -228,7 +228,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 // Find retrieves an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_organization")
 	defer span.End()
@@ -274,7 +274,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 // FindAll retrieves Organizations entities from the database.
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*o.Organization, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
 	defer span.End()
@@ -350,7 +350,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 
 // ListByIDs retrieves Organizations entities from the database using the provided IDs.
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*o.Organization, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_organizations_by_ids")
 	defer span.End()
@@ -410,7 +410,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 // Delete removes an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_organization")
 	defer span.End()

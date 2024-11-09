@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	cn "github.com/LerianStudio/midaz/common/constant"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
@@ -18,8 +17,8 @@ import (
 
 // GetAllLedgers fetch all Ledgers from the repository
 func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, filter commonHTTP.QueryHeader) ([]*l.Ledger, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_ledgers")
 	defer span.End()

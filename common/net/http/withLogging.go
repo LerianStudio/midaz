@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
 	"net/url"
 	"strconv"
 	"strings"
@@ -177,9 +178,9 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 
 		logger.Info(info.debugRequestString())
 
-		ctx := mlog.ContextWithLogger(c.Context(), logger)
+		ctx := common.ContextWithLogger(c.UserContext(), logger)
 
-		c.SetUserContext(mlog.ContextWithLogger(ctx, logger))
+		c.SetUserContext(ctx)
 
 		info.FinishRequestInfo(&rw)
 
@@ -205,7 +206,7 @@ func WithGrpcLogging(opts ...LogMiddlewareOption) grpc.UnaryServerInterceptor {
 		mid := buildOpts(opts...)
 		logger := mid.Logger
 
-		ctx = mlog.ContextWithLogger(ctx, logger)
+		ctx = common.ContextWithLogger(ctx, logger)
 
 		start := time.Now()
 		resp, err := handler(ctx, req)

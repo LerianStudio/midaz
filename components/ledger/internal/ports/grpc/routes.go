@@ -23,8 +23,8 @@ func NewRouterGRPC(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Ca
 			lib.WithGrpcLogging(lib.WithCustomLogger(lg)),
 			jwt.ProtectGrpc(),
 			jwt.WithPermissionGrpc(),
+			tlMid.EndTracingSpansInterceptor(),
 		),
-		grpc.UnaryInterceptor(tlMid.EndTracingSpansInterceptor()),
 	)
 
 	reflection.Register(server)

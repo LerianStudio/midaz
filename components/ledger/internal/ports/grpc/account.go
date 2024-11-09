@@ -11,7 +11,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -26,8 +25,8 @@ type AccountProto struct {
 
 // GetAccountsByIds is a method that retrieves Account information by a given ids.
 func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.AccountsID) (*proto.AccountsResponse, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.GetAccountsByIds")
 	defer span.End()
@@ -60,8 +59,8 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 
 // GetAccountsByAliases is a method that retrieves Account information by a given aliases.
 func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto.AccountsAlias) (*proto.AccountsResponse, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.GetAccountsByAliases")
 	defer span.End()
@@ -89,8 +88,8 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 
 // UpdateAccounts is a method that update Account balances by a given ids.
 func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.AccountsRequest) (*proto.AccountsResponse, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.UpdateAccounts")
 	defer span.End()

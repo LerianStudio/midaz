@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	"github.com/google/uuid"
@@ -14,7 +13,7 @@ import (
 
 // CreateAssetRate creates a new asset rate and persists data in the repository.
 func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *ar.CreateAssetRateInput) (*ar.AssetRate, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create asset rate: %v", cari)
 
 	if err := common.ValidateCode(cari.BaseAssetCode); err != nil {

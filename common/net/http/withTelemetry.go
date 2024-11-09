@@ -27,13 +27,14 @@ func NewTelemetryMiddleware(tl *mopentelemetry.Telemetry) *TelemetryMiddleware {
 func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		tracer := otel.Tracer(tl.LibraryName)
-		ctx, _ := tracer.Start(c.Context(), c.Method()+" "+c.Path())
+		ctx := common.ContextWithTracer(c.UserContext(), tracer)
 
-		ctx = mopentelemetry.ContextWithTracer(ctx, tracer)
+		ctx, span := tracer.Start(ctx, c.Method()+" "+common.ReplaceUUIDWithPlaceholder(c.Path()))
+		defer span.End()
 
 		c.SetUserContext(ctx)
 
-		err := tm.collectMetrics(c.Context())
+		err := tm.collectMetrics(ctx)
 		if err != nil {
 			return WithError(c, err)
 		}
@@ -43,12 +44,14 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 }
 
 // EndTracingSpans is a middleware that ends the tracing spans.
-func (tm *TelemetryMiddleware) EndTracingSpans() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		trace.SpanFromContext(c.Context()).End()
+func (tm *TelemetryMiddleware) EndTracingSpans(c *fiber.Ctx) error {
+	err := c.Next()
 
-		return c.Next()
-	}
+	go func() {
+		trace.SpanFromContext(c.UserContext()).End()
+	}()
+
+	return err
 }
 
 // WithTelemetryInterceptor is a gRPC interceptor that adds tracing to the context.
@@ -62,7 +65,7 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 		tracer := otel.Tracer(tl.LibraryName)
 		ctx, span := tracer.Start(ctx, info.FullMethod)
 
-		ctx = mopentelemetry.ContextWithTracer(ctx, tracer)
+		ctx = common.ContextWithTracer(ctx, tracer)
 
 		err := tm.collectMetrics(ctx)
 		if err != nil {
@@ -93,9 +96,13 @@ func (tm *TelemetryMiddleware) EndTracingSpansInterceptor() grpc.UnaryServerInte
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		trace.SpanFromContext(ctx).End()
+		resp, err := handler(ctx, req)
 
-		return handler(ctx, req)
+		go func() {
+			trace.SpanFromContext(ctx).End()
+		}()
+
+		return resp, err
 	}
 }
 
