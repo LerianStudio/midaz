@@ -7,7 +7,6 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/google/uuid"
@@ -15,7 +14,7 @@ import (
 
 // UpdateTransaction update a transaction from the repository by given id.
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *t.UpdateTransactionInput) (*t.Transaction, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update transaction: %v", uti)
 
 	trans := &t.Transaction{
@@ -56,7 +55,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, description string) (*t.Transaction, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to update transaction using status: : %v", description)
 
 	status := t.Status{

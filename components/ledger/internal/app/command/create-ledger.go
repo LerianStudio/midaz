@@ -3,17 +3,22 @@ package command
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/google/uuid"
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *l.CreateLedgerInput) (*l.Ledger, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_ledger")
+	span.End()
+
 	logger.Infof("Trying to create ledger: %v", cli)
 
 	var status l.Status
@@ -29,7 +34,10 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
+
 		logger.Errorf("Error creating ledger: %v", err)
+
 		return nil, err
 	}
 
@@ -43,13 +51,19 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
+
 		logger.Errorf("Error creating ledger: %v", err)
+
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(l.Ledger{}).Name(), led.ID, cli.Metadata)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
+
 		logger.Errorf("Error creating ledger metadata: %v", err)
+
 		return nil, err
 	}
 

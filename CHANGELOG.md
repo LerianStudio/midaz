@@ -1,3 +1,44 @@
+## [1.27.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.9...v1.27.0-beta.10) (2024-11-11)
+
+
+### Features
+
+* add opentelemetry traces to account endpoints :sparkles: ([bf7f043](https://github.com/LerianStudio/midaz/commit/bf7f04303d36e15a61af5fb1dde1476e658e5029))
+* add opentelemetry traces to account endpoints and abstract context functions in common package :sparkles: ([c5861e7](https://github.com/LerianStudio/midaz/commit/c5861e733ec390f9da92f53d221347ecc3046701))
+* add opentelemetry traces to asset endpoints :sparkles: ([3eb7f9a](https://github.com/LerianStudio/midaz/commit/3eb7f9a34e166fc7a0d798f49ac4ccfb5dc62b8a))
+* add opentelemetry traces to portfolio endpoints :sparkles: ([cc442f8](https://github.com/LerianStudio/midaz/commit/cc442f85568e7717de706c73a9515400a4bfa651))
+* add opentelemetry traces to products endpoints :sparkles: ([2f3e78a](https://github.com/LerianStudio/midaz/commit/2f3e78a7d2f4ef71fc29abc51b9183d5685f568b))
+
+
+### Bug Fixes
+
+* remove short telemetry upload interval used for development purposes :bug: ([64481fb](https://github.com/LerianStudio/midaz/commit/64481fb8fb9c9ea4c8ddc1f3d4b1e66134154782))
+* update infra otel containers to comply with midaz container name pattern :bug: ([7c067d4](https://github.com/LerianStudio/midaz/commit/7c067d40a23d7543bbae22678d6ce232fdcc1bd4))
+* update trace error treatment in ledger find by name repository func :bug: ([cfd86a4](https://github.com/LerianStudio/midaz/commit/cfd86a43f32562482ecf8a0e4822804b46ebf4cc))
+
+## [1.27.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.8...v1.27.0-beta.9) (2024-11-08)
+
+
+### Features
+
+* add traces to the ledger endpoints using opentelemetry :sparkles: ([4c7944b](https://github.com/LerianStudio/midaz/commit/4c7944baeb13f1a410960437b9306feb9c581f44))
+* add traces to the organization endpoints using opentelemetry :sparkles: ([cc3c62f](https://github.com/LerianStudio/midaz/commit/cc3c62f03688f6847122d6cb65dec8703d86b0b5))
+* add tracing telemetry to create organization endpoint :sparkles: ([b1b2f11](https://github.com/LerianStudio/midaz/commit/b1b2f115607b34777a1024226544f5c0e017b083))
+
+
+### Bug Fixes
+
+* update infra docker compose to use envs on otel containers and in his yaml config file :bug: ([a6ba7cb](https://github.com/LerianStudio/midaz/commit/a6ba7cbfc07baa095d785c6283c0048243333078))
+
+## [1.27.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.7...v1.27.0-beta.8) (2024-11-08)
+
+
+### Features
+
+* added new sub command describe on command asset ([5d14dab](https://github.com/LerianStudio/midaz/commit/5d14dabe4a67a3e97f2cd52fa33f50b27bec782a))
+* added new sub command update on command asset ([2edf239](https://github.com/LerianStudio/midaz/commit/2edf2397b13dbbc114937ad3e20192b34931c5a7))
+* create rest get by id asset ([059d6a1](https://github.com/LerianStudio/midaz/commit/059d6a187a9c4ef2905249e5dc60527451c3fbec))
+
 ## [1.27.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.6...v1.27.0-beta.7) (2024-11-07)
 
 

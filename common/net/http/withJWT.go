@@ -19,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 	"github.com/lestrrat-go/jwx/jwk"
@@ -222,7 +221,7 @@ func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
 // ProtectHTTP protects any endpoint using JWT tokens.
 func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		l := mlog.NewLoggerFromContext(c.UserContext())
+		l := common.NewLoggerFromContext(c.UserContext())
 		l.Info("JWTMiddleware:ProtectHTTP")
 
 		l.Info("Read token from header")
@@ -270,7 +269,7 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 // WithScope verify if a requester has the required scope to access an endpoint.
 func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		l := mlog.NewLoggerFromContext(c.UserContext())
+		l := common.NewLoggerFromContext(c.UserContext())
 		l.Info("JWTMiddleware:WithScope")
 
 		parser := TokenParser{
@@ -309,7 +308,7 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 // WithPermissionHTTP verify if a requester has the required permission to access an endpoint.
 func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		l := mlog.NewLoggerFromContext(c.UserContext())
+		l := common.NewLoggerFromContext(c.UserContext())
 		l.Info("JWTMiddleware:WithPermissionHTTP")
 
 		client, err := jwtm.connection.GetClient()
@@ -369,7 +368,7 @@ func (jwtm *JWTMiddleware) ProtectGrpc() grpc.UnaryServerInterceptor {
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		l := mlog.NewLoggerFromContext(ctx)
+		l := common.NewLoggerFromContext(ctx)
 		l.Info("JWTMiddleware:ProtectGrpc")
 
 		tokenString := getTokenHeaderFromContext(ctx)
@@ -419,7 +418,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		l := mlog.NewLoggerFromContext(ctx)
+		l := common.NewLoggerFromContext(ctx)
 		l.Info("JWTMiddleware:WithPermissionGrpc")
 
 		client, err := jwtm.connection.GetClient()

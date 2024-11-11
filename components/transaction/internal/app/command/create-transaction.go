@@ -9,14 +9,13 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
-	"github.com/LerianStudio/midaz/common/mlog"
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transaction *gold.Transaction) (*t.Transaction, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create new transaction")
 
 	description := constant.CREATED

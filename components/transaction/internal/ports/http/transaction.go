@@ -29,7 +29,7 @@ type TransactionHandler struct {
 
 // CreateTransactionJSON method that create transaction using JSON
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	input := p.(*t.CreateTransactionInput)
 	parserDSL := input.FromDSl()
@@ -40,7 +40,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 
 // CreateTransactionDSL method that create transaction using DSL
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	_ = commonHTTP.ValidateParameters(c.Queries())
 
@@ -80,7 +80,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 // CreateTransactionTemplate method that create transaction template
 func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	payload := p.(*t.InputDSL)
 	logger.Infof("Request to create an transaction with details: %#v", payload)
@@ -90,21 +90,21 @@ func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx
 
 // CommitTransaction method that commit transaction created before
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	return commonHTTP.Created(c, logger)
 }
 
 // RevertTransaction method that revert transaction created before
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	return commonHTTP.Created(c, logger)
 }
 
 // UpdateTransaction method that patch transaction created before
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -134,7 +134,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 
 // GetTransaction method that get transaction created before
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -153,7 +153,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)

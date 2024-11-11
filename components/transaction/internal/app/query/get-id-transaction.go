@@ -2,16 +2,16 @@ package query
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/google/uuid"
 )
 
 // GetTransactionByID gets data in the repository.
 func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (*t.Transaction, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to get transaction")
 
 	tran, err := uc.TransactionRepo.Find(ctx, organizationID, ledgerID, transactionID)

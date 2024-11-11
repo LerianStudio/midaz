@@ -3,7 +3,6 @@ package mongodb
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"strings"
 	"time"
 
@@ -41,7 +40,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 		return err
 	}
 
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	record := &m.MetadataMongoDBModel{}
@@ -131,7 +130,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		return err
 	}
 
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	opts := options.Update().SetUpsert(true)
@@ -164,7 +163,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 
 	opts := options.Delete()
 

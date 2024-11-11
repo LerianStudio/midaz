@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
 	"strings"
@@ -45,8 +46,15 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *o.Organization) (*o.Organization, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_organization")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -55,6 +63,17 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 	address, err := json.Marshal(record.Address)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to marshal address", err)
+
+		return nil, err
+	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "organization_repository_input", record)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert organization record from entity to JSON string", err)
+
 		return nil, err
 	}
 
@@ -71,6 +90,8 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		record.UpdatedAt,
 		record.DeletedAt)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
@@ -79,13 +100,21 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		return nil, err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to create organization. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -93,8 +122,15 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 // Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *o.Organization) (*o.Organization, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_organization")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -123,6 +159,8 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	if !organization.Address.IsEmpty() {
 		address, err := json.Marshal(record.Address)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to marshal address", err)
+
 			return nil, err
 		}
 
@@ -147,8 +185,19 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		` WHERE id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
+	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "organization_repository_input", record)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert organization record from entity to JSON string", err)
+
+		return nil, err
+	}
+
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
@@ -157,13 +206,21 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		return nil, err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to update organization. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -171,8 +228,15 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 // Find retrieves an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_organization")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -180,10 +244,17 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 	var address string
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
 	row := db.QueryRowContext(ctx, `SELECT * FROM organization WHERE id = $1`, id)
+
+	spanQuery.End()
+
 	if err := row.Scan(&organization.ID, &organization.ParentOrganizationID, &organization.LegalName,
 		&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 		&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
 		}
@@ -193,6 +264,8 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 	err = json.Unmarshal([]byte(address), &organization.Address)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
+
 		return nil, err
 	}
 
@@ -201,8 +274,15 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 // FindAll retrieves Organizations entities from the database.
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*o.Organization, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -218,13 +298,21 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
 		return nil, err
 	}
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
 		return nil, err
 	}
+
+	spanQuery.End()
 
 	defer rows.Close()
 
@@ -236,11 +324,15 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 		if err := rows.Scan(&organization.ID, &organization.ParentOrganizationID, &organization.LegalName,
 			&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 			&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
 		err = json.Unmarshal([]byte(address), &organization.Address)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
+
 			return nil, err
 		}
 
@@ -248,6 +340,8 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 	}
 
 	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
 		return nil, err
 	}
 
@@ -256,18 +350,31 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 
 // ListByIDs retrieves Organizations entities from the database using the provided IDs.
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*o.Organization, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_organizations_by_ids")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
 	var organizations []*o.Organization
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_organizations_by_ids.query")
+
 	rows, err := db.QueryContext(ctx, `SELECT * FROM organization WHERE id = ANY($1) AND deleted_at IS NULL ORDER BY created_at DESC`, pq.Array(ids))
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
 		return nil, err
 	}
 	defer rows.Close()
+
+	spanQuery.End()
 
 	for rows.Next() {
 		var organization o.OrganizationPostgreSQLModel
@@ -277,11 +384,15 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 		if err := rows.Scan(&organization.ID, &organization.ParentOrganizationID, &organization.LegalName,
 			&organization.DoingBusinessAs, &organization.LegalDocument, &address, &organization.Status, &organization.StatusDescription,
 			&organization.CreatedAt, &organization.UpdatedAt, &organization.DeletedAt); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
 		err = json.Unmarshal([]byte(address), &organization.Address)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
+
 			return nil, err
 		}
 
@@ -289,6 +400,8 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	}
 
 	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
 		return nil, err
 	}
 
@@ -297,23 +410,42 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 // Delete removes an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_organization")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return err
 	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	result, err := db.ExecContext(ctx, `UPDATE organization SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
 		return err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return err
 	}
 
 	if rowsAffected == 0 {
-		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to delete organization. Rows affected is 0", err)
+
+		return err
 	}
 
 	return nil

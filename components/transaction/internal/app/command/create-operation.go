@@ -16,7 +16,7 @@ import (
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
 func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *gold.Transaction, validate gold.Responses, result chan []*o.Operation, err chan error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to create new oeprations")
 
 	var operations []*o.Operation

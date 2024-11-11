@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
@@ -21,7 +21,7 @@ type OperationHandler struct {
 // GetAllOperationsByAccount retrieves all operations by account.
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -53,7 +53,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 
 func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -75,7 +75,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -107,7 +107,7 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 
 func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -129,7 +129,7 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 
 // UpdateOperation method that patch operation created before
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
