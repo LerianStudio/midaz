@@ -45,16 +45,20 @@ type CreateAccountInput struct {
 	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid"`
 	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
 	Status          Status         `json:"status"`
+	AllowSending    *bool          `json:"allowSending"`
+	AllowReceiving  *bool          `json:"allowReceiving"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
 type UpdateAccountInput struct {
-	Name      string         `json:"name" validate:"max=256"`
-	Status    Status         `json:"status"`
-	Alias     *string        `json:"alias" validate:"max=100"`
-	ProductID *string        `json:"productId" validate:"uuid"`
-	Metadata  map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Name           string         `json:"name" validate:"max=256"`
+	Status         Status         `json:"status"`
+	AllowSending   *bool          `json:"allowSending"`
+	AllowReceiving *bool          `json:"allowReceiving"`
+	Alias          *string        `json:"alias" validate:"max=100"`
+	ProductID      *string        `json:"productId" validate:"uuid"`
+	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // SearchAccountsInput is a struct design to encapsulate request search payload data.
@@ -75,6 +79,8 @@ type Account struct {
 	ProductID       *string        `json:"productId"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
+	AllowSending    *bool          `json:"allowSending"`
+	AllowReceiving  *bool          `json:"allowReceiving"`
 	Alias           *string        `json:"alias"`
 	Type            string         `json:"type"`
 	CreatedAt       time.Time      `json:"createdAt"`
@@ -85,10 +91,8 @@ type Account struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"omitempty,max=256"`
-	AllowSending   *bool   `json:"allowSending"`
-	AllowReceiving *bool   `json:"allowReceiving"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"omitempty,max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -111,10 +115,8 @@ func (b Balance) IsEmpty() bool {
 // ToEntity converts an AccountPostgreSQLModel to a response entity Account
 func (t *AccountPostgreSQLModel) ToEntity() *Account {
 	status := Status{
-		Code:           t.Status,
-		Description:    t.StatusDescription,
-		AllowSending:   &t.AllowSending,
-		AllowReceiving: &t.AllowReceiving,
+		Code:        t.Status,
+		Description: t.StatusDescription,
 	}
 
 	balance := Balance{
@@ -135,6 +137,8 @@ func (t *AccountPostgreSQLModel) ToEntity() *Account {
 		ProductID:       t.ProductID,
 		Balance:         balance,
 		Status:          status,
+		AllowSending:    &t.AllowSending,
+		AllowReceiving:  &t.AllowReceiving,
 		Alias:           t.Alias,
 		Type:            t.Type,
 		CreatedAt:       t.CreatedAt,
@@ -172,12 +176,12 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 		UpdatedAt:         account.UpdatedAt,
 	}
 
-	if account.Status.AllowSending != nil {
-		t.AllowSending = *account.Status.AllowSending
+	if account.AllowSending != nil {
+		t.AllowSending = *account.AllowSending
 	}
 
-	if account.Status.AllowReceiving != nil {
-		t.AllowReceiving = *account.Status.AllowReceiving
+	if account.AllowReceiving != nil {
+		t.AllowReceiving = *account.AllowReceiving
 	}
 
 	if !common.IsNilOrEmpty(account.PortfolioID) {
@@ -193,9 +197,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *Account) {
 // ToProto converts entity Account to a response protobuf proto
 func (e *Account) ToProto() *proto.Account {
 	status := proto.Status{
-		Code:           e.Status.Code,
-		AllowSending:   *e.Status.AllowSending,
-		AllowReceiving: *e.Status.AllowReceiving,
+		Code: e.Status.Code,
 	}
 
 	if e.Status.Description != nil {
@@ -216,6 +218,8 @@ func (e *Account) ToProto() *proto.Account {
 		LedgerId:       e.LedgerID,
 		Balance:        &balance,
 		Status:         &status,
+		AllowSending:   *e.AllowSending,
+		AllowReceiving: *e.AllowReceiving,
 		Type:           e.Type,
 	}
 

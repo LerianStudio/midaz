@@ -1,3 +1,11 @@
+## [1.27.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.12...v1.27.0-beta.13) (2024-11-11)
+
+
+### Bug Fixes
+
+* update bug :bug: ([fdbe8ed](https://github.com/LerianStudio/midaz/commit/fdbe8ed16808ced0782f8d55a5d4d6cd16c9140c))
+* update make lint :bug: ([0945d37](https://github.com/LerianStudio/midaz/commit/0945d37a3ab5ce534ab4de6bda463441751dab2a))
+
 ## [1.27.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.11...v1.27.0-beta.12) (2024-11-11)
 
 
