@@ -2,10 +2,10 @@ package grpc
 
 import (
 	"context"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
-
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -31,12 +31,34 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 	ctx, span := tracer.Start(ctx, "handler.GetAccountsByIds")
 	defer span.End()
 
-	uuids := make([]uuid.UUID, len(ids.GetIds()))
-	for _, id := range ids.GetIds() {
-		uuids = append(uuids, uuid.MustParse(id))
+	organizationUUID, err := uuid.Parse(ids.GetOrganizationId())
+	if err != nil {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), organizationUUID)
 	}
 
-	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(ids.GetOrganizationId()), uuid.MustParse(ids.GetLedgerId()), uuids)
+	ledgerUUID, err := uuid.Parse(ids.GetLedgerId())
+	if err != nil {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
+	}
+
+	var invalidUUIDs []string
+
+	uuids := make([]uuid.UUID, len(ids.GetIds()))
+	for _, id := range ids.GetIds() {
+		parsedUUID, err := uuid.Parse(id)
+		if err != nil {
+			invalidUUIDs = append(invalidUUIDs, id)
+			continue
+		} else {
+			uuids = append(uuids, parsedUUID)
+		}
+	}
+
+	if len(invalidUUIDs) > 0 {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
+	}
+
+	acc, err := ap.Query.ListAccountsByIDs(ctx, organizationUUID, ledgerUUID, uuids)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids for grpc", err)
 
@@ -65,7 +87,17 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 	ctx, span := tracer.Start(ctx, "handler.GetAccountsByAliases")
 	defer span.End()
 
-	acc, err := ap.Query.ListAccountsByAlias(ctx, uuid.MustParse(aliases.GetOrganizationId()), uuid.MustParse(aliases.GetLedgerId()), aliases.GetAliases())
+	organizationUUID, err := uuid.Parse(aliases.GetOrganizationId())
+	if err != nil {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), organizationUUID)
+	}
+
+	ledgerUUID, err := uuid.Parse(aliases.GetLedgerId())
+	if err != nil {
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
+	}
+
+	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, aliases.GetAliases())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases for grpc", err)
 
@@ -113,7 +145,22 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			Scale:     &account.Balance.Scale,
 		}
 
-		_, err := ap.Command.UpdateAccountByID(ctx, uuid.MustParse(account.OrganizationId), uuid.MustParse(account.LedgerId), uuid.MustParse(account.Id), &balance)
+		organizationUUID, err := uuid.Parse(account.GetOrganizationId())
+		if err != nil {
+			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), organizationUUID)
+		}
+
+		ledgerUUID, err := uuid.Parse(account.GetLedgerId())
+		if err != nil {
+			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
+		}
+
+		accountUUID, err := uuid.Parse(account.GetLedgerId())
+		if err != nil {
+			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), accountUUID)
+		}
+
+		_, err = ap.Command.UpdateAccountByID(ctx, organizationUUID, ledgerUUID, accountUUID, &balance)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
 
