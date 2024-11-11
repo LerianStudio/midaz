@@ -75,4 +75,6 @@ var (
 	ErrInvalidPathParameter                = errors.New("0065")
 	ErrInvalidAccountType                  = errors.New("0066")
 	ErrInvalidMetadataNesting              = errors.New("0067")
+	ErrOperationIDNotFound                 = errors.New("0068")
+	ErrNoOperationsFound                   = errors.New("0069")
 )
