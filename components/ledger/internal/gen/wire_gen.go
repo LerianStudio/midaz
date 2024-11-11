@@ -42,7 +42,7 @@ import (
 func InitializeService() *service.Service {
 	config := service.NewConfig()
 	logger := mzap.InitializeLogger()
-	telemetry := setupTelemetryProviders(config, logger)
+	telemetry := setupTelemetryProviders(config)
 	casdoorConnection := setupCasdoorConnection(config, logger)
 	postgresConnection := setupPostgreSQLConnection(config, logger)
 	organizationPostgreSQLRepository := postgres.NewOrganizationPostgreSQLRepository(postgresConnection)
@@ -178,22 +178,20 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq2.R
 	}
 }
 
-func setupTelemetryProviders(cfg *service.Config, log mlog.Logger) *mopentelemetry.Telemetry {
+func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
 	t := &mopentelemetry.Telemetry{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		Logger:                    log,
 	}
 
 	return t
 }
 
 var (
-	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupTelemetryProviders,
-		setupPostgreSQLConnection,
+	serviceSet = wire.NewSet(common.InitLocalEnvConfig, setupTelemetryProviders, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupRabbitMQConnection, grpc.NewRouterGRPC, service.NewServerGRPC, http.NewRouter, service.NewConfig, service.NewServer, postgres.NewOrganizationPostgreSQLRepository, postgres.NewLedgerPostgreSQLRepository, postgres.NewAssetPostgreSQLRepository, postgres.NewPortfolioPostgreSQLRepository, postgres.NewProductPostgreSQLRepository, postgres.NewAccountPostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, wire.Struct(new(http.OrganizationHandler), "*"), wire.Struct(new(http.LedgerHandler), "*"), wire.Struct(new(http.AssetHandler), "*"), wire.Struct(new(http.PortfolioHandler), "*"), wire.Struct(new(http.ProductHandler), "*"), wire.Struct(new(http.AccountHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(organization.Repository), new(*postgres.OrganizationPostgreSQLRepository)), wire.Bind(new(ledger.Repository), new(*postgres.LedgerPostgreSQLRepository)), wire.Bind(new(asset.Repository), new(*postgres.AssetPostgreSQLRepository)), wire.Bind(new(portfolio.Repository), new(*postgres.PortfolioPostgreSQLRepository)), wire.Bind(new(product.Repository), new(*postgres.ProductPostgreSQLRepository)), wire.Bind(new(account.Repository), new(*postgres.AccountPostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)),

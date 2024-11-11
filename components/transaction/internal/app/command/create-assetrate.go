@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"time"
 
@@ -14,13 +15,22 @@ import (
 // CreateAssetRate creates a new asset rate and persists data in the repository.
 func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *ar.CreateAssetRateInput) (*ar.AssetRate, error) {
 	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_asset_rate")
+	defer span.End()
+
 	logger.Infof("Trying to create asset rate: %v", cari)
 
 	if err := common.ValidateCode(cari.BaseAssetCode); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate base asset code", err)
+
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(ar.AssetRate{}).Name())
 	}
 
 	if err := common.ValidateCode(cari.CounterAssetCode); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate counter asset code", err)
+
 		return nil, common.ValidateBusinessError(err, reflect.TypeOf(ar.AssetRate{}).Name())
 	}
 
@@ -38,12 +48,17 @@ func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID
 
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create asset rate on repository", err)
+
 		logger.Errorf("Error creating asset rate: %v", err)
+
 		return nil, err
 	}
 
 	if cari.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+
 			return nil, common.ValidateBusinessError(err, reflect.TypeOf(ar.AssetRate{}).Name())
 		}
 
@@ -56,7 +71,10 @@ func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(ar.AssetRate{}).Name(), &meta); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
+
 			logger.Errorf("Error into creating asset rate metadata: %v", err)
+
 			return nil, err
 		}
 

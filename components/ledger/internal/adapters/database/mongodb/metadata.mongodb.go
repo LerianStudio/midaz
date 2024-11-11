@@ -44,16 +44,12 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
 	defer span.End()
 
-	ctx, spanGetDB := tracer.Start(ctx, "mongodb.create_metadata.get_db")
-
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanGetDB, "Failed to get database", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
 		return err
 	}
-
-	spanGetDB.End()
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 	record := &m.MetadataMongoDBModel{}
@@ -225,8 +221,15 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 // Delete an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.delete_metadata")
+	defer span.End()
+
 	db, err := mmr.connection.GetDB(ctx)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database", err)
+
 		return err
 	}
 
@@ -236,10 +239,16 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
+	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_metadata.delete_one")
+
 	deleted, err := coll.DeleteOne(ctx, bson.D{{Key: "entity_id", Value: id}}, opts)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanDelete, "Failed to delete metadata", err)
+
 		return err
 	}
+
+	spanDelete.End()
 
 	if deleted.DeletedCount > 0 {
 		logger.Infoln("deleted a document with entity_id: ", id)

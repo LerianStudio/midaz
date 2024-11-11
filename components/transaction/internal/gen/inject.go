@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mzap"
@@ -105,9 +106,22 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq.Ra
 	}
 }
 
+func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
+	t := &mopentelemetry.Telemetry{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            cfg.OtelServiceVersion,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+	}
+
+	return t
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
+		setupTelemetryProviders,
 		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,

@@ -2,7 +2,6 @@ package mzap
 
 import (
 	"github.com/LerianStudio/midaz/common/mlog"
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.uber.org/zap"
 )
 
@@ -11,9 +10,7 @@ import (
 // It implements Logger interface.
 // The shutdown function is used to close the logger provider.
 type ZapWithTraceLogger struct {
-	Logger         *zap.SugaredLogger
-	LoggerProvider *sdklog.LoggerProvider
-	shutdown       func()
+	Logger *zap.SugaredLogger
 }
 
 // Info implements Info Logger interface function.
@@ -82,8 +79,6 @@ func (l *ZapWithTraceLogger) Sync() error {
 	if err != nil {
 		return err
 	}
-
-	l.shutdown()
 
 	return nil
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mmongo"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	mrabbitmq2 "github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mzap"
@@ -40,6 +41,7 @@ import (
 func InitializeService() *service.Service {
 	config := service.NewConfig()
 	logger := mzap.InitializeLogger()
+	telemetry := setupTelemetryProviders(config)
 	casdoorConnection := setupCasdoorConnection(config, logger)
 	postgresConnection := setupPostgreSQLConnection(config, logger)
 	transactionPostgreSQLRepository := postgres.NewTransactionPostgreSQLRepository(postgresConnection)
@@ -80,8 +82,8 @@ func InitializeService() *service.Service {
 		Command: useCase,
 		Query:   queryUseCase,
 	}
-	app := http.NewRouter(logger, casdoorConnection, transactionHandler, operationHandler, assetRateHandler)
-	server := service.NewServer(config, app, logger)
+	app := http.NewRouter(logger, telemetry, casdoorConnection, transactionHandler, operationHandler, assetRateHandler)
+	server := service.NewServer(config, app, logger, telemetry)
 	serviceService := &service.Service{
 		Server: server,
 		Logger: logger,
@@ -164,8 +166,20 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq2.R
 	}
 }
 
+func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
+	t := &mopentelemetry.Telemetry{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            cfg.OtelServiceVersion,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+	}
+
+	return t
+}
+
 var (
-	serviceSet = wire.NewSet(common.InitLocalEnvConfig, mzap.InitializeLogger, setupPostgreSQLConnection,
+	serviceSet = wire.NewSet(common.InitLocalEnvConfig, setupTelemetryProviders, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupGRPCConnection,
