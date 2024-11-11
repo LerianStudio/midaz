@@ -1,3 +1,10 @@
+## [1.27.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.10...v1.27.0-beta.11) (2024-11-11)
+
+
+### Features
+
+* added new sub command delete on command asset ([d7a91f4](https://github.com/LerianStudio/midaz/commit/d7a91f44198d519e6d122d8091a137c37cbdd708))
+
 ## [1.27.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.9...v1.27.0-beta.10) (2024-11-11)
 
 
