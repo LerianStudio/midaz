@@ -186,7 +186,7 @@ func GetCPUUsage() int64 {
 		return 0
 	}
 
-	usageStr := strings.TrimSpace(string(out))
+	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
 
 	usage, err := strconv.ParseFloat(usageStr, 64)
 	if err != nil {
@@ -205,7 +205,7 @@ func GetMemUsage() int64 {
 		return 0
 	}
 
-	usageStr := strings.TrimSpace(string(out))
+	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
 
 	usage, err := strconv.ParseFloat(usageStr, 64)
 	if err != nil {
