@@ -98,6 +98,11 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					UpdatedAt:       time.Now(),
 				}
 
+				e := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload_repository_create_operation", save)
+				if e != nil {
+					mopentelemetry.HandleSpanError(&span, "Failed to convert save from struct to JSON string", e)
+				}
+
 				operation, er := uc.OperationRepo.Create(ctx, save)
 				if er != nil {
 					mopentelemetry.HandleSpanError(&span, "Failed to create operation", er)
