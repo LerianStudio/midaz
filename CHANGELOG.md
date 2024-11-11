@@ -1,3 +1,12 @@
+## [1.27.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.11...v1.27.0-beta.12) (2024-11-11)
+
+
+### Bug Fixes
+
+* add opentelemetry traces to asset rate endpoints and small adjusts to ledger metadata tracing and wire inject file :bug: ([d933b13](https://github.com/LerianStudio/midaz/commit/d933b13db0b539ba19471af40c808e669baade93))
+* adjust lint ineffectual assignment to ctx :bug: ([e78cef5](https://github.com/LerianStudio/midaz/commit/e78cef569a78206b6859c0eb4ad51486fa8c72a3))
+* move opentelemetry init to before logger init and move logger provider initialization to otel common file :bug: ([a25af7f](https://github.com/LerianStudio/midaz/commit/a25af7f78c02159b4f39a5eeb9e66675467c617b))
+
 ## [1.27.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.10...v1.27.0-beta.11) (2024-11-11)
 
 
