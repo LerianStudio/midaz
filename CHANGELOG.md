@@ -1,3 +1,21 @@
+## [1.27.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.9...v1.27.0-beta.10) (2024-11-11)
+
+
+### Features
+
+* add opentelemetry traces to account endpoints :sparkles: ([bf7f043](https://github.com/LerianStudio/midaz/commit/bf7f04303d36e15a61af5fb1dde1476e658e5029))
+* add opentelemetry traces to account endpoints and abstract context functions in common package :sparkles: ([c5861e7](https://github.com/LerianStudio/midaz/commit/c5861e733ec390f9da92f53d221347ecc3046701))
+* add opentelemetry traces to asset endpoints :sparkles: ([3eb7f9a](https://github.com/LerianStudio/midaz/commit/3eb7f9a34e166fc7a0d798f49ac4ccfb5dc62b8a))
+* add opentelemetry traces to portfolio endpoints :sparkles: ([cc442f8](https://github.com/LerianStudio/midaz/commit/cc442f85568e7717de706c73a9515400a4bfa651))
+* add opentelemetry traces to products endpoints :sparkles: ([2f3e78a](https://github.com/LerianStudio/midaz/commit/2f3e78a7d2f4ef71fc29abc51b9183d5685f568b))
+
+
+### Bug Fixes
+
+* remove short telemetry upload interval used for development purposes :bug: ([64481fb](https://github.com/LerianStudio/midaz/commit/64481fb8fb9c9ea4c8ddc1f3d4b1e66134154782))
+* update infra otel containers to comply with midaz container name pattern :bug: ([7c067d4](https://github.com/LerianStudio/midaz/commit/7c067d40a23d7543bbae22678d6ce232fdcc1bd4))
+* update trace error treatment in ledger find by name repository func :bug: ([cfd86a4](https://github.com/LerianStudio/midaz/commit/cfd86a43f32562482ecf8a0e4822804b46ebf4cc))
+
 ## [1.27.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.8...v1.27.0-beta.9) (2024-11-08)
 
 
