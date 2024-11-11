@@ -44,8 +44,10 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 	var invalidUUIDs []string
 
 	uuids := make([]uuid.UUID, len(ids.GetIds()))
+
 	for _, id := range ids.GetIds() {
 		parsedUUID, err := uuid.Parse(id)
+
 		if err != nil {
 			invalidUUIDs = append(invalidUUIDs, id)
 			continue
