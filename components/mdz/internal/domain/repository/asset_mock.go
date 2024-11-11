@@ -55,6 +55,20 @@ func (mr *MockAssetMockRecorder) Create(organizationID, ledgerID, inp any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockAsset)(nil).Create), organizationID, ledgerID, inp)
 }
 
+// Delete mocks base method.
+func (m *MockAsset) Delete(organizationID, ledgerID, assetID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", organizationID, ledgerID, assetID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockAssetMockRecorder) Delete(organizationID, ledgerID, assetID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockAsset)(nil).Delete), organizationID, ledgerID, assetID)
+}
+
 // Get mocks base method.
 func (m *MockAsset) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Assets, error) {
 	m.ctrl.T.Helper()

@@ -148,6 +148,32 @@ func (r *asset) Update(
 	return &assetResp, nil
 }
 
+func (r *asset) Delete(organizationID, ledgerID, assetID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return errors.New("making GET request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusNoContent); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func NewAsset(f *factory.Factory) *asset {
 	return &asset{f}
 }
