@@ -2,8 +2,9 @@ package portfolio
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
 )
 
 // PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
