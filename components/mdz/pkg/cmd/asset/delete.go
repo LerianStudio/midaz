@@ -86,13 +86,16 @@ func newInjectFacDelete(f *factory.Factory) *factoryAssetDelete {
 func newCmdAssetDelete(f *factoryAssetDelete) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Remove a specific organization in Midaz",
-		Long: "The /`organization delete/` command allows you to remove a specific organization in Midaz " +
-			"by specifying the organization ID.",
+		Short: "Removes an asset from the ledger.",
+		Long: utils.Format(
+			"Deletes an asset from the ledger, making it unavailable for future",
+			"operations and account balances. Use with caution, as it can affect",
+			"accounts and operations that depend on that specific asset.",
+		),
 		Example: utils.Format(
-			"$ mdz organization delete --organization-id 12312",
-			"$ mdz organization delete -i 12314",
-			"$ mdz organization delete -h",
+			"$ mdz asset delete --organization-id 12312",
+			"$ mdz asset delete -i 12314",
+			"$ mdz asset delete -h",
 		),
 		RunE: f.runE,
 	}
