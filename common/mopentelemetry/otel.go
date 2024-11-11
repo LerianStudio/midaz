@@ -3,7 +3,6 @@ package mopentelemetry
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -11,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -18,6 +18,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
+	"log"
 	"os"
 )
 
@@ -29,12 +30,12 @@ type Telemetry struct {
 	CollectorExporterEndpoint string
 	TracerProvider            *sdktrace.TracerProvider
 	MetricProvider            *sdkmetric.MeterProvider
-	Logger                    mlog.Logger
+	LoggerProvider            *sdklog.LoggerProvider
 	shutdown                  func()
 }
 
 // NewResource creates a new resource with default attributes.
-func (tl *Telemetry) NewResource() (*sdkresource.Resource, error) {
+func (tl *Telemetry) newResource() (*sdkresource.Resource, error) {
 	r, err := sdkresource.Merge(
 		sdkresource.Default(),
 		sdkresource.NewWithAttributes(
@@ -51,7 +52,7 @@ func (tl *Telemetry) NewResource() (*sdkresource.Resource, error) {
 }
 
 // NewLoggerExporter creates a new logger exporter that writes to stdout.
-func (tl *Telemetry) NewLoggerExporter(ctx context.Context) (*otlploggrpc.Exporter, error) {
+func (tl *Telemetry) newLoggerExporter(ctx context.Context) (*otlploggrpc.Exporter, error) {
 	exporter, err := otlploggrpc.New(ctx, otlploggrpc.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")), otlploggrpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -81,7 +82,7 @@ func (tl *Telemetry) newTracerExporter(ctx context.Context) (*otlptrace.Exporter
 }
 
 // NewLoggerProvider creates a new logger provider with stdout exporter and default resource.
-func (tl *Telemetry) NewLoggerProvider(rsc *sdkresource.Resource, exp *otlploggrpc.Exporter) *sdklog.LoggerProvider {
+func (tl *Telemetry) newLoggerProvider(rsc *sdkresource.Resource, exp *otlploggrpc.Exporter) *sdklog.LoggerProvider {
 	bp := sdklog.NewBatchProcessor(exp)
 	lp := sdklog.NewLoggerProvider(sdklog.WithResource(rsc), sdklog.WithProcessor(bp))
 
@@ -116,19 +117,24 @@ func (tl *Telemetry) ShutdownTelemetry() {
 func (tl *Telemetry) InitializeTelemetry() *Telemetry {
 	ctx := context.Background()
 
-	r, err := tl.NewResource()
+	r, err := tl.newResource()
 	if err != nil {
-		tl.Logger.Fatalf("can't initialize resource: %v", err)
+		log.Fatalf("can't initialize resource: %v", err)
 	}
 
 	tExp, err := tl.newTracerExporter(ctx)
 	if err != nil {
-		tl.Logger.Fatalf("can't initialize tracer exporter: %v", err)
+		log.Fatalf("can't initialize tracer exporter: %v", err)
 	}
 
 	mExp, err := tl.newMetricExporter(ctx)
 	if err != nil {
-		tl.Logger.Fatalf("can't initialize metric exporter: %v", err)
+		log.Fatalf("can't initialize metric exporter: %v", err)
+	}
+
+	lExp, err := tl.newLoggerExporter(ctx)
+	if err != nil {
+		log.Fatalf("can't initialize logger exporter: %v", err)
 	}
 
 	mp := tl.newMeterProvider(r, mExp)
@@ -139,25 +145,38 @@ func (tl *Telemetry) InitializeTelemetry() *Telemetry {
 	otel.SetTracerProvider(tp)
 	tl.TracerProvider = tp
 
+	lp := tl.newLoggerProvider(r, lExp)
+	global.SetLoggerProvider(lp)
+
 	tl.shutdown = func() {
 		err := tExp.Shutdown(ctx)
 		if err != nil {
-			tl.Logger.Fatalf("can't shutdown tracer exporter: %v", err)
+			log.Fatalf("can't shutdown tracer exporter: %v", err)
 		}
 
 		err = mExp.Shutdown(ctx)
 		if err != nil {
-			tl.Logger.Fatalf("can't shutdown metric exporter: %v", err)
+			log.Fatalf("can't shutdown metric exporter: %v", err)
+		}
+
+		err = lExp.Shutdown(ctx)
+		if err != nil {
+			log.Fatalf("can't shutdown logger exporter: %v", err)
 		}
 
 		err = mp.Shutdown(ctx)
 		if err != nil {
-			tl.Logger.Fatalf("can't shutdown metric provider: %v", err)
+			log.Fatalf("can't shutdown metric provider: %v", err)
 		}
 
 		err = tp.Shutdown(ctx)
 		if err != nil {
-			tl.Logger.Fatalf("can't shutdown tracer provider: %v", err)
+			log.Fatalf("can't shutdown tracer provider: %v", err)
+		}
+
+		err = lp.Shutdown(ctx)
+		if err != nil {
+			log.Fatalf("can't shutdown logger provider: %v", err)
 		}
 	}
 

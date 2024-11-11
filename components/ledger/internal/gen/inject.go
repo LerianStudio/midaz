@@ -98,14 +98,13 @@ func setupRabbitMQConnection(cfg *service.Config, log mlog.Logger) *mrabbitmq.Ra
 	}
 }
 
-func setupTelemetryProviders(cfg *service.Config, log mlog.Logger) *mopentelemetry.Telemetry {
+func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
 	t := &mopentelemetry.Telemetry{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-		Logger:                    log,
 	}
 
 	return t
@@ -114,8 +113,8 @@ func setupTelemetryProviders(cfg *service.Config, log mlog.Logger) *mopentelemet
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
-		mzap.InitializeLogger,
 		setupTelemetryProviders,
+		mzap.InitializeLogger,
 		setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
