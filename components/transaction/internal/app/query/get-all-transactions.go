@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
@@ -15,7 +14,7 @@ import (
 
 // GetAllTransactions fetch all Transactions from the repository
 func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*t.Transaction, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving transactions")
 
 	trans, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)

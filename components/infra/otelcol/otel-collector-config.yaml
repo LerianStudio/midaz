@@ -14,7 +14,7 @@ processors:
 exporters:
   debug:
   otlp:
-    endpoint: otel-lgtm:${env:OTEL_LGTM_RECEIVER_PORT}
+    endpoint: midaz-otel-lgtm:${env:OTEL_LGTM_RECEIVER_PORT}
     tls:
       insecure: true
 

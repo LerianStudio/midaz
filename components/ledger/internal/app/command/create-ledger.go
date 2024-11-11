@@ -8,14 +8,13 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *l.CreateLedgerInput) (*l.Ledger, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	span.End()

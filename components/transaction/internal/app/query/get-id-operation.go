@@ -2,16 +2,16 @@ package query
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common/mlog"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/google/uuid"
 )
 
 // GetOperationByID gets data in the repository.
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*o.Operation, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Trying to get operation")
 
 	operation, err := uc.OperationRepo.Find(ctx, organizationID, ledgerID, transactionID, operationID)

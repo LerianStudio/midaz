@@ -1,7 +1,6 @@
 package mlog
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -207,23 +206,3 @@ func (l *GoLogger) WithFields(fields ...any) Logger {
 //
 //nolint:ireturn
 func (l *GoLogger) Sync() error { return nil }
-
-// NewLoggerFromContext extract the Logger from "logger" value inside context
-//
-//nolint:ireturn
-func NewLoggerFromContext(ctx context.Context) Logger {
-	if logger := ctx.Value(loggerContextKey("logger")); logger != nil {
-		if l, ok := logger.(Logger); ok {
-			return l
-		}
-	}
-
-	return &NoneLogger{}
-}
-
-type loggerContextKey string
-
-// ContextWithLogger returns a context within a Logger in "logger" value.
-func ContextWithLogger(ctx context.Context, logger Logger) context.Context {
-	return context.WithValue(ctx, loggerContextKey("logger"), logger)
-}

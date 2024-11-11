@@ -1,7 +1,7 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
@@ -18,7 +18,7 @@ type AssetRateHandler struct {
 
 // CreateAssetRate creates a new asset rate.
 func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
@@ -42,7 +42,7 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 
 // GetAssetRate retrieves an asset rate.
 func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	logger := common.NewLoggerFromContext(c.UserContext())
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	logger.Infof("Initiating get of AssetRate with organization ID: %s", organizationID.String())

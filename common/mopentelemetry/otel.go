@@ -19,7 +19,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"os"
-	"time"
 )
 
 type Telemetry struct {
@@ -93,9 +92,7 @@ func (tl *Telemetry) NewLoggerProvider(rsc *sdkresource.Resource, exp *otlploggr
 func (tl *Telemetry) newMeterProvider(res *sdkresource.Resource, exp *otlpmetricgrpc.Exporter) *sdkmetric.MeterProvider {
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithResource(res),
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp,
-			// TODO: (REMOVE THIS) Default is 1m. Set to 5s for development purposes.
-			sdkmetric.WithInterval(5*time.Second))),
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp)),
 	)
 
 	return mp
@@ -172,26 +169,6 @@ func (tl *Telemetry) InitializeTelemetry() *Telemetry {
 		MetricProvider: mp,
 		shutdown:       tl.shutdown,
 	}
-}
-
-// NewTracerFromContext returns a new tracer from the context.
-//
-//nolint:ireturn
-func NewTracerFromContext(ctx context.Context) trace.Tracer {
-	if tracer := ctx.Value(tracerContextKey("tracer")); tracer != nil {
-		if l, ok := tracer.(trace.Tracer); ok {
-			return l
-		}
-	}
-
-	return otel.Tracer("default")
-}
-
-type tracerContextKey string
-
-// ContextWithTracer returns a context within a trace.Tracer in "tracer" value.
-func ContextWithTracer(ctx context.Context, tracer trace.Tracer) context.Context {
-	return context.WithValue(ctx, tracerContextKey("tracer"), tracer)
 }
 
 // SetSpanAttributesFromStruct converts a struct to a JSON string and sets it as an attribute on the span.

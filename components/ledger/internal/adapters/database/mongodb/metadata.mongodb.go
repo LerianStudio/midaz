@@ -3,7 +3,6 @@ package mongodb
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"strings"
 	"time"
@@ -40,7 +39,7 @@ func NewMetadataMongoDBRepository(mc *mmongo.MongoConnection) *MetadataMongoDBRe
 
 // Create inserts a new metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *m.Metadata) error {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
 	defer span.End()
@@ -81,7 +80,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
 func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter commonHTTP.QueryHeader) ([]*m.Metadata, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
 	defer span.End()
@@ -149,7 +148,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
 func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*m.Metadata, error) {
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
 	defer span.End()
@@ -184,8 +183,8 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 // Update an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
-	logger := mlog.NewLoggerFromContext(ctx)
-	tracer := mopentelemetry.NewTracerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata")
 	defer span.End()
@@ -231,7 +230,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
 
 	opts := options.Delete()
 
