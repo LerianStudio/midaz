@@ -3,6 +3,7 @@ package http
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
@@ -11,11 +12,13 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
-func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
+	tlMid := lib.NewTelemetryMiddleware(tl)
 
+	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(lib.WithCorrelationID())
 	f.Use(lib.WithHTTPLogging(lib.WithCustomLogger(lg)))
@@ -53,6 +56,8 @@ func NewRouter(lg mlog.Logger, cc *mcasdoor.CasdoorConnection, th *TransactionHa
 
 	// Doc
 	lib.DocAPI("transaction", "Transaction API", f)
+
+	f.Use(tlMid.EndTracingSpans)
 
 	return f
 }
