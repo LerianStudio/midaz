@@ -155,7 +155,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
 		}
 
-		accountUUID, err := uuid.Parse(account.GetLedgerId())
+		accountUUID, err := uuid.Parse(account.GetId())
 		if err != nil {
 			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), accountUUID)
 		}
