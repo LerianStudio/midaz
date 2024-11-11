@@ -43,7 +43,7 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 		return commonHTTP.WithError(c, err)
 	}
 
-	assetRate, err := handler.Command.CreateAssetRate(c.UserContext(), organizationID, ledgerID, payload)
+	assetRate, err := handler.Command.CreateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create AssetRate on command", err)
 
@@ -76,7 +76,7 @@ func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
 	assetRateID := c.Locals("asset_rate_id").(uuid.UUID)
 	logger.Infof("Initiating get of AssetRate with asset rate ID: %s", assetRateID.String())
 
-	assetRate, err := handler.Query.GetAssetRateByID(c.UserContext(), organizationID, ledgerID, assetRateID)
+	assetRate, err := handler.Query.GetAssetRateByID(ctx, organizationID, ledgerID, assetRateID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
 
