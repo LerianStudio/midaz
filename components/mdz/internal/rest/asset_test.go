@@ -334,3 +334,36 @@ func Test_asset_Update(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
+
+func Test_asset_Delete(t *testing.T) {
+	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
+	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
+	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
+		URIAPILedger, organizationID, ledgerID, assetID)
+
+	httpmock.RegisterResponder(http.MethodDelete, uri,
+		httpmock.NewStringResponder(http.StatusNoContent, ""))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	asset := NewAsset(factory)
+
+	err := asset.Delete(organizationID, ledgerID, assetID)
+
+	assert.NoError(t, err)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["DELETE "+uri])
+}
