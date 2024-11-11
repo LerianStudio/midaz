@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "d793a589-8710-4422-acc3-634a373f2922",
+		"_postman_id": "bfae2f5e-0013-4ba9-8d62-ee831af7fa6f",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "38928920"
+		"_exporter_id": "32592108"
 	},
 	"item": [
 		{
@@ -1134,7 +1134,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"{{$randomUserName}} Portfolio\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Portfolio Test\",\n        \"allowSending\": true,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"{{$randomUserName}} Portfolio\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Portfolio Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1177,7 +1177,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomUserName}} Blocked Portfolio\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Portfolio\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomUserName}} Blocked Portfolio\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Portfolio\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1529,7 +1529,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1579,7 +1579,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"portfolioId\": \"{{portfolio_id}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\",\n        \"allowSending\": true,\n        \"allowReceiving\": true\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"portfolioId\": \"{{portfolio_id}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1622,7 +1622,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1668,7 +1668,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\",\n        \"allowSending\": false,\n        \"allowReceiving\": false\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
