@@ -91,6 +91,14 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 	}
 
+	if cai.AllowReceiving == nil {
+		cai.AllowReceiving = mpointers.Bool(true)
+	}
+
+	if cai.AllowSending == nil {
+		cai.AllowSending = mpointers.Bool(true)
+	}
+
 	account := &a.Account{
 		ID:              common.GenerateUUIDv7().String(),
 		AssetCode:       cai.AssetCode,
@@ -105,6 +113,8 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		EntityID:        cai.EntityID,
 		Balance:         balance,
 		Status:          status,
+		AllowSending:    cai.AllowSending,
+		AllowReceiving:  cai.AllowReceiving,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
@@ -137,20 +147,10 @@ func (uc *UseCase) determineStatus(cai *a.CreateAccountInput) a.Status {
 	var status a.Status
 	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
 		status = a.Status{
-			Code:           "ACTIVE",
-			AllowReceiving: mpointers.Bool(true),
-			AllowSending:   mpointers.Bool(true),
+			Code: "ACTIVE",
 		}
 	} else {
 		status = cai.Status
-	}
-
-	if status.AllowReceiving == nil {
-		status.AllowReceiving = mpointers.Bool(true)
-	}
-
-	if status.AllowSending == nil {
-		status.AllowSending = mpointers.Bool(true)
 	}
 
 	status.Description = cai.Status.Description

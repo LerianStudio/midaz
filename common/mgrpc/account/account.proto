@@ -16,8 +16,6 @@ message Metadata {
 message Status {
   string  code = 1;
   string  description = 2;
-  bool    allow_sending= 3;
-  bool    allow_receiving = 4;
 }
 
 message Account {
@@ -32,12 +30,14 @@ message Account {
   string   product_id = 9;
   Balance  balance = 10;
   Status   status = 11;
-  string   alias = 12;
-  string   type = 13;
-  string   created_at = 14;
-  string   updated_at = 15;
-  string   deleted_at = 16;
-  Metadata metadata = 17;
+  bool     allow_sending= 12;
+  bool     allow_receiving = 13;
+  string   alias = 14;
+  string   type = 15;
+  string   created_at = 16;
+  string   updated_at = 17;
+  string   deleted_at = 18;
+  Metadata metadata = 19;
 }
 
 message AccountsResponse {

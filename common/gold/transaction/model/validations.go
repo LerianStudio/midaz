@@ -22,7 +22,7 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 
 	for _, acc := range accounts {
 		for key := range validate.From {
-			if acc.Id == key || acc.Alias == key && acc.Status.AllowSending {
+			if acc.Id == key || acc.Alias == key && acc.AllowSending {
 				if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
 					return common.ValidationError{
 						Code:    "0025",
@@ -32,7 +32,7 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 				}
 			}
 
-			if acc.Id == key || acc.Alias == key && !acc.Status.AllowSending {
+			if acc.Id == key || acc.Alias == key && !acc.AllowSending {
 				return common.ValidationError{
 					Code:    "0019",
 					Title:   "Transaction Participation Error",
@@ -42,7 +42,7 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 		}
 
 		for key := range validate.To {
-			if acc.Id == key || acc.Alias == key && !acc.Status.AllowReceiving {
+			if acc.Id == key || acc.Alias == key && !acc.AllowReceiving {
 				return common.ValidationError{
 					Code:    "0019",
 					Title:   "Transaction Participation Error",
@@ -109,10 +109,8 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 				}
 
 				status := a.Status{
-					Code:           acc.Status.Code,
-					Description:    acc.Status.Description,
-					AllowSending:   acc.Status.AllowSending,
-					AllowReceiving: acc.Status.AllowReceiving,
+					Code:        acc.Status.Code,
+					Description: acc.Status.Description,
 				}
 
 				ac := a.Account{
@@ -128,6 +126,8 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 					AssetCode:       acc.AssetCode,
 					Balance:         &balance,
 					Status:          &status,
+					AllowSending:    acc.AllowSending,
+					AllowReceiving:  acc.AllowReceiving,
 					Type:            acc.Type,
 					CreatedAt:       acc.CreatedAt,
 					UpdatedAt:       acc.UpdatedAt,
