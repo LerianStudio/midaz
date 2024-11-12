@@ -13,6 +13,7 @@ type factoryPortfolio struct {
 func (f *factoryPortfolio) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdPortfolioCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdPortfolioList(newInjectFacList(f.factory)))
+	cmd.AddCommand(newCmdPortfolioDescribe(newInjectFacDescribe(f.factory)))
 }
 
 func NewCmdPortfolio(f *factory.Factory) *cobra.Command {
