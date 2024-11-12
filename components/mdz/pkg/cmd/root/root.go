@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/portfolio"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -26,6 +27,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(organization.NewCmdOrganization(f.factory))
 	cmd.AddCommand(ledger.NewCmdLedger(f.factory))
 	cmd.AddCommand(asset.NewCmdAsset(f.factory))
+	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
 }
 
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {

@@ -41,8 +41,8 @@ func initialInputModel(message string) inputModel {
 	ti := textinput.New()
 	ti.Placeholder = "..."
 	ti.Focus()
-	ti.CharLimit = 156
-	ti.Width = 20
+	ti.CharLimit = 256
+	ti.Width = 100
 
 	return inputModel{textInput: ti, message: message}
 }

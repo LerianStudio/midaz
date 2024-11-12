@@ -1,0 +1,21 @@
+{
+    "id": "01931b44-6e33-791a-bfad-27992fa15984",
+    "name": "Leslie_Spencer Portfolio",
+    "entityId": "56db6bfc-12f3-4369-9929-07059220b96d",
+    "ledgerId": "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c",
+    "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste Portfolio",
+        "allowSending": true,
+        "allowReceiving": false
+    },
+    "createdAt": "2024-11-11T12:48:09.779587815Z",
+    "updatedAt": "2024-11-11T12:48:09.779587875Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "3o5onPR55kL6ajk14dGL5Q1fEhAnvY",
+        "chave": "metadata_chave",
+        "boolean": true
+    }
+}
