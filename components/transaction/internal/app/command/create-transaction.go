@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/google/uuid"
 	"reflect"
 	"time"
@@ -16,6 +17,11 @@ import (
 // CreateTransaction creates a new transaction persisting data in the repository.
 func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transaction *gold.Transaction) (*t.Transaction, error) {
 	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_transaction")
+	defer span.End()
+
 	logger.Infof("Trying to create new transaction")
 
 	description := constant.CREATED
@@ -45,12 +51,17 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	tran, err := uc.TransactionRepo.Create(ctx, save)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create transaction on repo", err)
+
 		logger.Errorf("Error creating transaction: %v", err)
+
 		return nil, err
 	}
 
 	if transaction.Metadata != nil {
 		if err := common.CheckMetadataKeyAndValueLength(100, transaction.Metadata); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+
 			return nil, err
 		}
 
@@ -63,7 +74,10 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(t.Transaction{}).Name(), &meta); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to create transaction metadata", err)
+
 			logger.Errorf("Error into creating transaction metadata: %v", err)
+
 			return nil, err
 		}
 

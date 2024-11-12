@@ -33,7 +33,7 @@ func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopen
 
 // Run runs the server.
 func (s *Server) Run(l *common.Launcher) error {
-	s.InitializeTelemetry()
+	s.InitializeTelemetry(s.Logger)
 	defer s.ShutdownTelemetry()
 
 	err := s.app.Listen(s.ServerAddress())
