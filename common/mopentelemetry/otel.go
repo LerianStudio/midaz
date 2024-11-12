@@ -19,6 +19,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc/metadata"
 	"os"
 )
 
@@ -214,4 +215,44 @@ func SetSpanAttributesFromStruct(span *trace.Span, key string, valueStruct any) 
 func HandleSpanError(span *trace.Span, message string, err error) {
 	(*span).SetStatus(codes.Error, message+": "+err.Error())
 	(*span).RecordError(err)
+}
+
+// InjectContext injects the context with the OpenTelemetry headers (in lowercase) and returns the new context.
+func InjectContext(ctx context.Context) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	if md == nil {
+		md = metadata.New(nil)
+	}
+
+	// Returns the canonical format of the MIME header key s.
+	// The canonicalization converts the first letter and any letter
+	// following a hyphen to upper case; the rest are converted to lowercase.
+	// For example, the canonical key for "accept-encoding" is "Accept-Encoding".
+	// MIME header keys are assumed to be ASCII only.
+	// If s contains a space or invalid header field bytes, it is
+	// returned without modifications.
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(md))
+
+	if traceparentValue, exists := md["Traceparent"]; exists {
+		md["traceparent"] = traceparentValue
+		delete(md, "Traceparent")
+	}
+
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// ExtractContext extracts the OpenTelemetry headers (in lowercase) from the context and returns the new context.
+func ExtractContext(ctx context.Context) context.Context {
+	md, ok := metadata.FromIncomingContext(ctx)
+
+	if traceparentValue, exists := md["traceparent"]; exists {
+		md["Traceparent"] = traceparentValue
+		delete(md, "traceparent")
+	}
+
+	if ok {
+		ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(md))
+	}
+
+	return ctx
 }

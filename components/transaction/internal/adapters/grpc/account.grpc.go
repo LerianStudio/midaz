@@ -64,6 +64,8 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 		return nil, err
 	}
 
+	ctx = mopentelemetry.InjectContext(ctx)
+
 	accountsResponse, err := client.GetAccountsByIds(ctx, accountsID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to get accounts by ids", err)
@@ -110,6 +112,8 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 		return nil, err
 	}
 
+	ctx = mopentelemetry.InjectContext(ctx)
+
 	accountsResponse, err := client.GetAccountsByAliases(ctx, accountsAlias)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to get accounts by aliases", err)
@@ -155,6 +159,8 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 
 		return nil, err
 	}
+
+	ctx = mopentelemetry.InjectContext(ctx)
 
 	accountsResponse, err := client.UpdateAccounts(ctx, accountsRequest)
 	if err != nil {
