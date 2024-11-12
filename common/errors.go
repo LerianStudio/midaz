@@ -703,6 +703,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Metadata Nesting",
 			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %s is not nested and try again.", args...),
 		},
+		cn.ErrOperationIDNotFound: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrOperationIDNotFound.Error(),
+			Title:      "Operation ID Not Found",
+			Message:    "The provided operation ID does not exist in our records. Please verify the operation ID and try again.",
+		},
+		cn.ErrNoOperationsFound: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrNoOperationsFound.Error(),
+			Title:      "No Operations Found",
+			Message:    "No operations were found in the search. Please review the search criteria and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
 	"strings"
@@ -40,13 +41,29 @@ func NewTransactionPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Trans
 
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *t.Transaction) (*t.Transaction, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
 	record := &t.TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
+
+		return nil, err
+	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
 		record.ID,
@@ -66,21 +83,31 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.DeletedAt,
 	)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
 		return nil, err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
+		err := common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
 		}
+
+		mopentelemetry.HandleSpanError(&span, "Failed to create transaction. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -88,8 +115,15 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 // FindAll retrieves Transactions entities from the database.
 func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*t.Transaction, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -107,14 +141,22 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
 		return nil, err
 	}
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
 		return nil, err
 	}
 	defer rows.Close()
+
+	spanQuery.End()
 
 	for rows.Next() {
 		var transaction t.TransactionPostgreSQLModel
@@ -135,6 +177,8 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
 		); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
@@ -142,6 +186,8 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	}
 
 	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
 		return nil, err
 	}
 
@@ -150,19 +196,32 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 // ListByIDs retrieves Transaction entities from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*t.Transaction, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
 	var transactions []*t.Transaction
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
+
 	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
 		return nil, err
 	}
 	defer rows.Close()
+
+	spanQuery.End()
 
 	for rows.Next() {
 		var transaction t.TransactionPostgreSQLModel
@@ -182,6 +241,8 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
 		); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
@@ -189,6 +250,8 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	}
 
 	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
 		return nil, err
 	}
 
@@ -197,15 +260,27 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 // Find retrieves a Transaction entity from the database using the provided ID.
 func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*t.Transaction, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
 	transaction := &t.TransactionPostgreSQLModel{}
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
 	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
 		organizationID, ledgerID, id)
+
+	spanQuery.End()
+
 	if err := row.Scan(
 		&transaction.ID,
 		&transaction.ParentTransactionID,
@@ -223,6 +298,8 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.UpdatedAt,
 		&transaction.DeletedAt,
 	); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, common.EntityNotFoundError{
 				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
@@ -240,8 +317,15 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *t.Transaction) (*t.Transaction, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_transaction")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -277,23 +361,42 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
-	result, err := db.ExecContext(ctx, query, args...)
+	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "transaction_repository_input", record)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert transaction record from entity to JSON string", err)
+
 		return nil, err
 	}
 
+	result, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
+		return nil, err
+	}
+
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.EntityNotFoundError{
+		err := common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
 		}
+
+		mopentelemetry.HandleSpanError(&span, "Failed to update transaction. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -301,29 +404,48 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 // Delete removes a Transaction entity from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_transaction")
+	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return err
 	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	result, err := db.ExecContext(ctx, `UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
 		return err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return err
 	}
 
 	if rowsAffected == 0 {
-		return common.EntityNotFoundError{
+		err := common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
 			Title:      "Entity not found.",
 			Code:       "0007",
 			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
 		}
+
+		mopentelemetry.HandleSpanError(&span, "Failed to delete transaction. Rows affected is 0", err)
+
+		return err
 	}
 
 	return nil

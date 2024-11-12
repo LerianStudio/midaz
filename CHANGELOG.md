@@ -1,3 +1,17 @@
+## [1.27.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.18...v1.27.0-beta.19) (2024-11-12)
+
+
+### Features
+
+* add opentelemetry traces to operation endpoints and update business error responses :sparkles: ([b6568b8](https://github.com/LerianStudio/midaz/commit/b6568b8369c8ebca79bbc19266981353026da545))
+* add opentelemetry traces to transaction endpoints :sparkles: ([442c71f](https://github.com/LerianStudio/midaz/commit/442c71f0a06182d7adfdf2579d50247e3500d863))
+* add opentelemetry tracing propagation to transaction and ledger endpoints :sparkles: ([19d8e51](https://github.com/LerianStudio/midaz/commit/19d8e518e367a993051974ff1a2174e9bfaa3d57))
+
+
+### Bug Fixes
+
+* adjust data type in transaction from json endpoint in postman collection :bug: ([107b60f](https://github.com/LerianStudio/midaz/commit/107b60f980ae2138e497216f95032ba2200a5858))
+
 ## [1.27.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.17...v1.27.0-beta.18) (2024-11-12)
 
 ## [1.27.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.16...v1.27.0-beta.17) (2024-11-12)
