@@ -131,13 +131,13 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			EntityID:        nil,
 			Balance:         aBalance,
 			Status: a.Status{
-				Code:           "external",
-				Description:    &aStatusDescription,
-				AllowSending:   mpointers.Bool(true),
-				AllowReceiving: mpointers.Bool(true),
+				Code:        "external",
+				Description: &aStatusDescription,
 			},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			AllowSending:   mpointers.Bool(true),
+			AllowReceiving: mpointers.Bool(true),
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
 		}
 
 		_, err = uc.AccountRepo.Create(ctx, eAccount)
