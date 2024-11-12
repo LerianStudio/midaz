@@ -47,7 +47,7 @@ func Test_newCmdPortfolioList(t *testing.T) {
 			{
 				ID:   "01930365-4d46-7a09-a503-b932714f85af",
 				Name: "2Real",
-				Status: mmodel.StatusAllow{
+				Status: mmodel.Status{
 					Code:        "ACTIVE",
 					Description: ptr.StringPtr("Teste asset 1"),
 				},
@@ -65,7 +65,7 @@ func Test_newCmdPortfolioList(t *testing.T) {
 			{
 				ID:   "01930219-2c25-7a37-a5b9-610d44ae0a27",
 				Name: "Brazilian Real",
-				Status: mmodel.StatusAllow{
+				Status: mmodel.Status{
 					Code:        "ACTIVE",
 					Description: ptr.StringPtr("Teste asset 1"),
 				},

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
@@ -30,8 +29,6 @@ type flagsCreate struct {
 	Name           string
 	Code           string
 	Description    string
-	AllowSending   string
-	AllowReceiving string
 	Metadata       string
 	JSONFile       string
 }
@@ -101,24 +98,6 @@ func (f *factoryPortfolioCreate) createRequestFromFlags(portfolio *mmodel.Create
 		portfolio.Status.Description = &f.Description
 	}
 
-	if len(f.AllowSending) > 0 {
-		allowSend, err := strconv.ParseBool(f.AllowSending)
-		if err != nil {
-			return err
-		}
-
-		portfolio.Status.AllowSending = &allowSend
-	}
-
-	if len(f.AllowReceiving) > 0 {
-		AllowReceive, err := strconv.ParseBool(f.AllowReceiving)
-		if err != nil {
-			return err
-		}
-
-		portfolio.Status.AllowReceiving = &AllowReceive
-	}
-
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
@@ -142,10 +121,6 @@ func (f *factoryPortfolioCreate) setFlags(cmd *cobra.Command) {
 		"code for the organization (e.g., ACTIVE).")
 	cmd.Flags().StringVar(&f.Description, "status-description", "",
 		"Description of the current status of the ledger.")
-	cmd.Flags().StringVar(&f.AllowSending, "status-allow-sending", "",
-		"Allows you to send money from your account.")
-	cmd.Flags().StringVar(&f.AllowReceiving, "status-allow-receiving", "",
-		"Allows money to be received into the account.")
 	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
 		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "",

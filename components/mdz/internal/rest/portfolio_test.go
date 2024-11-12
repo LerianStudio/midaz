@@ -23,8 +23,6 @@ func Test_portfolio_Create(t *testing.T) {
 	name := "Leslie_Spencer Portfolio"
 	code := "ACTIVE"
 	description := ptr.StringPtr("Teste Portfolio")
-	allowSending := ptr.BoolPtr(true)
-	allowReceiving := ptr.BoolPtr(false)
 
 	metadata := map[string]any{
 		"bitcoin": "3o5onPR55kL6ajk14dGL5Q1fEhAnvY",
@@ -34,11 +32,9 @@ func Test_portfolio_Create(t *testing.T) {
 
 	input := mmodel.CreatePortfolioInput{
 		Name: name,
-		Status: mmodel.StatusAllow{
-			Code:           code,
-			Description:    description,
-			AllowSending:   allowSending,
-			AllowReceiving: allowReceiving,
+		Status: mmodel.Status{
+			Code:        code,
+			Description: description,
 		},
 		Metadata: metadata,
 	}
@@ -48,11 +44,9 @@ func Test_portfolio_Create(t *testing.T) {
 		Name:           name,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
-		Status: mmodel.StatusAllow{
-			Code:           code,
-			Description:    description,
-			AllowSending:   allowSending,
-			AllowReceiving: allowReceiving,
+		Status: mmodel.Status{
+			Code:        code,
+			Description: description,
 		},
 		Metadata: metadata,
 	}
@@ -109,11 +103,9 @@ func Test_portfolio_Get(t *testing.T) {
 				ID:       "01931c91-1fa5-7e3f-8a52-cea2f98bb9cd",
 				Name:     "Daisha_Koepp11 Portfolio",
 				EntityID: "bcc37474-577a-43b5-b9a6-3b5ac28473f8",
-				Status: mmodel.StatusAllow{
-					Code:           "ACTIVE",
-					Description:    ptr.StringPtr("Teste Portfolio"),
-					AllowSending:   ptr.BoolPtr(true),
-					AllowReceiving: ptr.BoolPtr(false),
+				Status: mmodel.Status{
+					Code:        "ACTIVE",
+					Description: ptr.StringPtr("Teste Portfolio"),
 				},
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -125,11 +117,9 @@ func Test_portfolio_Get(t *testing.T) {
 				ID:       "01931c91-0957-763d-af95-b2ee2a9aae75",
 				Name:     "Toy30 Portfolio",
 				EntityID: "f3c0c356-1d6b-4cb2-b45f-ee6ce047491e",
-				Status: mmodel.StatusAllow{
-					Code:           "ACTIVE",
-					Description:    ptr.StringPtr("Teste Portfolio"),
-					AllowSending:   ptr.BoolPtr(true),
-					AllowReceiving: ptr.BoolPtr(false),
+				Status: mmodel.Status{
+					Code:        "ACTIVE",
+					Description: ptr.StringPtr("Teste Portfolio"),
 				},
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
