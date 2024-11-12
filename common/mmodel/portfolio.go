@@ -30,3 +30,10 @@ type Portfolio struct {
 	DeletedAt      *time.Time     `json:"deletedAt"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
+
+// Portfolios is a struct designed to encapsulate pagination response payload data.
+type Portfolios struct {
+	Items []Portfolio `json:"items"`
+	Page  int         `json:"page"`
+	Limit int         `json:"limit"`
+}
