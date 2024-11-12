@@ -51,6 +51,36 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 	return &portfolioResp, nil
 }
 
+func (r *portfolio) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Portfolios, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios?limit=%d&page=%d",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, limit, page)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var portfolioResp mmodel.Portfolios
+	if err := json.NewDecoder(resp.Body).Decode(&portfolioResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &portfolioResp, nil
+}
+
 func NewPortfolio(f *factory.Factory) *portfolio {
 	return &portfolio{f}
 }
