@@ -172,3 +172,63 @@ func Test_portfolio_Get(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
 }
+
+func Test_portfolio_GetByID(t *testing.T) {
+	portfolioID := "01931c99-adef-7b98-ad68-72d7e263066a"
+	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
+	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
+
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	expectedResult := &mmodel.Portfolio{
+		ID:             portfolioID,
+		Name:           "Aletha93 Portfolio",
+		EntityID:       "e12331",
+		LedgerID:       ledgerID,
+		OrganizationID: organizationID,
+		Status: mmodel.Status{
+			Code:        "ACTIVE",
+			Description: nil,
+		},
+		CreatedAt: time.Date(2024, 11, 11, 19, 00, 53, 871757000, time.UTC),
+		UpdatedAt: time.Date(2024, 11, 11, 19, 00, 53, 871757000, time.UTC),
+		DeletedAt: nil,
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
+		URIAPILedger, organizationID, ledgerID, portfolioID)
+
+	httpmock.RegisterResponder(http.MethodGet, uri,
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/portfolio_response_get_by_id.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	portfolio := NewPortfolio(factory)
+
+	result, err := portfolio.GetByID(organizationID, ledgerID, portfolioID)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedResult.ID, result.ID)
+	assert.Equal(t, expectedResult.Name, result.Name)
+	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
+	assert.Equal(t, expectedResult.EntityID, result.EntityID)
+	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, expectedResult.Status.Description, result.Status.Description)
+	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
+	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
+	assert.Equal(t, expectedResult.DeletedAt, result.DeletedAt)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["GET "+uri])
+}
