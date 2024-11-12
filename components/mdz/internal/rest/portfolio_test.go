@@ -171,27 +171,6 @@ func Test_portfolio_Get(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
-	// _, ok := expectedResult.Items.(*[]mmodel.Portfolio)
-	// if !ok {
-	// 	t.Fatalf("Failed to convert expectedResult.Items to []mmodel.Portfolio type")
-	// }
-
-	// if reflect.TypeOf(expectedResult.Items) == reflect.TypeOf([]mmodel.Portfolio{}) {
-	// 	expectedItems := (expectedResult.Items.([]mmodel.Portfolio))
-	// 	fmt.Println(expectedItems)
-	// } else {
-	// 	t.Fatalf("Failed to convert expectedResult.Items to []mmodel.Portfolio type")
-	// }
-
-	// _, ok := result.Items.([]mmodel.Portfolio)
-	// if !ok {
-	// 	t.Fatalf("Failed to convert result.Items to []mmodel.Portfolio type")
-	// }
-
-	// for i, v := range actualItems {
-	// 	assert.Equal(t, expectedItems[i].ID, v.ID)
-	// }
-
 	for i, v := range result.Items {
 		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
 		assert.Equal(t, expectedResult.Items[i].Metadata, v.Metadata)
