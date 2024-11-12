@@ -107,8 +107,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/text v0.19.0
+	golang.org/x/sync v0.9.0 // indirect
+	golang.org/x/text v0.20.0
 	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
