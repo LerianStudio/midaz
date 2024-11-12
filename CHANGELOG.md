@@ -1,3 +1,11 @@
+## [1.27.0-beta.21](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.20...v1.27.0-beta.21) (2024-11-12)
+
+
+### Features
+
+* added new sub command list on command portfolio ([d652feb](https://github.com/LerianStudio/midaz/commit/d652feb3e175835dd2590cf2942abf58d5dcd18b))
+* added new sub command list on command portfolio ([11f6f07](https://github.com/LerianStudio/midaz/commit/11f6f079c70bab16058747bc7e6fca34a10a132c))
+
 ## [1.27.0-beta.20](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.19...v1.27.0-beta.20) (2024-11-12)
 
 
