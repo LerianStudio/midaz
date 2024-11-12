@@ -6,14 +6,14 @@ import "time"
 type CreatePortfolioInput struct {
 	EntityID string         `json:"entityId" validate:"required,max=256"`
 	Name     string         `json:"name" validate:"required,max=256"`
-	Status   StatusAllow    `json:"status"`
+	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdatePortfolioInput is a struct design to encapsulate payload data.
 type UpdatePortfolioInput struct {
 	Name     string         `json:"name" validate:"max=256"`
-	Status   StatusAllow    `json:"status"`
+	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
@@ -24,7 +24,7 @@ type Portfolio struct {
 	EntityID       string         `json:"entityId"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
-	Status         StatusAllow    `json:"status"`
+	Status         Status         `json:"status"`
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      *time.Time     `json:"deletedAt"`

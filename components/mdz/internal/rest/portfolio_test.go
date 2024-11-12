@@ -22,8 +22,6 @@ func Test_portfolio_Create(t *testing.T) {
 	name := "Leslie_Spencer Portfolio"
 	code := "ACTIVE"
 	description := ptr.StringPtr("Teste Portfolio")
-	allowSending := ptr.BoolPtr(true)
-	allowReceiving := ptr.BoolPtr(false)
 
 	metadata := map[string]any{
 		"bitcoin": "3o5onPR55kL6ajk14dGL5Q1fEhAnvY",
@@ -33,11 +31,9 @@ func Test_portfolio_Create(t *testing.T) {
 
 	input := mmodel.CreatePortfolioInput{
 		Name: name,
-		Status: mmodel.StatusAllow{
-			Code:           code,
-			Description:    description,
-			AllowSending:   allowSending,
-			AllowReceiving: allowReceiving,
+		Status: mmodel.Status{
+			Code:        code,
+			Description: description,
 		},
 		Metadata: metadata,
 	}
@@ -47,11 +43,9 @@ func Test_portfolio_Create(t *testing.T) {
 		Name:           name,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
-		Status: mmodel.StatusAllow{
-			Code:           code,
-			Description:    description,
-			AllowSending:   allowSending,
-			AllowReceiving: allowReceiving,
+		Status: mmodel.Status{
+			Code:        code,
+			Description: description,
 		},
 		Metadata: metadata,
 	}

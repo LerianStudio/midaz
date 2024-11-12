@@ -70,7 +70,7 @@ func Test_newCmdPortfolioCreate(t *testing.T) {
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
 		Name:           name,
-		Status: mmodel.StatusAllow{
+		Status: mmodel.Status{
 			Code:        code,
 			Description: ptr.StringPtr(description),
 		},
