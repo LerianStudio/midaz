@@ -1,3 +1,10 @@
+## [1.27.0-beta.20](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.19...v1.27.0-beta.20) (2024-11-12)
+
+
+### Features
+
+* added new sub command create on command portfolio ([5692c79](https://github.com/LerianStudio/midaz/commit/5692c791119335da27657b91eaca1933401669d0))
+
 ## [1.27.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.18...v1.27.0-beta.19) (2024-11-12)
 
 
