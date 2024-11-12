@@ -3,6 +3,7 @@ package mopentelemetry
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mlog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -18,7 +19,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
-	"log"
+	"google.golang.org/grpc/metadata"
 	"os"
 )
 
@@ -109,32 +110,35 @@ func (tl *Telemetry) newTracerProvider(rsc *sdkresource.Resource, exp *otlptrace
 	return tp
 }
 
+// ShutdownTelemetry shuts down the telemetry providers and exporters.
 func (tl *Telemetry) ShutdownTelemetry() {
 	tl.shutdown()
 }
 
-// InitializeTelemetry initializes the telemetry providers and sets them globally.
-func (tl *Telemetry) InitializeTelemetry() *Telemetry {
+// InitializeTelemetry initializes the telemetry providers and sets them globally. (Logger is being passed as a parameter because it not exists in the global context at this point to be injected)
+func (tl *Telemetry) InitializeTelemetry(logger mlog.Logger) *Telemetry {
 	ctx := context.Background()
+
+	logger.Infof("Initializing telemetry...")
 
 	r, err := tl.newResource()
 	if err != nil {
-		log.Fatalf("can't initialize resource: %v", err)
+		logger.Fatalf("can't initialize resource: %v", err)
 	}
 
 	tExp, err := tl.newTracerExporter(ctx)
 	if err != nil {
-		log.Fatalf("can't initialize tracer exporter: %v", err)
+		logger.Fatalf("can't initialize tracer exporter: %v", err)
 	}
 
 	mExp, err := tl.newMetricExporter(ctx)
 	if err != nil {
-		log.Fatalf("can't initialize metric exporter: %v", err)
+		logger.Fatalf("can't initialize metric exporter: %v", err)
 	}
 
 	lExp, err := tl.newLoggerExporter(ctx)
 	if err != nil {
-		log.Fatalf("can't initialize logger exporter: %v", err)
+		logger.Fatalf("can't initialize logger exporter: %v", err)
 	}
 
 	mp := tl.newMeterProvider(r, mExp)
@@ -151,36 +155,38 @@ func (tl *Telemetry) InitializeTelemetry() *Telemetry {
 	tl.shutdown = func() {
 		err := tExp.Shutdown(ctx)
 		if err != nil {
-			log.Fatalf("can't shutdown tracer exporter: %v", err)
+			logger.Fatalf("can't shutdown tracer exporter: %v", err)
 		}
 
 		err = mExp.Shutdown(ctx)
 		if err != nil {
-			log.Fatalf("can't shutdown metric exporter: %v", err)
+			logger.Fatalf("can't shutdown metric exporter: %v", err)
 		}
 
 		err = lExp.Shutdown(ctx)
 		if err != nil {
-			log.Fatalf("can't shutdown logger exporter: %v", err)
+			logger.Fatalf("can't shutdown logger exporter: %v", err)
 		}
 
 		err = mp.Shutdown(ctx)
 		if err != nil {
-			log.Fatalf("can't shutdown metric provider: %v", err)
+			logger.Fatalf("can't shutdown metric provider: %v", err)
 		}
 
 		err = tp.Shutdown(ctx)
 		if err != nil {
-			log.Fatalf("can't shutdown tracer provider: %v", err)
+			logger.Fatalf("can't shutdown tracer provider: %v", err)
 		}
 
 		err = lp.Shutdown(ctx)
 		if err != nil {
-			log.Fatalf("can't shutdown logger provider: %v", err)
+			logger.Fatalf("can't shutdown logger provider: %v", err)
 		}
 	}
 
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	logger.Infof("Telemetry initialized ✅ ")
 
 	return &Telemetry{
 		LibraryName:    tl.LibraryName,
@@ -205,7 +211,48 @@ func SetSpanAttributesFromStruct(span *trace.Span, key string, valueStruct any) 
 	return nil
 }
 
+// HandleSpanError sets the status of the span to error and records the error.
 func HandleSpanError(span *trace.Span, message string, err error) {
 	(*span).SetStatus(codes.Error, message+": "+err.Error())
 	(*span).RecordError(err)
+}
+
+// InjectContext injects the context with the OpenTelemetry headers (in lowercase) and returns the new context.
+func InjectContext(ctx context.Context) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	if md == nil {
+		md = metadata.New(nil)
+	}
+
+	// Returns the canonical format of the MIME header key s.
+	// The canonicalization converts the first letter and any letter
+	// following a hyphen to upper case; the rest are converted to lowercase.
+	// For example, the canonical key for "accept-encoding" is "Accept-Encoding".
+	// MIME header keys are assumed to be ASCII only.
+	// If s contains a space or invalid header field bytes, it is
+	// returned without modifications.
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(md))
+
+	if traceparentValue, exists := md["Traceparent"]; exists {
+		md["traceparent"] = traceparentValue
+		delete(md, "Traceparent")
+	}
+
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// ExtractContext extracts the OpenTelemetry headers (in lowercase) from the context and returns the new context.
+func ExtractContext(ctx context.Context) context.Context {
+	md, ok := metadata.FromIncomingContext(ctx)
+
+	if traceparentValue, exists := md["traceparent"]; exists {
+		md["Traceparent"] = traceparentValue
+		delete(md, "traceparent")
+	}
+
+	if ok {
+		ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(md))
+	}
+
+	return ctx
 }

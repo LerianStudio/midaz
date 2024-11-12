@@ -63,7 +63,7 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 		handler grpc.UnaryHandler,
 	) (any, error) {
 		tracer := otel.Tracer(tl.LibraryName)
-		ctx, span := tracer.Start(ctx, info.FullMethod)
+		ctx, span := tracer.Start(mopentelemetry.ExtractContext(ctx), info.FullMethod)
 
 		ctx = common.ContextWithTracer(ctx, tracer)
 
