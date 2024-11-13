@@ -1,3 +1,18 @@
+## [1.27.0-beta.23](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.22...v1.27.0-beta.23) (2024-11-13)
+
+
+### Bug Fixes
+
+* remove otel-collector from infra module and keep otel-lgtm as the final opentelemetry backend :bug: ([07df708](https://github.com/LerianStudio/midaz/commit/07df7088da9ea48771d562716e5524f451de9848))
+
+## [1.27.0-beta.22](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.21...v1.27.0-beta.22) (2024-11-13)
+
+
+### Features
+
+* added new sub command describe on command portfolio ([0d3b154](https://github.com/LerianStudio/midaz/commit/0d3b15451d48b234d72e726fd09f5116706b6c34))
+* create rest get by id portfolio ([97db29c](https://github.com/LerianStudio/midaz/commit/97db29c26661494c78809ad6109cee5907109c9c))
+
 ## [1.27.0-beta.21](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.20...v1.27.0-beta.21) (2024-11-12)
 
 
