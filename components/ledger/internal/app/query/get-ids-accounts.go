@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -10,12 +11,11 @@ import (
 	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
 
 // ListAccountsByIDs get Accounts from the repository by given ids.
-func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*a.Account, error) {
+func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -31,7 +31,7 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error getting accounts on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrIDsNotFoundForAccounts, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrIDsNotFoundForAccounts, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err

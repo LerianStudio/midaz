@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mmodel"
 
 	"github.com/google/uuid"
 )
@@ -10,11 +11,11 @@ import (
 //
 //go:generate mockgen --destination=../../../gen/mock/ledger/ledger_mock.go --package=mock . Repository
 type Repository interface {
-	Create(ctx context.Context, ledger *Ledger) (*Ledger, error)
-	Find(ctx context.Context, organizationID, id uuid.UUID) (*Ledger, error)
-	FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*Ledger, error)
+	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
+	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
+	FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*mmodel.Ledger, error)
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
-	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*Ledger, error)
-	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *Ledger) (*Ledger, error)
+	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
+	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Delete(ctx context.Context, organizationID, id uuid.UUID) error
 }

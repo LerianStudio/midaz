@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -10,12 +11,11 @@ import (
 	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/google/uuid"
 )
 
 // GetAssetByID get an Asset from the repository by given id.
-func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*s.Asset, error) {
+func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -31,14 +31,14 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 		logger.Errorf("Error getting asset on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrAssetIDNotFound, reflect.TypeOf(s.Asset{}).Name(), id)
+			return nil, common.ValidateBusinessError(cn.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
 		}
 
 		return nil, err
 	}
 
 	if asset != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(s.Asset{}).Name(), id.String())
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String())
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset", err)
 

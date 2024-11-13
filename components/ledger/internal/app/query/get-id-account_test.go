@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mpointers"
 	"testing"
 
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -20,7 +20,7 @@ func TestGetAccountByIDSuccess(t *testing.T) {
 	portfolioID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
 
-	account := &a.Account{
+	account := &mmodel.Account{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
@@ -48,7 +48,7 @@ func TestGetAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 	ledgerID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
 
-	account := &a.Account{
+	account := &mmodel.Account{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),

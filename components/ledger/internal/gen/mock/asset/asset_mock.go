@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	asset "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
+	mmodel "github.com/LerianStudio/midaz/common/mmodel"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -42,10 +42,10 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 *asset.Asset) (*asset.Asset, error) {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *mmodel.Asset) (*mmodel.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1)
-	ret0, _ := ret[0].(*asset.Asset)
+	ret0, _ := ret[0].(*mmodel.Asset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -71,10 +71,10 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*asset.Asset, error) {
+func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*mmodel.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(*asset.Asset)
+	ret0, _ := ret[0].(*mmodel.Asset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -86,10 +86,10 @@ func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3 any) *gomock.C
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3, arg4 int) ([]*asset.Asset, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3, arg4 int) ([]*mmodel.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].([]*asset.Asset)
+	ret0, _ := ret[0].([]*mmodel.Asset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -116,10 +116,10 @@ func (mr *MockRepositoryMockRecorder) FindByNameOrCode(arg0, arg1, arg2, arg3, a
 }
 
 // ListByIDs mocks base method.
-func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*asset.Asset, error) {
+func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*mmodel.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByIDs", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].([]*asset.Asset)
+	ret0, _ := ret[0].([]*mmodel.Asset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -131,10 +131,10 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(arg0, arg1, arg2, arg3 any) *gom
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *asset.Asset) (*asset.Asset, error) {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.Asset) (*mmodel.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(*asset.Asset)
+	ret0, _ := ret[0].(*mmodel.Asset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

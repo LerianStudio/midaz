@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
@@ -44,7 +45,7 @@ func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPo
 }
 
 // Create a new product entity into Postgresql and returns it.
-func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Product) (*r.Product, error) {
+func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmodel.Product) (*mmodel.Product, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_product")
@@ -85,7 +86,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(r.Product{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
@@ -101,7 +102,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create product. Rows affected is 0", err)
 
@@ -139,7 +140,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(cn.ErrDuplicateProductName, reflect.TypeOf(r.Product{}).Name(), name, ledgerID)
+		err := common.ValidateBusinessError(cn.ErrDuplicateProductName, reflect.TypeOf(mmodel.Product{}).Name(), name, ledgerID)
 
 		mopentelemetry.HandleSpanError(&span, "Failed to find product by name", err)
 
@@ -150,7 +151,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 }
 
 // FindAll retrieves Product entities from the database.
-func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*r.Product, error) {
+func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Product, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_products")
@@ -163,7 +164,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	var products []*r.Product
+	var products []*mmodel.Product
 
 	findAll := sqrl.Select("*").
 		From(p.tableName).
@@ -188,7 +189,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 	}
 	defer rows.Close()
 
@@ -216,7 +217,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 }
 
 // FindByIDs retrieves Products entities from the database using the provided IDs.
-func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*r.Product, error) {
+func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Product, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_products_by_ids")
@@ -229,7 +230,7 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	var products []*r.Product
+	var products []*mmodel.Product
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_products_by_ids.query")
 
@@ -266,7 +267,7 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 }
 
 // Find retrieves a Product entity from the database using the provided ID.
-func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*r.Product, error) {
+func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_product")
@@ -293,7 +294,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
@@ -303,7 +304,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 }
 
 // Update a Product entity into Postgresql and returns the Product updated.
-func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *r.Product) (*r.Product, error) {
+func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Product) (*mmodel.Product, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_product")
@@ -363,7 +364,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(r.Product{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
@@ -379,7 +380,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update product. Rows affected is 0", err)
 
@@ -423,7 +424,7 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete product. Rows affected is 0", err)
 

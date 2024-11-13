@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -16,7 +16,7 @@ import (
 func TestGetLedgerByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	ledger := &l.Ledger{ID: id.String()}
+	ledger := &mmodel.Ledger{ID: id.String()}
 
 	uc := UseCase{
 		LedgerRepo: mock.NewMockRepository(gomock.NewController(t)),

@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"testing"
 
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +18,7 @@ import (
 
 // TestGetAllMetadataProducts is responsible to test TestGetAllMetadataProducts with success and error
 func TestGetAllMetadataProducts(t *testing.T) {
-	collection := reflect.TypeOf(p.Product{}).Name()
+	collection := reflect.TypeOf(mmodel.Product{}).Name()
 	filter := commonHTTP.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,

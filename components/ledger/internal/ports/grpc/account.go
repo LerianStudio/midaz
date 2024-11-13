@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 )
 
 // AccountProto struct contains an account use case for managing account related operations.
@@ -33,12 +33,12 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 
 	organizationUUID, err := uuid.Parse(ids.GetOrganizationId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), organizationUUID)
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 	}
 
 	ledgerUUID, err := uuid.Parse(ids.GetLedgerId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 	}
 
 	var invalidUUIDs []string
@@ -57,7 +57,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 	}
 
 	if len(invalidUUIDs) > 0 {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
 	}
 
 	acc, err := ap.Query.ListAccountsByIDs(ctx, organizationUUID, ledgerUUID, uuids)
@@ -66,7 +66,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
 
-		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	accounts := make([]*proto.Account, 0)
@@ -91,12 +91,12 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 
 	organizationUUID, err := uuid.Parse(aliases.GetOrganizationId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), organizationUUID)
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 	}
 
 	ledgerUUID, err := uuid.Parse(aliases.GetLedgerId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
+		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 	}
 
 	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, aliases.GetAliases())
@@ -105,7 +105,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
 
-		return nil, common.ValidateBusinessError(cn.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	accounts := make([]*proto.Account, 0)
@@ -138,10 +138,10 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 			logger.Errorf("Failed to update Accounts because id is empty")
 
-			return nil, common.ValidateBusinessError(cn.ErrNoAccountIDsProvided, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoAccountIDsProvided, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		balance := a.Balance{
+		balance := mmodel.Balance{
 			Available: &account.Balance.Available,
 			OnHold:    &account.Balance.OnHold,
 			Scale:     &account.Balance.Scale,
@@ -149,17 +149,17 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 		organizationUUID, err := uuid.Parse(account.GetOrganizationId())
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), organizationUUID)
+			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 		}
 
 		ledgerUUID, err := uuid.Parse(account.GetLedgerId())
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), ledgerUUID)
+			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 		}
 
 		accountUUID, err := uuid.Parse(account.GetId())
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(a.Account{}).Name(), accountUUID)
+			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), accountUUID)
 		}
 
 		_, err = ap.Command.UpdateAccountByID(ctx, organizationUUID, ledgerUUID, accountUUID, &balance)
@@ -168,7 +168,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", account.OrganizationId, account.LedgerId, err.Error())
 
-			return nil, common.ValidateBusinessError(cn.ErrBalanceUpdateFailed, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrBalanceUpdateFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		uuids = append(uuids, uuid.MustParse(account.Id))
@@ -183,7 +183,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 		logger.Errorf("Failed to retrieve Accounts by ids for organizationId %s and ledgerId %s in grpc, Error: %s", organizationID, ledgerID, err.Error())
 
-		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	for _, ac := range acc {

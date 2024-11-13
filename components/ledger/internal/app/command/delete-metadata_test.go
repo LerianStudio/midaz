@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"testing"
 
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -16,7 +16,7 @@ import (
 // TestMetadataDeleteSuccess is responsible to test MetadataDelete with success
 func TestMetadataDeleteSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7().String()
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
 		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
 	}
@@ -35,7 +35,7 @@ func TestMetadataDeleteSuccess(t *testing.T) {
 func TestMetadataDeleteError(t *testing.T) {
 	errMSG := "err to delete metadata on mongodb"
 	id := common.GenerateUUIDv7().String()
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
 		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
 	}

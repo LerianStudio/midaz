@@ -2,26 +2,24 @@ package mmodel
 
 import "time"
 
-// CreatePortfolioInput is a struct design to encapsulate request create payload data.
-type CreatePortfolioInput struct {
-	EntityID string         `json:"entityId" validate:"required,max=256"`
+// CreateProductInput is a struct design to encapsulate request create payload data.
+type CreateProductInput struct {
 	Name     string         `json:"name" validate:"required,max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
-// UpdatePortfolioInput is a struct design to encapsulate payload data.
-type UpdatePortfolioInput struct {
+// UpdateProductInput is a struct design to encapsulate request update payload data.
+type UpdateProductInput struct {
 	Name     string         `json:"name" validate:"max=256"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
-// Portfolio is a struct designed to encapsulate request update payload data.
-type Portfolio struct {
+// Product is a struct designed to encapsulate payload data.
+type Product struct {
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`
-	EntityID       string         `json:"entityId"`
 	LedgerID       string         `json:"ledgerId"`
 	OrganizationID string         `json:"organizationId"`
 	Status         Status         `json:"status"`
@@ -31,9 +29,9 @@ type Portfolio struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// Portfolios struct to return get all.
-type Portfolios struct {
-	Items []Portfolio `json:"items"`
-	Page  int         `json:"page"`
-	Limit int         `json:"limit"`
+// Products struct to return get all.
+type Products struct {
+	Items []Product `json:"items"`
+	Page  int       `json:"page"`
+	Limit int       `json:"limit"`
 }
