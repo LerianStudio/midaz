@@ -1,3 +1,11 @@
+## [1.27.0-beta.26](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.25...v1.27.0-beta.26) (2024-11-13)
+
+
+### Bug Fixes
+
+* add comments :bug: ([5c1bbf7](https://github.com/LerianStudio/midaz/commit/5c1bbf7df3be2fc1171c06ac720bc035535331ff))
+* update imports that refactor missed :bug: ([e6e9502](https://github.com/LerianStudio/midaz/commit/e6e95020272edb77ea38cb3fc80b4fc0b901d8b3))
+
 ## [1.27.0-beta.25](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.24...v1.27.0-beta.25) (2024-11-13)
 
 
