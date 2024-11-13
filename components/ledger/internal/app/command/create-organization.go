@@ -2,16 +2,16 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
-func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganizationInput) (*o.Organization, error) {
+func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -20,9 +20,9 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 
 	logger.Infof("Trying to create organization: %v", coi)
 
-	var status o.Status
+	var status mmodel.Status
 	if coi.Status.IsEmpty() || common.IsNilOrEmpty(&coi.Status.Code) {
-		status = o.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {
@@ -40,12 +40,12 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
 		mopentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanAddressValidation.End()
 
-	organization := &o.Organization{
+	organization := &mmodel.Organization{
 		ParentOrganizationID: coi.ParentOrganizationID,
 		LegalName:            coi.LegalName,
 		DoingBusinessAs:      coi.DoingBusinessAs,
@@ -72,7 +72,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *o.CreateOrganiza
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(o.Organization{}).Name(), org.ID, coi.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create organization metadata", err)
 

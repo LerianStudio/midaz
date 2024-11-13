@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,7 +15,7 @@ import (
 // TestGetOrganizationByIDSuccess is responsible to test GetOrganizationByID with success
 func TestGetOrganizationByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
-	organization := &o.Organization{ID: id.String()}
+	organization := &mmodel.Organization{ID: id.String()}
 
 	uc := UseCase{
 		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),

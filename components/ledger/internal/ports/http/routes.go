@@ -3,10 +3,10 @@ package http
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
@@ -29,8 +29,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	jwt := lib.NewJWTMiddleware(cc)
 
 	// Organizations
-	f.Post("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.WithBody(new(o.CreateOrganizationInput), oh.CreateOrganization))
-	f.Patch("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.ParseUUIDPathParameters, lib.WithBody(new(o.UpdateOrganizationInput), oh.UpdateOrganization))
+	f.Post("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))
+	f.Patch("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))
 	f.Get("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.GetAllOrganizations)
 	f.Get("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.ParseUUIDPathParameters, oh.GetOrganizationByID)
 	f.Delete("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.ParseUUIDPathParameters, oh.DeleteOrganizationByID)

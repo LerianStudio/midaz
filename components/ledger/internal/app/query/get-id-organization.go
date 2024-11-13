@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -10,12 +11,11 @@ import (
 	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/google/uuid"
 )
 
 // GetOrganizationByID fetch a new organization from the repository
-func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
+func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -31,14 +31,14 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*o.Or
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrOrganizationIDNotFound, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
 	}
 
 	if organization != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(o.Organization{}).Name(), id.String())
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String())
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb organization", err)
 

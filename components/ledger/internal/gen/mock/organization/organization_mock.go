@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	organization "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
+	mmodel "github.com/LerianStudio/midaz/common/mmodel"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -42,10 +42,10 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 *organization.Organization) (*organization.Organization, error) {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *mmodel.Organization) (*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1)
-	ret0, _ := ret[0].(*organization.Organization)
+	ret0, _ := ret[0].(*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -71,10 +71,10 @@ func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1 any) *gomock.Call {
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(arg0 context.Context, arg1 uuid.UUID) (*organization.Organization, error) {
+func (m *MockRepository) Find(arg0 context.Context, arg1 uuid.UUID) (*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Find", arg0, arg1)
-	ret0, _ := ret[0].(*organization.Organization)
+	ret0, _ := ret[0].(*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -86,10 +86,10 @@ func (mr *MockRepositoryMockRecorder) Find(arg0, arg1 any) *gomock.Call {
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 int) ([]*organization.Organization, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2 int) ([]*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2)
-	ret0, _ := ret[0].([]*organization.Organization)
+	ret0, _ := ret[0].([]*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -101,10 +101,10 @@ func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2 any) *gomock.Call
 }
 
 // ListByIDs mocks base method.
-func (m *MockRepository) ListByIDs(arg0 context.Context, arg1 []uuid.UUID) ([]*organization.Organization, error) {
+func (m *MockRepository) ListByIDs(arg0 context.Context, arg1 []uuid.UUID) ([]*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByIDs", arg0, arg1)
-	ret0, _ := ret[0].([]*organization.Organization)
+	ret0, _ := ret[0].([]*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -116,10 +116,10 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(arg0, arg1 any) *gomock.Call {
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1 uuid.UUID, arg2 *organization.Organization) (*organization.Organization, error) {
+func (m *MockRepository) Update(arg0 context.Context, arg1 uuid.UUID, arg2 *mmodel.Organization) (*mmodel.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2)
-	ret0, _ := ret[0].(*organization.Organization)
+	ret0, _ := ret[0].(*mmodel.Organization)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

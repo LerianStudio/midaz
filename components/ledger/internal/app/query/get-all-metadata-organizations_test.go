@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"testing"
 
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +18,7 @@ import (
 
 // TestGetAllMetadataOrganizations is responsible to test TestGetAllMetadataOrganizations with success and error
 func TestGetAllMetadataOrganizations(t *testing.T) {
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	filter := commonHTTP.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,

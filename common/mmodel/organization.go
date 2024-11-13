@@ -38,12 +38,6 @@ type Organization struct {
 	Metadata             map[string]any `json:"metadata,omitempty"`
 }
 
-type Organizations struct {
-	Items []Organization `json:"items"`
-	Page  int            `json:"page"`
-	Limit int            `json:"limit"`
-}
-
 // Address structure for marshaling/unmarshalling JSON.
 type Address struct {
 	Line1   string  `json:"line1"`
@@ -52,4 +46,15 @@ type Address struct {
 	City    string  `json:"city"`
 	State   string  `json:"state"`
 	Country string  `json:"country"` // According to ISO 3166-1 alpha-2
+}
+
+// IsEmpty method that set empty or nil in fields
+func (a Address) IsEmpty() bool {
+	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
+}
+
+type Organizations struct {
+	Items []Organization `json:"items"`
+	Page  int            `json:"page"`
+	Limit int            `json:"limit"`
 }
