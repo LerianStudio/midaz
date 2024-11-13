@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -29,7 +29,7 @@ func TestGetAllPortfolios(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		portfolios := []*p.Portfolio{{}}
+		portfolios := []*mmodel.Portfolio{{}}
 		mockPortfolioRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).

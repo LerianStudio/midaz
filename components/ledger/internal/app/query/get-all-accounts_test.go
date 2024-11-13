@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -30,7 +30,7 @@ func TestGetAllAccounts(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		accounts := []*a.Account{{}}
+		accounts := []*mmodel.Account{{}}
 		mockAccountRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, limit, page).
@@ -73,7 +73,7 @@ func TestGetAllAccountsWithoutPortfolio(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		accounts := []*a.Account{{}}
+		accounts := []*mmodel.Account{{}}
 		mockAccountRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, nil, limit, page).

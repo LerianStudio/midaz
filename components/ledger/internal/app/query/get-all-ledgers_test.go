@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -27,7 +27,7 @@ func TestGetAllLedgers(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		ledgers := []*l.Ledger{{}}
+		ledgers := []*mmodel.Ledger{{}}
 		mockLedgerRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, page, limit).

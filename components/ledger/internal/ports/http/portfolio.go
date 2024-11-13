@@ -2,12 +2,12 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -34,7 +34,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID.String())
 
-	payload := i.(*p.CreatePortfolioInput)
+	payload := i.(*mmodel.CreatePortfolioInput)
 
 	logger.Infof("Request to create a Portfolio with details: %#v", payload)
 
@@ -163,7 +163,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 	logger.Infof("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	payload := i.(*p.UpdatePortfolioInput)
+	payload := i.(*mmodel.UpdatePortfolioInput)
 	logger.Infof("Request to update an Portfolio with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)

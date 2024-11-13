@@ -33,6 +33,7 @@ type Asset struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
+// Assets struct to return get all.
 type Assets struct {
 	Items []Asset `json:"items"`
 	Page  int     `json:"page"`

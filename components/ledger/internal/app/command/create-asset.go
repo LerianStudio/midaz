@@ -2,19 +2,18 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpointers"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
+	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/common/mpointers"
 	"github.com/google/uuid"
 )
 
 // CreateAsset creates a new asset persists data in the repository.
-func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *s.CreateAssetInput) (*s.Asset, error) {
+func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -23,9 +22,9 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	logger.Infof("Trying to create asset: %v", cii)
 
-	var status s.Status
+	var status mmodel.Status
 	if cii.Status.IsEmpty() || common.IsNilOrEmpty(&cii.Status.Code) {
-		status = s.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {
@@ -37,20 +36,20 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err := common.ValidateType(cii.Type); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate asset type", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if err := common.ValidateCode(cii.Code); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if cii.Type == "currency" {
 		if err := common.ValidateCurrency(cii.Code); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
 
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 
@@ -63,7 +62,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	asset := &s.Asset{
+	asset := &mmodel.Asset{
 		Name:           cii.Name,
 		Type:           cii.Type,
 		Code:           cii.Code,
@@ -83,7 +82,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(s.Asset{}).Name(), inst.ID, cii.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create asset metadata", err)
 
@@ -111,13 +110,13 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		balanceValue := float64(0)
 
-		aBalance := a.Balance{
+		aBalance := mmodel.Balance{
 			Available: &balanceValue,
 			OnHold:    &balanceValue,
 			Scale:     &balanceValue,
 		}
 
-		eAccount := &a.Account{
+		eAccount := &mmodel.Account{
 			ID:              common.GenerateUUIDv7().String(),
 			AssetCode:       cii.Code,
 			Alias:           &aAlias,
@@ -130,7 +129,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			PortfolioID:     nil,
 			EntityID:        nil,
 			Balance:         aBalance,
-			Status: a.Status{
+			Status: mmodel.Status{
 				Code:        "external",
 				Description: &aStatusDescription,
 			},

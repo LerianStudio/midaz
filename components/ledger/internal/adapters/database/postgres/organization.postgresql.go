@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
@@ -45,7 +46,7 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 }
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
-func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *o.Organization) (*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_organization")
@@ -94,7 +95,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
@@ -110,7 +111,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create organization. Rows affected is 0", err)
 
@@ -121,7 +122,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 }
 
 // Update an Organization entity into Postgresql and returns the Organization updated.
-func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *o.Organization) (*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_organization")
@@ -200,7 +201,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(o.Organization{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
@@ -216,7 +217,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update organization. Rows affected is 0", err)
 
@@ -227,7 +228,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 }
 
 // Find retrieves an Organization entity from the database using the provided ID.
-func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_organization")
@@ -256,7 +257,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
@@ -273,7 +274,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 }
 
 // FindAll retrieves Organizations entities from the database.
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*mmodel.Organization, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
@@ -286,7 +287,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 		return nil, err
 	}
 
-	var organizations []*o.Organization
+	var organizations []*mmodel.Organization
 
 	findAll := sqrl.Select("*").
 		From(r.tableName).
@@ -349,7 +350,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 }
 
 // ListByIDs retrieves Organizations entities from the database using the provided IDs.
-func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*o.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_organizations_by_ids")
@@ -362,7 +363,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 		return nil, err
 	}
 
-	var organizations []*o.Organization
+	var organizations []*mmodel.Organization
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_organizations_by_ids.query")
 
@@ -441,7 +442,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete organization. Rows affected is 0", err)
 

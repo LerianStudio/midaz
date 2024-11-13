@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -11,12 +12,11 @@ import (
 
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataOrganizations fetch all Organizations from the repository
-func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commonHTTP.QueryHeader) ([]*o.Organization, error) {
+func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commonHTTP.QueryHeader) ([]*mmodel.Organization, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -25,11 +25,11 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 
 	logger.Infof("Retrieving organizations")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(o.Organization{}).Name(), filter)
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
 	if err != nil || metadata == nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
 
-		return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -47,7 +47,7 @@ func (uc *UseCase) GetAllMetadataOrganizations(ctx context.Context, filter commo
 		logger.Errorf("Error getting organizations on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(o.Organization{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err

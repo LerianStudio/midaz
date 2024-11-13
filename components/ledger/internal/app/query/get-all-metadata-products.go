@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -11,12 +12,11 @@ import (
 
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataProducts fetch all Products from the repository
-func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*r.Product, error) {
+func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*mmodel.Product, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -25,11 +25,11 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 
 	logger.Infof("Retrieving products")
 
-	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(r.Product{}).Name(), filter)
+	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Product{}).Name(), filter)
 	if err != nil || metadata == nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo by query params", err)
 
-		return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(r.Product{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(mmodel.Product{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -47,7 +47,7 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 		logger.Errorf("Error getting products on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err

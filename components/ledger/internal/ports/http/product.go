@@ -2,12 +2,12 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -33,7 +33,7 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of Product with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
-	payload := i.(*r.CreateProductInput)
+	payload := i.(*mmodel.CreateProductInput)
 	logger.Infof("Request to create a Product with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -159,7 +159,7 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating update of Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	payload := i.(*r.UpdateProductInput)
+	payload := i.(*mmodel.UpdateProductInput)
 	logger.Infof("Request to update an Product with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,7 +14,7 @@ import (
 
 // TestCreatePortfolioSuccess is responsible to test CreatePortfolio with success
 func TestCreatePortfolioSuccess(t *testing.T) {
-	portfolio := &p.Portfolio{
+	portfolio := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		EntityID:       common.GenerateUUIDv7().String(),
@@ -39,7 +39,7 @@ func TestCreatePortfolioSuccess(t *testing.T) {
 // TestCreatePortfolioError is responsible to test CreatePortfolio with error
 func TestCreatePortfolioError(t *testing.T) {
 	errMSG := "err to create portfolio on database"
-	portfolio := &p.Portfolio{
+	portfolio := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		EntityID:       common.GenerateUUIDv7().String(),

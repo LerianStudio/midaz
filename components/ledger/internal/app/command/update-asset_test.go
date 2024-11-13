@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 	"time"
 
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -18,7 +18,7 @@ func TestUpdateAssetByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	asset := &s.Asset{
+	asset := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -46,7 +46,7 @@ func TestUpdateAssetByIDError(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	asset := &s.Asset{
+	asset := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),

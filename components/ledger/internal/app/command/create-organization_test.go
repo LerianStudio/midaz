@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,7 +15,7 @@ import (
 // TestCreateOrganizationSuccess is responsible to test CreateOrganization with success
 func TestCreateOrganizationSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7().String()
-	organization := &o.Organization{ID: id}
+	organization := &mmodel.Organization{ID: id}
 
 	uc := UseCase{
 		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
@@ -34,7 +34,7 @@ func TestCreateOrganizationSuccess(t *testing.T) {
 
 // TestCreateOrganizationError is responsible to test CreateOrganization with error
 func TestCreateOrganizationError(t *testing.T) {
-	organization := &o.Organization{}
+	organization := &mmodel.Organization{}
 	errMSG := "err to create organization on database"
 
 	uc := UseCase{

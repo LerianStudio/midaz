@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/google/uuid"
 )
 
 // CreatePortfolio creates a new portfolio persists data in the repository.
-func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *p.CreatePortfolioInput) (*p.Portfolio, error) {
+func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -20,9 +20,9 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
-	var status p.Status
+	var status mmodel.Status
 	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
-		status = p.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {
@@ -31,7 +31,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	status.Description = cpi.Status.Description
 
-	portfolio := &p.Portfolio{
+	portfolio := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
@@ -51,7 +51,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), port.ID, cpi.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
 		common.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
 

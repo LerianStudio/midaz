@@ -3,6 +3,7 @@ package product
 import (
 	"database/sql"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"time"
 )
 
@@ -20,52 +21,14 @@ type ProductPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// CreateProductInput is a struct design to encapsulate request create payload data.
-type CreateProductInput struct {
-	Name     string         `json:"name" validate:"required,max=256"`
-	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
-
-// UpdateProductInput is a struct design to encapsulate request update payload data.
-type UpdateProductInput struct {
-	Name     string         `json:"name" validate:"max=256"`
-	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
-
-// Product is a struct designed to encapsulate payload data.
-type Product struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	LedgerID       string         `json:"ledgerId"`
-	OrganizationID string         `json:"organizationId"`
-	Status         Status         `json:"status"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
-	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
-}
-
-// Status structure for marshaling/unmarshalling JSON.
-type Status struct {
-	Code        string  `json:"code" validate:"max=100"`
-	Description *string `json:"description" validate:"omitempty,max=256"`
-}
-
-// IsEmpty method that set empty or nil in fields
-func (s Status) IsEmpty() bool {
-	return s.Code == "" && s.Description == nil
-}
-
 // ToEntity converts an ProductPostgreSQLModel to entity.Product
-func (t *ProductPostgreSQLModel) ToEntity() *Product {
-	status := Status{
+func (t *ProductPostgreSQLModel) ToEntity() *mmodel.Product {
+	status := mmodel.Status{
 		Code:        t.Status,
 		Description: t.StatusDescription,
 	}
 
-	product := &Product{
+	product := &mmodel.Product{
 		ID:             t.ID,
 		Name:           t.Name,
 		LedgerID:       t.LedgerID,
@@ -85,7 +48,7 @@ func (t *ProductPostgreSQLModel) ToEntity() *Product {
 }
 
 // FromEntity converts an entity.Product to ProductPostgreSQLModel
-func (t *ProductPostgreSQLModel) FromEntity(product *Product) {
+func (t *ProductPostgreSQLModel) FromEntity(product *mmodel.Product) {
 	*t = ProductPostgreSQLModel{
 		ID:                common.GenerateUUIDv7().String(),
 		Name:              product.Name,

@@ -2,12 +2,12 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -35,7 +35,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
-	payload := a.(*s.CreateAssetInput)
+	payload := a.(*mmodel.CreateAssetInput)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -167,7 +167,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	logger.Infof("Initiating update of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	payload := a.(*s.UpdateAssetInput)
+	payload := a.(*mmodel.UpdateAssetInput)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)

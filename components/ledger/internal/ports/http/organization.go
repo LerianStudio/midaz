@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"os"
 	"reflect"
@@ -14,7 +15,6 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -35,7 +35,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
 
-	payload := p.(*o.CreateOrganizationInput)
+	payload := p.(*mmodel.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -70,7 +70,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	id := c.Locals("id").(uuid.UUID)
 	logger.Infof("Initiating update of Organization with ID: %s", id.String())
 
-	payload := p.(*o.UpdateOrganizationInput)
+	payload := p.(*mmodel.UpdateOrganizationInput)
 	logger.Infof("Request to update an organization with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -203,7 +203,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Organization with ID: %s in ", id.String())
 
-		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(o.Organization{}).Name())
+		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		return commonHTTP.WithError(c, err)
 	}

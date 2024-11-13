@@ -2,6 +2,7 @@ package organization
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -9,10 +10,10 @@ import (
 //
 //go:generate mockgen --destination=../../../gen/mock/organization/organization_mock.go --package=mock . Repository
 type Repository interface {
-	Create(ctx context.Context, organization *Organization) (*Organization, error)
-	Update(ctx context.Context, id uuid.UUID, organization *Organization) (*Organization, error)
-	Find(ctx context.Context, id uuid.UUID) (*Organization, error)
-	FindAll(ctx context.Context, limit, page int) ([]*Organization, error)
-	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*Organization, error)
+	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
+	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
+	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
+	FindAll(ctx context.Context, limit, page int) ([]*mmodel.Organization, error)
+	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
