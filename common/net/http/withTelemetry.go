@@ -36,6 +36,8 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 
 		err := tm.collectMetrics(ctx)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to collect metrics", err)
+
 			return WithError(c, err)
 		}
 
@@ -69,10 +71,14 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 
 		err := tm.collectMetrics(ctx)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to collect metrics", err)
+
 			e := common.ValidateBusinessError(cn.ErrInternalServer, "Failed to collect metrics")
 
 			jsonStringError, err := common.StructToJSONString(e)
 			if err != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to marshal error response", err)
+
 				return nil, status.Error(codes.Internal, "Failed to marshal error response")
 			}
 
