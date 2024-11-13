@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 	"time"
 
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -16,7 +16,7 @@ import (
 // TestUpdateOrganizationByIDSuccess is responsible to test UpdateOrganizationByID with success
 func TestUpdateOrganizationByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
-	organization := &o.Organization{ID: id.String(), UpdatedAt: time.Now()}
+	organization := &mmodel.Organization{ID: id.String(), UpdatedAt: time.Now()}
 
 	uc := UseCase{
 		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
@@ -37,7 +37,7 @@ func TestUpdateOrganizationByIDSuccess(t *testing.T) {
 func TestUpdateOrganizationByIDError(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
-	organization := &o.Organization{ID: id.String(), UpdatedAt: time.Now()}
+	organization := &mmodel.Organization{ID: id.String(), UpdatedAt: time.Now()}
 
 	uc := UseCase{
 		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),

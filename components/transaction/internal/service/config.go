@@ -32,6 +32,19 @@ type Config struct {
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorEnforcerName     string `env:"CASDOOR_ENFORCER_NAME"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
+	RabbitMQHost            string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
+	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
+	RabbitMQKey             string `env:"RABBITMQ_KEY"`
+	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
+	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 }
 
 // NewConfig creates an instance of Config.

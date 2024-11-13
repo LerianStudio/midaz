@@ -1,7 +1,6 @@
 package mlog
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -30,6 +29,8 @@ type Logger interface {
 	Fatalln(args ...any)
 
 	WithFields(fields ...any) Logger
+
+	WithDefaultMessageTemplate(message string) Logger
 
 	Sync() error
 }
@@ -79,8 +80,9 @@ func ParseLevel(lvl string) (LogLevel, error) {
 
 // GoLogger is the Go built-in (log) implementation of Logger interface.
 type GoLogger struct {
-	fields []any
-	Level  LogLevel
+	fields                 []any
+	Level                  LogLevel
+	defaultMessageTemplate string
 }
 
 // IsLevelEnabled checks if the given level is enabled.
@@ -203,27 +205,15 @@ func (l *GoLogger) WithFields(fields ...any) Logger {
 	}
 }
 
+func (l *GoLogger) WithDefaultMessageTemplate(message string) Logger {
+	l.defaultMessageTemplate = message
+
+	return &GoLogger{
+		defaultMessageTemplate: message,
+	}
+}
+
 // Sync implements Sync Logger interface function.
 //
 //nolint:ireturn
 func (l *GoLogger) Sync() error { return nil }
-
-// NewLoggerFromContext extract the Logger from "logger" value inside context
-//
-//nolint:ireturn
-func NewLoggerFromContext(ctx context.Context) Logger {
-	if logger := ctx.Value(loggerContextKey("logger")); logger != nil {
-		if l, ok := logger.(Logger); ok {
-			return l
-		}
-	}
-
-	return &NoneLogger{}
-}
-
-type loggerContextKey string
-
-// ContextWithLogger returns a context within a Logger in "logger" value.
-func ContextWithLogger(ctx context.Context, logger Logger) context.Context {
-	return context.WithValue(ctx, loggerContextKey("logger"), logger)
-}

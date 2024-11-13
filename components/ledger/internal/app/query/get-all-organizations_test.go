@@ -3,9 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -25,7 +25,7 @@ func TestGetAllOrganizations(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		organizations := []*o.Organization{{}}
+		organizations := []*mmodel.Organization{{}}
 		mockOrganizationRepo.
 			EXPECT().
 			FindAll(gomock.Any(), limit, page).

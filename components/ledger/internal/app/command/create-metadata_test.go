@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"testing"
 
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -17,7 +17,7 @@ import (
 // TestMetadataCreateSuccess is responsible to test MetadataCreate with success
 func TestMetadataCreateSuccess(t *testing.T) {
 	metadata := meta.Metadata{ID: primitive.NewObjectID()}
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
 		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
 	}
@@ -36,7 +36,7 @@ func TestMetadataCreateSuccess(t *testing.T) {
 func TestMetadataCreateError(t *testing.T) {
 	errMSG := "err to create metadata on mongodb"
 	metadata := meta.Metadata{ID: primitive.NewObjectID()}
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
 		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
 	}

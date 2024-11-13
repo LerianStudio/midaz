@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
 	"strings"
@@ -43,14 +45,30 @@ func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPo
 }
 
 // Create a new product entity into Postgresql and returns it.
-func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Product) (*r.Product, error) {
+func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmodel.Product) (*mmodel.Product, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_product")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
 	record := &r.ProductPostgreSQLModel{}
 	record.FromEntity(product)
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "product_repository_input", record)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert product record from entity to JSON string", err)
+
+		return nil, err
+	}
 
 	result, err := db.ExecContext(ctx, `INSERT INTO product VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
 		record.ID,
@@ -64,21 +82,31 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 		record.DeletedAt,
 	)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(r.Product{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to create product. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -86,33 +114,57 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *r.Pro
 
 // FindByName find product from the database using Organization and Ledger id and Name.
 func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_product_by_name")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return false, err
 	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_product_by_name.query")
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, name)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
 		return false, err
 	}
 	defer rows.Close()
 
+	spanQuery.End()
+
 	if rows.Next() {
-		return true, common.ValidateBusinessError(cn.ErrDuplicateProductName, reflect.TypeOf(r.Product{}).Name(), name, ledgerID)
+		err := common.ValidateBusinessError(cn.ErrDuplicateProductName, reflect.TypeOf(mmodel.Product{}).Name(), name, ledgerID)
+
+		mopentelemetry.HandleSpanError(&span, "Failed to find product by name", err)
+
+		return true, err
 	}
 
 	return false, nil
 }
 
 // FindAll retrieves Product entities from the database.
-func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*r.Product, error) {
+func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Product, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_products")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
-	var products []*r.Product
+	var products []*mmodel.Product
 
 	findAll := sqrl.Select("*").
 		From(p.tableName).
@@ -126,19 +178,29 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
 		return nil, err
 	}
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 	}
 	defer rows.Close()
+
+	spanQuery.End()
 
 	for rows.Next() {
 		var product r.ProductPostgreSQLModel
 		if err := rows.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 			&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
@@ -146,6 +208,8 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
+
 		return nil, err
 	}
 
@@ -153,25 +217,40 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 }
 
 // FindByIDs retrieves Products entities from the database using the provided IDs.
-func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*r.Product, error) {
+func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Product, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_products_by_ids")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
-	var products []*r.Product
+	var products []*mmodel.Product
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_products_by_ids.query")
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
 		return nil, err
 	}
 	defer rows.Close()
+
+	spanQuery.End()
 
 	for rows.Next() {
 		var product r.ProductPostgreSQLModel
 		if err := rows.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 			&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 			return nil, err
 		}
 
@@ -179,6 +258,8 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	}
 
 	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
+
 		return nil, err
 	}
 
@@ -186,20 +267,34 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 }
 
 // Find retrieves a Product entity from the database using the provided ID.
-func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*r.Product, error) {
+func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_product")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
 	product := &r.ProductPostgreSQLModel{}
 
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
 	row := db.QueryRowContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, id)
+
+	spanQuery.End()
+
 	if err := row.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 		&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
@@ -209,9 +304,16 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 }
 
 // Update a Product entity into Postgresql and returns the Product updated.
-func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *r.Product) (*r.Product, error) {
+func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Product) (*mmodel.Product, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_product")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return nil, err
 	}
 
@@ -247,23 +349,42 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
+	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "product_repository_input", record)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert product record from entity to JSON string", err)
+
+		return nil, err
+	}
+
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(r.Product{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to update product. Rows affected is 0", err)
+
+		return nil, err
 	}
 
 	return record.ToEntity(), nil
@@ -271,24 +392,43 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete removes a Product entity from the database using the provided IDs.
 func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_product")
+	defer span.End()
+
 	db, err := p.connection.GetDB()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
 		return err
 	}
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	result, err := db.ExecContext(ctx, `UPDATE product SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
+
 		return err
 	}
 
+	spanExec.End()
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
 		return err
 	}
 
 	if rowsAffected == 0 {
-		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(r.Product{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to delete product. Rows affected is 0", err)
+
+		return err
 	}
 
 	return nil

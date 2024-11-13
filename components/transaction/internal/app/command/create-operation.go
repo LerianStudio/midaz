@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"time"
 
@@ -16,7 +17,12 @@ import (
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
 func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *gold.Transaction, validate gold.Responses, result chan []*o.Operation, err chan error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_operation")
+	defer span.End()
+
 	logger.Infof("Trying to create new oeprations")
 
 	var operations []*o.Operation
@@ -38,6 +44,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 
 				amt, bat, er := gold.ValidateFromToOperation(fromTo[i], validate, acc)
 				if er != nil {
+					mopentelemetry.HandleSpanError(&span, "Failed to validate operation", er)
+
 					err <- er
 				}
 
@@ -92,6 +100,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 
 				operation, er := uc.OperationRepo.Create(ctx, save)
 				if er != nil {
+					mopentelemetry.HandleSpanError(&span, "Failed to create operation", er)
+
 					logger.Errorf("Error creating operation: %v", er)
 
 					err <- er
@@ -99,6 +109,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 
 				er = uc.createMetadata(ctx, logger, fromTo[i].Metadata, operation)
 				if er != nil {
+					mopentelemetry.HandleSpanError(&span, "Failed to create metadata on operation", er)
+
 					err <- er
 				}
 

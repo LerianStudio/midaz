@@ -2,11 +2,12 @@ package grpc
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	gmtdt "google.golang.org/grpc/metadata"
 )
 
 // AccountGRPCRepository is a gRPC implementation of the account.proto
@@ -30,8 +31,15 @@ func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
 
 // GetAccountsByIds returns a grpc accounts on ledger bi given ids.
 func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.get_accounts_by_ids")
+	defer span.End()
+
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+
 		return nil, err
 	}
 
@@ -43,21 +51,40 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 		Ids:            ids,
 	}
 
-	md := gmtdt.Pairs("authorization", "Bearer "+token)
-	ctx = gmtdt.NewOutgoingContext(ctx, md)
+	ctx, spanClientReq := tracer.Start(ctx, "grpc.get_accounts_by_ids.client_request")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "accounts_id_grpc_args", accountsID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to convert accountsID from proto struct to JSON string", err)
+
+		return nil, err
+	}
+
+	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
 	accountsResponse, err := client.GetAccountsByIds(ctx, accountsID)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to get accounts by ids", err)
+
 		return nil, err
 	}
+
+	spanClientReq.End()
 
 	return accountsResponse, nil
 }
 
 // GetAccountsByAlias returns a grpc accounts on ledger bi given aliases.
 func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.get_accounts_by_alias")
+	defer span.End()
+
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+
 		return nil, err
 	}
 
@@ -69,21 +96,40 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 		Aliases:        aliases,
 	}
 
-	md := gmtdt.Pairs("authorization", "Bearer "+token)
-	ctx = gmtdt.NewOutgoingContext(ctx, md)
+	ctx, spanClientReq := tracer.Start(ctx, "grpc.get_accounts_by_alias.client_request")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "accounts_id_grpc_metadata", accountsAlias)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to convert accountsAlias from proto struct to JSON string", err)
+
+		return nil, err
+	}
+
+	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
 	accountsResponse, err := client.GetAccountsByAliases(ctx, accountsAlias)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to get accounts by aliases", err)
+
 		return nil, err
 	}
+
+	spanClientReq.End()
 
 	return accountsResponse, nil
 }
 
 // UpdateAccounts update a grpc accounts on ledger.
 func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error) {
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.update_accounts")
+	defer span.End()
+
 	conn, err := a.conn.GetNewClient()
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get new client", err)
+
 		return nil, err
 	}
 
@@ -95,13 +141,25 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 		Accounts:       accounts,
 	}
 
-	md := gmtdt.Pairs("authorization", "Bearer "+token)
-	ctx = gmtdt.NewOutgoingContext(ctx, md)
+	ctx, spanClientReq := tracer.Start(ctx, "grpc.update_accounts.client_request")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "accounts_request_grpc_metadata", accountsRequest)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to convert accountsRequest from proto struct to JSON string", err)
+
+		return nil, err
+	}
+
+	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
 	accountsResponse, err := client.UpdateAccounts(ctx, accountsRequest)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to update accounts", err)
+
 		return nil, err
 	}
+
+	spanClientReq.End()
 
 	return accountsResponse, nil
 }

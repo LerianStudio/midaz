@@ -2,8 +2,10 @@ package portfolio
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 )
 
 // PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
@@ -15,66 +17,20 @@ type PortfolioPostgreSQLModel struct {
 	OrganizationID    string
 	Status            string
 	StatusDescription *string
-	AllowSending      bool
-	AllowReceiving    bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         sql.NullTime
 	Metadata          map[string]any
 }
 
-// CreatePortfolioInput is a struct design to encapsulate request create payload data.
-type CreatePortfolioInput struct {
-	EntityID string         `json:"entityId" validate:"required,max=256"`
-	Name     string         `json:"name" validate:"required,max=256"`
-	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
-
-// UpdatePortfolioInput is a struct design to encapsulate payload data.
-type UpdatePortfolioInput struct {
-	Name     string         `json:"name" validate:"max=256"`
-	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
-
-// Portfolio is a struct designed to encapsulate request update payload data.
-type Portfolio struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	EntityID       string         `json:"entityId"`
-	LedgerID       string         `json:"ledgerId"`
-	OrganizationID string         `json:"organizationId"`
-	Status         Status         `json:"status"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
-	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
-}
-
-// Status structure for marshaling/unmarshalling JSON.
-type Status struct {
-	Code           string  `json:"code" validate:"max=100"`
-	Description    *string `json:"description" validate:"omitempty,max=256"`
-	AllowSending   *bool   `json:"allowSending"`
-	AllowReceiving *bool   `json:"allowReceiving"`
-}
-
-// IsEmpty method that set empty or nil in fields
-func (s Status) IsEmpty() bool {
-	return s.Code == "" && s.Description == nil
-}
-
 // ToEntity converts an PortfolioPostgreSQLModel to entity.Portfolio
-func (t *PortfolioPostgreSQLModel) ToEntity() *Portfolio {
-	status := Status{
-		Code:           t.Status,
-		Description:    t.StatusDescription,
-		AllowSending:   &t.AllowSending,
-		AllowReceiving: &t.AllowReceiving,
+func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
+	status := mmodel.Status{
+		Code:        t.Status,
+		Description: t.StatusDescription,
 	}
 
-	portfolio := &Portfolio{
+	portfolio := &mmodel.Portfolio{
 		ID:             t.ID,
 		Name:           t.Name,
 		EntityID:       t.EntityID,
@@ -95,7 +51,7 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *Portfolio {
 }
 
 // FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
-func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *Portfolio) {
+func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 	*t = PortfolioPostgreSQLModel{
 		ID:                common.GenerateUUIDv7().String(),
 		Name:              portfolio.Name,
@@ -104,8 +60,6 @@ func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *Portfolio) {
 		OrganizationID:    portfolio.OrganizationID,
 		Status:            portfolio.Status.Code,
 		StatusDescription: portfolio.Status.Description,
-		AllowSending:      *portfolio.Status.AllowSending,
-		AllowReceiving:    *portfolio.Status.AllowReceiving,
 		CreatedAt:         portfolio.CreatedAt,
 		UpdatedAt:         portfolio.UpdatedAt,
 	}

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,7 +14,7 @@ import (
 
 // TestCreateLedgerSuccess is responsible to test CreateLedger with success
 func TestCreateLedgerSuccess(t *testing.T) {
-	ledger := &l.Ledger{
+	ledger := &mmodel.Ledger{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 	}
@@ -38,7 +38,7 @@ func TestCreateLedgerSuccess(t *testing.T) {
 func TestCreateLedgerError(t *testing.T) {
 	errMSG := "err to create ledger on database"
 
-	ledger := &l.Ledger{
+	ledger := &mmodel.Ledger{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 	}

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"testing"
 
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/organization"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -18,7 +18,7 @@ import (
 // TestMetadataFindByEntitySuccess is responsible to test MetadataFindByEntity with success
 func TestMetadataFindByEntitySuccess(t *testing.T) {
 	id := common.GenerateUUIDv7().String()
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	metadata := &meta.Metadata{ID: primitive.NewObjectID()}
 	uc := UseCase{
 		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
@@ -40,7 +40,7 @@ func TestMetadataFindByEntitySuccess(t *testing.T) {
 func TestMetadataFindByEntityError(t *testing.T) {
 	errMSG := "err to findByEntity metadata on mongodb"
 	id := common.GenerateUUIDv7().String()
-	collection := reflect.TypeOf(o.Organization{}).Name()
+	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
 		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
 	}

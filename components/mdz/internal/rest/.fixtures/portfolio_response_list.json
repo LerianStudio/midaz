@@ -1,0 +1,43 @@
+{
+    "items": [
+        {
+            "id": "01931c91-1fa5-7e3f-8a52-cea2f98bb9cd",
+            "name": "Daisha_Koepp11 Portfolio",
+            "entityId": "bcc37474-577a-43b5-b9a6-3b5ac28473f8",
+            "ledgerId": "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c",
+            "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Portfolio",
+                "allowSending": true,
+                "allowReceiving": false
+            },
+            "createdAt": "2024-11-11T18:51:33.15793Z",
+            "updatedAt": "2024-11-11T18:51:33.15793Z",
+            "deletedAt": null
+        },
+        {
+            "id": "01931c91-0957-763d-af95-b2ee2a9aae75",
+            "name": "Toy30 Portfolio",
+            "entityId": "f3c0c356-1d6b-4cb2-b45f-ee6ce047491e",
+            "ledgerId": "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c",
+            "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Portfolio",
+                "allowSending": true,
+                "allowReceiving": false
+            },
+            "createdAt": "2024-11-11T18:51:27.447406Z",
+            "updatedAt": "2024-11-11T18:51:27.447406Z",
+            "deletedAt": null,
+            "metadata": {
+                "bitcoin": "1fdFL8cxmWTbwzpiQ7K5PPBJoq7HV",
+                "chave": "metadata_chave",
+                "boolean": true
+            }
+        }
+    ],
+    "page": 1,
+    "limit": 2 
+}

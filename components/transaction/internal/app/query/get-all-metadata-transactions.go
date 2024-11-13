@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
@@ -15,11 +15,18 @@ import (
 
 // GetAllMetadataTransactions fetch all Transacntions from the repository
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*t.Transaction, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
+	defer span.End()
+
 	logger.Infof("Retrieving transactions")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(t.Transaction{}).Name(), filter)
 	if err != nil || metadata == nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get transactions on repo by metadata", err)
+
 		return nil, common.EntityNotFoundError{
 			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
 			Message:    "Transactions by metadata was not found",
@@ -38,6 +45,8 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	trans, err := uc.TransactionRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get transactions on repo by query params", err)
+
 		logger.Errorf("Error getting transactions on repo by query params: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

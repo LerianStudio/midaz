@@ -2,42 +2,36 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/google/uuid"
 )
 
 // CreatePortfolio creates a new portfolio persists data in the repository.
-func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *p.CreatePortfolioInput) (*p.Portfolio, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "command.create_portfolio")
+	defer span.End()
+
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
-	var status p.Status
+	var status mmodel.Status
 	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
-		status = p.Status{
-			Code:           "ACTIVE",
-			AllowReceiving: mpointers.Bool(true),
-			AllowSending:   mpointers.Bool(true),
+		status = mmodel.Status{
+			Code: "ACTIVE",
 		}
 	} else {
 		status = cpi.Status
-		if status.AllowReceiving == nil {
-			status.AllowReceiving = mpointers.Bool(true)
-		}
-
-		if status.AllowSending == nil {
-			status.AllowSending = mpointers.Bool(true)
-		}
 	}
 
 	status.Description = cpi.Status.Description
 
-	portfolio := &p.Portfolio{
+	portfolio := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
@@ -50,13 +44,19 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
+		common.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
+
 		logger.Errorf("Error creating portfolio: %v", err)
+
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), port.ID, cpi.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
+		common.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
+
 		logger.Errorf("Error creating portfolio metadata: %v", err)
+
 		return nil, err
 	}
 

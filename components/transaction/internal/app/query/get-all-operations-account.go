@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
@@ -14,11 +14,18 @@ import (
 )
 
 func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter commonHTTP.QueryHeader) ([]*o.Operation, error) {
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_operations_by_account")
+	defer span.End()
+
 	logger.Infof("Retrieving operations by account")
 
 	op, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.Limit, filter.Page)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get operations on repo", err)
+
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {

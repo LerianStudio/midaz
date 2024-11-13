@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
@@ -27,7 +27,7 @@ func Test_newCmdLedgerDescribe(t *testing.T) {
 			Err: &bytes.Buffer{},
 		}},
 		repoLedger:     mockRepo,
-		organizationID: "123",
+		OrganizationID: "123",
 		Out:            "",
 		JSON:           false,
 	}
@@ -35,30 +35,30 @@ func Test_newCmdLedgerDescribe(t *testing.T) {
 	ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 
+	metadata := map[string]any{
+		"chave1": "valor1",
+		"chave2": 2,
+		"chave3": true,
+	}
+
 	cmd := newCmdLedgerDescribe(&ledFactory)
 	cmd.SetArgs([]string{
 		"--ledger-id", ledgerID,
 		"--organization-id", organizationID,
 	})
 
-	item := model.LedgerItems{
+	item := mmodel.Ledger{
 		ID:             ledgerID,
 		Name:           "Romaguera and Sons",
 		OrganizationID: organizationID,
-		Status: &model.LedgerStatus{
-			Code:        ptr.StringPtr("ACTIVE"),
+		Status: mmodel.Status{
+			Code:        "ACTIVE",
 			Description: ptr.StringPtr("Teste Ledger"),
 		},
 		CreatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
 		UpdatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
 		DeletedAt: nil,
-		Metadata: &model.LedgerMetadata{
-			Bitcoin: ptr.StringPtr("1iR2KqpxRFjLsPUpWmpADMC7piRNsMAAjq"),
-			Boolean: ptr.BoolPtr(false),
-			Chave:   ptr.StringPtr("metadata_chave"),
-			Double:  ptr.Float64Ptr(10.5),
-			Int:     ptr.IntPtr(1),
-		},
+		Metadata:  metadata,
 	}
 
 	mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any()).Return(&item, nil)

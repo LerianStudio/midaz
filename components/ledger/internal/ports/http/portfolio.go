@@ -1,12 +1,13 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,19 +23,32 @@ type PortfolioHandler struct {
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
 	logger.Infof("Initiating create of Portfolio with ledger ID: %s", ledgerID.String())
 
-	payload := i.(*p.CreatePortfolioInput)
+	payload := i.(*mmodel.CreatePortfolioInput)
 
 	logger.Infof("Request to create a Portfolio with details: %#v", payload)
 
+	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return commonHTTP.WithError(c, err)
+	}
+
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create Portfolio on command", err)
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -46,7 +60,12 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 // GetAllPortfolios is a method that retrieves all Portfolios.
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(ctx)
+
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_portfolios")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -64,7 +83,10 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Portfolios on query", err)
+
 			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
+
 			return commonHTTP.WithError(c, err)
 		}
 
@@ -81,7 +103,10 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Portfolios on query", err)
+
 		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -96,17 +121,24 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_portfolio_by_id")
+	defer span.End()
+
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
-
-	logger := mlog.NewLoggerFromContext(ctx)
 
 	logger.Infof("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Portfolio on query", err)
+
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -118,7 +150,12 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 // UpdatePortfolio is a method that updates Portfolio information.
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := mlog.NewLoggerFromContext(ctx)
+
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -126,18 +163,31 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 	logger.Infof("Initiating update of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	payload := i.(*p.UpdatePortfolioInput)
+	payload := i.(*mmodel.UpdatePortfolioInput)
 	logger.Infof("Request to update an Portfolio with details: %#v", payload)
 
-	_, err := handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
+	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return commonHTTP.WithError(c, err)
+	}
+
+	_, err = handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update Portfolio on command", err)
+
 		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Portfolio on query", err)
+
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -150,7 +200,11 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := mlog.NewLoggerFromContext(ctx)
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.delete_portfolio_by_id")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -159,7 +213,10 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	if err := handler.Command.DeletePortfolioByID(ctx, organizationID, ledgerID, id); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to remove Portfolio on command", err)
+
 		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 

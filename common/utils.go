@@ -2,10 +2,13 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/google/uuid"
+	"os/exec"
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"unicode"
 
 	cn "github.com/LerianStudio/midaz/common/constant"
@@ -173,4 +176,41 @@ func MergeMaps(source, target map[string]any) map[string]any {
 	}
 
 	return target
+}
+
+// GetCPUUsage get the current CPU usage
+func GetCPUUsage() int64 {
+	out, err := exec.Command("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'").Output()
+	if err != nil {
+		fmt.Println("Error executing command:", err)
+		return 0
+	}
+
+	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
+
+	usage, err := strconv.ParseFloat(usageStr, 64)
+	if err != nil {
+		fmt.Println("Error parsing float:", err)
+
+		return 0
+	}
+
+	return int64(usage)
+}
+
+// GetMemUsage get the current memory usage
+func GetMemUsage() int64 {
+	out, err := exec.Command("sh", "-c", "free | grep Mem | awk '{print $3/$2 * 100.0}'").Output()
+	if err != nil {
+		return 0
+	}
+
+	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
+
+	usage, err := strconv.ParseFloat(usageStr, 64)
+	if err != nil {
+		return 0
+	}
+
+	return int64(usage)
 }

@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -159,4 +160,11 @@ func RemoveChars(str string, chars map[string]bool) string {
 	}
 
 	return s
+}
+
+// ReplaceUUIDWithPlaceholder replaces UUIDs with a placeholder in a given path string.
+func ReplaceUUIDWithPlaceholder(path string) string {
+	re := regexp.MustCompile(`[0-9a-fA-F-]{36}`)
+
+	return re.ReplaceAllString(path, ":id")
 }

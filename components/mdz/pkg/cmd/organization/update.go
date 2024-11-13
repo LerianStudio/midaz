@@ -1,12 +1,12 @@
 package organization
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
-	"github.com/LerianStudio/midaz/components/mdz/internal/model"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -16,9 +16,9 @@ import (
 )
 
 type factoryOrganizationUpdate struct {
-	factory         *factory.Factory
-	repoOrganiztion repository.Organization
-	tuiInput        func(message string) (string, error)
+	factory          *factory.Factory
+	repoOrganization repository.Organization
+	tuiInput         func(message string) (string, error)
 	flagsUpdate
 }
 
@@ -36,16 +36,12 @@ type flagsUpdate struct {
 	City                 string
 	State                string
 	Country              string
-	Chave                string
-	Bitcoin              string
-	Boolean              string
-	Double               string
-	Int                  string
+	Metadata             string
 	JSONFile             string
 }
 
 func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
-	org := model.OrganizationUpdate{}
+	org := mmodel.UpdateOrganizationInput{}
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
@@ -70,7 +66,7 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoOrganiztion.Update(f.OrganizationID, org)
+	resp, err := f.repoOrganization.Update(f.OrganizationID, org)
 	if err != nil {
 		return err
 	}
@@ -81,7 +77,7 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *model.OrganizationUpdate) error {
+func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrganizationInput) error {
 	var err error
 	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 
@@ -95,103 +91,35 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *model.Organizati
 		org.ParentOrganizationID = &f.ParentOrganizationID
 	}
 
-	org.DoingBusinessAs, err = utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
+	doingBusinessAsPtr, err := utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
 	if err != nil {
 		return err
 	}
 
-	if len(f.LegalDocument) < 1 {
-		org.LegalDocument = nil
-	} else {
-		org.LegalDocument = &f.LegalDocument
-	}
+	org.DoingBusinessAs = &doingBusinessAsPtr
 
-	var status *model.StatusUpdate
+	org.Status.Code = f.Code
+	org.Status.Description = utils.AssignOptionalStringPtr(f.Description)
 
-	if len(f.Code) > 0 || len(f.Description) > 0 {
-		tempStatus := model.StatusUpdate{}
-
-		if len(f.Code) > 0 {
-			tempStatus.Code = &f.Code
-		}
-
-		if len(f.Description) > 0 {
-			tempStatus.Description = &f.Description
-		}
-
-		status = &tempStatus
-	}
-
-	org.Status = status
-
-	org.Address = model.Address{}
-
-	org.Address.Line1 = utils.AssignOptionalStringPtr(f.Line1)
+	org.Address.Line1 = f.Line1
 	org.Address.Line2 = utils.AssignOptionalStringPtr(f.Line2)
-	org.Address.ZipCode = utils.AssignOptionalStringPtr(f.ZipCode)
-	org.Address.City = utils.AssignOptionalStringPtr(f.City)
-	org.Address.State = utils.AssignOptionalStringPtr(f.State)
+	org.Address.ZipCode = f.ZipCode
+	org.Address.City = f.City
+	org.Address.State = f.State
 
 	org.Address.Country, err = utils.AssignStringField(f.Country, "country", f.tuiInput)
 	if err != nil {
 		return err
 	}
 
-	metadata, err := buildMetadata(f)
-	if err != nil {
-		return err
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
+		return errors.New("Error parsing metadata: " + err.Error())
 	}
 
 	org.Metadata = metadata
 
 	return nil
-}
-
-func buildMetadata(f *factoryOrganizationUpdate) (*model.Metadata, error) {
-	if len(f.Chave) == 0 && len(f.Bitcoin) == 0 && len(f.Boolean) == 0 && len(f.Double) == 0 && len(f.Int) == 0 {
-		return nil, nil
-	}
-
-	tempMetadata := model.Metadata{}
-
-	if len(f.Chave) > 0 {
-		tempMetadata.Chave = &f.Chave
-	}
-
-	if len(f.Bitcoin) > 0 {
-		tempMetadata.Bitcoin = &f.Bitcoin
-	}
-
-	if len(f.Boolean) > 0 {
-		var err error
-
-		tempMetadata.Boolean, err = utils.ParseAndAssign(f.Boolean, strconv.ParseBool)
-		if err != nil {
-			return nil, fmt.Errorf("invalid boolean field: %v", err)
-		}
-	}
-
-	if len(f.Double) > 0 {
-		var err error
-		tempMetadata.Double, err = utils.ParseAndAssign(f.Double, func(s string) (float64, error) {
-			return strconv.ParseFloat(s, 64)
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("invalid double field: %v", err)
-		}
-	}
-
-	if len(f.Int) > 0 {
-		var err error
-
-		tempMetadata.Int, err = utils.ParseAndAssign(f.Int, strconv.Atoi)
-		if err != nil {
-			return nil, fmt.Errorf("invalid int field: %v", err)
-		}
-	}
-
-	return &tempMetadata, nil
 }
 
 func (f *factoryOrganizationUpdate) setFlags(cmd *cobra.Command) {
@@ -224,15 +152,8 @@ func (f *factoryOrganizationUpdate) setFlags(cmd *cobra.Command) {
 		"Country of the organization (ISO 3166-1 alpha-2 format).")
 
 	// Flags for Metadata
-	cmd.Flags().StringVar(&f.Chave, "chave", "",
-		"Custom metadata key for the organization.")
-	cmd.Flags().StringVar(&f.Bitcoin, "bitcoin", "",
-		"Bitcoin address or value associated with the organization.")
-	cmd.Flags().StringVar(&f.Boolean, "boolean", "",
-		"Boolean metadata for custom use.")
-	cmd.Flags().StringVar(&f.Double, "double", "",
-		"Floating-point number metadata for custom use.")
-	cmd.Flags().StringVar(&f.Int, "int", "", "Integer metadata for custom use.")
+	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
+		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
 
 	// Flags command Update
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "Path to a JSON file containing "+
@@ -242,9 +163,9 @@ func (f *factoryOrganizationUpdate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacUpdate(f *factory.Factory) *factoryOrganizationUpdate {
 	return &factoryOrganizationUpdate{
-		factory:         f,
-		repoOrganiztion: rest.NewOrganization(f),
-		tuiInput:        tui.Input,
+		factory:          f,
+		repoOrganization: rest.NewOrganization(f),
+		tuiInput:         tui.Input,
 	}
 }
 
@@ -262,7 +183,7 @@ func newCmdOrganizationUpdate(f *factoryOrganizationUpdate) *cobra.Command {
 			"$ mdz organization update --json-file payload.json",
 			"$ cat payload.json | mdz organization Update --organization-id '1234' --json-file -",
 			"$ echo '{...}' | mdz organization Update --organization-id '1234' --json-file -",
-			"$ mdz organization update --organization-id '1234' --legal-name 'Gislason LLCT' --doing-business-as 'The ledger.io' --legal-document '48784548000104' --code 'ACTIVE' --description 'Test Ledger' --line1 'Av Santso' --line2 'VJ 222' --zip-code '04696040' --city 'West' --state 'VJ' --country 'MG' --bitcoin '1YLHctiipHZupwrT5sGwuYbks5rn64bm' --boolean true --chave 'metadata_chave' --double '10.5' --int 1",
+			"$ mdz organization update --organization-id '1234' --legal-name 'Gislason LLCT' --doing-business-as 'The ledger.io' --legal-document '48784548000104' --code 'ACTIVE' --description 'Test Ledger' --line1 'Av Santso' --line2 'VJ 222' --zip-code '04696040' --city 'West' --state 'VJ' --country 'MG' --metadata '{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}'",
 		),
 		RunE: f.runE,
 	}

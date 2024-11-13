@@ -1,7 +1,8 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/query"
@@ -18,7 +19,13 @@ type AssetRateHandler struct {
 
 // CreateAssetRate creates a new asset rate.
 func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	ctx := c.UserContext()
+
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.create_asset_rate")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	logger.Infof("Initiating create of AssetRate with organization ID: %s", organizationID.String())
@@ -29,9 +36,19 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 	payload := p.(*ar.CreateAssetRateInput)
 	logger.Infof("Request to create an AssetRate with details: %#v", payload)
 
-	assetRate, err := handler.Command.CreateAssetRate(c.UserContext(), organizationID, ledgerID, payload)
+	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+
+		return commonHTTP.WithError(c, err)
+	}
+
+	assetRate, err := handler.Command.CreateAssetRate(ctx, organizationID, ledgerID, payload)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create AssetRate on command", err)
+
 		logger.Infof("Error to created Asset: %s", err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 
@@ -42,7 +59,13 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 
 // GetAssetRate retrieves an asset rate.
 func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
-	logger := mlog.NewLoggerFromContext(c.UserContext())
+	ctx := c.UserContext()
+
+	logger := common.NewLoggerFromContext(ctx)
+	tracer := common.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_asset_rate")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	logger.Infof("Initiating get of AssetRate with organization ID: %s", organizationID.String())
@@ -53,9 +76,12 @@ func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
 	assetRateID := c.Locals("asset_rate_id").(uuid.UUID)
 	logger.Infof("Initiating get of AssetRate with asset rate ID: %s", assetRateID.String())
 
-	assetRate, err := handler.Query.GetAssetRateByID(c.UserContext(), organizationID, ledgerID, assetRateID)
+	assetRate, err := handler.Query.GetAssetRateByID(ctx, organizationID, ledgerID, assetRateID)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
+
 		logger.Infof("Error to get AssetRate: %s", err.Error())
+
 		return commonHTTP.WithError(c, err)
 	}
 

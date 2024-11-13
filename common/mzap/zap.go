@@ -1,109 +1,102 @@
 package mzap
 
 import (
-	"context"
 	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.uber.org/zap"
 )
 
 // ZapWithTraceLogger is a wrapper of otelzap.SugaredLogger.
+//
+// It implements Logger interface.
+// The shutdown function is used to close the logger provider.
 type ZapWithTraceLogger struct {
-	Logger *otelzap.SugaredLogger
+	Logger                 *zap.SugaredLogger
+	defaultMessageTemplate string
+}
+
+// logWithHydration is a helper method to log messages with hydrated arguments using the default message template.
+func (l *ZapWithTraceLogger) logWithHydration(logFunc func(...any), args ...any) {
+	logFunc(hydrateArgs(l.defaultMessageTemplate, args)...)
+}
+
+// logfWithHydration is a helper method to log formatted messages with hydrated arguments using the default message template.
+func (l *ZapWithTraceLogger) logfWithHydration(logFunc func(string, ...any), format string, args ...any) {
+	logFunc(l.defaultMessageTemplate+format, args...)
 }
 
 // Info implements Info Logger interface function.
-func (l *ZapWithTraceLogger) Info(args ...any) { l.Logger.Info(args...) }
-
-// Infof implements Infof Logger interface function.
-func (l *ZapWithTraceLogger) Infof(format string, args ...any) { l.Logger.Infof(format, args...) }
-
-// Infoln implements Infoln Logger interface function.
-func (l *ZapWithTraceLogger) Infoln(args ...any) { l.Logger.Infoln(args...) }
-
-// InfofContext implements InfofContext function from otelzap which uses context.Context to log with span information if available.
-func (l *ZapWithTraceLogger) InfofContext(ctx context.Context, format string, args ...any) {
-	l.Logger.InfofContext(ctx, format, args...)
+func (l *ZapWithTraceLogger) Info(args ...any) {
+	l.logWithHydration(l.Logger.Info, args...)
 }
 
-// InfowContext implements InfowContext function from otelzap which uses context.Context to log with span information if available and the key-value pairs as structured context.
-func (l *ZapWithTraceLogger) InfowContext(ctx context.Context, format string, keysAndValues ...any) {
-	l.Logger.InfowContext(ctx, format, keysAndValues)
+// Infof implements Infof Logger interface function.
+func (l *ZapWithTraceLogger) Infof(format string, args ...any) {
+	l.logfWithHydration(l.Logger.Infof, format, args...)
+}
+
+// Infoln implements Infoln Logger interface function.
+func (l *ZapWithTraceLogger) Infoln(args ...any) {
+	l.logWithHydration(l.Logger.Infoln, args...)
 }
 
 // Error implements Error Logger interface function.
-func (l *ZapWithTraceLogger) Error(args ...any) { l.Logger.Error(args...) }
-
-// Errorf implements Errorf Logger interface function.
-func (l *ZapWithTraceLogger) Errorf(format string, args ...any) { l.Logger.Errorf(format, args...) }
-
-// Errorln implements Errorln Logger interface function
-func (l *ZapWithTraceLogger) Errorln(args ...any) { l.Logger.Errorln(args...) }
-
-// ErrorfContext implements ErrorfContext function from otelzap which uses context.Context to log with span information if available.
-func (l *ZapWithTraceLogger) ErrorfContext(ctx context.Context, format string, args ...any) {
-	l.Logger.ErrorfContext(ctx, format, args...)
+func (l *ZapWithTraceLogger) Error(args ...any) {
+	l.logWithHydration(l.Logger.Error, args...)
 }
 
-// ErrorwContext implements ErrorwContext function from otelzap which uses context.Context to log with span information if available and the key-value pairs as structured context.
-func (l *ZapWithTraceLogger) ErrorwContext(ctx context.Context, format string, keysAndValues ...any) {
-	l.Logger.ErrorwContext(ctx, format, keysAndValues)
+// Errorf implements Errorf Logger interface function.
+func (l *ZapWithTraceLogger) Errorf(format string, args ...any) {
+	l.logfWithHydration(l.Logger.Errorf, format, args...)
+}
+
+// Errorln implements Errorln Logger interface function.
+func (l *ZapWithTraceLogger) Errorln(args ...any) {
+	l.logWithHydration(l.Logger.Errorln, args...)
 }
 
 // Warn implements Warn Logger interface function.
-func (l *ZapWithTraceLogger) Warn(args ...any) { l.Logger.Warn(args...) }
-
-// Warnf implements Warnf Logger interface function.
-func (l *ZapWithTraceLogger) Warnf(format string, args ...any) { l.Logger.Warnf(format, args...) }
-
-// Warnln implements Warnln Logger interface function
-func (l *ZapWithTraceLogger) Warnln(args ...any) { l.Logger.Warnln(args...) }
-
-// WarnfContext implements WarnfContext function from otelzap which uses context.Context to log with span information if available.
-func (l *ZapWithTraceLogger) WarnfContext(ctx context.Context, format string, args ...any) {
-	l.Logger.WarnfContext(ctx, format, args...)
+func (l *ZapWithTraceLogger) Warn(args ...any) {
+	l.logWithHydration(l.Logger.Warn, args...)
 }
 
-// WarnwContext implements WarnwContext function from otelzap which uses context.Context to log with span information if available and the key-value pairs as structured context.
-func (l *ZapWithTraceLogger) WarnwContext(ctx context.Context, format string, keysAndValues ...any) {
-	l.Logger.WarnwContext(ctx, format, keysAndValues)
+// Warnf implements Warnf Logger interface function.
+func (l *ZapWithTraceLogger) Warnf(format string, args ...any) {
+	l.logfWithHydration(l.Logger.Warnf, format, args...)
+}
+
+// Warnln implements Warnln Logger interface function.
+func (l *ZapWithTraceLogger) Warnln(args ...any) {
+	l.logWithHydration(l.Logger.Warnln, args...)
 }
 
 // Debug implements Debug Logger interface function.
-func (l *ZapWithTraceLogger) Debug(args ...any) { l.Logger.Debug(args...) }
-
-// Debugf implements Debugf Logger interface function.
-func (l *ZapWithTraceLogger) Debugf(format string, args ...any) { l.Logger.Debugf(format, args...) }
-
-// Debugln implements Debugln Logger interface function
-func (l *ZapWithTraceLogger) Debugln(args ...any) { l.Logger.Debugln(args...) }
-
-// DebugfContext implements DebugfContext function from otelzap which uses context.Context to log with span information if available.
-func (l *ZapWithTraceLogger) DebugfContext(ctx context.Context, format string, args ...any) {
-	l.Logger.DebugfContext(ctx, format, args...)
+func (l *ZapWithTraceLogger) Debug(args ...any) {
+	l.logWithHydration(l.Logger.Debug, args...)
 }
 
-// DebugwContext implements DebugwContext function from otelzap which uses context.Context to log with span information if available and the key-value pairs as structured context.
-func (l *ZapWithTraceLogger) DebugwContext(ctx context.Context, format string, keysAndValues ...any) {
-	l.Logger.DebugwContext(ctx, format, keysAndValues)
+// Debugf implements Debugf Logger interface function.
+func (l *ZapWithTraceLogger) Debugf(format string, args ...any) {
+	l.logfWithHydration(l.Logger.Debugf, format, args...)
+}
+
+// Debugln implements Debugln Logger interface function.
+func (l *ZapWithTraceLogger) Debugln(args ...any) {
+	l.logWithHydration(l.Logger.Debugln, args...)
 }
 
 // Fatal implements Fatal Logger interface function.
-func (l *ZapWithTraceLogger) Fatal(args ...any) { l.Logger.Fatal(args...) }
-
-// Fatalf implements Fatalf Logger interface function.
-func (l *ZapWithTraceLogger) Fatalf(format string, args ...any) { l.Logger.Fatalf(format, args...) }
-
-// Fatalln implements Fatalln Logger interface function
-func (l *ZapWithTraceLogger) Fatalln(args ...any) { l.Logger.Fatalln(args...) }
-
-// FatalfContext implements FatalfContext function from otelzap which uses context.Context to log with span information if available.
-func (l *ZapWithTraceLogger) FatalfContext(ctx context.Context, format string, args ...any) {
-	l.Logger.FatalfContext(ctx, format, args...)
+func (l *ZapWithTraceLogger) Fatal(args ...any) {
+	l.logWithHydration(l.Logger.Fatal, args...)
 }
 
-// FatalwContext implements FatalwContext function from otelzap which uses context.Context to log with span information if available and the key-value pairs as structured context.
-func (l *ZapWithTraceLogger) FatalwContext(ctx context.Context, format string, keysAndValues ...any) {
-	l.Logger.FatalwContext(ctx, format, keysAndValues)
+// Fatalf implements Fatalf Logger interface function.
+func (l *ZapWithTraceLogger) Fatalf(format string, args ...any) {
+	l.logfWithHydration(l.Logger.Fatalf, format, args...)
+}
+
+// Fatalln implements Fatalln Logger interface function.
+func (l *ZapWithTraceLogger) Fatalln(args ...any) {
+	l.logWithHydration(l.Logger.Fatalln, args...)
 }
 
 // WithFields adds structured context to the logger. It returns a new logger and leaves the original unchanged.
@@ -119,7 +112,7 @@ func (l *ZapWithTraceLogger) WithFields(fields ...any) mlog.Logger {
 
 // Sync implements Sync Logger interface function.
 //
-// Sync calls the underlying Core's Sync method, flushing any buffered log entries. Applications should take care to call Sync before exiting.
+// Sync calls the underlying Core's Sync method, flushing any buffered log entries as well as closing the logger provider used by open telemetry. Applications should take care to call Sync before exiting.
 //
 //nolint:ireturn
 func (l *ZapWithTraceLogger) Sync() error {
@@ -129,4 +122,27 @@ func (l *ZapWithTraceLogger) Sync() error {
 	}
 
 	return nil
+}
+
+// WithDefaultMessageTemplate sets the default message template for the logger.
+//
+//nolint:ireturn
+func (l *ZapWithTraceLogger) WithDefaultMessageTemplate(message string) mlog.Logger {
+	l.defaultMessageTemplate = message
+
+	return &ZapWithTraceLogger{
+		Logger:                 l.Logger,
+		defaultMessageTemplate: message,
+	}
+}
+
+func hydrateArgs(defaultTemplateMsg string, args []any) []any {
+	argsHydration := make([]any, len(args)+1)
+	argsHydration[0] = defaultTemplateMsg
+
+	for i, arg := range args {
+		argsHydration[i+1] = arg
+	}
+
+	return argsHydration
 }
