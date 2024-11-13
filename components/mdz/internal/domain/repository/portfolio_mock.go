@@ -69,3 +69,18 @@ func (mr *MockPortfolioMockRecorder) Get(organizationID, ledgerID, limit, page a
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockPortfolio)(nil).Get), organizationID, ledgerID, limit, page)
 }
+
+// GetByID mocks base method.
+func (m *MockPortfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmodel.Portfolio, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByID", organizationID, ledgerID, portfolioID)
+	ret0, _ := ret[0].(*mmodel.Portfolio)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByID indicates an expected call of GetByID.
+func (mr *MockPortfolioMockRecorder) GetByID(organizationID, ledgerID, portfolioID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockPortfolio)(nil).GetByID), organizationID, ledgerID, portfolioID)
+}
