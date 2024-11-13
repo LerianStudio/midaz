@@ -28,6 +28,7 @@ type Ledger struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
+// Ledgers struct to return get all.
 type Ledgers struct {
 	Items []Ledger `json:"items"`
 	Page  int      `json:"page"`

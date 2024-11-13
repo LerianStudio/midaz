@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 	"time"
 
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -18,7 +18,7 @@ func TestUpdateLedgerByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
 
-	ledger := &l.Ledger{
+	ledger := &mmodel.Ledger{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		UpdatedAt:      time.Now(),
@@ -46,7 +46,7 @@ func TestUpdateLedgerByIDError(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
 
-	ledger := &l.Ledger{
+	ledger := &mmodel.Ledger{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		UpdatedAt:      time.Now(),

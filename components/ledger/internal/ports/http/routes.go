@@ -6,7 +6,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
@@ -36,8 +35,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Delete("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), lib.ParseUUIDPathParameters, oh.DeleteOrganizationByID)
 
 	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lib.WithBody(new(l.CreateLedgerInput), lh.CreateLedger))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lib.WithBody(new(l.UpdateLedgerInput), lh.UpdateLedger))
+	f.Post("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))
 	f.Get("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lh.GetAllLedgers)
 	f.Get("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lh.GetLedgerByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lh.DeleteLedgerByID)

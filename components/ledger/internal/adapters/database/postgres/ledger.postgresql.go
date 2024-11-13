@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
@@ -45,7 +46,7 @@ func NewLedgerPostgreSQLRepository(pc *mpostgres.PostgresConnection) *LedgerPost
 }
 
 // Create a new Ledger entity into Postgresql and returns it.
-func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledger) (*l.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_ledger")
@@ -85,7 +86,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -101,7 +102,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create ledger. Rows affected is 0", err)
 
@@ -112,7 +113,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *l.Ledge
 }
 
 // Find retrieves a Ledger entity from the database using the provided ID.
-func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, id uuid.UUID) (*l.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_ledger")
@@ -138,7 +139,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -148,7 +149,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 }
 
 // FindAll retrieves Ledgers entities from the database.
-func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*l.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*mmodel.Ledger, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
@@ -161,7 +162,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	var ledgers []*l.Ledger
+	var ledgers []*mmodel.Ledger
 
 	findAll := sqrl.Select("*").
 		From(r.tableName).
@@ -242,7 +243,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(cn.ErrLedgerNameConflict, reflect.TypeOf(l.Ledger{}).Name(), name)
+		err := common.ValidateBusinessError(cn.ErrLedgerNameConflict, reflect.TypeOf(mmodel.Ledger{}).Name(), name)
 
 		mopentelemetry.HandleSpanError(&span, "Ledger name conflict", err)
 
@@ -253,7 +254,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 }
 
 // ListByIDs retrieves Ledgers entities from the database using the provided IDs.
-func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*l.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_ledgers_by_ids")
@@ -266,7 +267,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 		return nil, err
 	}
 
-	var ledgers []*l.Ledger
+	var ledgers []*mmodel.Ledger
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_ledgers_by_ids.query")
 
@@ -302,7 +303,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 }
 
 // Update a Ledger entity into Postgresql and returns the Ledger updated.
-func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *l.Ledger) (*l.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_ledger")
@@ -366,7 +367,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(l.Ledger{}).Name())
+			return nil, app.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -382,7 +383,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update ledger. Rows affected is 0", err)
 
@@ -425,7 +426,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(l.Ledger{}).Name())
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete ledger. Rows affected is 0", err)
 

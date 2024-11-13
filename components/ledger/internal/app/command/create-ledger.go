@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/google/uuid"
 	"reflect"
@@ -12,7 +13,7 @@ import (
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
-func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *l.CreateLedgerInput) (*l.Ledger, error) {
+func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -41,7 +42,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
-	ledger := &l.Ledger{
+	ledger := &mmodel.Ledger{
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
@@ -58,7 +59,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(l.Ledger{}).Name(), led.ID, cli.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), led.ID, cli.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
 

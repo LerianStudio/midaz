@@ -1,6 +1,7 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"os"
 	"reflect"
@@ -14,7 +15,6 @@ import (
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -38,7 +38,7 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
-	payload := i.(*l.CreateLedgerInput)
+	payload := i.(*mmodel.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -162,7 +162,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
-	payload := p.(*l.UpdateLedgerInput)
+	payload := p.(*mmodel.UpdateLedgerInput)
 	logger.Infof("Request to update an Ledger with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -215,7 +215,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Ledger with ID: %s in ", id.String())
 
-		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(l.Ledger{}).Name())
+		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		return commonHTTP.WithError(c, err)
 	}
