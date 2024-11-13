@@ -53,6 +53,7 @@ func (a Address) IsEmpty() bool {
 	return a.Line1 == "" && a.Line2 == nil && a.ZipCode == "" && a.City == "" && a.State == "" && a.Country == ""
 }
 
+// Organizations struct to return get all.
 type Organizations struct {
 	Items []Organization `json:"items"`
 	Page  int            `json:"page"`
