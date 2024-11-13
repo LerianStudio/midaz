@@ -8,7 +8,6 @@ import (
 
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	gmtdt "google.golang.org/grpc/metadata"
 )
 
 // AccountGRPCRepository is a gRPC implementation of the account.proto
@@ -52,9 +51,6 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 		Ids:            ids,
 	}
 
-	md := gmtdt.Pairs("authorization", "Bearer "+token)
-	ctx = gmtdt.NewOutgoingContext(ctx, md)
-
 	ctx, spanClientReq := tracer.Start(ctx, "grpc.get_accounts_by_ids.client_request")
 
 	err = mopentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "accounts_id_grpc_args", accountsID)
@@ -64,7 +60,7 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 		return nil, err
 	}
 
-	ctx = mopentelemetry.InjectContext(ctx)
+	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
 	accountsResponse, err := client.GetAccountsByIds(ctx, accountsID)
 	if err != nil {
@@ -100,9 +96,6 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 		Aliases:        aliases,
 	}
 
-	md := gmtdt.Pairs("authorization", "Bearer "+token)
-	ctx = gmtdt.NewOutgoingContext(ctx, md)
-
 	ctx, spanClientReq := tracer.Start(ctx, "grpc.get_accounts_by_alias.client_request")
 
 	err = mopentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "accounts_id_grpc_metadata", accountsAlias)
@@ -112,7 +105,7 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 		return nil, err
 	}
 
-	ctx = mopentelemetry.InjectContext(ctx)
+	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
 	accountsResponse, err := client.GetAccountsByAliases(ctx, accountsAlias)
 	if err != nil {
@@ -148,9 +141,6 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 		Accounts:       accounts,
 	}
 
-	md := gmtdt.Pairs("authorization", "Bearer "+token)
-	ctx = gmtdt.NewOutgoingContext(ctx, md)
-
 	ctx, spanClientReq := tracer.Start(ctx, "grpc.update_accounts.client_request")
 
 	err = mopentelemetry.SetSpanAttributesFromStruct(&spanClientReq, "accounts_request_grpc_metadata", accountsRequest)
@@ -160,7 +150,7 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 		return nil, err
 	}
 
-	ctx = mopentelemetry.InjectContext(ctx)
+	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
 	accountsResponse, err := client.UpdateAccounts(ctx, accountsRequest)
 	if err != nil {

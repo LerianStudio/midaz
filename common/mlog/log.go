@@ -30,6 +30,8 @@ type Logger interface {
 
 	WithFields(fields ...any) Logger
 
+	WithDefaultMessageTemplate(message string) Logger
+
 	Sync() error
 }
 
@@ -78,8 +80,9 @@ func ParseLevel(lvl string) (LogLevel, error) {
 
 // GoLogger is the Go built-in (log) implementation of Logger interface.
 type GoLogger struct {
-	fields []any
-	Level  LogLevel
+	fields                 []any
+	Level                  LogLevel
+	defaultMessageTemplate string
 }
 
 // IsLevelEnabled checks if the given level is enabled.
@@ -199,6 +202,14 @@ func (l *GoLogger) WithFields(fields ...any) Logger {
 	return &GoLogger{
 		Level:  l.Level,
 		fields: fields,
+	}
+}
+
+func (l *GoLogger) WithDefaultMessageTemplate(message string) Logger {
+	l.defaultMessageTemplate = message
+
+	return &GoLogger{
+		defaultMessageTemplate: message,
 	}
 }
 
