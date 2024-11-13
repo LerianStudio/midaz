@@ -3,6 +3,7 @@ package mopentelemetry
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -234,7 +235,7 @@ func InjectContext(ctx context.Context) context.Context {
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(md))
 
 	if traceparentValue, exists := md["Traceparent"]; exists {
-		md["traceparent"] = traceparentValue
+		md[constant.MDTraceparent] = traceparentValue
 		delete(md, "Traceparent")
 	}
 

@@ -1,8 +1,13 @@
 package mgrpc
 
 import (
+	"context"
 	"fmt"
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	gmtdt "google.golang.org/grpc/metadata"
 	"log"
 
 	"go.uber.org/zap"
@@ -42,4 +47,17 @@ func (c *GRPCConnection) GetNewClient() (*grpc.ClientConn, error) {
 	}
 
 	return c.Conn, nil
+}
+
+func (c *GRPCConnection) ContextMetadataInjection(ctx context.Context, token string) context.Context {
+	md := gmtdt.Join(
+		gmtdt.Pairs(constant.MDMidazID, common.NewMidazIDFromContext(ctx)),
+		gmtdt.Pairs(constant.MDAuthorization, "Bearer "+token),
+	)
+
+	ctx = gmtdt.NewOutgoingContext(ctx, md)
+
+	ctx = mopentelemetry.InjectContext(ctx)
+
+	return ctx
 }

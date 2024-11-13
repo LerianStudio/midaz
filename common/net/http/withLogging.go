@@ -3,6 +3,9 @@ package http
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/constant"
+	gid "github.com/google/uuid"
+	"google.golang.org/grpc/metadata"
 	"net/url"
 	"strconv"
 	"strings"
@@ -26,6 +29,7 @@ type RequestInfo struct {
 	Duration      time.Duration
 	UserAgent     string
 	CorrelationID string
+	MidazID       string
 	Protocol      string
 	Size          int
 	Body          string
@@ -63,6 +67,7 @@ func NewRequestInfo(c *fiber.Ctx) *RequestInfo {
 	}
 
 	return &RequestInfo{
+		MidazID:       c.Get(headerMidazID),
 		Method:        c.Method(),
 		URI:           c.OriginalURL(),
 		Username:      username,
@@ -83,9 +88,8 @@ func (r *RequestInfo) CLFString() string {
 		r.RemoteAddress,
 		"-",
 		r.Username,
-		`"` + r.Method,
-		r.URI,
-		`"` + r.Protocol,
+		r.Protocol,
+		`"` + r.Method + " " + r.URI + `"`,
 		strconv.Itoa(r.Status),
 		strconv.Itoa(r.Size),
 		r.Referer,
@@ -105,16 +109,6 @@ func (r *RequestInfo) debugRequestString() string {
 		r.UserAgent,
 		r.CorrelationID,
 		r.Body,
-	}, " ")
-}
-
-func (r *RequestInfo) debugResponseString(w *ResponseMetricsWrapper) string {
-	return strings.Join([]string{
-		r.CLFString(),
-		r.Referer,
-		r.UserAgent,
-		r.CorrelationID,
-		w.Body,
 	}, " ")
 }
 
@@ -162,12 +156,17 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 			return c.Next()
 		}
 
+		setRequestMidazID(c)
+
 		info := NewRequestInfo(c)
+
+		midazID := c.Get(headerMidazID)
 
 		mid := buildOpts(opts...)
 		logger := mid.Logger.WithFields(
+			headerMidazID, info.MidazID,
 			headerCorrelationID, info.CorrelationID,
-		)
+		).WithDefaultMessageTemplate(midazID + " | ")
 
 		rw := ResponseMetricsWrapper{
 			Context:    c,
@@ -183,9 +182,6 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 		c.SetUserContext(ctx)
 
 		info.FinishRequestInfo(&rw)
-
-		logger.Info(info.debugResponseString(&rw))
-		logger.Infoln(info)
 
 		if err := c.Next(); err != nil {
 			return err
@@ -203,8 +199,18 @@ func WithGrpcLogging(opts ...LogMiddlewareOption) grpc.UnaryServerInterceptor {
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			midazID := md.Get(constant.MDMidazID)
+			if midazID != nil && !common.IsNilOrEmpty(&midazID[0]) {
+				ctx = common.ContextWithMidazID(ctx, midazID[0])
+			} else {
+				ctx = common.ContextWithMidazID(ctx, gid.New().String())
+			}
+		}
+
 		mid := buildOpts(opts...)
-		logger := mid.Logger
+		logger := mid.Logger.WithDefaultMessageTemplate(common.NewMidazIDFromContext(ctx) + " | ")
 
 		ctx = common.ContextWithLogger(ctx, logger)
 
@@ -216,4 +222,18 @@ func WithGrpcLogging(opts ...LogMiddlewareOption) grpc.UnaryServerInterceptor {
 
 		return resp, err
 	}
+}
+
+func setRequestMidazID(c *fiber.Ctx) {
+	midazID := c.Get(headerMidazID)
+
+	if common.IsNilOrEmpty(&midazID) {
+		midazID = gid.New().String()
+		c.Set(headerMidazID, midazID)
+		c.Request().Header.Set(headerMidazID, midazID)
+		c.Response().Header.Set(headerMidazID, midazID)
+	}
+
+	ctx := common.ContextWithMidazID(c.UserContext(), midazID)
+	c.SetUserContext(ctx)
 }

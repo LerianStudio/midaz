@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"github.com/LerianStudio/midaz/common/mlog"
+	gid "github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -12,8 +13,9 @@ type customContextKey string
 var CustomContextKey = customContextKey("custom_context")
 
 type CustomContextKeyValue struct {
-	Tracer trace.Tracer
-	Logger mlog.Logger
+	MidazID string
+	Tracer  trace.Tracer
+	Logger  mlog.Logger
 }
 
 // NewLoggerFromContext extract the Logger from "logger" value inside context
@@ -62,4 +64,26 @@ func ContextWithTracer(ctx context.Context, tracer trace.Tracer) context.Context
 	values.Tracer = tracer
 
 	return context.WithValue(ctx, CustomContextKey, values)
+}
+
+// ContextWithMidazID returns a context within a MidazID in "midazID" value.
+func ContextWithMidazID(ctx context.Context, midazID string) context.Context {
+	values, _ := ctx.Value(CustomContextKey).(*CustomContextKeyValue)
+	if values == nil {
+		values = &CustomContextKeyValue{}
+	}
+
+	values.MidazID = midazID
+
+	return context.WithValue(ctx, CustomContextKey, values)
+}
+
+// NewMidazIDFromContext returns a MidazID from the context.
+func NewMidazIDFromContext(ctx context.Context) string {
+	if customContext, ok := ctx.Value(CustomContextKey).(*CustomContextKeyValue); ok &&
+		!IsNilOrEmpty(&customContext.MidazID) {
+		return customContext.MidazID
+	}
+
+	return gid.New().String()
 }
