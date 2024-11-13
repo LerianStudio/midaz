@@ -1,3 +1,10 @@
+## [1.27.0-beta.28](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.27...v1.27.0-beta.28) (2024-11-13)
+
+
+### Bug Fixes
+
+* remove line break from generate uuidv7 func :bug: ([7cf4009](https://github.com/LerianStudio/midaz/commit/7cf4009e9dbb984d3aa94e4c3132645f0c99ca0b))
+
 ## [1.27.0-beta.27](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.26...v1.27.0-beta.27) (2024-11-13)
 
 
