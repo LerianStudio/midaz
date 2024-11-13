@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS "transaction" (
-    id                                  UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    id                                  UUID PRIMARY KEY NOT NULL,
     parent_transaction_id               UUID,
     description                         TEXT NOT NULL,
     template                            TEXT NOT NULL,

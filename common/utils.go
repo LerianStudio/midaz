@@ -150,7 +150,8 @@ func IsUUID(s string) bool {
 
 // GenerateUUIDv7 generate a new uuid v7 using google/uuid package and return it. If an error occurs, it will return the error.
 func GenerateUUIDv7() uuid.UUID {
-	u := uuid.Must(uuid.NewV7())
+	u := uuid.Must(
+		uuid.NewV7())
 
 	return u
 }

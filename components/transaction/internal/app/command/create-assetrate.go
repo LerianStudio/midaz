@@ -35,7 +35,7 @@ func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID
 	}
 
 	assetRateDB := &ar.AssetRate{
-		ID:               uuid.New().String(),
+		ID:               common.GenerateUUIDv7().String(),
 		BaseAssetCode:    cari.BaseAssetCode,
 		CounterAssetCode: cari.CounterAssetCode,
 		Amount:           cari.Amount,
