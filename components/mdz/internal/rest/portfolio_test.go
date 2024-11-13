@@ -304,3 +304,36 @@ func Test_portfolio_Update(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
+
+func Test_portfolio_Delete(t *testing.T) {
+	portfolioID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
+	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
+	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
+		URIAPILedger, organizationID, ledgerID, portfolioID)
+
+	httpmock.RegisterResponder(http.MethodDelete, uri,
+		httpmock.NewStringResponder(http.StatusNoContent, ""))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	portfolio := NewPortfolio(factory)
+
+	err := portfolio.Delete(organizationID, ledgerID, portfolioID)
+
+	assert.NoError(t, err)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["DELETE "+uri])
+}
