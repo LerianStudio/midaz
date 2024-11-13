@@ -1,9 +1,8 @@
 package assetrate
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database
@@ -64,7 +63,7 @@ func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
 // FromEntity converts an entity AssetRate to AssetRatePostgreSQLModel
 func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) {
 	*a = AssetRatePostgreSQLModel{
-		ID:               uuid.New().String(),
+		ID:               common.GenerateUUIDv7().String(),
 		BaseAssetCode:    assetRate.BaseAssetCode,
 		CounterAssetCode: assetRate.CounterAssetCode,
 		Amount:           assetRate.Amount,

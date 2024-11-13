@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS operation (
-    id                                 UUID PRIMARY KEY NOT NULL DEFAULT (uuid_generate_v4()),
+    id                                 UUID PRIMARY KEY NOT NULL,
     transaction_id                     UUID NOT NULL,
     description                        TEXT NOT NULL,
     type                               TEXT NOT NULL,
