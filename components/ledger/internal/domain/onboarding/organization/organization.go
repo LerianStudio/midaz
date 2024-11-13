@@ -2,10 +2,10 @@ package organization
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common/mmodel"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 )
 
 // OrganizationPostgreSQLModel represents the entity Organization into SQL context in Database
