@@ -2,12 +2,11 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -21,9 +20,9 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
-	var status p.Status
+	var status mmodel.Status
 	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
-		status = p.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {

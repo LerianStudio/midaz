@@ -2,14 +2,13 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
-
-	l "github.com/LerianStudio/midaz/components/ledger/internal/domain/onboarding/ledger"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
@@ -22,9 +21,9 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	logger.Infof("Trying to create ledger: %v", cli)
 
-	var status l.Status
+	var status mmodel.Status
 	if cli.Status.IsEmpty() || common.IsNilOrEmpty(&cli.Status.Code) {
-		status = l.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {

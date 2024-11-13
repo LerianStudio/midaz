@@ -2,15 +2,14 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpointers"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"reflect"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
+	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/common/mpointers"
+	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
 
@@ -24,9 +23,9 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	logger.Infof("Trying to create asset: %v", cii)
 
-	var status s.Status
+	var status mmodel.Status
 	if cii.Status.IsEmpty() || common.IsNilOrEmpty(&cii.Status.Code) {
-		status = s.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {
