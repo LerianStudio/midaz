@@ -7,4 +7,5 @@ type Portfolio interface {
 	Get(organizationID, ledgerID string, limit, page int) (*mmodel.Portfolios, error)
 	GetByID(organizationID, ledgerID, portfolioID string) (*mmodel.Portfolio, error)
 	Update(organizationID, ledgerID, portfolioID string, inp mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error)
+	Delete(organizationID, ledgerID, portfolioID string) error
 }
