@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,7 +14,7 @@ import (
 
 // TestCreateProductSuccess is responsible to test CreateProduct with success
 func TestCreateProductSuccess(t *testing.T) {
-	product := &p.Product{
+	product := &mmodel.Product{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
@@ -38,7 +38,7 @@ func TestCreateProductSuccess(t *testing.T) {
 // TestCreateProductError is responsible to test CreateProduct with error
 func TestCreateProductError(t *testing.T) {
 	errMSG := "err to create product on database"
-	product := &p.Product{
+	product := &mmodel.Product{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),

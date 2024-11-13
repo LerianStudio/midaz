@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -10,12 +11,11 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app"
-	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/google/uuid"
 )
 
 // UpdateProductByID update a product from the repository by given id.
-func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *r.UpdateProductInput) (*r.Product, error) {
+func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateProductInput) (*mmodel.Product, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -24,7 +24,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to update product: %v", upi)
 
-	product := &r.Product{
+	product := &mmodel.Product{
 		Name:   upi.Name,
 		Status: upi.Status,
 	}
@@ -36,13 +36,13 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating product on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrProductIDNotFound, reflect.TypeOf(r.Product{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
 	}
 
-	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), id.String(), upi.Metadata)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Product{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 

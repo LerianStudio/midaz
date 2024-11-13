@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -29,7 +29,7 @@ func TestGetAllProducts(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		products := []*p.Product{{}}
+		products := []*mmodel.Product{{}}
 		mockProductRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).

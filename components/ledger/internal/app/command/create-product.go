@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/google/uuid"
 )
 
 // CreateProduct creates a new product persists data in the repository.
-func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *r.CreateProductInput) (*r.Product, error) {
+func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateProductInput) (*mmodel.Product, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -20,9 +20,9 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to create product: %v", cpi)
 
-	var status r.Status
+	var status mmodel.Status
 	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
-		status = r.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {
@@ -31,7 +31,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 
 	status.Description = cpi.Status.Description
 
-	product := &r.Product{
+	product := &mmodel.Product{
 		ID:             common.GenerateUUIDv7().String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -57,7 +57,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(r.Product{}).Name(), prod.ID, cpi.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Product{}).Name(), prod.ID, cpi.Metadata)
 	if err != nil {
 		common.NewLoggerFromContext(ctx).Errorf("Error creating product metadata: %v", err)
 
