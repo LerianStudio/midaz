@@ -1,0 +1,19 @@
+{
+    "id": "01931c99-adef-7b98-ad68-72d7e263066a",
+    "name": "Domingo.Ryan Portfolio 3 UPDATE",
+    "entityId": "e12331",
+    "ledgerId": "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c",
+    "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+    "status": {
+        "code": "BLOCKED",
+        "description": "Luffy Gear 2 BLOCKED"
+    },
+    "createdAt": "2024-11-11T19:00:53.871757Z",
+    "updatedAt": "2024-11-12T21:24:34.123556Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "3osJytRAgnFHtP3UfBFLVRTntLsyQr",
+        "chave": "jacare",
+        "boolean": true
+    }
+}
