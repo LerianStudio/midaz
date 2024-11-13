@@ -7,7 +7,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -48,8 +47,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, ih.DeleteAssetByID)
 
 	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, lib.WithBody(new(p.CreatePortfolioInput), ph.CreatePortfolio))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, lib.WithBody(new(p.UpdatePortfolioInput), ph.UpdatePortfolio))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.UpdatePortfolioInput), ph.UpdatePortfolio))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, ph.GetAllPortfolios)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, ph.GetPortfolioByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), lib.ParseUUIDPathParameters, ph.DeletePortfolioByID)

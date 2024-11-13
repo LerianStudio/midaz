@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 )
 
 // CreatePortfolio creates a new portfolio persists data in the repository.
-func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *p.CreatePortfolioInput) (*p.Portfolio, error) {
+func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -31,7 +32,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	status.Description = cpi.Status.Description
 
-	portfolio := &p.Portfolio{
+	portfolio := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
@@ -51,7 +52,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(p.Portfolio{}).Name(), port.ID, cpi.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
 		common.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
 

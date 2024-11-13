@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"reflect"
 	"testing"
 
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	meta "github.com/LerianStudio/midaz/components/ledger/internal/domain/metadata"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/metadata"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +18,7 @@ import (
 
 // TestGetAllMetadataPortfolios is responsible to test TestGetAllMetadataPortfolios with success and error
 func TestGetAllMetadataPortfolios(t *testing.T) {
-	collection := reflect.TypeOf(p.Portfolio{}).Name()
+	collection := reflect.TypeOf(mmodel.Portfolio{}).Name()
 	filter := commonHTTP.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,

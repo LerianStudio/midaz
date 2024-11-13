@@ -31,7 +31,7 @@ type Portfolio struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// Portfolios is a struct designed to encapsulate pagination response payload data.
+// Portfolios struct to return get all.
 type Portfolios struct {
 	Items []Portfolio `json:"items"`
 	Page  int         `json:"page"`
