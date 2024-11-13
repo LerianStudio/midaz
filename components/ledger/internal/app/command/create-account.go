@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpointers"
 	"reflect"
@@ -10,12 +11,11 @@ import (
 	cn "github.com/LerianStudio/midaz/common/constant"
 
 	"github.com/LerianStudio/midaz/common"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
 
 // CreateAccount creates a new account persists data in the repository.
-func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *a.CreateAccountInput) (*a.Account, error) {
+func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput) (*mmodel.Account, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -31,13 +31,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if err := common.ValidateAccountType(cai.Type); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate account type", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	status := uc.determineStatus(cai)
 	balanceValue := float64(0)
 
-	balance := a.Balance{
+	balance := mmodel.Balance{
 		Available: &balanceValue,
 		OnHold:    &balanceValue,
 		Scale:     &balanceValue,
@@ -47,7 +47,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if !isAsset {
 		mopentelemetry.HandleSpanError(&span, "Failed to find asset", cn.ErrAssetCodeNotFound)
 
-		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(a.Account{}).Name())
+		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	var portfolioUUID uuid.UUID
@@ -72,13 +72,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find parent account", err)
 
-			return nil, common.ValidateBusinessError(cn.ErrInvalidParentAccountID, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		if acc.AssetCode != cai.AssetCode {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate parent account", cn.ErrMismatchedAssetCode)
 
-			return nil, common.ValidateBusinessError(cn.ErrMismatchedAssetCode, reflect.TypeOf(a.Account{}).Name())
+			return nil, common.ValidateBusinessError(cn.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 	}
 
@@ -99,7 +99,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		cai.AllowSending = mpointers.Bool(true)
 	}
 
-	account := &a.Account{
+	account := &mmodel.Account{
 		ID:              common.GenerateUUIDv7().String(),
 		AssetCode:       cai.AssetCode,
 		Alias:           cai.Alias,
@@ -128,7 +128,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(a.Account{}).Name(), acc.ID, cai.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), acc.ID, cai.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create account metadata", err)
 
@@ -143,10 +143,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 }
 
 // determineStatus determines the status of the account.
-func (uc *UseCase) determineStatus(cai *a.CreateAccountInput) a.Status {
-	var status a.Status
+func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status {
+	var status mmodel.Status
 	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
-		status = a.Status{
+		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
 	} else {

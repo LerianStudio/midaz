@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpointers"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/google/uuid"
 )
 
@@ -111,13 +110,13 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		balanceValue := float64(0)
 
-		aBalance := a.Balance{
+		aBalance := mmodel.Balance{
 			Available: &balanceValue,
 			OnHold:    &balanceValue,
 			Scale:     &balanceValue,
 		}
 
-		eAccount := &a.Account{
+		eAccount := &mmodel.Account{
 			ID:              common.GenerateUUIDv7().String(),
 			AssetCode:       cii.Code,
 			Alias:           &aAlias,
@@ -130,7 +129,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			PortfolioID:     nil,
 			EntityID:        nil,
 			Balance:         aBalance,
-			Status: a.Status{
+			Status: mmodel.Status{
 				Code:        "external",
 				Description: &aStatusDescription,
 			},

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mpointers"
 	"testing"
 
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,7 +15,7 @@ import (
 
 // TestCreateAccountSuccess is responsible to test CreateAccount with success
 func TestCreateAccountSuccess(t *testing.T) {
-	account := &a.Account{
+	account := &mmodel.Account{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
@@ -39,7 +39,7 @@ func TestCreateAccountSuccess(t *testing.T) {
 
 // TestCreateWithoutPortfolioAccountSuccess is responsible to test CreateAccountWithoutPortfolio with success
 func TestCreateWithoutPortfolioAccountSuccess(t *testing.T) {
-	account := &a.Account{
+	account := &mmodel.Account{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
@@ -63,7 +63,7 @@ func TestCreateWithoutPortfolioAccountSuccess(t *testing.T) {
 // TestCreateAccountError is responsible to test CreateAccount with error
 func TestCreateAccountError(t *testing.T) {
 	errMSG := "err to create account on database"
-	account := &a.Account{
+	account := &mmodel.Account{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),

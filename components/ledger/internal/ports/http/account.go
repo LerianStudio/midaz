@@ -2,12 +2,12 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -32,7 +32,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	payload := i.(*a.CreateAccountInput)
+	payload := i.(*mmodel.CreateAccountInput)
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
 	if !common.IsNilOrEmpty(payload.PortfolioID) {
@@ -172,7 +172,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 	logger.Infof("Initiating update of Account with ID: %s", id.String())
 
-	payload := i.(*a.UpdateAccountInput)
+	payload := i.(*mmodel.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
@@ -250,7 +250,7 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 
 	logger.Infof("Initiating create of Account with Portfolio ID: %s", portfolioIDStr)
 
-	payload := i.(*a.CreateAccountInput)
+	payload := i.(*mmodel.CreateAccountInput)
 	payload.PortfolioID = &portfolioIDStr
 
 	logger.Infof("Request to create a Account with details: %#v", payload)
@@ -360,7 +360,7 @@ func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) e
 
 	logger.Infof("Initiating update of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	payload := i.(*a.UpdateAccountInput)
+	payload := i.(*mmodel.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
 	_, err := handler.Command.UpdateAccount(ctx, organizationID, ledgerID, &portfolioID, id, payload)
