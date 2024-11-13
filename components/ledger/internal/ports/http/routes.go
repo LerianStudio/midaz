@@ -7,7 +7,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	"github.com/gofiber/fiber/v2"
@@ -42,8 +41,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Delete("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), lib.ParseUUIDPathParameters, lh.DeleteLedgerByID)
 
 	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, lib.WithBody(new(s.CreateAssetInput), ih.CreateAsset))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, lib.WithBody(new(s.UpdateAssetInput), ih.UpdateAsset))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, lib.WithBody(new(mmodel.UpdateAssetInput), ih.UpdateAsset))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, ih.GetAllAssets)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, ih.GetAssetByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), lib.ParseUUIDPathParameters, ih.DeleteAssetByID)

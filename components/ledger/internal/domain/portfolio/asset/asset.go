@@ -2,8 +2,10 @@ package asset
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database
@@ -22,56 +24,14 @@ type AssetPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// CreateAssetInput is a struct design to encapsulate request create payload data.
-type CreateAssetInput struct {
-	Name     string         `json:"name" validate:"max=256"`
-	Type     string         `json:"type"`
-	Code     string         `json:"code" validate:"required,max=100"`
-	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
-
-// UpdateAssetInput is a struct design to encapsulate request update payload data.
-type UpdateAssetInput struct {
-	Name     string         `json:"name" validate:"max=256"`
-	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
-
-// Asset is a struct designed to encapsulate payload data.
-type Asset struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Type           string         `json:"type"`
-	Code           string         `json:"code"`
-	Status         Status         `json:"status"`
-	LedgerID       string         `json:"ledgerId"`
-	OrganizationID string         `json:"organizationId"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
-	DeletedAt      *time.Time     `json:"deletedAt"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
-}
-
-// Status structure for marshaling/unmarshalling JSON.
-type Status struct {
-	Code        string  `json:"code" validate:"max=100"`
-	Description *string `json:"description" validate:"omitempty,max=256"`
-}
-
-// IsEmpty method that set empty or nil in fields
-func (s Status) IsEmpty() bool {
-	return s.Code == "" && s.Description == nil
-}
-
 // ToEntity converts an AssetPostgreSQLModel to entity response Asset
-func (t *AssetPostgreSQLModel) ToEntity() *Asset {
-	status := Status{
+func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
+	status := mmodel.Status{
 		Code:        t.Status,
 		Description: t.StatusDescription,
 	}
 
-	asset := &Asset{
+	asset := &mmodel.Asset{
 		ID:             t.ID,
 		Name:           t.Name,
 		Type:           t.Type,
@@ -92,7 +52,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *Asset {
 }
 
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
-func (t *AssetPostgreSQLModel) FromEntity(asset *Asset) {
+func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 	*t = AssetPostgreSQLModel{
 		ID:                common.GenerateUUIDv7().String(),
 		Name:              asset.Name,

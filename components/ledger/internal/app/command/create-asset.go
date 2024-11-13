@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpointers"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/account"
@@ -14,7 +15,7 @@ import (
 )
 
 // CreateAsset creates a new asset persists data in the repository.
-func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *s.CreateAssetInput) (*s.Asset, error) {
+func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -37,20 +38,20 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err := common.ValidateType(cii.Type); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate asset type", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if err := common.ValidateCode(cii.Code); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if cii.Type == "currency" {
 		if err := common.ValidateCurrency(cii.Code); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
 
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(s.Asset{}).Name())
+			return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 
@@ -63,7 +64,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	asset := &s.Asset{
+	asset := &mmodel.Asset{
 		Name:           cii.Name,
 		Type:           cii.Type,
 		Code:           cii.Code,
@@ -83,7 +84,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(s.Asset{}).Name(), inst.ID, cii.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create asset metadata", err)
 

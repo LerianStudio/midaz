@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mmodel"
 	"testing"
 
-	s "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/asset"
 	mock "github.com/LerianStudio/midaz/components/ledger/internal/gen/mock/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -29,7 +29,7 @@ func TestGetAllAssets(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		assets := []*s.Asset{{}}
+		assets := []*mmodel.Asset{{}}
 		mockAssetRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, page, limit).
