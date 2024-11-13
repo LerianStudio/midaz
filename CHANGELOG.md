@@ -1,3 +1,10 @@
+## [1.27.0-beta.23](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.22...v1.27.0-beta.23) (2024-11-13)
+
+
+### Bug Fixes
+
+* remove otel-collector from infra module and keep otel-lgtm as the final opentelemetry backend :bug: ([07df708](https://github.com/LerianStudio/midaz/commit/07df7088da9ea48771d562716e5524f451de9848))
+
 ## [1.27.0-beta.22](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.21...v1.27.0-beta.22) (2024-11-13)
 
 
