@@ -232,3 +232,75 @@ func Test_portfolio_GetByID(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
 }
+
+func Test_portfolio_Update(t *testing.T) {
+	portfolioID := "01931c99-adef-7b98-ad68-72d7e263066a"
+	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
+	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
+	EntityID := "e12331"
+	name := "Domingo.Ryan Portfolio 3 UPDATE"
+	statusCode := "BLOCKED"
+	statusDescription := ptr.StringPtr("Luffy Gear 2 BLOCKED")
+
+	metadata := map[string]any{
+		"bitcoin": "3osJytRAgnFHtP3UfBFLVRTntLsyQr",
+		"chave":   "jacare",
+		"boolean": true,
+	}
+
+	inp := mmodel.UpdatePortfolioInput{
+		Name: name,
+		Status: mmodel.Status{
+			Code:        statusCode,
+			Description: statusDescription,
+		},
+		Metadata: metadata,
+	}
+
+	expectedResult := &mmodel.Portfolio{
+		ID:       portfolioID,
+		Name:     name,
+		EntityID: EntityID,
+		Status: mmodel.Status{
+			Code:        statusCode,
+			Description: statusDescription,
+		},
+		Metadata: metadata,
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
+		URIAPILedger, organizationID, ledgerID, portfolioID)
+
+	httpmock.RegisterResponder(http.MethodPatch, uri,
+		mockutil.MockResponseFromFile(http.StatusOK,
+			"./.fixtures/portfolio_response_update.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	portfolio := NewPortfolio(factory)
+
+	result, err := portfolio.Update(organizationID, ledgerID, portfolioID, inp)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedResult.ID, result.ID)
+	assert.Equal(t, expectedResult.Name, result.Name)
+	assert.Equal(t, expectedResult.EntityID, result.EntityID)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, expectedResult.Status.Description, result.Status.Description)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["PATCH "+uri])
+}
