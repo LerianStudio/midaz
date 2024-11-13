@@ -107,29 +107,12 @@ services:
   otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
-    env_file:
-      - .env
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
+      - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
+      - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
     networks:
       - infra_network
-
-  otel-collector:
-    container_name: midaz-otel-collector
-    image: otel/opentelemetry-collector-contrib
-    env_file:
-      - .env
-    ports:
-      - ${OTEL_COLLECTOR_RECEIVER_GRPC_PORT}:${OTEL_COLLECTOR_RECEIVER_GRPC_PORT}
-      - ${OTEL_COLLECTOR_RECEIVER_HTTP_PORT}:${OTEL_COLLECTOR_RECEIVER_HTTP_PORT}
-      - ${OTEL_COLLECTOR_HEALTH_CHECK_EXTENSION_PORT}:${OTEL_COLLECTOR_HEALTH_CHECK_EXTENSION_PORT}
-      - ${OTEL_COLLECTOR_ZPAGES_EXTENSION_PORT}:${OTEL_COLLECTOR_ZPAGES_EXTENSION_PORT} # zpages extension for debugging and performance monitoring [Reference](https://github.com/open-telemetry/opentelemetry-collector/blob/main/extension/zpagesextension/README.md)
-    volumes:
-      - ./otelcol/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
-    networks:
-      - infra_network
-    depends_on:
-      - otel-lgtm
 
   rabbitmq:
     image: rabbitmq:4.0-management-alpine
