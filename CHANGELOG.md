@@ -1,3 +1,10 @@
+## [1.27.0-beta.25](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.24...v1.27.0-beta.25) (2024-11-13)
+
+
+### Features
+
+* added new sub command delete on command portfolio ([ee48586](https://github.com/LerianStudio/midaz/commit/ee48586a91e40e2ffe1983bacb36c1bc6ef56c6d))
+
 ## [1.27.0-beta.24](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.23...v1.27.0-beta.24) (2024-11-13)
 
 
