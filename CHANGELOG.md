@@ -1,3 +1,11 @@
+## [1.27.0-beta.27](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.26...v1.27.0-beta.27) (2024-11-13)
+
+
+### Bug Fixes
+
+* add span error setting on withTelemetry file :bug: ([40a2008](https://github.com/LerianStudio/midaz/commit/40a20089658b8cc58d52be224a1478c55623a693))
+* update postman midaz id header to comply with id uppercase pattern :bug: ([a219509](https://github.com/LerianStudio/midaz/commit/a219509bcbd4a147dc82dadc577b200c1fd8147b))
+
 ## [1.27.0-beta.26](https://github.com/LerianStudio/midaz/compare/v1.27.0-beta.25...v1.27.0-beta.26) (2024-11-13)
 
 
