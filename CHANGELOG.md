@@ -1,3 +1,11 @@
+## [1.28.0](https://github.com/LerianStudio/midaz/compare/v1.27.0...v1.28.0) (2024-11-14)
+
+
+### Features
+
+* added command product in root ([d0c2f89](https://github.com/LerianStudio/midaz/commit/d0c2f898e2ad29fc864eb3545b0cd0eb86caaec3))
+* added new sub command create on command product ([9c63088](https://github.com/LerianStudio/midaz/commit/9c63088ffa88747e95a7254f49d8d00c180e1434))
+
 ## [1.27.0](https://github.com/LerianStudio/midaz/compare/v1.26.1...v1.27.0) (2024-11-13)
 
 
