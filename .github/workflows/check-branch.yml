@@ -41,11 +41,11 @@ jobs:
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
-          echo "Pull requests to main can only come from develop or hotfix branches."
+          echo "Pull requests to main can only come from develop, release or hotfix branches."
           # Add a request for changes comment on the pull request
           curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"body": "Pull requests to **main** can only come from **develop**, **release** or **hotfix** branches. Please change the base!!!", "event": "COMMENT"}' \
+            -d '{"body": "Pull requests to **main** can only come from **develop**, **release** or **hotfix** branches. Please **change base**!!!", "event": "COMMENT"}' \
             "${{ github.event.pull_request.url }}/reviews"
           exit 1
