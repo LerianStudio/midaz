@@ -46,7 +46,6 @@ jobs:
       with:
         github_token: ${{ steps.app-token.outputs.token }}
         go_version: '1.23'
-        go_version_file: '1.23'
         tool_name: golint
         level: error
         fail_on_error: true
