@@ -54,6 +54,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully created Account")
+	
 	return commonHTTP.Created(c, account)
 }
 

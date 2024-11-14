@@ -19,7 +19,7 @@ permissions:
 jobs:
   GoLangCI-Lint:
     runs-on: ubuntu-latest
-    name: Run GoLangCI-Lint to Midaz
+    name: Run Review Dog with GoLangCI-Lint on Midaz
     steps:
     - uses: actions/create-github-app-token@v1
       id: app-token
@@ -41,7 +41,7 @@ jobs:
 
     - uses: actions/checkout@v4
 
-    - name: GoLangCI-Lint with reviewdog
+    - name: Review Dog with GoLangCI-Lint
       uses: reviewdog/action-golangci-lint@v2
       with:
         github_token: ${{ steps.app-token.outputs.token }}
