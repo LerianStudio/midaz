@@ -33,7 +33,7 @@ jobs:
           git_commit_gpgsign: true
 
       - name: Check if PR is from develop or hotfix
-        if: github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'hotfix' && github.event.pull_request.head.ref !=  'release/*'
+        if: github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'hotfix/*' && github.event.pull_request.head.ref !=  'release/*'
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
@@ -46,6 +46,6 @@ jobs:
           curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"body": "Pull requests to main can only come from **develop** or **hotfix** branches. Please change the source branch!!!", "event": "COMMENT"}' \
+            -d '{"body": "Pull requests to **main** can only come from **develop**, **release** or **hotfix** branches. Please change the base!!!", "event": "COMMENT"}' \
             "${{ github.event.pull_request.url }}/reviews"
           exit 1
