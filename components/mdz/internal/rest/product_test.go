@@ -228,3 +228,72 @@ func Test_product_GetByID(t *testing.T) {
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
 }
+
+func Test_product_Update(t *testing.T) {
+	productID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
+	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
+	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
+	name := "Product Practical Metal Sausages BLOCKED"
+	statusCode := "BLOCKED"
+	statusDescription := ptr.StringPtr("Teste Product BLOCKED")
+
+	metadata := map[string]any{
+		"bitcoin": "35x7shF9VF1npqiTNjMsytJTRBNAoaAh",
+		"chave":   "metadata_chave",
+		"boolean": true,
+	}
+
+	inp := mmodel.UpdateProductInput{
+		Name: name,
+		Status: mmodel.Status{
+			Code:        statusCode,
+			Description: statusDescription,
+		},
+		Metadata: metadata,
+	}
+
+	expectedResult := &mmodel.Product{
+		ID:   productID,
+		Name: name,
+		Status: mmodel.Status{
+			Code:        statusCode,
+			Description: statusDescription,
+		},
+		Metadata: metadata,
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
+		URIAPILedger, organizationID, ledgerID, productID)
+
+	httpmock.RegisterResponder(http.MethodPatch, uri,
+		mockutil.MockResponseFromFile(http.StatusOK,
+			"./.fixtures/product_response_update.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	product := NewProduct(factory)
+
+	result, err := product.Update(organizationID, ledgerID, productID, inp)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, expectedResult.ID, result.ID)
+	assert.Equal(t, expectedResult.Name, result.Name)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, expectedResult.Status.Description, result.Status.Description)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["PATCH "+uri])
+}
