@@ -1,3 +1,29 @@
+## [1.29.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.28.0...v1.29.0-beta.1) (2024-11-14)
+
+
+### Features
+
+* add :sparkles: ([8baab22](https://github.com/LerianStudio/midaz/commit/8baab221b425c84fc56ee1eadcb8da3d09048543))
+* add blocked to open pr to main if not come from develop or hotfix :sparkles: ([327448d](https://github.com/LerianStudio/midaz/commit/327448dafbd03db064c0f9488c0950e270d6556f))
+* add reviewdog :sparkles: ([e5af335](https://github.com/LerianStudio/midaz/commit/e5af335e030c4e1ee7c68ec7ba6997db7c56cd4c))
+* add reviewdog again :sparkles: ([3636404](https://github.com/LerianStudio/midaz/commit/363640416c1c263238ab8e3634f90cef348b8c5e))
+* add rule to pr :sparkles: ([6e0ff0c](https://github.com/LerianStudio/midaz/commit/6e0ff0c010ea23feb1e3140ebe8e88abca2ae547))
+* rollback lint :sparkles: ([4672464](https://github.com/LerianStudio/midaz/commit/4672464c97531f7817df66d6941d8d535ab45f31))
+* test rewiewdog lint :sparkles: ([5d69cc1](https://github.com/LerianStudio/midaz/commit/5d69cc14acbf4658ed832e2ad9ad0dd38ed69018))
+* update git actions :sparkles: ([525b0ac](https://github.com/LerianStudio/midaz/commit/525b0acfc002bacfcc39bd6e3b65a10e9f995377))
+
+
+### Bug Fixes
+
+* golint :bug: ([0aae8f8](https://github.com/LerianStudio/midaz/commit/0aae8f8649d288183746fd87cb6669da5161569d))
+* resolve lint :bug: ([062fe5b](https://github.com/LerianStudio/midaz/commit/062fe5b8acc492c913e31b1039ef8ffbf5a5aff7))
+* update :bug: ([981384c](https://github.com/LerianStudio/midaz/commit/981384c9b7f682336db312535b8302883e463b73))
+* update comment only instead request changes :bug: ([e3d28eb](https://github.com/LerianStudio/midaz/commit/e3d28eb6b06b045358edc89ca954c0bd0724fa04))
+* update git actions name :bug: ([2015cec](https://github.com/LerianStudio/midaz/commit/2015cecdc9b66d2a60ad974ad43e43a4db51a978))
+* update message :bug: ([f39d104](https://github.com/LerianStudio/midaz/commit/f39d1042edbfd00907c7285d3f1c32c753443453))
+* update message :bug: ([33269c3](https://github.com/LerianStudio/midaz/commit/33269c3a2dcbdef2b68c7abcdcbfc51e81dbd0a0))
+* when both go_version and go_version_file inputs are specified, only go_version will be used :bug: ([62508f8](https://github.com/LerianStudio/midaz/commit/62508f8bd074d8a0b64f66861be3a6101bb36daf))
+
 ## [1.28.0](https://github.com/LerianStudio/midaz/compare/v1.27.0...v1.28.0) (2024-11-14)
 
 
