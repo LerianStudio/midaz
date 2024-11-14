@@ -65,7 +65,7 @@ func (r *product) Get(organizationID, ledgerID string, limit, page int) (*mmodel
 
 	resp, err := r.Factory.HTTPClient.Do(req)
 	if err != nil {
-		return nil, errors.New("making POST request: " + err.Error())
+		return nil, errors.New("making GET request: " + err.Error())
 	}
 	defer resp.Body.Close()
 
