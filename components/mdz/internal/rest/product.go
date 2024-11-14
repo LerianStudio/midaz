@@ -148,6 +148,32 @@ func (r *product) Update(
 	return &productResp, nil
 }
 
+func (r *product) Delete(organizationID, ledgerID, productID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, productID)
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return errors.New("making Delete request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusNoContent); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func NewProduct(f *factory.Factory) *product {
 	return &product{f}
 }
