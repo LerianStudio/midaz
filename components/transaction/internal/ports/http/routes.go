@@ -54,7 +54,9 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// Health
 	f.Get("/health", lib.Ping)
 
-	// Doc
+	// Version
+	f.Get("/version", lib.Version)
+
 	lib.DocAPI("transaction", "Transaction API", f)
 
 	f.Use(tlMid.EndTracingSpans)

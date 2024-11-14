@@ -1,8 +1,8 @@
 package http
 
 import (
+	"github.com/LerianStudio/midaz/common"
 	"log"
-	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,14 +18,14 @@ func Ping(c *fiber.Ctx) error {
 }
 
 // Version returns HTTP Status 200 with given version.
-func Version(version string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"version":     version,
-			"buildNumber": os.Getenv("BUILD_NUMBER"),
-			"requestDate": time.Now().UTC(),
-		})
+func Version(c *fiber.Ctx) error {
+	message := fiber.Map{
+		"version":     common.GetenvOrDefault("VERSION", "0.0.0"),
+		"buildNumber": common.GetenvOrDefault("BUILD_NUMBER", "0"),
+		"requestDate": time.Now().UTC(),
 	}
+
+	return OK(c, message)
 }
 
 // Welcome returns HTTP Status 200 with service info.
