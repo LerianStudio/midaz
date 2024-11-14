@@ -6,20 +6,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryPortfolio struct {
+type factoryProduct struct {
 	factory *factory.Factory
 }
 
-func (f *factoryPortfolio) setCmds(cmd *cobra.Command) {
+func (f *factoryProduct) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdProductCreate(newInjectFacCreate(f.factory)))
 }
 
-func NewCmdPortfolio(f *factory.Factory) *cobra.Command {
-	fOrg := factoryPortfolio{
+func NewCmdProduct(f *factory.Factory) *cobra.Command {
+	fOrg := factoryProduct{
 		factory: f,
 	}
 	cmd := &cobra.Command{
-		Use:   "portfolio",
+		Use:   "product",
 		Short: "Manages the creation and maintenance of products for customer clustering.",
 		Long: utils.Format(
 			"The product command allows you to create and manage products, which",
