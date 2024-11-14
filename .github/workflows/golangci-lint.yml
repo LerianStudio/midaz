@@ -44,11 +44,14 @@ jobs:
     - name: golangci-lint
       uses: reviewdog/action-golangci-lint@v2
       with:
+        github_token: ${{ steps.app-token.outputs.token }}
         go_version: '1.23'
         go_version_file: '1.23'
-        golangci_lint_flags: "--disable-all -E golint"
         tool_name: golint
         level: error
+        fail_on_error: true
+        reporter: github-pr-review
+        filter_mode: diff_context
       env:
         REVIEWDOG_GITHUB_API_TOKEN: ${{ steps.app-token.outputs.token }}
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
