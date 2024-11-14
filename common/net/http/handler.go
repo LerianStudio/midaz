@@ -19,13 +19,10 @@ func Ping(c *fiber.Ctx) error {
 
 // Version returns HTTP Status 200 with given version.
 func Version(c *fiber.Ctx) error {
-	message := fiber.Map{
+	return OK(c, fiber.Map{
 		"version":     common.GetenvOrDefault("VERSION", "0.0.0"),
-		"buildNumber": common.GetenvOrDefault("BUILD_NUMBER", "0"),
 		"requestDate": time.Now().UTC(),
-	}
-
-	return OK(c, message)
+	})
 }
 
 // Welcome returns HTTP Status 200 with service info.
