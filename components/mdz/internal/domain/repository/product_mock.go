@@ -54,3 +54,18 @@ func (mr *MockProductMockRecorder) Create(organizationID, ledgerID, inp any) *go
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockProduct)(nil).Create), organizationID, ledgerID, inp)
 }
+
+// Get mocks base method.
+func (m *MockProduct) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Products, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", organizationID, ledgerID, limit, page)
+	ret0, _ := ret[0].(*mmodel.Products)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockProductMockRecorder) Get(organizationID, ledgerID, limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockProduct)(nil).Get), organizationID, ledgerID, limit, page)
+}
