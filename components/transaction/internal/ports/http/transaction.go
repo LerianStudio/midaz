@@ -6,9 +6,11 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"net/http"
+	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
@@ -75,11 +77,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	errListener := transaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := common.ValidationError{
-			Code:    "0017",
-			Title:   "Invalid Script Error",
-			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
-		}
+		err := common.ValidateBusinessError(cn.ErrInvalidScriptFormat, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate script in DSL", err)
 
@@ -90,11 +88,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
-		err := common.ValidationError{
-			Code:    "0017",
-			Title:   "Invalid Script Error",
-			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
-		}
+		err := common.ValidateBusinessError(cn.ErrInvalidScriptFormat, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to parse script in DSL", err)
 

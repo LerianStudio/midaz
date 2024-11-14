@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 	"strconv"
@@ -98,12 +99,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	}
 
 	if rowsAffected == 0 {
-		err := common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create transaction. Rows affected is 0", err)
 
@@ -301,12 +297,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Title:      "Entity not found.",
-				Code:       "0007",
-				Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-			}
+			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(t.Transaction{}).Name())
 		}
 
 		return nil, err
@@ -387,12 +378,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
-		err := common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update transaction. Rows affected is 0", err)
 
@@ -436,12 +422,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
-		err := common.EntityNotFoundError{
-			EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-			Title:      "Entity not found.",
-			Code:       "0007",
-			Message:    "No entity was found matching the provided ID. Ensure the correct ID is being used for the entity you are attempting to manage.",
-		}
+		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete transaction. Rows affected is 0", err)
 

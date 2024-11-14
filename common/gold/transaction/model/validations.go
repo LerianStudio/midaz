@@ -7,47 +7,32 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	a "github.com/LerianStudio/midaz/common/mgrpc/account"
 )
 
 // ValidateAccounts function with some validates in accounts and DSL operations
 func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	if len(accounts) != (len(validate.From) + len(validate.To)) {
-		return common.ValidationError{
-			Code:    "0019",
-			Title:   "Transaction Participation Error",
-			Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
-		}
+		return common.ValidateBusinessError(cn.ErrAccountIneligibility, "ValidateAccounts")
 	}
 
 	for _, acc := range accounts {
 		for key := range validate.From {
 			if acc.Id == key || acc.Alias == key && acc.AllowSending {
 				if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
-					return common.ValidationError{
-						Code:    "0025",
-						Title:   "Insuficient balance",
-						Message: strings.ReplaceAll("The account {Id} has insufficient balance. Try again sending the amount minor or equal to the available balance.", "{Id}", acc.Alias),
-					}
+					return common.ValidateBusinessError(cn.ErrInsufficientAccountBalance, "ValidateAccounts", acc.Alias)
 				}
 			}
 
 			if acc.Id == key || acc.Alias == key && !acc.AllowSending {
-				return common.ValidationError{
-					Code:    "0019",
-					Title:   "Transaction Participation Error",
-					Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
-				}
+				return common.ValidateBusinessError(cn.ErrAccountIneligibility, "ValidateAccounts")
 			}
 		}
 
 		for key := range validate.To {
 			if acc.Id == key || acc.Alias == key && !acc.AllowReceiving {
-				return common.ValidationError{
-					Code:    "0019",
-					Title:   "Transaction Participation Error",
-					Message: "One or more accounts listed in the transaction statement are ineligible to participate. Please review the account statuses and try again.",
-				}
+				return common.ValidateBusinessError(cn.ErrAccountIneligibility, "ValidateAccounts")
 			}
 		}
 	}
@@ -351,11 +336,7 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	response.Aliases = append(response.Aliases, response.Destinations...)
 
 	if math.Abs(float64(sourcesTotal)-float64(destinationsTotal)) > 0.00001 {
-		return nil, common.ValidationError{
-			Code:    "0018",
-			Title:   "Insufficient Funds",
-			Message: "The transaction could not be completed due to insufficient funds in the account. Please add funds to your account and try again.",
-		}
+		return nil, common.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateSendSourceAndDistribute")
 	}
 
 	return response, nil

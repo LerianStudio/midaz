@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"strings"
 	"time"
@@ -200,10 +201,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		mopentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return common.EntityNotFoundError{
-				EntityType: collection,
-				Err:        err,
-			}
+			return common.ValidateBusinessError(cn.ErrEntityNotFound, collection)
 		}
 
 		return err
