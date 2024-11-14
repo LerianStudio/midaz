@@ -1,4 +1,4 @@
-name: "Enforce PR from Develop or Hotfix"
+name: "Enforce Branch PR from Develop"
 
 on:
   pull_request:
@@ -41,6 +41,6 @@ jobs:
           curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"body": "Pull requests to main can only come from develop or hotfix branches. Please change the source branch.", "event": "REQUEST_CHANGES"}' \
+            -d '{"body": "Pull requests to main can only come from **develop** or **hotfix** branches. Please change the source branch!!!", "event": "REQUEST_CHANGES"}' \
             "${{ github.event.pull_request.url }}/reviews"
           exit 1
