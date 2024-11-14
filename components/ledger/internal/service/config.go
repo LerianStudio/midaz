@@ -44,6 +44,10 @@ type Config struct {
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	RedisHost               string `env:"REDIS_HOST"`
+	RedisPort               string `env:"REDIS_PORT"`
+	RedisUser               string `env:"REDIS_USER"`
+	RedisPassword           string `env:"REDIS_PASSWORD"`
 }
 
 // NewConfig creates an instance of Config.

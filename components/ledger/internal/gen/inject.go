@@ -5,6 +5,7 @@ package gen
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/common/mredis"
 	"sync"
 
 	"github.com/LerianStudio/midaz/common"
@@ -110,6 +111,16 @@ func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
 	return t
 }
 
+func setupRedisConnection(cfg *service.Config, log mlog.Logger) *mredis.RedisConnection {
+	connStrSource := fmt.Sprintf("redis://%s:%s@%s:%s/0?protocol=3",
+		cfg.RedisUser, cfg.RedisPassword, cfg.RedisHost, cfg.RedisPort)
+
+	return &mredis.RedisConnection{
+		ConnectionStringSource: connStrSource,
+		Logger:                 log,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
@@ -119,6 +130,7 @@ var (
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupRabbitMQConnection,
+		setupRedisConnection,
 		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
 		portsHTTP.NewRouter,
