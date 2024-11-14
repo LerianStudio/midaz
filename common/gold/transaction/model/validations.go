@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
 	cn "github.com/LerianStudio/midaz/common/constant"
 	a "github.com/LerianStudio/midaz/common/mgrpc/account"
 )
@@ -47,7 +46,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 	balanceAfter := Balance{}
 
 	if ft.IsFrom {
-		ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
+		ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, cn.DEBIT)
 		if err != nil {
 			return amount, balanceAfter, err
 		}
@@ -59,7 +58,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 
 		balanceAfter = ba
 	} else {
-		ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, constant.CREDIT)
+		ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, cn.CREDIT)
 		if err != nil {
 			return amount, balanceAfter, err
 		}
@@ -209,7 +208,7 @@ func OperateAmounts(amount Amount, balance *a.Balance, operation string) (Balanc
 	var total float64
 
 	switch operation {
-	case constant.DEBIT:
+	case cn.DEBIT:
 		if int(balance.Scale) < amount.Scale {
 			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
 			total = v0 - float64(amount.Value)
