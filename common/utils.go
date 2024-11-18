@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
@@ -179,7 +180,9 @@ func MergeMaps(source, target map[string]any) map[string]any {
 }
 
 // GetCPUUsage get the current CPU usage
-func GetCPUUsage() int64 {
+func GetCPUUsage(ctx context.Context) int64 {
+	logger := NewLoggerFromContext(ctx)
+
 	out, err := exec.Command("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'").Output()
 	if err != nil {
 		fmt.Println("Error executing command:", err)
@@ -190,7 +193,7 @@ func GetCPUUsage() int64 {
 
 	usage, err := strconv.ParseFloat(usageStr, 64)
 	if err != nil {
-		fmt.Println("Error parsing float:", err)
+		logger.Errorf("Error parsing CPU usage: %v", err)
 
 		return 0
 	}
@@ -199,7 +202,9 @@ func GetCPUUsage() int64 {
 }
 
 // GetMemUsage get the current memory usage
-func GetMemUsage() int64 {
+func GetMemUsage(ctx context.Context) int64 {
+	logger := NewLoggerFromContext(ctx)
+
 	out, err := exec.Command("sh", "-c", "free | grep Mem | awk '{print $3/$2 * 100.0}'").Output()
 	if err != nil {
 		return 0
@@ -209,6 +214,8 @@ func GetMemUsage() int64 {
 
 	usage, err := strconv.ParseFloat(usageStr, 64)
 	if err != nil {
+		logger.Errorf("Error parsing memory usage: %v", err)
+
 		return 0
 	}
 

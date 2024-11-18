@@ -2,7 +2,6 @@ package mgrpc
 
 import (
 	"context"
-	"fmt"
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -30,7 +29,7 @@ func (c *GRPCConnection) Connect() error {
 		return nil
 	}
 
-	fmt.Println("Connected to gRPC ✅ ")
+	c.Logger.Info("Connected to gRPC ✅ ")
 
 	c.Conn = conn
 
