@@ -12,6 +12,7 @@ type factoryProduct struct {
 
 func (f *factoryProduct) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdProductCreate(newInjectFacCreate(f.factory)))
+	cmd.AddCommand(newCmdProductList(newInjectFacList(f.factory)))
 }
 
 func NewCmdProduct(f *factory.Factory) *cobra.Command {
