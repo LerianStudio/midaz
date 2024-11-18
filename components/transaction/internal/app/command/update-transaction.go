@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"errors"
-	"fmt"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -34,12 +34,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating transaction on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID.String()),
-				Code:       "TRANSACTION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrTransactionIDNotFound, reflect.TypeOf(t.Transaction{}).Name())
 		}
 
 		return nil, err
@@ -91,12 +86,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		logger.Errorf("Error updating status transaction on repo by id: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Message:    fmt.Sprintf("Transaction with id %s was not found", transactionID.String()),
-				Code:       "TRANSACTION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrTransactionIDNotFound, reflect.TypeOf(t.Transaction{}).Name())
 		}
 
 		return nil, err

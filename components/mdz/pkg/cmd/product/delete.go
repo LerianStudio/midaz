@@ -1,4 +1,4 @@
-package portfolio
+package product
 
 import (
 	"fmt"
@@ -12,16 +12,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryPortfolioDelete struct {
+type factoryProductDelete struct {
 	factory        *factory.Factory
-	repoPortfolio  repository.Portfolio
+	repoProduct    repository.Product
 	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
-	PortfolioID    string
+	ProductID      string
 }
 
-func (f *factoryPortfolioDelete) ensureFlagInput(cmd *cobra.Command) error {
+func (f *factoryProductDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
@@ -40,62 +40,63 @@ func (f *factoryPortfolioDelete) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := tui.Input("Enter your portfolio-id")
+	if !cmd.Flags().Changed("product-id") && len(f.ProductID) < 1 {
+		id, err := tui.Input("Enter your product-id")
 		if err != nil {
 			return err
 		}
 
-		f.PortfolioID = id
+		f.ProductID = id
 	}
 
 	return nil
 }
 
-func (f *factoryPortfolioDelete) runE(cmd *cobra.Command, _ []string) error {
+func (f *factoryProductDelete) runE(cmd *cobra.Command, _ []string) error {
 	if err := f.ensureFlagInput(cmd); err != nil {
 		return err
 	}
 
-	err := f.repoPortfolio.Delete(f.OrganizationID, f.LedgerID, f.PortfolioID)
+	err := f.repoProduct.Delete(f.OrganizationID, f.LedgerID, f.ProductID)
 	if err != nil {
 		return err
 	}
 
 	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Portfolio ID %s has been successfully deleted.", f.PortfolioID))
+		fmt.Sprintf("The Product ID %s has been successfully deleted.", f.ProductID))
 
 	return nil
 }
 
-func (f *factoryPortfolioDelete) setFlags(cmd *cobra.Command) {
+func (f *factoryProductDelete) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.PortfolioID, "portfolio-id", "", "Specify the portfolio ID")
+	cmd.Flags().StringVar(&f.ProductID, "product-id", "", "Specify the portfolio ID")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
-func newInjectFacDelete(f *factory.Factory) *factoryPortfolioDelete {
-	return &factoryPortfolioDelete{
-		factory:       f,
-		repoPortfolio: rest.NewPortfolio(f),
-		tuiInput:      tui.Input,
+func newInjectFacDelete(f *factory.Factory) *factoryProductDelete {
+	return &factoryProductDelete{
+		factory:     f,
+		repoProduct: rest.NewProduct(f),
+		tuiInput:    tui.Input,
 	}
 }
 
-func newCmdPortfolioDelete(f *factoryPortfolioDelete) *cobra.Command {
+func newCmdProductDelete(f *factoryProductDelete) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Removes a portfolio from the system.",
+		Short: "Removes an existing product.",
 		Long: utils.Format(
-			"Deletes a specific portfolio, including all associated accounts and",
-			"sub-accounts, ensuring that the portfolio data is securely removed",
-			"from the system.",
+			"The delete subcommand allows you to delete a product, removing its",
+			"settings and clustering rules. It is useful for deactivating obsolete",
+			"clusters or adjusting the organization of products without changing",
+			"the structure of customers.",
 		),
 		Example: utils.Format(
-			"$ mdz portfolio delete --organization-id '1234' --ledger-id '4421' --portfolio-id '55232'",
-			"$ mdz portfolio delete -i 12314",
-			"$ mdz portfolio delete -h",
+			"$ mdz product delete --organization-id '1234' --ledger-id '4421' --product-id '55232'",
+			"$ mdz product delete -i 12314",
+			"$ mdz product delete -h",
 		),
 		RunE: f.runE,
 	}
