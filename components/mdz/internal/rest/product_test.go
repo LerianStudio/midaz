@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
@@ -85,4 +86,87 @@ func Test_product_Create(t *testing.T) {
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["POST "+uri])
+}
+
+func Test_product_Get(t *testing.T) {
+	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
+	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
+
+	limit := 2
+	page := 1
+
+	expectedResult := mmodel.Products{
+		Page:  page,
+		Limit: limit,
+		Items: []mmodel.Product{
+			{
+				ID:   "01932727-1b5a-7540-98c0-6521ffe78ce6",
+				Name: "Product Licensed Concrete Hat",
+				Status: mmodel.Status{
+					Code:        "ACTIVE",
+					Description: ptr.StringPtr("Teste Product"),
+				},
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				CreatedAt:      time.Date(2024, 11, 11, 18, 51, 33, 15793, time.UTC),
+				UpdatedAt:      time.Date(2024, 11, 11, 18, 51, 33, 15793, time.UTC),
+				DeletedAt:      nil,
+			},
+			{
+				ID:   "0193271b-877f-7c98-a5a6-43b664d68982",
+				Name: "Toy30 Portfolio",
+				Status: mmodel.Status{
+					Code:        "ACTIVE",
+					Description: ptr.StringPtr("Teste Product"),
+				},
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				CreatedAt:      time.Date(2024, 11, 11, 18, 51, 27, 447406, time.UTC),
+				UpdatedAt:      time.Date(2024, 11, 11, 18, 51, 27, 447406, time.UTC),
+				DeletedAt:      nil,
+				Metadata: map[string]any{
+					"bitcoin": "3g9ofZcD7KRWL44BWdNa3PyM4PfzgqDG5P",
+					"chave":   "metadata_chave",
+					"boolean": true,
+				},
+			},
+		},
+	}
+
+	client := &http.Client{}
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	URIAPILedger := "http://127.0.0.1:3000"
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products?limit=%d&page=%d",
+		URIAPILedger, organizationID, ledgerID, limit, page)
+
+	httpmock.RegisterResponder(http.MethodGet, uri,
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/product_response_list.json"))
+
+	factory := &factory.Factory{
+		HTTPClient: client,
+		Env: &environment.Env{
+			URLAPILedger: URIAPILedger,
+		},
+	}
+
+	product := NewProduct(factory)
+
+	result, err := product.Get(organizationID, ledgerID, limit, page)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	for i, v := range result.Items {
+		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
+		assert.Equal(t, expectedResult.Items[i].Metadata, v.Metadata)
+	}
+
+	assert.Equal(t, expectedResult.Limit, limit)
+	assert.Equal(t, expectedResult.Page, page)
+
+	info := httpmock.GetCallCountInfo()
+	assert.Equal(t, 1, info["GET "+uri])
 }

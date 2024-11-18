@@ -1,3 +1,11 @@
+## [1.29.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.1...v1.29.0-beta.2) (2024-11-18)
+
+
+### Features
+
+* added command list from products ([fe7503e](https://github.com/LerianStudio/midaz/commit/fe7503ea6c4b971be4ffba55ed21035bfeb15710))
+* create rest get product ([bf9a271](https://github.com/LerianStudio/midaz/commit/bf9a271ddd396e7800c2d69a1f3d87fc00916077))
+
 ## [1.29.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.28.0...v1.29.0-beta.1) (2024-11-14)
 
 
