@@ -1,3 +1,16 @@
+## [1.29.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.3...v1.29.0-beta.4) (2024-11-18)
+
+
+### Features
+
+* add version endpoint to ledger and transaction services :sparkles: ([bb646b7](https://github.com/LerianStudio/midaz/commit/bb646b75161b1698adacc32164862d910fa5e987))
+
+
+### Bug Fixes
+
+* add doc endpoint comment in transaction routes.go ([41f637d](https://github.com/LerianStudio/midaz/commit/41f637d32c37f3e090321d21e46ab0fa180e5e73))
+* remove build number from version endpoint in ledger and transaction services :bug: ([798406f](https://github.com/LerianStudio/midaz/commit/798406f2ac00eb9e11fa8076c38906c0aa322f47))
+
 ## [1.29.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.2...v1.29.0-beta.3) (2024-11-18)
 
 
