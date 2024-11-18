@@ -115,6 +115,70 @@ func (r *account) GetByID(organizationID, ledgerID, portfolioID string) (*mmodel
 	return &accountResp, nil
 }
 
+func (r *account) Update(
+	organizationID, ledgerID, portfolioID, accountID string,
+	inp mmodel.UpdateAccountInput,
+) (*mmodel.Account, error) {
+	jsonData, err := json.Marshal(inp)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
+
+	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making PATCH request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var respStr mmodel.Account
+	if err := json.NewDecoder(resp.Body).Decode(&respStr); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &respStr, nil
+}
+
+func (r *asset) Delete(organizationID, ledgerID, portfolioID, accountID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID, accountID)
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return errors.New("making GET request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusNoContent); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func NewAccount(f *factory.Factory) *account {
 	return &account{f}
 }
