@@ -1,3 +1,20 @@
+## [1.29.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.4...v1.29.0-beta.5) (2024-11-18)
+
+
+### Features
+
+* added command describe from products ([4b4a222](https://github.com/LerianStudio/midaz/commit/4b4a22273e009760e2819b04063a8715388fdfa1))
+* create redis connection :sparkles: ([c8651e5](https://github.com/LerianStudio/midaz/commit/c8651e5c523d2f124dbfa8eaaa3f6647a0d0a5a0))
+* create sub command delete from products ([80d3a62](https://github.com/LerianStudio/midaz/commit/80d3a625fe2f02069b1d9e037f4c28bcc2861ccc))
+* create sub command update from products ([4368bc2](https://github.com/LerianStudio/midaz/commit/4368bc212f7c4602dad0584feccf903a9e6c2c65))
+* implements redis on ledger :sparkles: ([5f1c5e4](https://github.com/LerianStudio/midaz/commit/5f1c5e47aa8507d138ff4739eb966a6beb996212))
+* implements redis on transaction :sparkles: ([7013ca2](https://github.com/LerianStudio/midaz/commit/7013ca20499db2b1063890509afbdffd934def97))
+
+
+### Bug Fixes
+
+* lint :bug: ([1e7f12e](https://github.com/LerianStudio/midaz/commit/1e7f12e82925e9d8f3f10fca6d1f2c13910e8f64))
+
 ## [1.29.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.3...v1.29.0-beta.4) (2024-11-18)
 
 
