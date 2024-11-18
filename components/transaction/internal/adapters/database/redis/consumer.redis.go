@@ -41,8 +41,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	}
 
 	if ttl <= 0 {
-		ttl = mredis.REDIS_TTL
+		ttl = mredis.RedisTTL
 	}
+
 	logger.Infof("value of ttl: %v", ttl)
 
 	statusCMD := rds.Set(ctx, key, value, ttl)
@@ -56,11 +57,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
-
 	return nil
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-
 	return nil
 }

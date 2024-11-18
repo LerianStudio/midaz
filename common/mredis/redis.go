@@ -8,7 +8,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const REDIS_TTL = 300
+const RedisTTL = 300
 
 // RedisConnection is a hub which deal with redis connections.
 type RedisConnection struct {
