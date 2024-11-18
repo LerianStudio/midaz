@@ -6,6 +6,7 @@ import (
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	rmq "github.com/LerianStudio/midaz/components/transaction/internal/domain/rabbitmq"
+	rds "github.com/LerianStudio/midaz/components/transaction/internal/domain/redis"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 )
 
@@ -28,4 +29,7 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the consumer rabbitmq.
 	RabbitMQRepo rmq.ConsumerRepository
+
+	// RedisRepo provides an abstraction on top of the redis consumer.
+	RedisRepo rds.RedisRepository
 }

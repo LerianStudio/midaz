@@ -9,6 +9,7 @@ import (
 	p "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	rmq "github.com/LerianStudio/midaz/components/ledger/internal/domain/rabbitmq"
+	rds "github.com/LerianStudio/midaz/components/ledger/internal/domain/redis"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
@@ -36,4 +37,7 @@ type UseCase struct {
 
 	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
 	RabbitMQRepo rmq.ProducerRepository
+
+	// RedisRepo provides an abstraction on top of the redis consumer.
+	RedisRepo rds.RedisRepository
 }
