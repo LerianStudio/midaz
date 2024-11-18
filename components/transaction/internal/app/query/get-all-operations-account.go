@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -29,12 +30,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(o.Operation{}).Name(),
-				Message:    "Operation was not found",
-				Code:       "OPERATION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoOperationsFound, reflect.TypeOf(o.Operation{}).Name())
 		}
 
 		return nil, err
