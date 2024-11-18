@@ -14,9 +14,11 @@ import (
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
+	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
 	rabbitmq "github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/app/query"
@@ -28,6 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/domain/portfolio/product"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/domain/rabbitmq"
+	rds "github.com/LerianStudio/midaz/components/ledger/internal/domain/redis"
 	portsGRPC "github.com/LerianStudio/midaz/components/ledger/internal/ports/grpc"
 	portsHTTP "github.com/LerianStudio/midaz/components/ledger/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/service"
@@ -110,6 +113,19 @@ func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
 	return t
 }
 
+func setupRedisConnection(cfg *service.Config, log mlog.Logger) *mredis.RedisConnection {
+	connStrSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
+
+	return &mredis.RedisConnection{
+		Addr:     connStrSource,
+		User:     cfg.RedisUser,
+		Password: cfg.RedisPassword,
+		DB:       0,
+		Protocol: 3,
+		Logger:   log,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
@@ -119,6 +135,7 @@ var (
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupRabbitMQConnection,
+		setupRedisConnection,
 		portsGRPC.NewRouterGRPC,
 		service.NewServerGRPC,
 		portsHTTP.NewRouter,
@@ -133,6 +150,7 @@ var (
 		mongodb.NewMetadataMongoDBRepository,
 		rabbitmq.NewProducerRabbitMQ,
 		rabbitmq.NewConsumerRabbitMQ,
+		redis.NewConsumerRedis,
 		wire.Struct(new(portsHTTP.OrganizationHandler), "*"),
 		wire.Struct(new(portsHTTP.LedgerHandler), "*"),
 		wire.Struct(new(portsHTTP.AssetHandler), "*"),
@@ -150,6 +168,7 @@ var (
 		wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)),
 		wire.Bind(new(r.ConsumerRepository), new(*rabbitmq.ConsumerRabbitMQRepository)),
 		wire.Bind(new(r.ProducerRepository), new(*rabbitmq.ProducerRabbitMQRepository)),
+		wire.Bind(new(rds.RedisRepository), new(*redis.RedisConsumerRepository)),
 	)
 
 	svcSet = wire.NewSet(

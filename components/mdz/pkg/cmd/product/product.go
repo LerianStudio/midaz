@@ -13,6 +13,9 @@ type factoryProduct struct {
 func (f *factoryProduct) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdProductCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdProductList(newInjectFacList(f.factory)))
+	cmd.AddCommand(newCmdProductDescribe(newInjectFacDescribe(f.factory)))
+	cmd.AddCommand(newCmdProductUpdate(newInjectFacUpdate(f.factory)))
+	cmd.AddCommand(newCmdProductDelete(newInjectFacDelete(f.factory)))
 }
 
 func NewCmdProduct(f *factory.Factory) *cobra.Command {
@@ -21,13 +24,12 @@ func NewCmdProduct(f *factory.Factory) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "product",
-		Short: "Manages the creation and maintenance of products for customer clustering.",
+		Short: "Shows details of a specific product.",
 		Long: utils.Format(
-			"The product command allows you to create and manage products, which",
-			"represent groupings of customers based on specific criteria. This",
-			"functionality makes it easier to define clustering policies for ",
-			"better customer management, allowing you to configure, update, view",
-			"and delete products.",
+			"The describe subcommand provides a detailed view of a specific",
+			"product, including its clustering policies and the rules applied.",
+			"Ideal for detailed analysis and monitoring of the settings governing",
+			"the grouping of customers within each product.",
 		),
 		Example: utils.Format(
 			"$ mdz product",
