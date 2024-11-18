@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"reflect"
 
@@ -30,12 +31,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		logger.Errorf("Error getting transactions on repo: %v", err)
 
 		if errors.Is(err, app.ErrDatabaseItemNotFound) {
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Message:    "Transaction was not found",
-				Code:       "TRANSACTION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoTransactionsFound, reflect.TypeOf(t.Transaction{}).Name())
 		}
 
 		return nil, err
@@ -46,12 +42,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb transaction", err)
 
-			return nil, common.EntityNotFoundError{
-				EntityType: reflect.TypeOf(t.Transaction{}).Name(),
-				Message:    "Metadata was not found",
-				Code:       "TRANSACTION_NOT_FOUND",
-				Err:        err,
-			}
+			return nil, common.ValidateBusinessError(cn.ErrNoTransactionsFound, reflect.TypeOf(t.Transaction{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))
