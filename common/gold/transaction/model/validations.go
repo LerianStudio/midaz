@@ -257,7 +257,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 	}
 
 	for i := range fromTos {
-		if fromTos[i].Share.Percentage != 0 {
+		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
 			percentage := fromTos[i].Share.Percentage
 
 			percentageOfPercentage := fromTos[i].Share.PercentageOfPercentage
@@ -272,7 +272,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 			fmto[fromTos[i].Account] = amount
 		}
 
-		if fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > 0 {
+		if fromTos[i].Amount != nil && fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > 0 {
 			amount := Amount{
 				Asset: fromTos[i].Amount.Asset,
 				Scale: fromTos[i].Amount.Scale,
@@ -283,7 +283,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 			fmto[fromTos[i].Account] = amount
 		}
 
-		if fromTos[i].Remaining != "" {
+		if !common.IsNilOrEmpty(&fromTos[i].Remaining) {
 			total.Value += remaining.Value
 
 			fmto[fromTos[i].Account] = remaining
