@@ -50,7 +50,7 @@ services:
     environment:
       - REDIS_USER=${REDIS_USER}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--user", "${REDIS_USER}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--user", "${REDIS_USER}",  "--port ${REDIS_PORT}"]
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
     volumes:

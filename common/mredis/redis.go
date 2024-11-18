@@ -8,26 +8,32 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const REDIS_TTL = 300
+
 // RedisConnection is a hub which deal with redis connections.
 type RedisConnection struct {
-	ConnectionStringSource string
-	Client                 *redis.Client
-	Connected              bool
-	Logger                 mlog.Logger
+	Addr      string
+	User      string
+	Password  string
+	DB        int
+	Protocol  int
+	Client    *redis.Client
+	Connected bool
+	Logger    mlog.Logger
 }
 
 // Connect keeps a singleton connection with redis.
 func (rc *RedisConnection) Connect(ctx context.Context) error {
 	rc.Logger.Info("Connecting to redis...")
 
-	opts, err := redis.ParseURL(rc.ConnectionStringSource)
-	if err != nil {
-		panic(err)
-	}
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     rc.Addr,
+		Password: rc.Password,
+		DB:       rc.DB,
+		Protocol: rc.Protocol,
+	})
 
-	rdb := redis.NewClient(opts)
-
-	_, err = rdb.Ping(ctx).Result()
+	_, err := rdb.Ping(ctx).Result()
 	if err != nil {
 		rc.Logger.Infof("RedisConnection.Ping %v",
 			zap.Error(err))
@@ -44,8 +50,8 @@ func (rc *RedisConnection) Connect(ctx context.Context) error {
 	return nil
 }
 
-// GetDB returns a pointer to the redis connection, initializing it if necessary.
-func (rc *RedisConnection) GetDB(ctx context.Context) (*redis.Client, error) {
+// GetClient returns a pointer to the redis connection, initializing it if necessary.
+func (rc *RedisConnection) GetClient(ctx context.Context) (*redis.Client, error) {
 	if rc.Client == nil {
 		err := rc.Connect(ctx)
 		if err != nil {
