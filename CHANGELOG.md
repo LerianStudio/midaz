@@ -1,3 +1,10 @@
+## [1.29.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.2...v1.29.0-beta.3) (2024-11-18)
+
+
+### Bug Fixes
+
+* update transaction error messages to comply with gitbook :bug: ([36ae998](https://github.com/LerianStudio/midaz/commit/36ae9985b908784ea59669087e99cc56e9399f14))
+
 ## [1.29.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.1...v1.29.0-beta.2) (2024-11-18)
 
 
