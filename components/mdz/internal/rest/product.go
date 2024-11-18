@@ -111,6 +111,43 @@ func (r *product) GetByID(organizationID, ledgerID, productID string) (*mmodel.P
 	return &productResp, nil
 }
 
+func (r *product) Update(
+	organizationID, ledgerID, productID string, inp mmodel.UpdateProductInput,
+) (*mmodel.Product, error) {
+	jsonData, err := json.Marshal(inp)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, productID)
+
+	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making PATCH request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var productResp mmodel.Product
+	if err := json.NewDecoder(resp.Body).Decode(&productResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &productResp, nil
+}
+
 func NewProduct(f *factory.Factory) *product {
 	return &product{f}
 }
