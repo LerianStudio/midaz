@@ -85,9 +85,10 @@ func (r *account) Get(organizationID, ledgerID, portfolioID string,
 	return &accountsResp, nil
 }
 
-func (r *account) GetByID(organizationID, ledgerID, portfolioID string) (*mmodel.Account, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
+func (r *account) GetByID(
+	organizationID, ledgerID, portfolioID, accountID string) (*mmodel.Account, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID, accountID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -125,7 +126,7 @@ func (r *account) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID, accountID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -153,7 +154,7 @@ func (r *account) Update(
 	return &respStr, nil
 }
 
-func (r *asset) Delete(organizationID, ledgerID, portfolioID, accountID string) error {
+func (r *account) Delete(organizationID, ledgerID, portfolioID, accountID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID, accountID)
 
