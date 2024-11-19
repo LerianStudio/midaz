@@ -48,7 +48,7 @@ Lerian is committed to also providing a robust set of Transactional Services and
 
 ## Getting Started
 
-To begin using Midaz, please follow our [Getting Started Guide](https://docs.midaz.io/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.midaz.io).
+To begin using Midaz, please follow our [Getting Started Guide](https://docs.midaz.io/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio/).
 
 ## Community & Support
 
