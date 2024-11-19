@@ -1,3 +1,10 @@
+## [1.29.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.5...v1.29.0-beta.6) (2024-11-19)
+
+
+### Features
+
+* create git action to update version on env files :sparkles: ([ca28ded](https://github.com/LerianStudio/midaz/commit/ca28ded27672e153adcdbf53db5e2865bd33b123))
+
 ## [1.29.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.4...v1.29.0-beta.5) (2024-11-18)
 
 
