@@ -10,11 +10,6 @@ on:
       - synchronize
       - reopened
 
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: read
-
 jobs:
   update-env-release:
     runs-on: ubuntu-latest
