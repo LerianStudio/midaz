@@ -40,12 +40,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Get latest release
+        id: get_release
+        uses: dawidd6/action-get-latest-tag@v3
+
       - name: update set version to .env ledger
         if: '!github.event.prerelease'
         run: | 
           echo "teste"
-          echo ${{ github.event.prerelease }}
-          echo ${{ github.event.release }}
+          echo "Latest release is: ${{ steps.get_release.outputs.tag }}"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
