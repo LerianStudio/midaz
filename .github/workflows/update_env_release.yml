@@ -40,15 +40,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get latest release
-        id: get_release
-        uses: dawidd6/action-get-latest-tag@v3
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Fetch Latest Release
+        id: latest_release
+        run: |
+          RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Latest release: $RELEASE"
+          echo "::set-output name=tag::$RELEASE"
+
+      - name: Print Latest Release
+        run: | 
+          echo "The latest release is: ${{ steps.latest_release.outputs.tag }}"
 
       - name: update set version to .env ledger
         if: '!github.event.prerelease'
         run: | 
           echo "teste"
-          echo "Latest release is: ${{ steps.get_release.outputs.tag }}"
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
