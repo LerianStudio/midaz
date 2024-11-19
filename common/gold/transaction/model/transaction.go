@@ -23,7 +23,7 @@ type Metadata struct {
 type Amount struct {
 	Asset string `json:"asset,omitempty" validate:"required"`
 	Value int    `json:"value,omitempty" validate:"required"`
-	Scale int    `json:"scale,omitempty" validate:"required"`
+	Scale int    `json:"scale,omitempty" validate:"required,gte=0"`
 }
 
 type Share struct {
@@ -35,7 +35,7 @@ type Share struct {
 type Send struct {
 	Asset  string `json:"asset,omitempty" validate:"required"`
 	Value  int    `json:"value,omitempty" validate:"required"`
-	Scale  int    `json:"scale,omitempty" validate:"required"`
+	Scale  int    `json:"scale,omitempty" validate:"required,gte=0"`
 	Source Source `json:"source,omitempty" validate:"required"`
 }
 

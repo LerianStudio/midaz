@@ -272,7 +272,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 			fmto[fromTos[i].Account] = amount
 		}
 
-		if fromTos[i].Amount != nil && fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > 0 {
+		if fromTos[i].Amount != nil && fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > -1 {
 			amount := Amount{
 				Asset: fromTos[i].Amount.Asset,
 				Scale: fromTos[i].Amount.Scale,

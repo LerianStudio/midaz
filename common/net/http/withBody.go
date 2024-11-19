@@ -226,6 +226,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("gte", trans, func(ut ut.Translator) error {
+		return ut.Add("gte", "{0} must be {1} or greater", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("gte", formatErrorFieldName(fe.Namespace()), fe.Param())
+
+		return t
+	})
+
 	_ = v.RegisterTranslation("keymax", trans, func(ut ut.Translator) error {
 		return ut.Add("keymax", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
