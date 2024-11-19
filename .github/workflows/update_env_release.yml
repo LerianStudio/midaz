@@ -71,10 +71,6 @@ jobs:
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/transaction/.env.example
 
       - name: Commit Changes
-        run: |
-          git add .
-          git commit -m "chore(release): update version in .env.example to ${{ steps.latest_release.outputs.tag }}"
-          git push origin ${{ github.head_ref }}
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
@@ -82,3 +78,7 @@ jobs:
           GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+        run: |
+          git add .
+          git commit -m "chore(release): update version in .env.example to ${{ steps.latest_release.outputs.tag }}"
+          git push origin ${{ github.head_ref }}
