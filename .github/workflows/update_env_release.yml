@@ -39,6 +39,8 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
@@ -59,11 +61,6 @@ jobs:
           echo "The latest release is: ${{ steps.latest_release.outputs.tag }}"
           echo "git  origin: ${{ github.head_ref }}}"
           git branch
-
-      - name: Git Change Branch
-        run: |
-          git pull origin ${{ github.head_ref }}
-          git checkout ${{ github.head_ref }}   
 
       - name: Update LEDGER Env
         run: |
