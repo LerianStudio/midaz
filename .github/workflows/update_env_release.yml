@@ -48,7 +48,7 @@ jobs:
       - name: Fetch Latest Release
         id: latest_release
         env:
-          GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
           FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
