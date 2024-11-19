@@ -57,3 +57,4 @@ jobs:
       - name: Print Latest Release
         run: | 
           echo "The latest release is: ${{ steps.latest_release.outputs.tag }}"
+          echo "git  origin: ${{ github.head_ref }}}"
