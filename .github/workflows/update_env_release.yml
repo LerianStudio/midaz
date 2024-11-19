@@ -58,7 +58,7 @@ jobs:
         run: | 
           echo "The latest release is: ${{ steps.latest_release.outputs.tag }}"
           echo "git  origin: ${{ github.head_ref }}}"
-          echo "git branch"
+          git branch
 
       - name: Git Change Branch
         run: |
