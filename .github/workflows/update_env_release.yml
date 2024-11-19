@@ -45,12 +45,6 @@ jobs:
           echo "Formatted release: $FORMATTED_RELEASE"
           echo "::set-output name=tag::$FORMATTED_RELEASE"
 
-      - name: Print Latest Release
-        run: | 
-          echo "The latest release is: ${{ steps.latest_release.outputs.tag }}"
-          echo "git  origin: ${{ github.head_ref }}}"
-          git branch
-
       - name: Update LEDGER Env
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/ledger/.env.example
@@ -68,6 +62,7 @@ jobs:
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
+          git branch
           ls
           git diff
           git add .
