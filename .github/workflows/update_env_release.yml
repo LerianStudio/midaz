@@ -59,15 +59,23 @@ jobs:
           echo "The latest release is: ${{ steps.latest_release.outputs.tag }}"
           echo "git  origin: ${{ github.head_ref }}}"
 
-      - name: Update envs
+      - name: Git Change Branch
+        run: |
+          git pull origin ${{ github.head_ref }}
+          git checkout ${{ github.head_ref }}   
+
+      - name: Update LEDGER Env
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/ledger/.env.example
+
+      - name: Update TRANSACTION Env
+        run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/transaction/.env.example
 
       - name: Commit Changes
         run: |
           git add .
-          git commit -m "Update version in .env.example to ${{ steps.latest_release.outputs.tag }}"
+          git commit -m "chore(release): update version in .env.example to ${{ steps.latest_release.outputs.tag }}"
           git push origin ${{ github.head_ref }}
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
