@@ -68,6 +68,8 @@ jobs:
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
+          ls
+          git diff
           git add .
           git commit -m "chore(release): update version in .env.example to ${{ steps.latest_release.outputs.tag }}"
           git push origin ${{ github.head_ref }}
