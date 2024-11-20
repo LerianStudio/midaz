@@ -10,7 +10,9 @@ type factoryAccount struct {
 	factory *factory.Factory
 }
 
-func (f *factoryAccount) setCmds(cmd *cobra.Command) {}
+func (f *factoryAccount) setCmds(cmd *cobra.Command) {
+	cmd.AddCommand(newCmdAccountCreate(newInjectFacCreate(f.factory)))
+}
 
 func NewCmdAccount(f *factory.Factory) *cobra.Command {
 	fAccount := factoryAccount{
