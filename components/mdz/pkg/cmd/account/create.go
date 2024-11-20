@@ -69,7 +69,7 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 
-		f.LedgerID = id
+		f.PortfolioID = id
 	}
 
 	if cmd.Flags().Changed("json-file") {
