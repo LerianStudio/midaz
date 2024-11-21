@@ -79,4 +79,6 @@ var (
 	ErrNoOperationsFound                   = errors.New("0069")
 	ErrTransactionIDNotFound               = errors.New("0070")
 	ErrNoTransactionsFound                 = errors.New("0071")
+	ErrInvalidTransactionType              = errors.New("0072")
+	ErrTransactionValueMismatch            = errors.New("0073")
 )

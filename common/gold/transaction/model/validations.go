@@ -18,20 +18,26 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 
 	for _, acc := range accounts {
 		for key := range validate.From {
-			if acc.Id == key || acc.Alias == key && acc.AllowSending {
-				if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
-					return common.ValidateBusinessError(cn.ErrInsufficientAccountBalance, "ValidateAccounts", acc.Alias)
-				}
+			// TODO: Temporary validation to be removed when multi-asset transaction is implemented.
+			if (acc.Id == key || acc.Alias == key) && acc.AssetCode != cn.DefaultAssetCode {
+				return common.ValidateBusinessError(cn.ErrAssetCodeNotFound, "ValidateAccounts")
 			}
 
-			if acc.Id == key || acc.Alias == key && !acc.AllowSending {
-				return common.ValidateBusinessError(cn.ErrAccountIneligibility, "ValidateAccounts")
+			err := validateAccountsFrom(key, acc)
+			if err != nil {
+				return err
 			}
 		}
 
 		for key := range validate.To {
-			if acc.Id == key || acc.Alias == key && !acc.AllowReceiving {
-				return common.ValidateBusinessError(cn.ErrAccountIneligibility, "ValidateAccounts")
+			// TODO: Temporary validation to be removed when multi-asset transaction is implemented.
+			if (acc.Id == key || acc.Alias == key) && acc.AssetCode != cn.DefaultAssetCode {
+				return common.ValidateBusinessError(cn.ErrAssetCodeNotFound, "ValidateAccounts")
+			}
+
+			err := validateAccountsTo(key, acc)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -49,6 +55,10 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 		ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, cn.DEBIT)
 		if err != nil {
 			return amount, balanceAfter, err
+		}
+
+		if ba.Available < 0 && !strings.Contains(acc.Alias, "@external") {
+			return amount, balanceAfter, common.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
 		}
 
 		amount = Amount{
@@ -257,7 +267,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 	}
 
 	for i := range fromTos {
-		if fromTos[i].Share.Percentage != 0 {
+		if fromTos[i].Share != nil && fromTos[i].Share.Percentage != 0 {
 			percentage := fromTos[i].Share.Percentage
 
 			percentageOfPercentage := fromTos[i].Share.PercentageOfPercentage
@@ -272,7 +282,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 			fmto[fromTos[i].Account] = amount
 		}
 
-		if fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > 0 {
+		if fromTos[i].Amount != nil && fromTos[i].Amount.Value > 0 && fromTos[i].Amount.Scale > -1 {
 			amount := Amount{
 				Asset: fromTos[i].Amount.Asset,
 				Scale: fromTos[i].Amount.Scale,
@@ -283,7 +293,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 			fmto[fromTos[i].Account] = amount
 		}
 
-		if fromTos[i].Remaining != "" {
+		if !common.IsNilOrEmpty(&fromTos[i].Remaining) {
 			total.Value += remaining.Value
 
 			fmto[fromTos[i].Account] = remaining
@@ -334,9 +344,35 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	response.Destinations = <-sd
 	response.Aliases = append(response.Aliases, response.Destinations...)
 
-	if math.Abs(float64(sourcesTotal)-float64(destinationsTotal)) > 0.00001 {
-		return nil, common.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateSendSourceAndDistribute")
+	if math.Abs(float64(response.Total)-float64(sourcesTotal)) != 0 {
+		return nil, common.ValidateBusinessError(cn.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+	}
+
+	if math.Abs(float64(sourcesTotal)-float64(destinationsTotal)) != 0 {
+		return nil, common.ValidateBusinessError(cn.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 
 	return response, nil
+}
+
+func validateAccountsFrom(key string, acc *a.Account) error {
+	if acc.Id == key || acc.Alias == key && !acc.AllowSending {
+		return common.ValidateBusinessError(cn.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+	}
+
+	if acc.Id == key || acc.Alias == key && acc.AllowSending {
+		if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
+			return common.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
+		}
+	}
+
+	return nil
+}
+
+func validateAccountsTo(key string, acc *a.Account) error {
+	if acc.Id == key || acc.Alias == key && !acc.AllowReceiving {
+		return common.ValidateBusinessError(cn.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+	}
+
+	return nil
 }

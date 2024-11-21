@@ -705,6 +705,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Transactions Found",
 			Message:    "No transactions were found in the search. Please review the search criteria and try again.",
 		},
+		cn.ErrInvalidTransactionType: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrInvalidTransactionType.Error(),
+			Title:      "Invalid Transaction Type",
+			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%s' field for each entry. Please review your input and try again.", args...),
+		},
+		cn.ErrTransactionValueMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrTransactionValueMismatch.Error(),
+			Title:      "Transaction Value Mismatch",
+			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

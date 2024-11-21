@@ -21,27 +21,27 @@ type Metadata struct {
 }
 
 type Amount struct {
-	Asset string `json:"asset,omitempty"`
-	Value int    `json:"value,omitempty"`
-	Scale int    `json:"scale,omitempty"`
+	Asset string `json:"asset,omitempty" validate:"required,eq=BRL"`
+	Value int    `json:"value,omitempty" validate:"required"`
+	Scale int    `json:"scale,omitempty" validate:"gte=0"`
 }
 
 type Share struct {
-	Percentage             int  `json:"percentage,omitempty"`
+	Percentage             int  `json:"percentage,omitempty" validate:"required"`
 	PercentageOfPercentage int  `json:"percentageOfPercentage,omitempty"`
 	DescWhatever           bool `json:"descWhatever,omitempty"`
 }
 
 type Send struct {
-	Asset  string `json:"asset,omitempty"`
-	Value  int    `json:"value,omitempty"`
-	Scale  int    `json:"scale,omitempty"`
-	Source Source `json:"source,omitempty"`
+	Asset  string `json:"asset,omitempty" validate:"required,eq=BRL"`
+	Value  int    `json:"value,omitempty" validate:"required"`
+	Scale  int    `json:"scale,omitempty" validate:"gte=0"`
+	Source Source `json:"source,omitempty" validate:"required"`
 }
 
 type Source struct {
 	Remaining string   `json:"remaining,omitempty"`
-	From      []FromTo `json:"from,omitempty"`
+	From      []FromTo `json:"from,omitempty" validate:"singletransactiontype,required,dive"`
 }
 
 type FromTo struct {
@@ -51,21 +51,21 @@ type FromTo struct {
 	Remaining       string         `json:"remaining,omitempty"`
 	Description     string         `json:"description,omitempty"`
 	ChartOfAccounts string         `json:"chartOfAccountsG"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty"`
 }
 
 type Distribute struct {
 	Remaining string   `json:"remaining,omitempty"`
-	To        []FromTo `json:"to,omitempty"`
+	To        []FromTo `json:"to,omitempty" validate:"singletransactiontype,required,dive"`
 }
 
 type Transaction struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty"`
 	Description              string         `json:"description,omitempty"`
 	Code                     string         `json:"code,omitempty"`
 	Pending                  bool           `json:"pending,omitempty"`
-	Metadata                 map[string]any `json:"metadata,omitempty"`
-	Send                     Send           `json:"send,omitempty"`
-	Distribute               Distribute     `json:"distribute,omitempty"`
+	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Send                     Send           `json:"send" validate:"required"`
+	Distribute               Distribute     `json:"distribute" validate:"required"`
 }
