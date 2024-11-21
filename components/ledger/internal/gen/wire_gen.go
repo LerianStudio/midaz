@@ -110,7 +110,7 @@ func InitializeService() *service.Service {
 	app := http.NewRouter(logger, telemetry, casdoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 	server := service.NewServer(config, app, logger, telemetry)
 	grpcServer := grpc.NewRouterGRPC(logger, telemetry, casdoorConnection, useCase, queryUseCase)
-	serverGRPC := service.NewServerGRPC(config, grpcServer, logger)
+	serverGRPC := service.NewServerGRPC(config, grpcServer, logger, telemetry)
 	serviceService := &service.Service{
 		Server:     server,
 		ServerGRPC: serverGRPC,
