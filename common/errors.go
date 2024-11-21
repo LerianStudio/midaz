@@ -715,7 +715,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       cn.ErrTransactionValueMismatch.Error(),
 			Title:      "Transaction Value Mismatch",
-			Message:    "The source/destination values do not match the amount to be sent. Please check and retry the transaction.",
+			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
 		},
 	}
 
