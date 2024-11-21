@@ -14,6 +14,7 @@ func (f *factoryAccount) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdAccountCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdAccountList(newInjectFacList(f.factory)))
 	cmd.AddCommand(newCmdAccountDescribe(newInjectFacDescribe(f.factory)))
+	cmd.AddCommand(newCmdAccountUpdate(newInjectFacUpdate(f.factory)))
 }
 
 func NewCmdAccount(f *factory.Factory) *cobra.Command {
