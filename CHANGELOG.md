@@ -1,3 +1,16 @@
+## [1.29.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.7...v1.29.0-beta.8) (2024-11-21)
+
+
+### Bug Fixes
+
+* add logs using default logger in middleware responsible by collecting metrics :bug: :bug: ([d186c0a](https://github.com/LerianStudio/midaz/commit/d186c0afb50fdd3e71e6c80dffc92a6bd25fc30e))
+* add required and singletransactiontype tags to transaction input by json endpoint :bug: ([8c4e65f](https://github.com/LerianStudio/midaz/commit/8c4e65f4b2b222a75dba849ec24f2d92d09a400d))
+* add validation for scale greater than or equal to zero in transaction by json endpoint :bug: ([c1368a3](https://github.com/LerianStudio/midaz/commit/c1368a33c4aaafba4f366d803665244d00d6f9ce))
+* add zap caller skip to ignore hydrated log function :bug: ([03fd066](https://github.com/LerianStudio/midaz/commit/03fd06695dfd1ac68edadbfa50074093c265f976))
+* resolve validation errors in transaction endpoint :bug: ([9203059](https://github.com/LerianStudio/midaz/commit/9203059d4651a1b92de71d3565ab02b27e264d4f))
+* skip insufficient funds validation for external accounts and update postman collection with new transaction json payload :bug: ([8edcb37](https://github.com/LerianStudio/midaz/commit/8edcb37a6b21b8ddd6b67dda8f2e57b76c82ea0d))
+* update transaction value mismatch error message :bug: ([8210e13](https://github.com/LerianStudio/midaz/commit/8210e1303b1838bb5b2f4e174c8f3e7516cc30e7))
+
 ## [1.29.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.6...v1.29.0-beta.7) (2024-11-21)
 
 
