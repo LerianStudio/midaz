@@ -1,3 +1,19 @@
+## [1.29.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.6...v1.29.0-beta.7) (2024-11-21)
+
+
+### Features
+
+* added command account in root ([7e2a439](https://github.com/LerianStudio/midaz/commit/7e2a439a26efa5786a5352b09875339d7545b2e6))
+* added sub command create in commmand account with test unit ([29a424c](https://github.com/LerianStudio/midaz/commit/29a424ca8f337f67318d8cd17b8df6c20ba36f33))
+* added sub command delete in commmand account with test unit ([4a1b77b](https://github.com/LerianStudio/midaz/commit/4a1b77bc3e3b8d2d393793fe8d852ee0e78b41a7))
+* added sub command describe in commmand account with test unit ([7990908](https://github.com/LerianStudio/midaz/commit/7990908dde50a023b4a83bd79e159745eb831533))
+* added sub command list in commmand account with test unit ([c6d112a](https://github.com/LerianStudio/midaz/commit/c6d112a3d841fb0574479dfb11f1ed8a4e500379))
+* added sub command update in commmand account with test unit ([59ba185](https://github.com/LerianStudio/midaz/commit/59ba185856661c0afe3243b88ed68f66b46a4938))
+* method of creating account rest ([cb4f377](https://github.com/LerianStudio/midaz/commit/cb4f377c047a7a07e64db4ad826691d6198b5f3c))
+* method of get by id accounts rest ([b5d61b8](https://github.com/LerianStudio/midaz/commit/b5d61b81deb1384dfaff2d78ec727580b78099d5))
+* method of list accounts rest ([5edbc02](https://github.com/LerianStudio/midaz/commit/5edbc027a5df6b61779cd677a98d4dfabafb59fe))
+* method of update and delete accounts rest ([551506e](https://github.com/LerianStudio/midaz/commit/551506eb62dce2e38bf8303a23d1e6e8eec887ff))
+
 ## [1.29.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.5...v1.29.0-beta.6) (2024-11-19)
 
 
