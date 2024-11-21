@@ -16,9 +16,11 @@ import (
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	mrabbitmq2 "github.com/LerianStudio/midaz/common/mrabbitmq"
+	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
@@ -28,6 +30,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/rabbitmq"
+	redis2 "github.com/LerianStudio/midaz/components/transaction/internal/domain/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
@@ -53,6 +56,8 @@ func InitializeService() *service.Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 	rabbitMQConnection := setupRabbitMQConnection(config, logger)
 	producerRabbitMQRepository := mrabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	redisConnection := setupRedisConnection(config, logger)
+	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
 		AccountGRPCRepo: accountGRPCRepository,
@@ -60,6 +65,7 @@ func InitializeService() *service.Service {
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
+		RedisRepo:       redisConsumerRepository,
 	}
 	consumerRabbitMQRepository := mrabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
 	queryUseCase := &query.UseCase{
@@ -69,6 +75,7 @@ func InitializeService() *service.Service {
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    consumerRabbitMQRepository,
+		RedisRepo:       redisConsumerRepository,
 	}
 	transactionHandler := &http.TransactionHandler{
 		Command: useCase,
@@ -178,12 +185,26 @@ func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
 	return t
 }
 
+func setupRedisConnection(cfg *service.Config, log mlog.Logger) *mredis.RedisConnection {
+	connStrSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
+
+	return &mredis.RedisConnection{
+		Addr:     connStrSource,
+		User:     cfg.RedisUser,
+		Password: cfg.RedisPassword,
+		DB:       0,
+		Protocol: 3,
+		Logger:   log,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(common.InitLocalEnvConfig, setupTelemetryProviders, mzap.InitializeLogger, setupPostgreSQLConnection,
 		setupMongoDBConnection,
 		setupCasdoorConnection,
 		setupGRPCConnection,
-		setupRabbitMQConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)),
+		setupRabbitMQConnection,
+		setupRedisConnection, service.NewConfig, http.NewRouter, service.NewServer, postgres.NewTransactionPostgreSQLRepository, postgres.NewOperationPostgreSQLRepository, postgres.NewAssetRatePostgreSQLRepository, mongodb.NewMetadataMongoDBRepository, grpc.NewAccountGRPC, mrabbitmq.NewProducerRabbitMQ, mrabbitmq.NewConsumerRabbitMQ, redis.NewConsumerRedis, wire.Struct(new(http.TransactionHandler), "*"), wire.Struct(new(http.OperationHandler), "*"), wire.Struct(new(http.AssetRateHandler), "*"), wire.Struct(new(command.UseCase), "*"), wire.Struct(new(query.UseCase), "*"), wire.Bind(new(transaction.Repository), new(*postgres.TransactionPostgreSQLRepository)), wire.Bind(new(operation.Repository), new(*postgres.OperationPostgreSQLRepository)), wire.Bind(new(assetrate.Repository), new(*postgres.AssetRatePostgreSQLRepository)), wire.Bind(new(metadata.Repository), new(*mongodb.MetadataMongoDBRepository)), wire.Bind(new(account.Repository), new(*grpc.AccountGRPCRepository)), wire.Bind(new(rabbitmq.ConsumerRepository), new(*mrabbitmq.ConsumerRabbitMQRepository)), wire.Bind(new(rabbitmq.ProducerRepository), new(*mrabbitmq.ProducerRabbitMQRepository)), wire.Bind(new(redis2.RedisRepository), new(*redis.RedisConsumerRepository)),
 	)
 
 	svcSet = wire.NewSet(wire.Struct(new(service.Service), "Server", "Logger"))

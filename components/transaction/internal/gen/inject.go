@@ -15,9 +15,11 @@ import (
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
+	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/redis"
 	grpc "github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
 	rabbitmq "github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/app/command"
@@ -27,6 +29,7 @@ import (
 	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	r "github.com/LerianStudio/midaz/components/transaction/internal/domain/rabbitmq"
+	rds "github.com/LerianStudio/midaz/components/transaction/internal/domain/redis"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
 	httpHandler "github.com/LerianStudio/midaz/components/transaction/internal/ports/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/service"
@@ -118,6 +121,19 @@ func setupTelemetryProviders(cfg *service.Config) *mopentelemetry.Telemetry {
 	return t
 }
 
+func setupRedisConnection(cfg *service.Config, log mlog.Logger) *mredis.RedisConnection {
+	connStrSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
+
+	return &mredis.RedisConnection{
+		Addr:     connStrSource,
+		User:     cfg.RedisUser,
+		Password: cfg.RedisPassword,
+		DB:       0,
+		Protocol: 3,
+		Logger:   log,
+	}
+}
+
 var (
 	serviceSet = wire.NewSet(
 		common.InitLocalEnvConfig,
@@ -128,6 +144,7 @@ var (
 		setupCasdoorConnection,
 		setupGRPCConnection,
 		setupRabbitMQConnection,
+		setupRedisConnection,
 		service.NewConfig,
 		httpHandler.NewRouter,
 		service.NewServer,
@@ -138,6 +155,7 @@ var (
 		grpc.NewAccountGRPC,
 		rabbitmq.NewProducerRabbitMQ,
 		rabbitmq.NewConsumerRabbitMQ,
+		redis.NewConsumerRedis,
 		wire.Struct(new(httpHandler.TransactionHandler), "*"),
 		wire.Struct(new(httpHandler.OperationHandler), "*"),
 		wire.Struct(new(httpHandler.AssetRateHandler), "*"),
@@ -150,6 +168,7 @@ var (
 		wire.Bind(new(a.Repository), new(*grpc.AccountGRPCRepository)),
 		wire.Bind(new(r.ConsumerRepository), new(*rabbitmq.ConsumerRabbitMQRepository)),
 		wire.Bind(new(r.ProducerRepository), new(*rabbitmq.ProducerRabbitMQRepository)),
+		wire.Bind(new(rds.RedisRepository), new(*redis.RedisConsumerRepository)),
 	)
 
 	svcSet = wire.NewSet(
