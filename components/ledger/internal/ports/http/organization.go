@@ -26,6 +26,16 @@ type OrganizationHandler struct {
 }
 
 // CreateOrganization is a method that creates Organization information.
+//
+//	@Summary        Create an Organization
+//	@Description    Create an Organization with the input payload
+//	@Tags           Organizations
+//	@Accept         json
+//	@Produce        json
+//	@Param          x-correlationid    header      string    true    "code of Order"
+//	@Param            orderCode        path        string    true    "code of Order"
+//	@Success        200                {string}    string
+//	@Router            /v1/organizations [post]
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

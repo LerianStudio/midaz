@@ -23,6 +23,7 @@ help:
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
 	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
+	@echo "    make generate-docs-all                   Run a command to inside the ledger and transaction app to generate swagger docs."
 	@echo ""
 	@echo "  ## Utility Commands"
 	@echo "    make setup-git-hooks                     Command to setup git hooks."
@@ -94,3 +95,7 @@ all-services:
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
+
+generate-docs-all:
+	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
