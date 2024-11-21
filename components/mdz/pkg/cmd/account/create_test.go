@@ -13,39 +13,6 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// {
-//     "id": "01933f96-ed04-7c57-be5b-c091388830f8",
-//     "name": "Investment Account",
-//     "parentAccountId": null,
-//     "entityId": "59df1ccc-6881-4557-97b8-09c4348f3b37",
-//     "assetCode": "BRL",
-//     "organizationId": "01933f94-67b1-794c-bb13-6b75aed7591a",
-//     "ledgerId": "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61",
-//     "portfolioId": "01933f94-d329-76fe-8de0-40559c7b282d",
-//     "productId": "01933f94-fbdf-7756-af37-ef32d0e3268b",
-//     "balance": {
-//         "available": 0,
-//         "onHold": 0,
-//         "scale": 0
-//     },
-//     "status": {
-//         "code": "CREDIT",
-//         "description": "Teste Account"
-//     },
-//     "allowSending": true,
-//     "allowReceiving": true,
-//     "alias": "@wallet_25200376",
-//     "type": "creditCard",
-//     "createdAt": "2024-11-18T14:04:35.972791193Z",
-//     "updatedAt": "2024-11-18T14:04:35.972794057Z",
-//     "deletedAt": null,
-//     "metadata": {
-//         "bitcoinn": "1TkzMvuqVuCVvwG9CsgaZWB67xe8",
-//         "boolean": true,
-//         "chave": "metadata_chave"
-//     }
-// }
-
 func Test_newCmdAccountCreate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
