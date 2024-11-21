@@ -57,7 +57,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 			return amount, balanceAfter, err
 		}
 
-		if ba.Available < 0 {
+		if ba.Available < 0 && !strings.Contains(acc.Alias, "@external") {
 			return amount, balanceAfter, common.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
 		}
 
