@@ -76,7 +76,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	errListener := transaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := common.ValidateBusinessError(cn.ErrInvalidScriptFormat, reflect.TypeOf(t.Transaction{}).Name())
+		err := common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate script in DSL", err)
 
@@ -87,7 +87,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
-		err := common.ValidateBusinessError(cn.ErrInvalidScriptFormat, reflect.TypeOf(t.Transaction{}).Name())
+		err := common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to parse script in DSL", err)
 

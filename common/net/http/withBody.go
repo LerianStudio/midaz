@@ -234,6 +234,14 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("eq", trans, func(ut ut.Translator) error {
+		return ut.Add("eq", "{0} is not equal to {1}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("eq", formatErrorFieldName(fe.Namespace()), fe.Param())
+
+		return t
+	})
+
 	_ = v.RegisterTranslation("keymax", trans, func(ut ut.Translator) error {
 		return ut.Add("keymax", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
@@ -416,7 +424,13 @@ func parseMetadata(s any, originalMap map[string]any) {
 func findUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 
+	numKinds := common.GetMapNumKinds()
+
 	for key, value := range original {
+		if numKinds[reflect.ValueOf(value).Kind()] && value == 0.0 {
+			continue
+		}
+
 		marshaledValue, ok := marshaled[key]
 		if !ok {
 			// If the key is not present in the marshaled map, marking as difference

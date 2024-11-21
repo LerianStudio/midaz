@@ -711,6 +711,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Transaction Type",
 			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%s' field for each entry. Please review your input and try again.", args...),
 		},
+		cn.ErrTransactionValueMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrTransactionValueMismatch.Error(),
+			Title:      "Transaction Value Mismatch",
+			Message:    "The source/destination values do not match the amount to be sent. Please check and retry the transaction.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"slices"
 	"strconv"
@@ -220,4 +221,28 @@ func GetMemUsage(ctx context.Context) int64 {
 	}
 
 	return int64(usage)
+}
+
+// GetMapNumKinds get the map of numeric kinds to use in validations and conversions.
+//
+// The numeric kinds are:
+// - int
+// - int8
+// - int16
+// - int32
+// - int64
+// - float32
+// - float64
+func GetMapNumKinds() map[reflect.Kind]bool {
+	numKinds := make(map[reflect.Kind]bool)
+
+	numKinds[reflect.Int] = true
+	numKinds[reflect.Int8] = true
+	numKinds[reflect.Int16] = true
+	numKinds[reflect.Int32] = true
+	numKinds[reflect.Int64] = true
+	numKinds[reflect.Float32] = true
+	numKinds[reflect.Float64] = true
+
+	return numKinds
 }
