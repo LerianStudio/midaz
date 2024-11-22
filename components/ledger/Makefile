@@ -44,11 +44,8 @@ info:
 grpc-ledger-gen:
 	protoc --proto_path=../../common/mgrpc --go-grpc_out=../../common/mgrpc --go_out=../../common/mgrpc ../../common/mgrpc/account/account.proto
 
-wire:
-	@go generate ./...
-
 run:
-	@go run cmd/main.go .env
+	@go run cmd/app/main.go .env
 
 test:
 	@go test -v ./...
