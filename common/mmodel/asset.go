@@ -17,7 +17,7 @@ type CreateAssetInput struct {
 	Code     string         `json:"code" validate:"required,max=100" example:"BRL"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
+} // @name CreateAssetInput
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 //
@@ -27,7 +27,7 @@ type UpdateAssetInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"Bitcoin"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
+} // @name UpdateAssetInput
 
 // Asset is a struct designed to encapsulate payload data.
 //
@@ -45,7 +45,7 @@ type Asset struct {
 	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
-}
+} // @name Asset
 
 // Assets struct to return get all.
 //
@@ -58,4 +58,4 @@ type Assets struct {
 	Items []Asset `json:"items"`
 	Page  int     `json:"page" example:"1"`
 	Limit int     `json:"limit" example:"10"`
-}
+} // @name Assets
