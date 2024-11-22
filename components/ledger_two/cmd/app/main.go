@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger_two/internal/adapters/implementation/database/redis"
 	rabbitmq "github.com/LerianStudio/midaz/components/ledger_two/internal/adapters/implementation/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger_two/internal/bootstrap"
-	service "github.com/LerianStudio/midaz/components/ledger_two/internal/bootstrap"
 	"github.com/LerianStudio/midaz/components/ledger_two/internal/bootstrap/grpc"
 	"github.com/LerianStudio/midaz/components/ledger_two/internal/bootstrap/http"
 	"github.com/LerianStudio/midaz/components/ledger_two/internal/services/command"
@@ -170,13 +169,13 @@ func main() {
 
 	app := http.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 
-	server := service.NewServer(cfg, app, logger, telemetry)
+	server := bootstrap.NewServer(cfg, app, logger, telemetry)
 
 	grpcServer := grpc.NewRouterGRPC(logger, telemetry, casDoorConnection, useCase, queryUseCase)
 
-	serverGRPC := service.NewServerGRPC(cfg, grpcServer, logger)
+	serverGRPC := bootstrap.NewServerGRPC(cfg, grpcServer, logger)
 
-	serviceService := &service.Service{
+	serviceService := &bootstrap.Service{
 		Server:     server,
 		ServerGRPC: serverGRPC,
 		Logger:     logger,
