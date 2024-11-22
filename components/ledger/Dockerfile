@@ -4,7 +4,7 @@ WORKDIR /ledger-app
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/ledger/internal/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/ledger/cmd/app/main.go
 
 FROM alpine:latest
 

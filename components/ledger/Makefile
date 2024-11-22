@@ -48,7 +48,7 @@ wire:
 	@go generate ./...
 
 run:
-	@go run internal/main.go .env
+	@go run cmd/main.go .env
 
 test:
 	@go test -v ./...
