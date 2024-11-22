@@ -5,7 +5,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	lib "github.com/LerianStudio/midaz/common/net/http"
-	_ "github.com/LerianStudio/midaz/components/transaction/docs"
+	_ "github.com/LerianStudio/midaz/components/transaction/api"
 	ar "github.com/LerianStudio/midaz/components/transaction/internal/domain/assetrate"
 	o "github.com/LerianStudio/midaz/components/transaction/internal/domain/operation"
 	t "github.com/LerianStudio/midaz/components/transaction/internal/domain/transaction"
@@ -60,7 +60,7 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Get("/version", lib.Version)
 
 	// Doc
-	f.Get("/swagger/*", fiberSwagger.WrapHandler)
+	f.Get("/swagger/*", lib.WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
 	lib.DocAPI("transaction", "Transaction API", f)
 
 	f.Use(tlMid.EndTracingSpans)

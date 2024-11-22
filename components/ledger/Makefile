@@ -61,7 +61,7 @@ tidy:
 	@go mod tidy
 
 generate-docs:
-	@swag init -g ./main.go -d ./internal
+	@swag init -g ./main.go -d ./internal -o ./api --parseDependency --parseInternal
 
 # Docker Compose Commands
 build:
