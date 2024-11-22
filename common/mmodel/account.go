@@ -6,65 +6,72 @@ import (
 )
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
+//
+// swagger:model CreateAccountInput
+// @Description CreateAccountInput is a struct design to encapsulate request create payload data.
 type CreateAccountInput struct {
-	AssetCode       string         `json:"assetCode" validate:"required,max=100"`
-	Name            string         `json:"name" validate:"max=256"`
-	Alias           *string        `json:"alias" validate:"max=100"`
-	Type            string         `json:"type" validate:"required"`
-	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid"`
-	ProductID       *string        `json:"productId" validate:"omitempty,uuid"`
-	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid"`
-	EntityID        *string        `json:"entityId" validate:"omitempty,max=256"`
+	AssetCode       string         `json:"assetCode" validate:"required,max=100" example:"BRL"`
+	Name            string         `json:"name" validate:"max=256" example:"My Account"`
+	Alias           *string        `json:"alias" validate:"max=100" example:"@person1"`
+	Type            string         `json:"type" validate:"required" example:"creditCard"`
+	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	ProductID       *string        `json:"productId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	EntityID        *string        `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
 	Status          Status         `json:"status"`
-	AllowSending    *bool          `json:"allowSending"`
-	AllowReceiving  *bool          `json:"allowReceiving"`
+	AllowSending    *bool          `json:"allowSending" example:"true"`
+	AllowReceiving  *bool          `json:"allowReceiving" example:"true"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
+//
+// swagger:model UpdateAccountInput
+// @Description UpdateAccountInput is a struct design to encapsulate request update payload data.
 type UpdateAccountInput struct {
-	Name           string         `json:"name" validate:"max=256"`
+	Name           string         `json:"name" validate:"max=256" example:"My Account Updated"`
 	Status         Status         `json:"status"`
-	AllowSending   *bool          `json:"allowSending"`
-	AllowReceiving *bool          `json:"allowReceiving"`
-	Alias          *string        `json:"alias" validate:"max=100"`
-	ProductID      *string        `json:"productId" validate:"uuid"`
+	AllowSending   *bool          `json:"allowSending" example:"true"`
+	AllowReceiving *bool          `json:"allowReceiving" example:"true"`
+	Alias          *string        `json:"alias" validate:"max=100" example:"@person1"`
+	ProductID      *string        `json:"productId" validate:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 }
 
-// SearchAccountsInput is a struct design to encapsulate request search payload data.
-type SearchAccountsInput struct {
-	PortfolioID *string `json:"portfolioId" validate:"omitempty,uuid"`
-}
-
 // Account is a struct designed to encapsulate response payload data.
+//
+// swagger:model Account
+// @Description Account is a struct designed to encapsulate response payload data.
 type Account struct {
-	ID              string         `json:"id"`
-	Name            string         `json:"name"`
-	ParentAccountID *string        `json:"parentAccountId"`
-	EntityID        *string        `json:"entityId"`
-	AssetCode       string         `json:"assetCode"`
-	OrganizationID  string         `json:"organizationId"`
-	LedgerID        string         `json:"ledgerId"`
-	PortfolioID     *string        `json:"portfolioId"`
-	ProductID       *string        `json:"productId"`
+	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	Name            string         `json:"name" example:"My Account"`
+	ParentAccountID *string        `json:"parentAccountId" example:"00000000-0000-0000-0000-000000000000"`
+	EntityID        *string        `json:"entityId" example:"00000000-0000-0000-0000-000000000000"`
+	AssetCode       string         `json:"assetCode" example:"BRL"`
+	OrganizationID  string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
+	ProductID       *string        `json:"productId" example:"00000000-0000-0000-0000-000000000000"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
-	AllowSending    *bool          `json:"allowSending"`
-	AllowReceiving  *bool          `json:"allowReceiving"`
-	Alias           *string        `json:"alias"`
-	Type            string         `json:"type"`
-	CreatedAt       time.Time      `json:"createdAt"`
-	UpdatedAt       time.Time      `json:"updatedAt"`
-	DeletedAt       *time.Time     `json:"deletedAt"`
+	AllowSending    *bool          `json:"allowSending" example:"true"`
+	AllowReceiving  *bool          `json:"allowReceiving" example:"true"`
+	Alias           *string        `json:"alias" example:"@person1"`
+	Type            string         `json:"type" example:"creditCard"`
+	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
+	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 }
 
 // Balance structure for marshaling/unmarshalling JSON.
+//
+// swagger:model Balance
+// @Description Balance structure for marshaling/unmarshalling JSON.
 type Balance struct {
-	Available *float64 `json:"available"`
-	OnHold    *float64 `json:"onHold"`
-	Scale     *float64 `json:"scale"`
+	Available *float64 `json:"available" example:"1500"`
+	OnHold    *float64 `json:"onHold" example:"500"`
+	Scale     *float64 `json:"scale" example:"2"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -73,10 +80,13 @@ func (b Balance) IsEmpty() bool {
 }
 
 // Accounts struct to return get all.
+//
+// swagger:model Accounts
+// @Description Accounts struct to return get all.
 type Accounts struct {
 	Items []Account `json:"items"`
-	Page  int       `json:"page"`
-	Limit int       `json:"limit"`
+	Page  int       `json:"page" example:"1"`
+	Limit int       `json:"limit" example:"10"`
 }
 
 // ToProto converts entity Account to a response protobuf proto
