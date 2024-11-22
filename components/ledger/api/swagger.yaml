@@ -1,0 +1,712 @@
+basePath: /
+definitions:
+  mmodel.Address:
+    description: Address structure for marshaling/unmarshalling JSON.
+    properties:
+      city:
+        type: string
+      country:
+        description: According to ISO 3166-1 alpha-2
+        type: string
+      line1:
+        type: string
+      line2:
+        type: string
+      state:
+        type: string
+      zipCode:
+        type: string
+    type: object
+  mmodel.Asset:
+    description: Asset is a struct designed to encapsulate payload data.
+    properties:
+      code:
+        type: string
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      id:
+        type: string
+      ledgerId:
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        type: string
+      organizationId:
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+      type:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  mmodel.CreateAssetInput:
+    description: CreateAssetInput is a struct design to encapsulate request create
+      payload data.
+    properties:
+      code:
+        maxLength: 100
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+      type:
+        type: string
+    required:
+    - code
+    type: object
+  mmodel.CreateLedgerInput:
+    description: CreateLedgerInput is a struct design to encapsulate request create
+      payload data for ledger.
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    required:
+    - name
+    type: object
+  mmodel.CreateOrganizationInput:
+    description: CreateOrganizationInput is a struct design to encapsulate request
+      create payload data for organization.
+    properties:
+      address:
+        $ref: '#/definitions/mmodel.Address'
+      doingBusinessAs:
+        maxLength: 256
+        type: string
+      legalDocument:
+        maxLength: 256
+        type: string
+      legalName:
+        maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      parentOrganizationId:
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    required:
+    - legalDocument
+    - legalName
+    type: object
+  mmodel.CreatePortfolioInput:
+    properties:
+      entityId:
+        maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    required:
+    - entityId
+    - name
+    type: object
+  mmodel.Ledger:
+    description: Ledger is a struct designed to encapsulate payload data.
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      id:
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        type: string
+      organizationId:
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+      updatedAt:
+        type: string
+    type: object
+  mmodel.Organization:
+    description: Organization is a struct designed to encapsulate response payload
+      data.
+    properties:
+      address:
+        $ref: '#/definitions/mmodel.Address'
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      doingBusinessAs:
+        type: string
+      id:
+        type: string
+      legalDocument:
+        type: string
+      legalName:
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      parentOrganizationId:
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+      updatedAt:
+        type: string
+    type: object
+  mmodel.Portfolio:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        type: string
+      entityId:
+        type: string
+      id:
+        type: string
+      ledgerId:
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        type: string
+      organizationId:
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+      updatedAt:
+        type: string
+    type: object
+  mmodel.Status:
+    description: Status structure for marshaling/unmarshalling JSON.
+    properties:
+      code:
+        maxLength: 100
+        type: string
+      description:
+        maxLength: 256
+        type: string
+    type: object
+  mmodel.UpdateAssetInput:
+    description: UpdateAssetInput is a struct design to encapsulate request update
+      payload data.
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    type: object
+  mmodel.UpdateLedgerInput:
+    description: UpdateLedgerInput is a struct design to encapsulate request update
+      payload data for ledger.
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    type: object
+  mmodel.UpdateOrganizationInput:
+    description: UpdateOrganizationInput is a struct design to encapsulate request
+      update payload data for organization.
+    properties:
+      address:
+        $ref: '#/definitions/mmodel.Address'
+      doingBusinessAs:
+        maxLength: 256
+        type: string
+      legalName:
+        maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      parentOrganizationId:
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    required:
+    - legalName
+    type: object
+  mmodel.UpdatePortfolioInput:
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/mmodel.Status'
+    type: object
+  mpostgres.Pagination:
+    properties:
+      items: {}
+      limit:
+        type: integer
+      page:
+        type: integer
+    type: object
+host: localhost:3000
+info:
+  contact:
+    name: Discord community
+    url: https://discord.gg/DnhqKwkGv3
+  description: This is a swagger documentation for the Midaz Ledger API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Midaz Ledger API
+  version: "1.0"
+paths:
+  /v1/organizations:
+    get:
+      description: Get all Organizations with the input metadata or without metadata
+      parameters:
+      - description: Metadata
+        in: query
+        name: metadata
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              allOf:
+              - $ref: '#/definitions/mpostgres.Pagination'
+              - properties:
+                  items:
+                    items:
+                      $ref: '#/definitions/mmodel.Organization'
+                    type: array
+                type: object
+            type: array
+      summary: Get all Organizations
+      tags:
+      - Organizations
+    post:
+      consumes:
+      - application/json
+      description: Create an Organization with the input payload
+      parameters:
+      - description: Organization Input
+        in: body
+        name: organization
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.CreateOrganizationInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Organization'
+      summary: Create an Organization
+      tags:
+      - Organizations
+  /v1/organizations/{id}:
+    delete:
+      description: Delete an Organization with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete an Organization by ID
+      tags:
+      - Organizations
+    get:
+      description: Get an Organization with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Organization'
+      summary: Get an Organization by ID
+      tags:
+      - Organizations
+    patch:
+      consumes:
+      - application/json
+      description: Update an Organization with the input payload
+      parameters:
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Organization Input
+        in: body
+        name: organization
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.UpdateOrganizationInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Organization'
+      summary: Update an Organization
+      tags:
+      - Organizations
+  /v1/organizations/{organization_id}/ledgers:
+    get:
+      description: Get all Ledgers with the input metadata or without metadata
+      parameters:
+      - description: Ledger ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              allOf:
+              - $ref: '#/definitions/mpostgres.Pagination'
+              - properties:
+                  items:
+                    items:
+                      $ref: '#/definitions/mmodel.Ledger'
+                    type: array
+                type: object
+            type: array
+      summary: Get all Ledgers
+      tags:
+      - Ledgers
+    post:
+      consumes:
+      - application/json
+      description: Create a Ledger with the input payload
+      parameters:
+      - description: Ledger Input
+        in: body
+        name: ledger
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.CreateLedgerInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Ledger'
+      summary: Create a Ledger
+      tags:
+      - Ledgers
+  /v1/organizations/{organization_id}/ledgers/{id}:
+    delete:
+      description: Delete a Ledger with the input ID
+      parameters:
+      - description: Ledger ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete a Ledger by ID
+      tags:
+      - Ledgers
+    get:
+      description: Get a Ledger with the input ID
+      parameters:
+      - description: Ledger ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Ledger'
+      summary: Get a Ledger by ID
+      tags:
+      - Ledgers
+    patch:
+      consumes:
+      - application/json
+      description: Update a Ledger with the input payload
+      parameters:
+      - description: Ledger ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Ledger Input
+        in: body
+        name: ledger
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.UpdateLedgerInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Ledger'
+      summary: Update a Ledger
+      tags:
+      - Ledgers
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
+    get:
+      description: Get all Assets with the input metadata or without metadata
+      parameters:
+      - description: Metadata
+        in: query
+        name: metadata
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              allOf:
+              - $ref: '#/definitions/mpostgres.Pagination'
+              - properties:
+                  items:
+                    items:
+                      $ref: '#/definitions/mmodel.Asset'
+                    type: array
+                type: object
+            type: array
+      summary: Get all Assets
+      tags:
+      - Assets
+    post:
+      consumes:
+      - application/json
+      description: Create an Asset with the input payload
+      parameters:
+      - description: Asset Input
+        in: body
+        name: asset
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.CreateAssetInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Asset'
+      summary: Create an Asset
+      tags:
+      - Assets
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
+    delete:
+      description: Delete an Asset with the input ID
+      parameters:
+      - description: Asset ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete an Asset by ID
+      tags:
+      - Assets
+    get:
+      description: Get an Asset with the input ID
+      parameters:
+      - description: Asset ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Asset'
+      summary: Get an Asset by ID
+      tags:
+      - Assets
+    patch:
+      consumes:
+      - application/json
+      description: Update an Asset with the input payload
+      parameters:
+      - description: Asset ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Asset Input
+        in: body
+        name: asset
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.UpdateAssetInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Asset'
+      summary: Update an Asset
+      tags:
+      - Assets
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
+    get:
+      description: Get all Portfolios with the input metadata or without metadata
+      parameters:
+      - description: Metadata query
+        in: query
+        name: metadata
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              allOf:
+              - $ref: '#/definitions/mpostgres.Pagination'
+              - properties:
+                  items:
+                    items:
+                      $ref: '#/definitions/mmodel.Portfolio'
+                    type: array
+                type: object
+            type: array
+      summary: Get all Portfolios
+      tags:
+      - Portfolios
+    patch:
+      consumes:
+      - application/json
+      description: Update a Portfolio with the input payload
+      parameters:
+      - description: Portfolio Payload
+        in: body
+        name: portfolio
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.UpdatePortfolioInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Portfolio'
+      summary: Update a Portfolio
+      tags:
+      - Portfolios
+    post:
+      consumes:
+      - application/json
+      description: Create a Portfolio with the input payload
+      parameters:
+      - description: Portfolio Payload
+        in: body
+        name: portfolio
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.CreatePortfolioInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Portfolio'
+      summary: Create a Portfolio
+      tags:
+      - Portfolios
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
+    delete:
+      description: Delete a Portfolio with the input ID
+      parameters:
+      - description: Portfolio ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete a Portfolio by ID
+      tags:
+      - Portfolios
+    get:
+      description: Get a Portfolio with the input ID
+      parameters:
+      - description: Portfolio ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Portfolio'
+      summary: Get a Portfolio by ID
+      tags:
+      - Portfolios
+swagger: "2.0"
