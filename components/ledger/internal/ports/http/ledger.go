@@ -26,6 +26,16 @@ type LedgerHandler struct {
 }
 
 // CreateLedger is a method that creates Ledger information.
+//
+//		@Summary        Create a Ledger
+//		@Description    Create a Ledger with the input payload
+//		@Tags           Ledgers
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//		@Param          ledger body mmodel.CreateLedgerInput true "Ledger Input"
+//		@Success        200 {object} mmodel.Ledger
+//		@Router         /v1/organizations/{organization_id}/ledgers [post]
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -61,6 +71,14 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 }
 
 // GetLedgerByID is a method that retrieves Ledger information by a given id.
+//
+//	@Summary        Get a Ledger by ID
+//	@Description    Get a Ledger with the input ID
+//	@Tags           Ledgers
+//	@Produce        json
+//	@Param          id path string true "Ledger ID"
+//	@Success        200 {object} mmodel.Ledger
+//	@Router         /v1/organizations/{organization_id}/ledgers/{id} [get]
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -90,6 +108,15 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 }
 
 // GetAllLedgers is a method that retrieves all ledgers.
+//
+//		@Summary        Get all Ledgers
+//		@Description    Get all Ledgers with the input metadata or without metadata
+//		@Tags           Ledgers
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//		@Param          id path string true "Ledger ID"
+//		@Success        200 {object} mpostgres.Pagination{items=[]mmodel.Ledger}
+//		@Router         /v1/organizations/{organization_id}/ledgers [get]
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -148,6 +175,17 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 }
 
 // UpdateLedger is a method that updates Ledger information.
+//
+//		@Summary        Update a Ledger
+//		@Description    Update a Ledger with the input payload
+//		@Tags           Ledgers
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//		@Param          id path string true "Ledger ID"
+//		@Param          ledger body mmodel.UpdateLedgerInput true "Ledger Input"
+//		@Success        200 {object} mmodel.Ledger
+//		@Router         /v1/organizations/{organization_id}/ledgers/{id} [patch]
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -163,7 +201,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := p.(*mmodel.UpdateLedgerInput)
-	logger.Infof("Request to update an Ledger with details: %#v", payload)
+	logger.Infof("Request to update a Ledger with details: %#v", payload)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
@@ -196,6 +234,14 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 }
 
 // DeleteLedgerByID is a method that removes Ledger information by a given id.
+//
+//		@Summary        Delete a Ledger by ID
+//		@Description    Delete a Ledger with the input ID
+//		@Tags           Ledgers
+//	 @Param 			organization_id path string true "Organization ID"
+//		@Param          id path string true "Ledger ID"
+//		@Success        204
+//		@Router         /v1/organizations/{organization_id}/ledgers/{id} [delete]
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
