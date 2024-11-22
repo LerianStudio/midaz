@@ -1,0 +1,111 @@
+name: "Code Quality & Security"
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+  actions: read
+  security-events: write
+
+jobs:
+  # Job to execute CodeQL  
+  CodeQL:
+    runs-on: ubuntu-latest
+    name: Run CodeQL to Midaz
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: autobuild
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # Job to execute the security Step - GoSec  
+  GoSec:
+    runs-on: ubuntu-latest
+    name: Run GoSec to Midaz
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Gosec Scanner
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+  # Job to execute Lint Step - GoLangCI-Lint
+  GoLangCI-Lint:
+    runs-on: ubuntu-latest
+    name: Run GoLangCI-Lint to Midaz
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: GoLangCI-Lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+
+  # Job to execute Unit Tests
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Run Unit Tests to Midaz
+    env:
+      WORKING_DIR: components/ledger
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Unit Tests
+        working-directory: ${{ env.WORKING_DIR }}
+        shell: bash
+        run: make test
