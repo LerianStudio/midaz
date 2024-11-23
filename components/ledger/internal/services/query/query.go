@@ -1,15 +1,15 @@
 package query
 
 import (
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/redis"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/rabbitmq"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.

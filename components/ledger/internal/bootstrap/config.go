@@ -2,6 +2,10 @@ package bootstrap
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
+	postgres2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
+	rabbitmq2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mcasdoor"
@@ -11,10 +15,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/postgres"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/redis"
-	rabbitmq "github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap/grpc"
 	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
@@ -149,17 +149,17 @@ func InitServers() *Service {
 		Logger:   logger,
 	}
 
-	organizationPostgreSQLRepository := postgres.NewOrganizationPostgreSQLRepository(postgresConnection)
-	ledgerPostgreSQLRepository := postgres.NewLedgerPostgreSQLRepository(postgresConnection)
-	productPostgreSQLRepository := postgres.NewProductPostgreSQLRepository(postgresConnection)
-	portfolioPostgreSQLRepository := postgres.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := postgres.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := postgres.NewAssetPostgreSQLRepository(postgresConnection)
+	organizationPostgreSQLRepository := postgres2.NewOrganizationPostgreSQLRepository(postgresConnection)
+	ledgerPostgreSQLRepository := postgres2.NewLedgerPostgreSQLRepository(postgresConnection)
+	productPostgreSQLRepository := postgres2.NewProductPostgreSQLRepository(postgresConnection)
+	portfolioPostgreSQLRepository := postgres2.NewPortfolioPostgreSQLRepository(postgresConnection)
+	accountPostgreSQLRepository := postgres2.NewAccountPostgreSQLRepository(postgresConnection)
+	assetPostgreSQLRepository := postgres2.NewAssetPostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
+	producerRabbitMQRepository := rabbitmq2.NewProducerRabbitMQ(rabbitMQConnection)
+	consumerRabbitMQRepository := rabbitmq2.NewConsumerRabbitMQ(rabbitMQConnection)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 

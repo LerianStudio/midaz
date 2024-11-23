@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	mongodb2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -28,7 +28,7 @@ func TestGetAllMetadataAssets(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
+	mockMetadataRepo := mongodb2.NewMockRepository(gomock.NewController(t))
 	uc := UseCase{
 		MetadataRepo: mockMetadataRepo,
 	}
@@ -37,7 +37,7 @@ func TestGetAllMetadataAssets(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
+			Return([]*mongodb2.Metadata{{ID: primitive.NewObjectID()}}, nil).
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 

@@ -3,12 +3,12 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
