@@ -2,15 +2,6 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
-	postgres2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
-	rabbitmq2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mcasdoor"
@@ -20,6 +11,15 @@ import (
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap/grpc"
 	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
@@ -158,13 +158,13 @@ func InitServers() *Service {
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
 	productPostgreSQLRepository := product.NewProductPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
-	accountPostgreSQLRepository := postgres2.NewAccountPostgreSQLRepository(postgresConnection)
+	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	producerRabbitMQRepository := rabbitmq2.NewProducerRabbitMQ(rabbitMQConnection)
-	consumerRabbitMQRepository := rabbitmq2.NewConsumerRabbitMQ(rabbitMQConnection)
+	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
@@ -224,14 +224,14 @@ func InitServers() *Service {
 
 	httpApp := http.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 
-	server := NewServer(cfg, httpApp, logger, telemetry)
+	serverApi := NewServer(cfg, httpApp, logger, telemetry)
 
 	grpcApp := grpc.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
 
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger)
 
 	return &Service{
-		Server:     server,
+		Server:     serverApi,
 		ServerGRPC: serverGRPC,
 		Logger:     logger,
 	}
