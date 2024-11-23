@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,7 +22,7 @@ func TestGetAllAssets(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockAssetRepo := mock.NewMockRepository(ctrl)
+	mockAssetRepo := asset.NewMockRepository(ctrl)
 
 	uc := UseCase{
 		AssetRepo: mockAssetRepo,

@@ -7,52 +7,52 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestCreateAssetSuccess is responsible to test CreateAsset with success
 func TestCreateAssetSuccess(t *testing.T) {
-	asset := &mmodel.Asset{
+	a := &mmodel.Asset{
 		ID:             common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
-		AssetRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AssetRepo: asset.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRepo.(*mock.MockRepository).
+	uc.AssetRepo.(*asset.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), asset).
-		Return(asset, nil).
+		Create(gomock.Any(), a).
+		Return(a, nil).
 		Times(1)
-	res, err := uc.AssetRepo.Create(context.TODO(), asset)
+	res, err := uc.AssetRepo.Create(context.TODO(), a)
 
-	assert.Equal(t, asset, res)
+	assert.Equal(t, a, res)
 	assert.Nil(t, err)
 }
 
 // TestCreateAssetError is responsible to test CreateAsset with error
 func TestCreateAssetError(t *testing.T) {
 	errMSG := "err to create asset on database"
-	asset := &mmodel.Asset{
+	a := &mmodel.Asset{
 		ID:       common.GenerateUUIDv7().String(),
 		LedgerID: common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
-		AssetRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AssetRepo: asset.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRepo.(*mock.MockRepository).
+	uc.AssetRepo.(*asset.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), asset).
+		Create(gomock.Any(), a).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.AssetRepo.Create(context.TODO(), asset)
+	res, err := uc.AssetRepo.Create(context.TODO(), a)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

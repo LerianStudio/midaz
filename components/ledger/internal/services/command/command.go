@@ -2,11 +2,11 @@ package command
 
 import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
@@ -30,7 +30,7 @@ type UseCase struct {
 	AccountRepo a.Repository
 
 	// AssetRepo provides an abstraction on top of the asset data source.
-	AssetRepo s.Repository
+	AssetRepo asset.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository

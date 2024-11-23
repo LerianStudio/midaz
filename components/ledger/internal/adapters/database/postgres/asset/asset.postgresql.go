@@ -1,4 +1,4 @@
-package postgres
+package asset
 
 import (
 	"context"
@@ -14,13 +14,25 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	s "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
+
+// Repository provides an interface for operations related to asset entities.
+//
+//go:generate mockgen --destination=asset.mock.go --package=asset . Repository
+type Repository interface {
+	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Asset, error)
+	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error)
+	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error)
+	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+}
 
 // AssetPostgreSQLRepository is a Postgresql-specific implementation of the AssetRepository.
 type AssetPostgreSQLRepository struct {
@@ -57,7 +69,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		return nil, err
 	}
 
-	record := &s.AssetPostgreSQLModel{}
+	record := &AssetPostgreSQLModel{}
 	record.FromEntity(asset)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -197,7 +209,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 	spanQuery.End()
 
 	for rows.Next() {
-		var asset s.AssetPostgreSQLModel
+		var asset AssetPostgreSQLModel
 		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
 			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -247,7 +259,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 	spanQuery.End()
 
 	for rows.Next() {
-		var asset s.AssetPostgreSQLModel
+		var asset AssetPostgreSQLModel
 		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
 			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -281,7 +293,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 		return nil, err
 	}
 
-	asset := &s.AssetPostgreSQLModel{}
+	asset := &AssetPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -318,7 +330,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	record := &s.AssetPostgreSQLModel{}
+	record := &AssetPostgreSQLModel{}
 	record.FromEntity(asset)
 
 	var updates []string

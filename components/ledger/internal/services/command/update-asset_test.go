@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -18,7 +18,7 @@ func TestUpdateAssetByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	asset := &mmodel.Asset{
+	a := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -26,17 +26,17 @@ func TestUpdateAssetByIDSuccess(t *testing.T) {
 	}
 
 	uc := UseCase{
-		AssetRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AssetRepo: asset.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRepo.(*mock.MockRepository).
+	uc.AssetRepo.(*asset.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, asset).
-		Return(asset, nil).
+		Update(gomock.Any(), organizationID, ledgerID, id, a).
+		Return(a, nil).
 		Times(1)
-	res, err := uc.AssetRepo.Update(context.TODO(), organizationID, ledgerID, id, asset)
+	res, err := uc.AssetRepo.Update(context.TODO(), organizationID, ledgerID, id, a)
 
-	assert.Equal(t, asset, res)
+	assert.Equal(t, a, res)
 	assert.Nil(t, err)
 }
 
@@ -46,7 +46,7 @@ func TestUpdateAssetByIDError(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	asset := &mmodel.Asset{
+	a := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -54,14 +54,14 @@ func TestUpdateAssetByIDError(t *testing.T) {
 	}
 
 	uc := UseCase{
-		AssetRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AssetRepo: asset.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRepo.(*mock.MockRepository).
+	uc.AssetRepo.(*asset.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, asset).
+		Update(gomock.Any(), organizationID, ledgerID, id, a).
 		Return(nil, errors.New(errMSG))
-	res, err := uc.AssetRepo.Update(context.TODO(), organizationID, ledgerID, id, asset)
+	res, err := uc.AssetRepo.Update(context.TODO(), organizationID, ledgerID, id, a)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

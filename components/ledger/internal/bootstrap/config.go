@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	postgres2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
@@ -156,7 +157,7 @@ func InitServers() *Service {
 	productPostgreSQLRepository := postgres2.NewProductPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := postgres2.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := postgres2.NewAccountPostgreSQLRepository(postgresConnection)
-	assetPostgreSQLRepository := postgres2.NewAssetPostgreSQLRepository(postgresConnection)
+	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 

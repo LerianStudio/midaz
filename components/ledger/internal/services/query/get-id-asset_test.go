@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -17,24 +17,24 @@ func TestGetAssetByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	asset := &mmodel.Asset{
+	a := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
 	}
 
 	uc := UseCase{
-		AssetRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AssetRepo: asset.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRepo.(*mock.MockRepository).
+	uc.AssetRepo.(*asset.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, id).
-		Return(asset, nil).
+		Return(a, nil).
 		Times(1)
 	res, err := uc.AssetRepo.Find(context.TODO(), organizationID, ledgerID, id)
 
-	assert.Equal(t, res, asset)
+	assert.Equal(t, res, a)
 	assert.Nil(t, err)
 }
 
@@ -46,10 +46,10 @@ func TestGetAssetByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		AssetRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AssetRepo: asset.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AssetRepo.(*mock.MockRepository).
+	uc.AssetRepo.(*asset.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, id).
 		Return(nil, errors.New(errMSG)).
