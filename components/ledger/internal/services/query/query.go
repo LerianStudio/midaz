@@ -2,6 +2,7 @@ package query
 
 import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/redis"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
@@ -9,7 +10,6 @@ import (
 	p "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/portfolio"
 	r "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/product"
 	rmq "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/rabbitmq"
-	rds "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/redis"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.
@@ -39,5 +39,5 @@ type UseCase struct {
 	RabbitMQRepo rmq.ConsumerRepository
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
-	RedisRepo rds.RedisRepository
+	RedisRepo redis.RedisRepository
 }
