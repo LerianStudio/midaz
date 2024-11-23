@@ -1,8 +1,27 @@
 package bootstrap
 
 import (
+	"fmt"
+
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/mcasdoor"
+	"github.com/LerianStudio/midaz/common/mmongo"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/common/mrabbitmq"
+	"github.com/LerianStudio/midaz/common/mredis"
+	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/redis"
+	rabbitmq "github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/rabbitmq"
+	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap/grpc"
+	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap/http"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 )
+
+const ApplicationName = "ledger"
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
@@ -51,13 +70,164 @@ type Config struct {
 	RedisPassword           string `env:"REDIS_PASSWORD"`
 }
 
-// NewConfig creates an instance of Config.
-func NewConfig() *Config {
+// InitServers initiate http and grpc servers.
+func InitServers() *Service {
 	cfg := &Config{}
 
 	if err := common.SetConfigFromEnvVars(cfg); err != nil {
 		panic(err)
 	}
 
-	return cfg
+	logger := mzap.InitializeLogger()
+
+	telemetry := &mopentelemetry.Telemetry{
+		LibraryName:               cfg.OtelLibraryName,
+		ServiceName:               cfg.OtelServiceName,
+		ServiceVersion:            cfg.OtelServiceVersion,
+		DeploymentEnv:             cfg.OtelDeploymentEnv,
+		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+	}
+
+	casDoorConnection := &mcasdoor.CasdoorConnection{
+		JWKUri:           cfg.JWKAddress,
+		Endpoint:         cfg.CasdoorAddress,
+		ClientID:         cfg.CasdoorClientID,
+		ClientSecret:     cfg.CasdoorClientSecret,
+		OrganizationName: cfg.CasdoorOrganizationName,
+		ApplicationName:  cfg.CasdoorApplicationName,
+		EnforcerName:     cfg.CasdoorEnforcerName,
+		Logger:           logger,
+	}
+
+	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		cfg.PrimaryDBHost, cfg.PrimaryDBUser, cfg.PrimaryDBPassword, cfg.PrimaryDBName, cfg.PrimaryDBPort)
+
+	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort)
+
+	postgresConnection := &mpostgres.PostgresConnection{
+		ConnectionStringPrimary: postgreSourcePrimary,
+		ConnectionStringReplica: postgreSourceReplica,
+		PrimaryDBName:           cfg.PrimaryDBName,
+		ReplicaDBName:           cfg.ReplicaDBName,
+		Component:               ApplicationName,
+		Logger:                  logger,
+	}
+
+	mongoSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
+		cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+
+	mongoConnection := &mmongo.MongoConnection{
+		ConnectionStringSource: mongoSource,
+		Database:               cfg.MongoDBName,
+		Logger:                 logger,
+	}
+
+	rabbitSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
+		cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+
+	rabbitMQConnection := &mrabbitmq.RabbitMQConnection{
+		ConnectionStringSource: rabbitSource,
+		Host:                   cfg.RabbitMQHost,
+		Port:                   cfg.RabbitMQPortAMQP,
+		User:                   cfg.RabbitMQUser,
+		Pass:                   cfg.RabbitMQPass,
+		Exchange:               cfg.RabbitMQExchange,
+		Key:                    cfg.RabbitMQKey,
+		Queue:                  cfg.RabbitMQQueue,
+		Logger:                 logger,
+	}
+
+	redisSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
+
+	redisConnection := &mredis.RedisConnection{
+		Addr:     redisSource,
+		User:     cfg.RedisUser,
+		Password: cfg.RedisPassword,
+		DB:       0,
+		Protocol: 3,
+		Logger:   logger,
+	}
+
+	organizationPostgreSQLRepository := postgres.NewOrganizationPostgreSQLRepository(postgresConnection)
+	ledgerPostgreSQLRepository := postgres.NewLedgerPostgreSQLRepository(postgresConnection)
+	productPostgreSQLRepository := postgres.NewProductPostgreSQLRepository(postgresConnection)
+	portfolioPostgreSQLRepository := postgres.NewPortfolioPostgreSQLRepository(postgresConnection)
+	accountPostgreSQLRepository := postgres.NewAccountPostgreSQLRepository(postgresConnection)
+	assetPostgreSQLRepository := postgres.NewAssetPostgreSQLRepository(postgresConnection)
+
+	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
+
+	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
+
+	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
+
+	commandUseCase := &command.UseCase{
+		OrganizationRepo: organizationPostgreSQLRepository,
+		LedgerRepo:       ledgerPostgreSQLRepository,
+		ProductRepo:      productPostgreSQLRepository,
+		PortfolioRepo:    portfolioPostgreSQLRepository,
+		AccountRepo:      accountPostgreSQLRepository,
+		AssetRepo:        assetPostgreSQLRepository,
+		MetadataRepo:     metadataMongoDBRepository,
+		RabbitMQRepo:     producerRabbitMQRepository,
+		RedisRepo:        redisConsumerRepository,
+	}
+
+	queryUseCase := &query.UseCase{
+		OrganizationRepo: organizationPostgreSQLRepository,
+		LedgerRepo:       ledgerPostgreSQLRepository,
+		ProductRepo:      productPostgreSQLRepository,
+		PortfolioRepo:    portfolioPostgreSQLRepository,
+		AccountRepo:      accountPostgreSQLRepository,
+		AssetRepo:        assetPostgreSQLRepository,
+		MetadataRepo:     metadataMongoDBRepository,
+		RabbitMQRepo:     consumerRabbitMQRepository,
+		RedisRepo:        redisConsumerRepository,
+	}
+
+	accountHandler := &http.AccountHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	portfolioHandler := &http.PortfolioHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	ledgerHandler := &http.LedgerHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	assetHandler := &http.AssetHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	organizationHandler := &http.OrganizationHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	productHandler := &http.ProductHandler{
+		Command: commandUseCase,
+		Query:   queryUseCase,
+	}
+
+	httpApp := http.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
+
+	server := NewServer(cfg, httpApp, logger, telemetry)
+
+	grpcApp := grpc.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
+
+	serverGRPC := NewServerGRPC(cfg, grpcApp, logger)
+
+	return &Service{
+		Server:     server,
+		ServerGRPC: serverGRPC,
+		Logger:     logger,
+	}
 }

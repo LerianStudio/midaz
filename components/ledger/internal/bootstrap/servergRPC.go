@@ -1,11 +1,12 @@
 package bootstrap
 
 import (
+	"net"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
-	"net"
 )
 
 // ServerGRPC represents the gRPC server for Ledger service.
