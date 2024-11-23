@@ -43,13 +43,13 @@ func (s Status) IsEmpty() bool {
 
 // CreateTransactionInput is a struct design to encapsulate payload data.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName string          `json:"chartOfAccountsGroupName" validate:"max=256"`
-	Description              string          `json:"description,omitempty" validate:"max=256"`
-	Code                     string          `json:"code,omitempty" validate:"max=100"`
-	Pending                  bool            `json:"pending,omitempty"`
-	Metadata                 map[string]any  `json:"metadata,omitempty"`
-	Send                     gold.Send       `json:"send,omitempty"`
-	Distribute               gold.Distribute `json:"distribute,omitempty"`
+	ChartOfAccountsGroupName string           `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
+	Description              string           `json:"description,omitempty" validate:"max=256"`
+	Code                     string           `json:"code,omitempty" validate:"max=100"`
+	Pending                  bool             `json:"pending,omitempty"`
+	Metadata                 map[string]any   `json:"metadata,omitempty"`
+	Send                     *gold.Send       `json:"send,omitempty" validate:"required,dive"`
+	Distribute               *gold.Distribute `json:"distribute,omitempty" validate:"required,dive"`
 }
 
 // InputDSL is a struct design to encapsulate payload data.
@@ -151,8 +151,14 @@ func (cti *CreateTransactionInput) FromDSl() *gold.Transaction {
 		Code:                     cti.Code,
 		Pending:                  cti.Pending,
 		Metadata:                 cti.Metadata,
-		Send:                     cti.Send,
-		Distribute:               cti.Distribute,
+	}
+
+	if cti.Send != nil {
+		dsl.Send = *cti.Send
+	}
+
+	if cti.Distribute != nil {
+		dsl.Distribute = *cti.Distribute
 	}
 
 	return dsl

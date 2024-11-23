@@ -18,28 +18,6 @@ type EntityNotFoundError struct {
 	Err        error
 }
 
-// NewEntityNotFoundError creates an instance of EntityNotFoundError.
-func NewEntityNotFoundError(entityType string) EntityNotFoundError {
-	return EntityNotFoundError{
-		EntityType: entityType,
-		Code:       "",
-		Title:      "",
-		Message:    "",
-		Err:        nil,
-	}
-}
-
-// WrapEntityNotFoundError creates an instance of EntityNotFoundError.
-func WrapEntityNotFoundError(entityType string, err error) EntityNotFoundError {
-	return EntityNotFoundError{
-		EntityType: entityType,
-		Code:       "",
-		Title:      "",
-		Message:    "",
-		Err:        err,
-	}
-}
-
 // Error implements the error interface.
 func (e EntityNotFoundError) Error() string {
 	if strings.TrimSpace(e.Message) == "" {
@@ -409,7 +387,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Product Name Error",
 			Message:    fmt.Sprintf("A product with the name %s already exists for this ledger ID %s. Please try again with a different ledger or name.", args...),
 		},
-		cn.ErrBalanceRemainingDeletion: EntityConflictError{
+		cn.ErrBalanceRemainingDeletion: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       cn.ErrBalanceRemainingDeletion.Error(),
 			Title:      "Balance Remaining Deletion Error",
@@ -421,13 +399,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Script Format Error",
 			Message:    "The script provided in your request is invalid or in an unsupported format. Please verify the script format and try again.",
 		},
-		cn.ErrInsufficientFunds: EntityConflictError{
+		cn.ErrInsufficientFunds: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       cn.ErrInsufficientFunds.Error(),
 			Title:      "Insufficient Funds Error",
 			Message:    "The transaction could not be completed due to insufficient funds in the account. Please add sufficient funds to your account and try again.",
 		},
-		cn.ErrAccountIneligibility: EntityConflictError{
+		cn.ErrAccountIneligibility: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       cn.ErrAccountIneligibility.Error(),
 			Title:      "Account Ineligibility Error",
@@ -439,37 +417,37 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Alias Unavailability Error",
 			Message:    fmt.Sprintf("The alias %s is already in use. Please choose a different alias and try again.", args...),
 		},
-		cn.ErrParentTransactionIDNotFound: EntityConflictError{
+		cn.ErrParentTransactionIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       cn.ErrParentTransactionIDNotFound.Error(),
 			Title:      "Parent Transaction ID Not Found",
 			Message:    fmt.Sprintf("The parentTransactionId %s does not correspond to any existing transaction. Please review the ID and try again.", args...),
 		},
-		cn.ErrImmutableField: EntityConflictError{
+		cn.ErrImmutableField: ValidationError{
 			EntityType: entityType,
 			Code:       cn.ErrImmutableField.Error(),
 			Title:      "Immutable Field Error",
 			Message:    fmt.Sprintf("The %s field cannot be modified. Please remove this field from your request and try again.", args...),
 		},
-		cn.ErrTransactionTimingRestriction: EntityConflictError{
+		cn.ErrTransactionTimingRestriction: UnprocessableOperationError{
 			EntityType: entityType,
 			Code:       cn.ErrTransactionTimingRestriction.Error(),
 			Title:      "Transaction Timing Restriction",
 			Message:    fmt.Sprintf("You can only perform another transaction using %s of %f from %s to %s after %s. Please wait until the specified time to try again.", args...),
 		},
-		cn.ErrAccountStatusTransactionRestriction: EntityConflictError{
+		cn.ErrAccountStatusTransactionRestriction: ValidationError{
 			EntityType: entityType,
 			Code:       cn.ErrAccountStatusTransactionRestriction.Error(),
 			Title:      "Account Status Transaction Restriction",
 			Message:    "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
 		},
-		cn.ErrInsufficientAccountBalance: EntityConflictError{
+		cn.ErrInsufficientAccountBalance: ValidationError{
 			EntityType: entityType,
 			Code:       cn.ErrInsufficientAccountBalance.Error(),
 			Title:      "Insufficient Account Balance Error",
 			Message:    fmt.Sprintf("The account %s does not have sufficient balance. Please try again with an amount that is less than or equal to the available balance.", args...),
 		},
-		cn.ErrTransactionMethodRestriction: EntityConflictError{
+		cn.ErrTransactionMethodRestriction: ValidationError{
 			EntityType: entityType,
 			Code:       cn.ErrTransactionMethodRestriction.Error(),
 			Title:      "Transaction Method Restriction",
@@ -703,17 +681,41 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Metadata Nesting",
 			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %s is not nested and try again.", args...),
 		},
-		cn.ErrOperationIDNotFound: ValidationError{
+		cn.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       cn.ErrOperationIDNotFound.Error(),
 			Title:      "Operation ID Not Found",
 			Message:    "The provided operation ID does not exist in our records. Please verify the operation ID and try again.",
 		},
-		cn.ErrNoOperationsFound: ValidationError{
+		cn.ErrNoOperationsFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       cn.ErrNoOperationsFound.Error(),
 			Title:      "No Operations Found",
 			Message:    "No operations were found in the search. Please review the search criteria and try again.",
+		},
+		cn.ErrTransactionIDNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       cn.ErrTransactionIDNotFound.Error(),
+			Title:      "Transaction ID Not Found",
+			Message:    "The provided transaction ID does not exist in our records. Please verify the transaction ID and try again.",
+		},
+		cn.ErrNoTransactionsFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       cn.ErrNoTransactionsFound.Error(),
+			Title:      "No Transactions Found",
+			Message:    "No transactions were found in the search. Please review the search criteria and try again.",
+		},
+		cn.ErrInvalidTransactionType: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrInvalidTransactionType.Error(),
+			Title:      "Invalid Transaction Type",
+			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%s' field for each entry. Please review your input and try again.", args...),
+		},
+		cn.ErrTransactionValueMismatch: ValidationError{
+			EntityType: entityType,
+			Code:       cn.ErrTransactionValueMismatch.Error(),
+			Title:      "Transaction Value Mismatch",
+			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
 		},
 	}
 

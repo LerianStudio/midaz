@@ -6,9 +6,10 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"net/http"
+	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
+	cn "github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/gold/transaction"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
@@ -75,11 +76,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	errListener := transaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := common.ValidationError{
-			Code:    "0017",
-			Title:   "Invalid Script Error",
-			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
-		}
+		err := common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate script in DSL", err)
 
@@ -90,11 +87,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parserDSL, ok := parsed.(gold.Transaction)
 	if !ok {
-		err := common.ValidationError{
-			Code:    "0017",
-			Title:   "Invalid Script Error",
-			Message: "The script provided in the request is invalid or in an unsupported format. Please verify the script and try again.",
-		}
+		err := common.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, reflect.TypeOf(t.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to parse script in DSL", err)
 
@@ -398,7 +391,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
 
 	//TODO: use event driven and broken and parts
-	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, transactionID, constant.APPROVED)
+	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, transactionID, cn.APPROVED)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
@@ -486,7 +479,7 @@ func (handler *TransactionHandler) processAccounts(ctx context.Context, logger m
 
 	var accountsToUpdate []*account.Account
 
-	go gold.UpdateAccounts(constant.DEBIT, validate.From, accounts, result, e)
+	go gold.UpdateAccounts(cn.DEBIT, validate.From, accounts, result, e)
 	select {
 	case r := <-result:
 		accountsToUpdate = append(accountsToUpdate, r...)
@@ -496,7 +489,7 @@ func (handler *TransactionHandler) processAccounts(ctx context.Context, logger m
 		return err
 	}
 
-	go gold.UpdateAccounts(constant.CREDIT, validate.To, accounts, result, e)
+	go gold.UpdateAccounts(cn.CREDIT, validate.To, accounts, result, e)
 	select {
 	case r := <-result:
 		accountsToUpdate = append(accountsToUpdate, r...)

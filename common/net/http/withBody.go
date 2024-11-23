@@ -3,6 +3,7 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -79,14 +80,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 		return err
 	}
 
-	// Generate a map that only contains fields that are present in the original payload but not recognized by the Go struct.
-	diffFields := make(map[string]any)
-
-	for key, value := range originalMap {
-		if _, ok := marshaledMap[key]; !ok {
-			diffFields[key] = value
-		}
-	}
+	diffFields := findUnknownFields(originalMap, marshaledMap)
 
 	if len(diffFields) > 0 {
 		err := common.ValidateBadRequestFieldsError(common.FieldValidations{}, common.FieldValidations{}, "", diffFields)
@@ -160,6 +154,8 @@ func ValidateStruct(s any) error {
 				return common.ValidateBusinessError(cn.ErrMetadataValueLengthExceeded, "", fieldError.Translate(trans), fieldError.Param())
 			case "nonested":
 				return common.ValidateBusinessError(cn.ErrInvalidMetadataNesting, "", fieldError.Translate(trans))
+			case "singletransactiontype":
+				return common.ValidateBusinessError(cn.ErrInvalidTransactionType, "", fieldError.Translate(trans))
 			}
 		}
 
@@ -220,11 +216,36 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("keymax", validateMetadataKeyMaxLength)
 	_ = v.RegisterValidation("nonested", validateMetadataNestedValues)
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
+	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
+
+	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
+		return ut.Add("required", "{0} is a required field", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("required", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("gte", trans, func(ut ut.Translator) error {
+		return ut.Add("gte", "{0} must be {1} or greater", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("gte", formatErrorFieldName(fe.Namespace()), fe.Param())
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("eq", trans, func(ut ut.Translator) error {
+		return ut.Add("eq", "{0} is not equal to {1}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("eq", formatErrorFieldName(fe.Namespace()), fe.Param())
+
+		return t
+	})
 
 	_ = v.RegisterTranslation("keymax", trans, func(ut ut.Translator) error {
 		return ut.Add("keymax", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("keymax", formatErrorFieldName(fe.Field()))
+		t, _ := ut.T("keymax", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -232,7 +253,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterTranslation("valuemax", trans, func(ut ut.Translator) error {
 		return ut.Add("valuemax", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("valuemax", formatErrorFieldName(fe.Field()))
+		t, _ := ut.T("valuemax", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -240,7 +261,15 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterTranslation("nonested", trans, func(ut ut.Translator) error {
 		return ut.Add("nonested", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
-		t, _ := ut.T("nonested", formatErrorFieldName(fe.Field()))
+		t, _ := ut.T("nonested", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("singletransactiontype", trans, func(ut ut.Translator) error {
+		return ut.Add("singletransactiontype", "{0}", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("singletransactiontype", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -298,9 +327,34 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 	return len(value) <= limit
 }
 
+// validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
+func validateSingleTransactionType(fl validator.FieldLevel) bool {
+	arrField := fl.Field().Interface().([]gold.FromTo)
+	for _, f := range arrField {
+		count := 0
+		if f.Amount != nil {
+			count++
+		}
+
+		if f.Share != nil {
+			count++
+		}
+
+		if f.Remaining != "" {
+			count++
+		}
+
+		if count != 1 {
+			return false
+		}
+	}
+
+	return true
+}
+
 // formatErrorFieldName formats metadata field error names for error messages
 func formatErrorFieldName(text string) string {
-	re, _ := regexp.Compile(`\[(.+?)]`)
+	re, _ := regexp.Compile(`\.(.+)$`)
 
 	matches := re.FindStringSubmatch(text)
 	if len(matches) > 1 {
@@ -364,4 +418,89 @@ func parseMetadata(s any, originalMap map[string]any) {
 	if _, exists := originalMap["metadata"]; !exists {
 		metadataField.Set(reflect.ValueOf(make(map[string]any)))
 	}
+}
+
+// findUnknownFields finds fields that are present in the original map but not in the marshaled map.
+func findUnknownFields(original, marshaled map[string]any) map[string]any {
+	diffFields := make(map[string]any)
+
+	numKinds := common.GetMapNumKinds()
+
+	for key, value := range original {
+		if numKinds[reflect.ValueOf(value).Kind()] && value == 0.0 {
+			continue
+		}
+
+		marshaledValue, ok := marshaled[key]
+		if !ok {
+			// If the key is not present in the marshaled map, marking as difference
+			diffFields[key] = value
+			continue
+		}
+
+		// Check for nested structures and direct value comparison
+		switch originalValue := value.(type) {
+		case map[string]any:
+			if marshaledMap, ok := marshaledValue.(map[string]any); ok {
+				nestedDiff := findUnknownFields(originalValue, marshaledMap)
+				if len(nestedDiff) > 0 {
+					diffFields[key] = nestedDiff
+				}
+			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
+				// If types mismatch (map vs non-map), marking as difference
+				diffFields[key] = value
+			}
+
+		case []any:
+			if marshaledArray, ok := marshaledValue.([]any); ok {
+				arrayDiff := compareSlices(originalValue, marshaledArray)
+				if len(arrayDiff) > 0 {
+					diffFields[key] = arrayDiff
+				}
+			} else if !reflect.DeepEqual(originalValue, marshaledValue) {
+				// If types mismatch (slice vs non-slice), marking as difference
+				diffFields[key] = value
+			}
+
+		default:
+			// Using reflect.DeepEqual for simple types (strings, ints, etc.)
+			if !reflect.DeepEqual(value, marshaledValue) {
+				diffFields[key] = value
+			}
+		}
+	}
+
+	return diffFields
+}
+
+// compareSlices compares two slices and returns differences.
+func compareSlices(original, marshaled []any) []any {
+	var diff []any
+
+	// Iterate through the original slice and check differences
+	for i, item := range original {
+		if i >= len(marshaled) {
+			// If marshaled slice is shorter, the original item is missing
+			diff = append(diff, item)
+		} else {
+			// Compare individual items at the same index
+			if originalMap, ok := item.(map[string]any); ok {
+				if marshaledMap, ok := marshaled[i].(map[string]any); ok {
+					nestedDiff := findUnknownFields(originalMap, marshaledMap)
+					if len(nestedDiff) > 0 {
+						diff = append(diff, nestedDiff)
+					}
+				}
+			} else if !reflect.DeepEqual(item, marshaled[i]) {
+				diff = append(diff, item)
+			}
+		}
+	}
+
+	// Check if marshaled slice is longer
+	for i := len(original); i < len(marshaled); i++ {
+		diff = append(diff, marshaled[i])
+	}
+
+	return diff
 }
