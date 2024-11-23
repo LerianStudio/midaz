@@ -2,9 +2,9 @@ package command
 
 import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
-	l "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/ledger"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/portfolio"
@@ -18,7 +18,7 @@ type UseCase struct {
 	OrganizationRepo organization.Repository
 
 	// LedgerRepo provides an abstraction on top of the ledger data source.
-	LedgerRepo l.Repository
+	LedgerRepo ledger.Repository
 
 	// ProductRepo provides an abstraction on top of the product data source.
 	ProductRepo r.Repository

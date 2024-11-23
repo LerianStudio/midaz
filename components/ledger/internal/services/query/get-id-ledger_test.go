@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -16,20 +16,20 @@ import (
 func TestGetLedgerByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
-	ledger := &mmodel.Ledger{ID: id.String()}
+	l := &mmodel.Ledger{ID: id.String()}
 
 	uc := UseCase{
-		LedgerRepo: mock.NewMockRepository(gomock.NewController(t)),
+		LedgerRepo: ledger.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.LedgerRepo.(*mock.MockRepository).
+	uc.LedgerRepo.(*ledger.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, id).
-		Return(ledger, nil).
+		Return(l, nil).
 		Times(1)
 	res, err := uc.LedgerRepo.Find(context.TODO(), organizationID, id)
 
-	assert.Equal(t, res, ledger)
+	assert.Equal(t, res, l)
 	assert.Nil(t, err)
 }
 
@@ -40,10 +40,10 @@ func TestGetLedgerByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		LedgerRepo: mock.NewMockRepository(gomock.NewController(t)),
+		LedgerRepo: ledger.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.LedgerRepo.(*mock.MockRepository).
+	uc.LedgerRepo.(*ledger.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, id).
 		Return(nil, errors.New(errMSG)).

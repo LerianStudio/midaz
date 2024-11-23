@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -17,7 +17,7 @@ func TestGetAllLedgers(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockLedgerRepo := mock.NewMockRepository(ctrl)
+	mockLedgerRepo := ledger.NewMockRepository(ctrl)
 	organizationID := common.GenerateUUIDv7()
 	limit := 10
 	page := 1

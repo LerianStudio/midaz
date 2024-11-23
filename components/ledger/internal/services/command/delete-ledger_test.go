@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -17,10 +17,10 @@ func TestDeleteLedgerByIDSuccess(t *testing.T) {
 	organizationID := common.GenerateUUIDv7()
 
 	uc := UseCase{
-		LedgerRepo: mock.NewMockRepository(gomock.NewController(t)),
+		LedgerRepo: ledger.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.LedgerRepo.(*mock.MockRepository).
+	uc.LedgerRepo.(*ledger.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, id).
 		Return(nil).
@@ -37,10 +37,10 @@ func TestDeleteLedgerByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		LedgerRepo: mock.NewMockRepository(gomock.NewController(t)),
+		LedgerRepo: ledger.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.LedgerRepo.(*mock.MockRepository).
+	uc.LedgerRepo.(*ledger.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, id).
 		Return(errors.New(errMSG)).

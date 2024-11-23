@@ -1,4 +1,4 @@
-package postgres
+package ledger
 
 import (
 	"context"
@@ -14,13 +14,25 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	l "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
+
+// Repository provides an interface for operations related to ledger entities.
+//
+//go:generate mockgen --destination=ledger.mock.go --package=ledger . Repository
+type Repository interface {
+	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
+	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
+	FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*mmodel.Ledger, error)
+	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
+	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
+	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
+	Delete(ctx context.Context, organizationID, id uuid.UUID) error
+}
 
 // LedgerPostgreSQLRepository is a Postgresql-specific implementation of the LedgerRepository.
 type LedgerPostgreSQLRepository struct {
@@ -57,7 +69,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 		return nil, err
 	}
 
-	record := &l.LedgerPostgreSQLModel{}
+	record := &LedgerPostgreSQLModel{}
 	record.FromEntity(ledger)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -124,7 +136,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		return nil, err
 	}
 
-	ledger := &l.LedgerPostgreSQLModel{}
+	ledger := &LedgerPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -191,7 +203,7 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 	spanQuery.End()
 
 	for rows.Next() {
-		var ledger l.LedgerPostgreSQLModel
+		var ledger LedgerPostgreSQLModel
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -280,7 +292,7 @@ func (r *LedgerPostgreSQLRepository) ListByIDs(ctx context.Context, organization
 	spanQuery.End()
 
 	for rows.Next() {
-		var ledger l.LedgerPostgreSQLModel
+		var ledger LedgerPostgreSQLModel
 		if err := rows.Scan(&ledger.ID, &ledger.Name, &ledger.OrganizationID, &ledger.Status, &ledger.StatusDescription,
 			&ledger.CreatedAt, &ledger.UpdatedAt, &ledger.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -314,7 +326,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 		return nil, err
 	}
 
-	record := &l.LedgerPostgreSQLModel{}
+	record := &LedgerPostgreSQLModel{}
 	record.FromEntity(ledger)
 
 	var updates []string
