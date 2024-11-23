@@ -5,10 +5,10 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
-	p "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 )
 
@@ -24,7 +24,7 @@ type UseCase struct {
 	ProductRepo product.Repository
 
 	// PortfolioRepo provides an abstraction on top of the portfolio data source.
-	PortfolioRepo p.Repository
+	PortfolioRepo portfolio.Repository
 
 	// AccountRepo provides an abstraction on top of the account data source.
 	AccountRepo a.Repository

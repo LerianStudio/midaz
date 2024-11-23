@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,7 +22,7 @@ func TestGetAllPortfolios(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockPortfolioRepo := mock.NewMockRepository(ctrl)
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 
 	uc := UseCase{
 		PortfolioRepo: mockPortfolioRepo,

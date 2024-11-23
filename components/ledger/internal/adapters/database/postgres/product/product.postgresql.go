@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
-	sqrl "github.com/Masterminds/squirrel"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -113,7 +113,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmode
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create product. Rows affected is 0", err)
 
@@ -151,7 +151,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(cn.ErrDuplicateProductName, reflect.TypeOf(mmodel.Product{}).Name(), name, ledgerID)
+		err := common.ValidateBusinessError(constant.ErrDuplicateProductName, reflect.TypeOf(mmodel.Product{}).Name(), name, ledgerID)
 
 		mopentelemetry.HandleSpanError(&span, "Failed to find product by name", err)
 
@@ -177,15 +177,15 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var products []*mmodel.Product
 
-	findAll := sqrl.Select("*").
+	findAll := squirrel.Select("*").
 		From(p.tableName).
-		Where(sqrl.Expr("organization_id = ?", organizationID)).
-		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
-		Where(sqrl.Eq{"deleted_at": nil}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
-		PlaceholderFormat(sqrl.Dollar)
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -200,7 +200,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 	}
 	defer rows.Close()
 
@@ -305,7 +305,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err
@@ -391,7 +391,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update product. Rows affected is 0", err)
 
@@ -435,7 +435,7 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete product. Rows affected is 0", err)
 

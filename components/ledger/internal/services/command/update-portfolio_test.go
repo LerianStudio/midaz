@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -18,7 +18,7 @@ func TestUpdatePortfolioByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
-	portfolio := &mmodel.Portfolio{
+	p := &mmodel.Portfolio{
 		ID:             id.String(),
 		EntityID:       common.GenerateUUIDv7().String(),
 		OrganizationID: organizationID.String(),
@@ -27,17 +27,17 @@ func TestUpdatePortfolioByIDSuccess(t *testing.T) {
 	}
 
 	uc := UseCase{
-		PortfolioRepo: mock.NewMockRepository(gomock.NewController(t)),
+		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.PortfolioRepo.(*mock.MockRepository).
+	uc.PortfolioRepo.(*portfolio.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, portfolio).
-		Return(portfolio, nil).
+		Update(gomock.Any(), organizationID, ledgerID, id, p).
+		Return(p, nil).
 		Times(1)
-	res, err := uc.PortfolioRepo.Update(context.TODO(), organizationID, ledgerID, id, portfolio)
+	res, err := uc.PortfolioRepo.Update(context.TODO(), organizationID, ledgerID, id, p)
 
-	assert.Equal(t, portfolio, res)
+	assert.Equal(t, p, res)
 	assert.Nil(t, err)
 }
 
@@ -47,7 +47,7 @@ func TestUpdatePortfolioByIDError(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
-	portfolio := &mmodel.Portfolio{
+	p := &mmodel.Portfolio{
 		ID:             id.String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		EntityID:       common.GenerateUUIDv7().String(),
@@ -56,14 +56,14 @@ func TestUpdatePortfolioByIDError(t *testing.T) {
 	}
 
 	uc := UseCase{
-		PortfolioRepo: mock.NewMockRepository(gomock.NewController(t)),
+		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.PortfolioRepo.(*mock.MockRepository).
+	uc.PortfolioRepo.(*portfolio.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, portfolio).
+		Update(gomock.Any(), organizationID, ledgerID, id, p).
 		Return(nil, errors.New(errMSG))
-	res, err := uc.PortfolioRepo.Update(context.TODO(), organizationID, ledgerID, id, portfolio)
+	res, err := uc.PortfolioRepo.Update(context.TODO(), organizationID, ledgerID, id, p)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

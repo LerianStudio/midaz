@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
-	sqrl "github.com/Masterminds/squirrel"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -121,7 +121,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create organization. Rows affected is 0", err)
 
@@ -227,7 +227,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update organization. Rows affected is 0", err)
 
@@ -267,7 +267,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
@@ -299,13 +299,13 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 
 	var organizations []*mmodel.Organization
 
-	findAll := sqrl.Select("*").
+	findAll := squirrel.Select("*").
 		From(r.tableName).
-		Where(sqrl.Eq{"deleted_at": nil}).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
-		PlaceholderFormat(sqrl.Dollar)
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -452,7 +452,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete organization. Rows affected is 0", err)
 

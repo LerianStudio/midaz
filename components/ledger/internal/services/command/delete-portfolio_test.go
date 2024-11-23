@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -18,10 +18,10 @@ func TestDeletePortfolioByIDSuccess(t *testing.T) {
 	ledgerID := common.GenerateUUIDv7()
 
 	uc := UseCase{
-		PortfolioRepo: mock.NewMockRepository(gomock.NewController(t)),
+		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.PortfolioRepo.(*mock.MockRepository).
+	uc.PortfolioRepo.(*portfolio.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, id).
 		Return(nil).
@@ -39,10 +39,10 @@ func TestDeletePortfolioByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		PortfolioRepo: mock.NewMockRepository(gomock.NewController(t)),
+		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.PortfolioRepo.(*mock.MockRepository).
+	uc.PortfolioRepo.(*portfolio.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, id).
 		Return(errors.New(errMSG)).

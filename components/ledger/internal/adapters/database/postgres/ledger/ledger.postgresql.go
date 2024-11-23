@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
-	sqrl "github.com/Masterminds/squirrel"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -112,7 +112,7 @@ func (r *LedgerPostgreSQLRepository) Create(ctx context.Context, ledger *mmodel.
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create ledger. Rows affected is 0", err)
 
@@ -149,7 +149,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
 
 		return nil, err
@@ -174,14 +174,14 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 
 	var ledgers []*mmodel.Ledger
 
-	findAll := sqrl.Select("*").
+	findAll := squirrel.Select("*").
 		From(r.tableName).
-		Where(sqrl.Expr("organization_id = ?", organizationID)).
-		Where(sqrl.Eq{"deleted_at": nil}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
-		PlaceholderFormat(sqrl.Dollar)
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -253,7 +253,7 @@ func (r *LedgerPostgreSQLRepository) FindByName(ctx context.Context, organizatio
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(cn.ErrLedgerNameConflict, reflect.TypeOf(mmodel.Ledger{}).Name(), name)
+		err := common.ValidateBusinessError(constant.ErrLedgerNameConflict, reflect.TypeOf(mmodel.Ledger{}).Name(), name)
 
 		mopentelemetry.HandleSpanError(&span, "Ledger name conflict", err)
 
@@ -393,7 +393,7 @@ func (r *LedgerPostgreSQLRepository) Update(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update ledger. Rows affected is 0", err)
 
@@ -436,7 +436,7 @@ func (r *LedgerPostgreSQLRepository) Delete(ctx context.Context, organizationID,
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete ledger. Rows affected is 0", err)
 

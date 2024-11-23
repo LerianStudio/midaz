@@ -7,14 +7,14 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/portfolio"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestCreatePortfolioSuccess is responsible to test CreatePortfolio with success
 func TestCreatePortfolioSuccess(t *testing.T) {
-	portfolio := &mmodel.Portfolio{
+	p := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		EntityID:       common.GenerateUUIDv7().String(),
@@ -22,24 +22,24 @@ func TestCreatePortfolioSuccess(t *testing.T) {
 	}
 
 	uc := UseCase{
-		PortfolioRepo: mock.NewMockRepository(gomock.NewController(t)),
+		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.PortfolioRepo.(*mock.MockRepository).
+	uc.PortfolioRepo.(*portfolio.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), portfolio).
-		Return(portfolio, nil).
+		Create(gomock.Any(), p).
+		Return(p, nil).
 		Times(1)
-	res, err := uc.PortfolioRepo.Create(context.TODO(), portfolio)
+	res, err := uc.PortfolioRepo.Create(context.TODO(), p)
 
-	assert.Equal(t, portfolio, res)
+	assert.Equal(t, p, res)
 	assert.Nil(t, err)
 }
 
 // TestCreatePortfolioError is responsible to test CreatePortfolio with error
 func TestCreatePortfolioError(t *testing.T) {
 	errMSG := "err to create portfolio on database"
-	portfolio := &mmodel.Portfolio{
+	p := &mmodel.Portfolio{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		EntityID:       common.GenerateUUIDv7().String(),
@@ -47,15 +47,15 @@ func TestCreatePortfolioError(t *testing.T) {
 	}
 
 	uc := UseCase{
-		PortfolioRepo: mock.NewMockRepository(gomock.NewController(t)),
+		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.PortfolioRepo.(*mock.MockRepository).
+	uc.PortfolioRepo.(*portfolio.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), portfolio).
+		Create(gomock.Any(), p).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.PortfolioRepo.Create(context.TODO(), portfolio)
+	res, err := uc.PortfolioRepo.Create(context.TODO(), p)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

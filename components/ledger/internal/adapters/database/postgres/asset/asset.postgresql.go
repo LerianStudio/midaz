@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
-	sqrl "github.com/Masterminds/squirrel"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -115,7 +115,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create asset. Rows affected is 0", err)
 
@@ -153,7 +153,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(cn.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := common.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Asset name or code already exists", err)
 
@@ -179,15 +179,15 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 	var assets []*mmodel.Asset
 
-	findAll := sqrl.Select("*").
+	findAll := squirrel.Select("*").
 		From(r.tableName).
-		Where(sqrl.Expr("organization_id = ?", organizationID)).
-		Where(sqrl.Expr("ledger_id = ?", ledgerID)).
-		Where(sqrl.Eq{"deleted_at": nil}).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
-		PlaceholderFormat(sqrl.Dollar)
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -307,7 +307,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 
 		return nil, err
@@ -393,7 +393,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update asset. Rows affected is 0", err)
 
@@ -437,7 +437,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete asset. Rows affected is 0", err)
 
