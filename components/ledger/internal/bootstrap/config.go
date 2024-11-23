@@ -224,14 +224,14 @@ func InitServers() *Service {
 
 	httpApp := http.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 
-	serverApi := NewServer(cfg, httpApp, logger, telemetry)
+	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
 	grpcApp := grpc.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
 
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger)
 
 	return &Service{
-		Server:     serverApi,
+		Server:     serverAPI,
 		ServerGRPC: serverGRPC,
 		Logger:     logger,
 	}
