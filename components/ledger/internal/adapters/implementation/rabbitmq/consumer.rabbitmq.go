@@ -1,8 +1,15 @@
-package mrabbitmq
+package rabbitmq
 
 import (
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 )
+
+// ConsumerRepository provides an interface for Consumer related to rabbitmq.
+//
+//go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
+type ConsumerRepository interface {
+	ConsumerDefault(message chan string)
+}
 
 // ConsumerRabbitMQRepository is a rabbitmq implementation of the consumer
 type ConsumerRabbitMQRepository struct {
