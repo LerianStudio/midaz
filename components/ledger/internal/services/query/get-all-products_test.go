@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -22,7 +22,7 @@ func TestGetAllProducts(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockProductRepo := mock.NewMockRepository(ctrl)
+	mockProductRepo := product.NewMockRepository(ctrl)
 
 	uc := UseCase{
 		ProductRepo: mockProductRepo,

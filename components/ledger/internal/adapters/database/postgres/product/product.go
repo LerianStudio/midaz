@@ -2,9 +2,10 @@ package product
 
 import (
 	"database/sql"
+	"time"
+	
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	"time"
 )
 
 // ProductPostgreSQLModel represents the entity Product into SQL context in Database

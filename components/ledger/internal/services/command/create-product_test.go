@@ -7,53 +7,53 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 // TestCreateProductSuccess is responsible to test CreateProduct with success
 func TestCreateProductSuccess(t *testing.T) {
-	product := &mmodel.Product{
+	p := &mmodel.Product{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
-		ProductRepo: mock.NewMockRepository(gomock.NewController(t)),
+		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.ProductRepo.(*mock.MockRepository).
+	uc.ProductRepo.(*product.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), product).
-		Return(product, nil).
+		Create(gomock.Any(), p).
+		Return(p, nil).
 		Times(1)
-	res, err := uc.ProductRepo.Create(context.TODO(), product)
+	res, err := uc.ProductRepo.Create(context.TODO(), p)
 
-	assert.Equal(t, product, res)
+	assert.Equal(t, p, res)
 	assert.Nil(t, err)
 }
 
 // TestCreateProductError is responsible to test CreateProduct with error
 func TestCreateProductError(t *testing.T) {
 	errMSG := "err to create product on database"
-	product := &mmodel.Product{
+	p := &mmodel.Product{
 		ID:             common.GenerateUUIDv7().String(),
 		OrganizationID: common.GenerateUUIDv7().String(),
 		LedgerID:       common.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
-		ProductRepo: mock.NewMockRepository(gomock.NewController(t)),
+		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.ProductRepo.(*mock.MockRepository).
+	uc.ProductRepo.(*product.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), product).
+		Create(gomock.Any(), p).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.ProductRepo.Create(context.TODO(), product)
+	res, err := uc.ProductRepo.Create(context.TODO(), p)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

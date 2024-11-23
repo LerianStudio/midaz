@@ -1,4 +1,4 @@
-package postgres
+package product
 
 import (
 	"context"
@@ -14,13 +14,25 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	r "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
+
+// Repository provides an interface for operations related to product entities.
+//
+//go:generate mockgen --destination=product.mock.go --package=product . Repository
+type Repository interface {
+	Create(ctx context.Context, product *mmodel.Product) (*mmodel.Product, error)
+	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Product, error)
+	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Product, error)
+	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, product *mmodel.Product) (*mmodel.Product, error)
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
+}
 
 // ProductPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
 type ProductPostgreSQLRepository struct {
@@ -57,7 +69,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmode
 		return nil, err
 	}
 
-	record := &r.ProductPostgreSQLModel{}
+	record := &ProductPostgreSQLModel{}
 	record.FromEntity(product)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -195,7 +207,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	spanQuery.End()
 
 	for rows.Next() {
-		var product r.ProductPostgreSQLModel
+		var product ProductPostgreSQLModel
 		if err := rows.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 			&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -245,7 +257,7 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	spanQuery.End()
 
 	for rows.Next() {
-		var product r.ProductPostgreSQLModel
+		var product ProductPostgreSQLModel
 		if err := rows.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
 			&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -279,7 +291,7 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	product := &r.ProductPostgreSQLModel{}
+	product := &ProductPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -316,7 +328,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	record := &r.ProductPostgreSQLModel{}
+	record := &ProductPostgreSQLModel{}
 	record.FromEntity(prd)
 
 	var updates []string

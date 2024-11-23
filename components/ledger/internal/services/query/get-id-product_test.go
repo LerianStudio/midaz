@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -17,24 +17,24 @@ func TestGetProductByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	organizationID := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
-	product := &mmodel.Product{
+	p := &mmodel.Product{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
 	}
 
 	uc := UseCase{
-		ProductRepo: mock.NewMockRepository(gomock.NewController(t)),
+		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.ProductRepo.(*mock.MockRepository).
+	uc.ProductRepo.(*product.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, id).
-		Return(product, nil).
+		Return(p, nil).
 		Times(1)
 	res, err := uc.ProductRepo.Find(context.TODO(), organizationID, ledgerID, id)
 
-	assert.Equal(t, res, product)
+	assert.Equal(t, res, p)
 	assert.Nil(t, err)
 }
 
@@ -46,10 +46,10 @@ func TestGetProductByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		ProductRepo: mock.NewMockRepository(gomock.NewController(t)),
+		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.ProductRepo.(*mock.MockRepository).
+	uc.ProductRepo.(*product.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, id).
 		Return(nil, errors.New(errMSG)).
