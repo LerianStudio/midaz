@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -16,20 +16,20 @@ import (
 // TestUpdateOrganizationByIDSuccess is responsible to test UpdateOrganizationByID with success
 func TestUpdateOrganizationByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
-	organization := &mmodel.Organization{ID: id.String(), UpdatedAt: time.Now()}
+	o := &mmodel.Organization{ID: id.String(), UpdatedAt: time.Now()}
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), id, organization).
-		Return(organization, nil).
+		Update(gomock.Any(), id, o).
+		Return(o, nil).
 		Times(1)
-	res, err := uc.OrganizationRepo.Update(context.TODO(), id, organization)
+	res, err := uc.OrganizationRepo.Update(context.TODO(), id, o)
 
-	assert.Equal(t, organization, res)
+	assert.Equal(t, o, res)
 	assert.Nil(t, err)
 }
 
@@ -37,17 +37,17 @@ func TestUpdateOrganizationByIDSuccess(t *testing.T) {
 func TestUpdateOrganizationByIDError(t *testing.T) {
 	id := common.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
-	organization := &mmodel.Organization{ID: id.String(), UpdatedAt: time.Now()}
+	o := &mmodel.Organization{ID: id.String(), UpdatedAt: time.Now()}
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), id, organization).
+		Update(gomock.Any(), id, o).
 		Return(nil, errors.New(errMSG))
-	res, err := uc.OrganizationRepo.Update(context.TODO(), id, organization)
+	res, err := uc.OrganizationRepo.Update(context.TODO(), id, o)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

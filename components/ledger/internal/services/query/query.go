@@ -2,9 +2,9 @@ package query
 
 import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/ledger"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
 	s "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/asset"
 	p "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/portfolio"
@@ -15,7 +15,7 @@ import (
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.
 type UseCase struct {
 	// OrganizationRepo provides an abstraction on top of the organization data source.
-	OrganizationRepo o.Repository
+	OrganizationRepo organization.Repository
 
 	// LedgerRepo provides an abstraction on top of the ledger data source.
 	LedgerRepo l.Repository

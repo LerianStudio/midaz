@@ -1,4 +1,4 @@
-package postgres
+package organization
 
 import (
 	"context"
@@ -15,13 +15,24 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	o "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	sqrl "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
+
+// Repository provides an interface for operations related to organization entities.
+//
+//go:generate mockgen --destination=organization.mock.go --package=organization . Repository
+type Repository interface {
+	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
+	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
+	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
+	FindAll(ctx context.Context, limit, page int) ([]*mmodel.Organization, error)
+	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+}
 
 // OrganizationPostgreSQLRepository is a Postgresql-specific implementation of the OrganizationRepository.
 type OrganizationPostgreSQLRepository struct {
@@ -58,7 +69,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 		return nil, err
 	}
 
-	record := &o.OrganizationPostgreSQLModel{}
+	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
 
 	address, err := json.Marshal(record.Address)
@@ -134,7 +145,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 		return nil, err
 	}
 
-	record := &o.OrganizationPostgreSQLModel{}
+	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
 
 	var updates []string
@@ -240,7 +251,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		return nil, err
 	}
 
-	organization := &o.OrganizationPostgreSQLModel{}
+	organization := &OrganizationPostgreSQLModel{}
 
 	var address string
 
@@ -317,7 +328,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 	defer rows.Close()
 
 	for rows.Next() {
-		var organization o.OrganizationPostgreSQLModel
+		var organization OrganizationPostgreSQLModel
 
 		var address string
 
@@ -377,7 +388,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 	spanQuery.End()
 
 	for rows.Next() {
-		var organization o.OrganizationPostgreSQLModel
+		var organization OrganizationPostgreSQLModel
 
 		var address string
 

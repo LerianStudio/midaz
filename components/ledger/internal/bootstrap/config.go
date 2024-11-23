@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	postgres2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
 	rabbitmq2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 
@@ -149,7 +150,7 @@ func InitServers() *Service {
 		Logger:   logger,
 	}
 
-	organizationPostgreSQLRepository := postgres2.NewOrganizationPostgreSQLRepository(postgresConnection)
+	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := postgres2.NewLedgerPostgreSQLRepository(postgresConnection)
 	productPostgreSQLRepository := postgres2.NewProductPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := postgres2.NewPortfolioPostgreSQLRepository(postgresConnection)

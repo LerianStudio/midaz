@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -16,10 +16,10 @@ func TestDeleteOrganizationByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), id).
 		Return(nil).
@@ -35,10 +35,10 @@ func TestDeleteOrganizationByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), id).
 		Return(errors.New(errMSG)).

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -16,7 +16,7 @@ func TestGetAllOrganizations(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockOrganizationRepo := mock.NewMockRepository(ctrl)
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
 	limit := 10
 	page := 1
 

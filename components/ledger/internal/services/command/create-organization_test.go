@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,37 +15,37 @@ import (
 // TestCreateOrganizationSuccess is responsible to test CreateOrganization with success
 func TestCreateOrganizationSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7().String()
-	organization := &mmodel.Organization{ID: id}
+	o := &mmodel.Organization{ID: id}
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), organization).
-		Return(organization, nil).
+		Create(gomock.Any(), o).
+		Return(o, nil).
 		Times(1)
-	res, err := uc.OrganizationRepo.Create(context.TODO(), organization)
+	res, err := uc.OrganizationRepo.Create(context.TODO(), o)
 
-	assert.Equal(t, organization, res)
+	assert.Equal(t, o, res)
 	assert.Nil(t, err)
 }
 
 // TestCreateOrganizationError is responsible to test CreateOrganization with error
 func TestCreateOrganizationError(t *testing.T) {
-	organization := &mmodel.Organization{}
+	o := &mmodel.Organization{}
 	errMSG := "err to create organization on database"
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
-		Create(gomock.Any(), organization).
+		Create(gomock.Any(), o).
 		Return(nil, errors.New(errMSG))
-	res, err := uc.OrganizationRepo.Create(context.TODO(), organization)
+	res, err := uc.OrganizationRepo.Create(context.TODO(), o)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

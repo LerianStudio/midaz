@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/onboarding/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,20 +15,20 @@ import (
 // TestGetOrganizationByIDSuccess is responsible to test GetOrganizationByID with success
 func TestGetOrganizationByIDSuccess(t *testing.T) {
 	id := common.GenerateUUIDv7()
-	organization := &mmodel.Organization{ID: id.String()}
+	o := &mmodel.Organization{ID: id.String()}
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), id).
-		Return(organization, nil).
+		Return(o, nil).
 		Times(1)
 	res, err := uc.OrganizationRepo.Find(context.TODO(), id)
 
-	assert.Equal(t, res, organization)
+	assert.Equal(t, res, o)
 	assert.Nil(t, err)
 }
 
@@ -38,10 +38,10 @@ func TestGetOrganizationByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		OrganizationRepo: mock.NewMockRepository(gomock.NewController(t)),
+		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.OrganizationRepo.(*mock.MockRepository).
+	uc.OrganizationRepo.(*organization.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), id).
 		Return(nil, errors.New(errMSG)).

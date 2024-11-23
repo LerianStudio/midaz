@@ -9,7 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -40,19 +40,19 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create organization on command", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created organization: %s", organization)
 
-	return commonHTTP.Created(c, organization)
+	return http.Created(c, organization)
 }
 
 // UpdateOrganization is a method that updates Organization information.
@@ -75,7 +75,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateOrganizationByID(ctx, id, payload)
@@ -84,7 +84,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
@@ -93,12 +93,12 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Organization with ID: %s", id.String())
 
-	return commonHTTP.OK(c, organizations)
+	return http.OK(c, organizations)
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
@@ -120,12 +120,12 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Organization with ID: %s", id.String())
 
-	return commonHTTP.OK(c, organizations)
+	return http.OK(c, organizations)
 }
 
 // GetAllOrganizations is a method that retrieves all Organizations.
@@ -137,7 +137,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx, span := tracer.Start(ctx, "handler.get_all_organizations")
 	defer span.End()
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -153,14 +153,14 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Organizations by metadata")
 
 		pagination.SetItems(organizations)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Organizations ")
@@ -173,14 +173,14 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Organizations")
 
 	pagination.SetItems(organizations)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.
@@ -203,7 +203,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
@@ -211,10 +211,10 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Organization with ID: %s", id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }
