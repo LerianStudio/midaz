@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -19,23 +19,23 @@ func TestUpdateAccountByIDSuccess(t *testing.T) {
 	ledgerID := common.GenerateUUIDv7()
 	portfolioID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
-	account := &mmodel.Account{
+	a := &mmodel.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),
 	}
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, &portfolioID, id, account).
-		Return(account, nil).
+		Update(gomock.Any(), organizationID, ledgerID, &portfolioID, id, a).
+		Return(a, nil).
 		Times(1)
-	res, err := uc.AccountRepo.Update(context.TODO(), organizationID, ledgerID, &portfolioID, id, account)
+	res, err := uc.AccountRepo.Update(context.TODO(), organizationID, ledgerID, &portfolioID, id, a)
 
-	assert.Equal(t, account, res)
+	assert.Equal(t, a, res)
 	assert.Nil(t, err)
 }
 
@@ -44,23 +44,23 @@ func TestUpdateAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 	organizationID := common.GenerateUUIDv7()
 	ledgerID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
-	account := &mmodel.Account{
+	a := &mmodel.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),
 	}
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, nil, id, account).
-		Return(account, nil).
+		Update(gomock.Any(), organizationID, ledgerID, nil, id, a).
+		Return(a, nil).
 		Times(1)
-	res, err := uc.AccountRepo.Update(context.TODO(), organizationID, ledgerID, nil, id, account)
+	res, err := uc.AccountRepo.Update(context.TODO(), organizationID, ledgerID, nil, id, a)
 
-	assert.Equal(t, account, res)
+	assert.Equal(t, a, res)
 	assert.Nil(t, err)
 }
 
@@ -71,20 +71,20 @@ func TestUpdateAccountByIDError(t *testing.T) {
 	ledgerID := common.GenerateUUIDv7()
 	portfolioID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
-	account := &mmodel.Account{
+	a := &mmodel.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),
 	}
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, &portfolioID, id, account).
+		Update(gomock.Any(), organizationID, ledgerID, &portfolioID, id, a).
 		Return(nil, errors.New(errMSG))
-	res, err := uc.AccountRepo.Update(context.TODO(), organizationID, ledgerID, &portfolioID, id, account)
+	res, err := uc.AccountRepo.Update(context.TODO(), organizationID, ledgerID, &portfolioID, id, a)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

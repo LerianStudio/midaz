@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -23,7 +23,7 @@ func TestGetAllAccounts(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockAccountRepo := mock.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
 
 	uc := UseCase{
 		AccountRepo: mockAccountRepo,
@@ -66,7 +66,7 @@ func TestGetAllAccountsWithoutPortfolio(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockAccountRepo := mock.NewMockRepository(ctrl)
+	mockAccountRepo := account.NewMockRepository(ctrl)
 
 	uc := UseCase{
 		AccountRepo: mockAccountRepo,

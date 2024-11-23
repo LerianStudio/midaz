@@ -9,7 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mpointers"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -21,7 +21,7 @@ func TestGetAccountByIDWithDeletedSuccess(t *testing.T) {
 	portfolioID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
 
-	account := &mmodel.Account{
+	a := &mmodel.Account{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
@@ -30,17 +30,17 @@ func TestGetAccountByIDWithDeletedSuccess(t *testing.T) {
 	}
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
-		Return(account, nil).
+		Return(a, nil).
 		Times(1)
 	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, &portfolioID, id)
 
-	assert.Equal(t, res, account)
+	assert.Equal(t, res, a)
 	assert.Nil(t, err)
 }
 
@@ -50,7 +50,7 @@ func TestGetAccountByIDWithDeletedWithoutPortfolioSuccess(t *testing.T) {
 	ledgerID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
 
-	account := &mmodel.Account{
+	a := &mmodel.Account{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
@@ -59,17 +59,17 @@ func TestGetAccountByIDWithDeletedWithoutPortfolioSuccess(t *testing.T) {
 	}
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, nil, id).
-		Return(account, nil).
+		Return(a, nil).
 		Times(1)
 	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, nil, id)
 
-	assert.Equal(t, res, account)
+	assert.Equal(t, res, a)
 	assert.Nil(t, err)
 }
 
@@ -83,10 +83,10 @@ func TestGetAccountByIDWithDeletedError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
 		Find(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(nil, errors.New(errMSG)).

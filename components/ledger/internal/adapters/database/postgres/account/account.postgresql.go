@@ -1,4 +1,4 @@
-package postgres
+package account
 
 import (
 	"context"
@@ -10,17 +10,34 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
-	sqrl "github.com/Masterminds/squirrel"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
+
+// Repository provides an interface for operations related to account entities.
+//
+//go:generate mockgen --destination=account.mock.go --package=account . Repository
+type Repository interface {
+	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*mmodel.Account, error)
+	Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
+	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
+	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
+	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
+	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*mmodel.Account, error)
+	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
+	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
+	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
+	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
+	UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
+}
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
@@ -57,7 +74,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		return nil, err
 	}
 
-	record := &a.AccountPostgreSQLModel{}
+	record := &AccountPostgreSQLModel{}
 	record.FromEntity(acc)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
@@ -117,7 +134,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create account", err)
 
@@ -143,19 +160,19 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	var accounts []*mmodel.Account
 
-	findAll := sqrl.Select("*").
+	findAll := squirrel.Select("*").
 		From(r.tableName).
-		Where(sqrl.Expr("organization_id = ?", organizationID)).
-		Where(sqrl.Expr("ledger_id = ?", ledgerID))
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID))
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
-		findAll = findAll.Where(sqrl.Expr("portfolio_id = ?", portfolioID))
+		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", portfolioID))
 	}
 
 	findAll = findAll.OrderBy("created_at DESC").
 		Limit(common.SafeIntToUint64(limit)).
 		Offset(common.SafeIntToUint64((page - 1) * limit)).
-		PlaceholderFormat(sqrl.Dollar)
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -177,7 +194,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	spanQuery.End()
 
 	for rows.Next() {
-		var acc a.AccountPostgreSQLModel
+		var acc AccountPostgreSQLModel
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -243,7 +260,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	query += " ORDER BY created_at DESC"
 
-	account := &a.AccountPostgreSQLModel{}
+	account := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -277,7 +294,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err
@@ -311,7 +328,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 	query += " ORDER BY created_at DESC"
 
-	account := &a.AccountPostgreSQLModel{}
+	account := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
 
@@ -345,7 +362,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err
@@ -382,7 +399,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(cn.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
+		err := common.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 
 		mopentelemetry.HandleSpanError(&span, "Alias is already taken", err)
 
@@ -432,7 +449,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	spanQuery.End()
 
 	for rows.Next() {
-		var acc a.AccountPostgreSQLModel
+		var acc AccountPostgreSQLModel
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -503,7 +520,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	spanQuery.End()
 
 	for rows.Next() {
-		var acc a.AccountPostgreSQLModel
+		var acc AccountPostgreSQLModel
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -558,7 +575,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	record := &a.AccountPostgreSQLModel{}
+	record := &AccountPostgreSQLModel{}
 	record.FromEntity(acc)
 
 	var updates []string
@@ -642,7 +659,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
 
@@ -680,7 +697,7 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
 		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
-		return common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	spanExec.End()
@@ -717,7 +734,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	spanQuery.End()
 
 	for rows.Next() {
-		var acc a.AccountPostgreSQLModel
+		var acc AccountPostgreSQLModel
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -787,7 +804,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	spanQuery.End()
 
 	for rows.Next() {
-		var acc a.AccountPostgreSQLModel
+		var acc AccountPostgreSQLModel
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -842,7 +859,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 		return nil, err
 	}
 
-	record := &a.AccountPostgreSQLModel{}
+	record := &AccountPostgreSQLModel{}
 	record.FromEntity(acc)
 
 	var updates []string
@@ -902,7 +919,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(cn.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
 

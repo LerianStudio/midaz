@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"fmt"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
-	postgres2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres"
+	postgres2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"

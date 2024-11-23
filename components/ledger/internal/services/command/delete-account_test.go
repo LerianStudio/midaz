@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/portfolio/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -18,10 +18,10 @@ func TestDeleteAccountByIDSuccess(t *testing.T) {
 	portfolioID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(nil).
@@ -37,10 +37,10 @@ func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 	ledgerID := common.GenerateUUIDv7()
 	id := common.GenerateUUIDv7()
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, nil, id).
 		Return(nil).
@@ -59,10 +59,10 @@ func TestDeleteAccountByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
-		AccountRepo: mock.NewMockRepository(gomock.NewController(t)),
+		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.AccountRepo.(*mock.MockRepository).
+	uc.AccountRepo.(*account.MockRepository).
 		EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
 		Return(errors.New(errMSG)).
