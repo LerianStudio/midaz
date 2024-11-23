@@ -1,7 +1,7 @@
 package query
 
 import (
-	m "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/metadata"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 	l "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/ledger"
 	o "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/onboarding/organization"
 	a "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/portfolio/account"
@@ -33,7 +33,7 @@ type UseCase struct {
 	AssetRepo s.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
-	MetadataRepo m.Repository
+	MetadataRepo mongodb.Repository
 
 	// RabbitMQRepo provides an abstraction on top of the consumer rabbitmq.
 	RabbitMQRepo rmq.ConsumerRepository

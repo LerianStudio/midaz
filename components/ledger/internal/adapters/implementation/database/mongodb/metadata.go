@@ -1,4 +1,4 @@
-package metadata
+package mongodb
 
 import (
 	"database/sql/driver"

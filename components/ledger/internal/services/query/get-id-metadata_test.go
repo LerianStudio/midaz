@@ -8,8 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	meta "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/metadata"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/metadata"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
@@ -19,12 +18,12 @@ import (
 func TestMetadataFindByEntitySuccess(t *testing.T) {
 	id := common.GenerateUUIDv7().String()
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
-	metadata := &meta.Metadata{ID: primitive.NewObjectID()}
+	metadata := &mongodb.Metadata{ID: primitive.NewObjectID()}
 	uc := UseCase{
-		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
+		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.MetadataRepo.(*mock.MockRepository).
+	uc.MetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
 		FindByEntity(gomock.Any(), collection, id).
 		Return(metadata, nil).
@@ -42,10 +41,10 @@ func TestMetadataFindByEntityError(t *testing.T) {
 	id := common.GenerateUUIDv7().String()
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
-		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
+		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.MetadataRepo.(*mock.MockRepository).
+	uc.MetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
 		FindByEntity(gomock.Any(), collection, id).
 		Return(nil, errors.New(errMSG)).

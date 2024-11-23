@@ -7,9 +7,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
-	meta "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/metadata"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/metadata"
+	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -19,7 +18,7 @@ import (
 // TestGetAllMetadataOrganizations is responsible to test TestGetAllMetadataOrganizations with success and error
 func TestGetAllMetadataOrganizations(t *testing.T) {
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
-	filter := commonHTTP.QueryHeader{
+	filter := http.QueryHeader{
 		Metadata: &bson.M{"metadata": 1},
 		Limit:    10,
 		Page:     1,
@@ -29,7 +28,7 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockMetadataRepo := mock.NewMockRepository(gomock.NewController(t))
+	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
 	uc := UseCase{
 		MetadataRepo: mockMetadataRepo,
 	}
@@ -38,7 +37,7 @@ func TestGetAllMetadataOrganizations(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), collection, filter).
-			Return([]*meta.Metadata{{ID: primitive.NewObjectID()}}, nil).
+			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
 			Times(1)
 		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
 

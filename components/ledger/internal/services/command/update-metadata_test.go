@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	mock "github.com/LerianStudio/midaz/components/ledger/internal/adapters/mock/metadata"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -19,10 +19,10 @@ func TestMetadataUpdateSuccess(t *testing.T) {
 	metadata := map[string]any{}
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
-		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
+		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.MetadataRepo.(*mock.MockRepository).
+	uc.MetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), collection, id, metadata).
 		Return(nil).
@@ -39,10 +39,10 @@ func TestMetadataUpdateError(t *testing.T) {
 	metadata := map[string]any{}
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
-		MetadataRepo: mock.NewMockRepository(gomock.NewController(t)),
+		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.MetadataRepo.(*mock.MockRepository).
+	uc.MetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), collection, id, metadata).
 		Return(errors.New(errMSG)).

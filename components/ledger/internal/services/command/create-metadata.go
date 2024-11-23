@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	m "github.com/LerianStudio/midaz/components/ledger/internal/adapters/interface/metadata"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/implementation/database/mongodb"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
@@ -18,7 +18,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 	defer span.End()
 
 	if metadata != nil {
-		meta := m.Metadata{
+		meta := mongodb.Metadata{
 			EntityID:   entityID,
 			EntityName: entityName,
 			Data:       metadata,
