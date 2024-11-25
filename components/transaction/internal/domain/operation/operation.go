@@ -37,8 +37,8 @@ type OperationPostgreSQLModel struct {
 
 // Status structure for marshaling/unmarshalling JSON.
 type Status struct {
-	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
-	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
+	Code        string  `json:"code" validate:"max=100"`
+	Description *string `json:"description" validate:"omitempty,max=256"`
 }
 
 // IsEmpty method that set empty or nil in fields
@@ -47,13 +47,10 @@ func (s Status) IsEmpty() bool {
 }
 
 // Amount structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Amount
-// @Description Amount structure for marshaling/unmarshalling JSON.
 type Amount struct {
-	Amount *float64 `json:"amount" example:"1500"`
-	Scale  *float64 `json:"scale" example:"2"`
-} // @name Amount
+	Amount *float64 `json:"amount"`
+	Scale  *float64 `json:"scale"`
+}
 
 // IsEmpty method that set empty or nil in fields
 func (a Amount) IsEmpty() bool {
@@ -61,14 +58,11 @@ func (a Amount) IsEmpty() bool {
 }
 
 // Balance structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Balance
-// @Description Balance structure for marshaling/unmarshalling JSON.
 type Balance struct {
-	Available *float64 `json:"available" example:"1500"`
-	OnHold    *float64 `json:"onHold" example:"500"`
-	Scale     *float64 `json:"scale" example:"2"`
-} // @name Balance
+	Available *float64 `json:"available"`
+	OnHold    *float64 `json:"onHold"`
+	Scale     *float64 `json:"scale"`
+}
 
 // IsEmpty method that set empty or nil in fields
 func (b Balance) IsEmpty() bool {
@@ -76,30 +70,27 @@ func (b Balance) IsEmpty() bool {
 }
 
 // Operation is a struct designed to encapsulate response payload data.
-//
-// swagger:model Operation
-// @Description Operation is a struct designed to encapsulate response payload data.
 type Operation struct {
-	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionID   string         `json:"transactionId" example:"00000000-0000-0000-0000-000000000000"`
-	Description     string         `json:"description" example:"Credit card operation"`
-	Type            string         `json:"type" example:"creditCard"`
-	AssetCode       string         `json:"assetCode" example:"BRL"`
-	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
+	ID              string         `json:"id"`
+	TransactionID   string         `json:"transactionId"`
+	Description     string         `json:"description"`
+	Type            string         `json:"type"`
+	AssetCode       string         `json:"assetCode"`
+	ChartOfAccounts string         `json:"chartOfAccounts"`
 	Amount          Amount         `json:"amount"`
 	Balance         Balance        `json:"balance"`
 	BalanceAfter    Balance        `json:"balanceAfter"`
 	Status          Status         `json:"status"`
-	AccountID       string         `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
-	AccountAlias    string         `json:"accountAlias" example:"@person1"`
-	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID  string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
-	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
-	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
-	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
+	AccountID       string         `json:"accountId"`
+	AccountAlias    string         `json:"accountAlias"`
+	PortfolioID     *string        `json:"portfolioId"`
+	OrganizationID  string         `json:"organizationId"`
+	LedgerID        string         `json:"ledgerId"`
+	CreatedAt       time.Time      `json:"createdAt"`
+	UpdatedAt       time.Time      `json:"updatedAt"`
+	DeletedAt       *time.Time     `json:"deletedAt"`
 	Metadata        map[string]any `json:"metadata"`
-} // @name Operation
+}
 
 // ToEntity converts an OperationPostgreSQLModel to entity Operation
 func (t *OperationPostgreSQLModel) ToEntity() *Operation {
@@ -193,10 +184,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 }
 
 // UpdateOperationInput is a struct design to encapsulate payload data.
-//
-// swagger:model UpdateOperationInput
-// @Description UpdateOperationInput is a struct design to encapsulate payload data.
 type UpdateOperationInput struct {
-	Description string         `json:"description" validate:"max=256" example:"Credit card operation"`
+	Description string         `json:"description" validate:"max=256"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-} // @name UpdateOperationInput
+}
