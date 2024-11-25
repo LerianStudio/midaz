@@ -1,11 +1,11 @@
 package bootstrap
 
 import (
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"net"
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
