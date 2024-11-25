@@ -84,7 +84,6 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Get("/version", http.Version)
 
 	// Doc
-	http.DocAPI("ledger", "Ledger API", f)
 	f.Get("/swagger/*", http.WithSwaggerEnvConfig("ledger"), fiberSwagger.WrapHandler)
 	http.DocAPI("ledger", "Ledger API", f)
 
