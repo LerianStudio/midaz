@@ -24,6 +24,8 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 )
 
+const ApplicationName = "transaction"
+
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName                 string `env:"ENV_NAME"`
@@ -112,7 +114,7 @@ func InitServers() *Service {
 		ConnectionStringReplica: postgreSourceReplica,
 		PrimaryDBName:           cfg.PrimaryDBName,
 		ReplicaDBName:           cfg.ReplicaDBName,
-		Component:               "transaction",
+		Component:               ApplicationName,
 		Logger:                  logger,
 	}
 

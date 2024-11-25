@@ -10,7 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/swaggo/fiber-swagger"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
 func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler) *fiber.App {
