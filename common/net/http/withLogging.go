@@ -156,6 +156,10 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 			return c.Next()
 		}
 
+		if strings.Contains(c.Path(), "swagger") && c.Path() != "/swagger/index.html" {
+			return c.Next()
+		}
+
 		setRequestMidazID(c)
 
 		info := NewRequestInfo(c)

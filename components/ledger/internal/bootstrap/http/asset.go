@@ -21,16 +21,17 @@ type AssetHandler struct {
 
 // CreateAsset is a method that creates asset information.
 //
-//		@Summary        Create an Asset
-//		@Description    Create an Asset with the input payload
-//		@Tags           Assets
-//		@Accept         json
-//		@Produce        json
-//	 @Param 			organization_id path string true "Organization ID"
-//	 @Param 			ledger_id path string true "Ledger ID"
-//		@Param          asset body mmodel.CreateAssetInput true "Asset Input"
-//		@Success        200 {object} mmodel.Asset
-//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [post]
+//	@Summary		Create an Asset
+//	@Description	Create an Asset with the input payload
+//	@Tags			Assets
+//	@Accept			json
+//	@Produce		json
+//	@Param			organization_id	path		string					true	"Organization ID"
+//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset Input"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	mmodel.Asset
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [post]
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -72,15 +73,16 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 // GetAllAssets is a method that retrieves all Assets.
 //
-//		@Summary        Get all Assets
-//		@Description    Get all Assets with the input metadata or without metadata
-//		@Tags           Assets
-//		@Produce        json
-//	 @Param 			organization_id path string true "Organization ID"
-//	 @Param 			ledger_id path string true "Ledger ID"
-//		@Param          metadata query string false "Metadata"
-//		@Success        200 {object} mpostgres.Pagination{items=[]mmodel.Asset}
-//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
+//	@Summary		Get all Assets
+//	@Description	Get all Assets with the input metadata or without metadata
+//	@Tags			Assets
+//	@Produce		json
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			metadata		query		string	false	"Metadata"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Asset}
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -144,15 +146,16 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
 //
-//		@Summary        Get an Asset by ID
-//		@Description    Get an Asset with the input ID
-//		@Tags           Assets
-//		@Produce        json
-//	 @Param 			organization_id path string true "Organization ID"
-//	 @Param 			ledger_id path string true "Ledger ID"
-//		@Param          id path string true "Asset ID"
-//		@Success        200 {object} mmodel.Asset
-//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [get]
+//	@Summary		Get an Asset by ID
+//	@Description	Get an Asset with the input ID
+//	@Tags			Assets
+//	@Produce		json
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			id				path		string	true	"Asset ID"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	mmodel.Asset
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [get]
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -184,17 +187,18 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 // UpdateAsset is a method that updates Asset information.
 //
-//		@Summary        Update an Asset
-//		@Description    Update an Asset with the input payload
-//		@Tags           Assets
-//		@Accept         json
-//		@Produce        json
-//	 @Param 			organization_id path string true "Organization ID"
-//	 @Param 			ledger_id path string true "Ledger ID"
-//		@Param          id path string true "Asset ID"
-//		@Param          asset body mmodel.UpdateAssetInput true "Asset Input"
-//		@Success        200 {object} mmodel.Asset
-//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [patch]
+//	@Summary		Update an Asset
+//	@Description	Update an Asset with the input payload
+//	@Tags			Assets
+//	@Accept			json
+//	@Produce		json
+//	@Param			organization_id	path		string					true	"Organization ID"
+//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			id				path		string					true	"Asset ID"
+//	@Param			asset			body		mmodel.UpdateAssetInput	true	"Asset Input"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	mmodel.Asset
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [patch]
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -245,14 +249,15 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
 //
-//		@Summary        Delete an Asset by ID
-//		@Description    Delete an Asset with the input ID
-//		@Tags           Assets
-//	 @Param 			organization_id path string true "Organization ID"
-//	 @Param 			ledger_id path string true "Ledger ID"
-//		@Param          id path string true "Asset ID"
-//		@Success        204
-//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [delete]
+//	@Summary		Delete an Asset by ID
+//	@Description	Delete an Asset with the input ID
+//	@Tags			Assets
+//	@Param			organization_id	path	string	true	"Organization ID"
+//	@Param			ledger_id		path	string	true	"Ledger ID"
+//	@Param			id				path	string	true	"Asset ID"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		204
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [delete]
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

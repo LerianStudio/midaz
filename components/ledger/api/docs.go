@@ -39,6 +39,12 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -86,6 +92,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateOrganizationInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -115,6 +127,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -139,6 +157,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -175,6 +199,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateOrganizationInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -211,6 +241,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -265,6 +301,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateLedgerInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -294,6 +336,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -325,6 +373,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -368,6 +422,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateLedgerInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -410,6 +470,12 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -471,6 +537,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateAccountInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -514,6 +586,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -552,6 +630,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -602,6 +686,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateAccountInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -644,6 +734,12 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -705,6 +801,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateAssetInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -748,6 +850,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -786,6 +894,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -836,6 +950,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateAssetInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -878,6 +998,12 @@ const docTemplate = `{
                         "description": "Metadata query",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -939,6 +1065,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreatePortfolioInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -982,6 +1114,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1020,6 +1158,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1063,6 +1207,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdatePortfolioInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1112,6 +1262,12 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1180,6 +1336,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateAccountInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1230,6 +1392,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1268,6 +1436,12 @@ const docTemplate = `{
                         "name": "portfolio_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1325,6 +1499,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateAccountInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1367,6 +1547,12 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1428,6 +1614,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateProductInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1471,6 +1663,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1509,6 +1707,12 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -1559,6 +1763,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateProductInput"
                         }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
                     }
                 ],
                 "responses": {

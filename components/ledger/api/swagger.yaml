@@ -563,6 +563,10 @@ paths:
         in: query
         name: metadata
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -591,6 +595,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateOrganizationInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -610,6 +618,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -623,6 +635,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -650,6 +666,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateOrganizationInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -673,6 +693,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -707,6 +731,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateLedgerInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -731,6 +759,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -744,6 +776,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -776,6 +812,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateLedgerInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -803,6 +843,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -842,6 +886,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -871,6 +919,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -894,6 +946,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -931,6 +987,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -958,6 +1018,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -997,6 +1061,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAssetInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1026,6 +1094,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1049,6 +1121,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1086,6 +1162,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAssetInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1113,6 +1193,10 @@ paths:
       - description: Metadata query
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1152,6 +1236,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreatePortfolioInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1181,6 +1269,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1204,6 +1296,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1236,6 +1332,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdatePortfolioInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1271,6 +1371,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1318,6 +1422,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1350,6 +1458,10 @@ paths:
         name: portfolio_id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1381,6 +1493,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1426,6 +1542,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1453,6 +1573,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1492,6 +1616,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateProductInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1521,6 +1649,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1544,6 +1676,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1581,6 +1717,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateProductInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
