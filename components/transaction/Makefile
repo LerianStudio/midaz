@@ -54,12 +54,8 @@ antlr:
 	rm -f antlr-$(ANTLR4_VERSION)-complete.jar
 
 # COMMONS
-
-wire:
-	@go generate ./...
-
 run:
-	@go run internal/main.go .env
+	@go run cmd/app/main.go .env
 
 test:
 	@go test -v ./...

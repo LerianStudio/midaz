@@ -1,9 +1,16 @@
-package mrabbitmq
+package rabbitmq
 
 import (
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+// ProducerRepository provides an interface for Producer related to rabbitmq.
+//
+//go:generate mockgen --destination=producer.mock.go --package=rabbitmq . ProducerRepository
+type ProducerRepository interface {
+	ProducerDefault(message string) (*string, error)
+}
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
