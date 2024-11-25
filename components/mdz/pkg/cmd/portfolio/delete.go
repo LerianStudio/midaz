@@ -40,8 +40,8 @@ func (f *factoryPortfolioDelete) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("asset-id") && len(f.PortfolioID) < 1 {
-		id, err := tui.Input("Enter your asset-id")
+	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
+		id, err := tui.Input("Enter your portfolio-id")
 		if err != nil {
 			return err
 		}

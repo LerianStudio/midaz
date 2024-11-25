@@ -17,7 +17,7 @@ type MongoConnection struct {
 	Logger                 mlog.Logger
 }
 
-// Connect keeps a singleton connection with postgres.
+// Connect keeps a singleton connection with mongodb.
 func (mc *MongoConnection) Connect(ctx context.Context) error {
 	mc.Logger.Info("Connecting to mongodb...")
 

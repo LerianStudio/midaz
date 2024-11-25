@@ -77,4 +77,8 @@ var (
 	ErrInvalidMetadataNesting              = errors.New("0067")
 	ErrOperationIDNotFound                 = errors.New("0068")
 	ErrNoOperationsFound                   = errors.New("0069")
+	ErrTransactionIDNotFound               = errors.New("0070")
+	ErrNoTransactionsFound                 = errors.New("0071")
+	ErrInvalidTransactionType              = errors.New("0072")
+	ErrTransactionValueMismatch            = errors.New("0073")
 )

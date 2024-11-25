@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"strings"
 )
 
 type TelemetryMiddleware struct {
@@ -28,6 +29,10 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 	return func(c *fiber.Ctx) error {
 		tracer := otel.Tracer(tl.LibraryName)
 		ctx := common.ContextWithTracer(c.UserContext(), tracer)
+
+		if strings.Contains(c.Path(), "swagger") && c.Path() != "/swagger/index.html" {
+			return c.Next()
+		}
 
 		ctx, span := tracer.Start(ctx, c.Method()+" "+common.ReplaceUUIDWithPlaceholder(c.Path()))
 		defer span.End()
@@ -123,8 +128,8 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 		return err
 	}
 
-	cpuUsage := common.GetCPUUsage()
-	memUsage := common.GetMemUsage()
+	cpuUsage := common.GetCPUUsage(ctx)
+	memUsage := common.GetMemUsage(ctx)
 
 	cpuGauge.Record(ctx, cpuUsage)
 	memGauge.Record(ctx, memUsage)

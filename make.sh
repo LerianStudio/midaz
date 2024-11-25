@@ -68,6 +68,12 @@ checkHooks() {
 
 lint() {
   title1 "STARTING LINT"
+  
+  if ! command -v golangci-lint &> /dev/null; then
+    echo -e "\n${bold}${red}golangci-lint is not installed. Please install it first.${normal}\n"
+    exit 1
+  fi
+  
   out=$(golangci-lint run --fix ./... 2>&1)
   out_err=$?
   perf_out=$(perfsprint ./... 2>&1)
@@ -90,6 +96,12 @@ lint() {
 
 format() {
   title1 "Formatting all golang source code"
+  
+  if ! command -v gofmt &> /dev/null; then
+    echo -e "\n${bold}${red}gofmt is not installed. Please install Go first.${normal}\n"
+    exit 1
+  fi
+  
   gofmt -w ./
   lineOk "All go files formatted"
 }
