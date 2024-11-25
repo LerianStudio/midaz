@@ -20,6 +20,17 @@ type AccountHandler struct {
 }
 
 // CreateAccount is a method that creates account information.
+//
+//		@Summary        Create an Account
+//		@Description    Create an Account with the input payload
+//		@Tags           Accounts
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          account body mmodel.CreateAccountInput true "Account"
+//		@Success        200 {object} mmodel.Account
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [post]
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -59,6 +70,16 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 }
 
 // GetAllAccounts is a method that retrieves all Accounts.
+//
+//		@Summary        Get all Accounts
+//		@Description    Get all Accounts with the input metadata or without metadata
+//		@Tags           Accounts
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          metadata query string false "Metadata"
+//		@Success        200 {object} mpostgres.Pagination{items=[]mmodel.Account}
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -127,6 +148,16 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 }
 
 // GetAccountByID is a method that retrieves Account information by a given account id.
+//
+//		@Summary        Get an Account by ID
+//		@Description    Get an Account with the input ID
+//		@Tags           Accounts
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          id path string true "Account ID"
+//		@Success        200 {object} mmodel.Account
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [get]
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -157,6 +188,18 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 }
 
 // UpdateAccount is a method that updates Account information.
+//
+//		@Summary        Update an Account
+//		@Description    Update an Account with the input payload
+//		@Tags           Accounts
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          id path string true "Account ID"
+//		@Param          account body mmodel.UpdateAccountInput true "Account"
+//		@Success        200 {object} mmodel.Account
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [patch]
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -206,6 +249,15 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 }
 
 // DeleteAccountByID is a method that removes Account information by a given account id.
+//
+//		@Summary        Delete an Account by ID
+//		@Description    Delete an Account with the input ID
+//		@Tags           Accounts
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          id path string true "Account ID"
+//		@Success        204
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [delete]
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -239,6 +291,20 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 // CreateAccountFromPortfolio is a method that creates account information from a given portfolio id.
 //
 // Will be deprecated in the future. Use CreateAccount instead.
+//
+//		@Summary        Create an Account from Portfolio
+//		@Description    ## This endpoint will be deprecated soon. Use Create an Account instead. ##
+//		@Description	---
+//		@Description    Create an Account with the input payload from a Portfolio
+//		@Tags           Accounts
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//	 @Param 			portfolio_id path string true "Portfolio ID"
+//		@Param          account body mmodel.CreateAccountInput true "Account"
+//		@Success        200 {object} mmodel.Account
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts [post]
 func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := common.NewLoggerFromContext(ctx)
@@ -268,6 +334,19 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 // GetAllAccountsByIDFromPortfolio is a method that retrieves all Accounts by a given portfolio id.
 //
 // Will be deprecated in the future. Use GetAllAccounts instead.
+//
+//		@Summary        Get all Accounts from Portfolio
+//		@Description    ## This endpoint will be deprecated soon. Use Get all Accounts instead. ##
+//		@Description	---
+//		@Description    Get all Accounts with the input metadata or without metadata from a Portfolio
+//		@Tags           Accounts
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//	 @Param 			portfolio_id path string true "Portfolio ID"
+//		@Param          metadata query string false "Metadata"
+//		@Success        200 {object} mpostgres.Pagination{items=[]mmodel.Account}
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := common.NewLoggerFromContext(ctx)
@@ -323,6 +402,19 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 // GetAccountByIDFromPortfolio is a method that retrieves Account information by a given portfolio id and account id.
 //
 // Will be deprecated in the future. Use GetAccountByID instead.
+//
+//		@Summary        Get an Account by ID from Portfolio
+//		@Description    ## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##
+//		@Description	---
+//		@Description    Get an Account with the input ID from a Portfolio.
+//		@Tags           Accounts
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//	 @Param 			portfolio_id path string true "Portfolio ID"
+//		@Param          id path string true "Account ID"
+//		@Success        200 {object} mmodel.Account
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [get]
 func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -349,6 +441,21 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 // UpdateAccountFromPortfolio is a method that updates Account information from a given portfolio id and account id.
 //
 // Will be deprecated in the future. Use UpdateAccount instead.
+//
+//		@Summary        Update an Account from Portfolio
+//		@Description    ## This endpoint will be deprecated soon. Use Update an Account instead. ##
+//		@Description	---
+//		@Description    Update an Account with the input payload from a Portfolio
+//		@Tags           Accounts
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//	 @Param 			portfolio_id path string true "Portfolio ID"
+//		@Param          id path string true "Account ID"
+//		@Param          account body mmodel.UpdateAccountInput true "Account"
+//		@Success        200 {object} mmodel.Account
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [patch]
 func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := common.NewLoggerFromContext(ctx)
@@ -385,6 +492,17 @@ func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) e
 // DeleteAccountByIDFromPortfolio is a method that removes Account information by a given portfolio id and account id.
 //
 // Will be deprecated in the future. Use DeleteAccountByID instead.
+//
+//		@Summary        Delete an Account by ID from Portfolio
+//		@Description    ## This endpoint will be deprecated soon. Use Delete an Account by ID instead. ##
+//		@Description	---
+//		@Description    Delete an Account with the input ID from a Portfolio
+//		@Tags           Accounts
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//	 @Param 			portfolio_id path string true "Portfolio ID"
+//		@Success        204
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [delete]
 func (handler *AccountHandler) DeleteAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := common.NewLoggerFromContext(ctx)

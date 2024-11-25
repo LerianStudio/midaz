@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	gold "github.com/LerianStudio/midaz/common/gold/transaction/model"
+	ledgerDocs "github.com/LerianStudio/midaz/components/ledger/api"
+	transactionDocs "github.com/LerianStudio/midaz/components/transaction/api"
+	"os"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -503,4 +506,55 @@ func compareSlices(original, marshaled []any) []any {
 	}
 
 	return diff
+}
+
+// WithSwaggerEnvConfig sets the Swagger configuration for the API documentation from environment variables if they are set.
+func WithSwaggerEnvConfig(service string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		switch service {
+		case "ledger":
+			envVars := map[string]*string{
+				"SWAGGER_TITLE":       &ledgerDocs.SwaggerInfo.Title,
+				"SWAGGER_DESCRIPTION": &ledgerDocs.SwaggerInfo.Description,
+				"SWAGGER_VERSION":     &ledgerDocs.SwaggerInfo.Version,
+				"SWAGGER_HOST":        &ledgerDocs.SwaggerInfo.Host,
+				"SWAGGER_BASE_PATH":   &ledgerDocs.SwaggerInfo.BasePath,
+				"SWAGGER_LEFT_DELIM":  &ledgerDocs.SwaggerInfo.LeftDelim,
+				"SWAGGER_RIGHT_DELIM": &ledgerDocs.SwaggerInfo.RightDelim,
+			}
+
+			for env, field := range envVars {
+				if value := os.Getenv(env); value != "" {
+					*field = value
+				}
+			}
+
+			if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
+				ledgerDocs.SwaggerInfo.Schemes = []string{schemes}
+			}
+
+		case "transaction":
+			envVars := map[string]*string{
+				"SWAGGER_TITLE":       &transactionDocs.SwaggerInfo.Title,
+				"SWAGGER_DESCRIPTION": &transactionDocs.SwaggerInfo.Description,
+				"SWAGGER_VERSION":     &transactionDocs.SwaggerInfo.Version,
+				"SWAGGER_HOST":        &transactionDocs.SwaggerInfo.Host,
+				"SWAGGER_BASE_PATH":   &transactionDocs.SwaggerInfo.BasePath,
+				"SWAGGER_LEFT_DELIM":  &transactionDocs.SwaggerInfo.LeftDelim,
+				"SWAGGER_RIGHT_DELIM": &transactionDocs.SwaggerInfo.RightDelim,
+			}
+
+			for env, field := range envVars {
+				if value := os.Getenv(env); value != "" {
+					*field = value
+				}
+			}
+
+			if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
+				transactionDocs.SwaggerInfo.Schemes = []string{schemes}
+			}
+		}
+
+		return c.Next()
+	}
 }

@@ -24,6 +24,7 @@ info:
 	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
 	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
 	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation using swag."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -42,7 +43,7 @@ info:
 
 
 grpc-ledger-gen:
-	protoc --proto_path=../../common/mgrpc --go-grpc_out=../../common/mgrpc --go_out=../../common/mgrpc ../../common/mgrpc/account/account.proto
+	@protoc --proto_path=../../common/mgrpc --go-grpc_out=../../common/mgrpc --go_out=../../common/mgrpc ../../common/mgrpc/account/account.proto
 
 run:
 	@go run cmd/app/main.go .env
@@ -55,6 +56,9 @@ cover-html:
 
 tidy:
 	@go mod tidy
+
+generate-docs:
+	@swag init -g ./main.go -d ./internal -o ./api --parseDependency --parseInternal
 
 # Docker Compose Commands
 build:

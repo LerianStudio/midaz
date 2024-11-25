@@ -20,6 +20,18 @@ type OperationHandler struct {
 }
 
 // GetAllOperationsByAccount retrieves all operations by account.
+//
+//	@Summary        Get all Operations by account
+//	@Description    Get all Operations with the input ID
+//	@Tags           Operations
+//	@Produce        json
+//
+// @Param           organization_id path string true "Organization ID"
+// @Param           ledger_id path string true "Ledger ID"
+//
+//	@Param          account_id path string true "Account ID"
+//	@Success        200 {object} mpostgres.Pagination{items=[]o.Operation}
+//	@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations [get]
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -67,6 +79,20 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, pagination)
 }
 
+// GetOperationByAccount retrieves an operation by account.
+//
+//	@Summary        Get an Operation by account
+//	@Description    Get an Operation with the input ID
+//	@Tags           Operations
+//	@Produce        json
+//
+// @Param           organization_id path string true "Organization ID"
+// @Param           ledger_id path string true "Ledger ID"
+//
+//	@Param          account_id path string true "Account ID"
+//	@Param          operation_id path string true "Operation ID"
+//	@Success        200 {object} o.Operation
+//	@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id} [get]
 func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -97,6 +123,19 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, operation)
 }
 
+// GetAllOperationsByPortfolio retrieves all operations by portfolio.
+//
+//	@Summary        Get all Operations by portfolio
+//	@Description    Get all Operations with the input ID
+//	@Tags           Operations
+//	@Produce        json
+//
+// @Param           organization_id path string true "Organization ID"
+// @Param           ledger_id path string true "Ledger ID"
+//
+//	@Param          portfolio_id path string true "Portfolio ID"
+//	@Success        200 {object} mpostgres.Pagination{items=[]o.Operation}
+//	@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations [get]
 func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -144,6 +183,20 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	return commonHTTP.OK(c, pagination)
 }
 
+// GetOperationByPortfolio retrieves an operation by portfolio.
+//
+//	@Summary        Get an Operation by portfolio
+//	@Description    Get an Operation with the input ID
+//	@Tags           Operations
+//	@Produce        json
+//
+// @Param           organization_id path string true "Organization ID"
+// @Param           ledger_id path string true "Ledger ID"
+//
+//	@Param          portfolio_id path string true "Portfolio ID"
+//	@Param          operation_id path string true "Operation ID"
+//	@Success        200 {object} o.Operation
+//	@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id} [get]
 func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -175,6 +228,21 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 }
 
 // UpdateOperation method that patch operation created before
+//
+//	@Summary        Update an Operation
+//	@Description    Update an Operation with the input payload
+//	@Tags           Operations
+//	@Accept         json
+//	@Produce        json
+//
+// @Param           organization_id path string true "Organization ID"
+// @Param           ledger_id path string true "Ledger ID"
+// @Param           transaction_id path string true "Transaction ID"
+// @Param           operation_id path string true "Operation ID"
+//
+//	@Param          operation body o.UpdateOperationInput true "Operation Input"
+//	@Success        200 {object} o.Operation
+//	@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id} [patch]
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

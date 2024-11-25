@@ -24,6 +24,15 @@ type OrganizationHandler struct {
 }
 
 // CreateOrganization is a method that creates Organization information.
+//
+//	@Summary        Create an Organization
+//	@Description    Create an Organization with the input payload
+//	@Tags           Organizations
+//	@Accept         json
+//	@Produce        json
+//	@Param          organization body mmodel.CreateOrganizationInput true "Organization Input"
+//	@Success        200 {object} mmodel.Organization
+//	@Router         /v1/organizations [post]
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -56,6 +65,16 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 }
 
 // UpdateOrganization is a method that updates Organization information.
+//
+//	@Summary        Update an Organization
+//	@Description    Update an Organization with the input payload
+//	@Tags           Organizations
+//	@Accept         json
+//	@Produce        json
+//	@Param          id path string true "Organization ID"
+//	@Param          organization body mmodel.UpdateOrganizationInput true "Organization Input"
+//	@Success        200 {object} mmodel.Organization
+//	@Router         /v1/organizations/{id} [patch]
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -102,6 +121,14 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 }
 
 // GetOrganizationByID is a method that retrieves Organization information by a given id.
+//
+//	@Summary        Get an Organization by ID
+//	@Description    Get an Organization with the input ID
+//	@Tags           Organizations
+//	@Produce        json
+//	@Param          id path string true "Organization ID"
+//	@Success        200 {object} mmodel.Organization
+//	@Router         /v1/organizations/{id} [get]
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -129,6 +156,14 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 }
 
 // GetAllOrganizations is a method that retrieves all Organizations.
+//
+//	@Summary        Get all Organizations
+//	@Description    Get all Organizations with the input metadata or without metadata
+//	@Tags           Organizations
+//	@Produce        json
+//	@Param          metadata query string false "Metadata"
+//	@Success        200 {object} mpostgres.Pagination{items=[]mmodel.Organization}
+//	@Router         /v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := common.NewLoggerFromContext(ctx)
@@ -184,6 +219,13 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 }
 
 // DeleteOrganizationByID is a method that removes Organization information by a given id.
+//
+//	@Summary        Delete an Organization by ID
+//	@Description    Delete an Organization with the input ID
+//	@Tags           Organizations
+//	@Param          id path string true "Organization ID"
+//	@Success        204
+//	@Router         /v1/organizations/{id} [delete]
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

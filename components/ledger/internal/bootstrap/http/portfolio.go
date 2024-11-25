@@ -20,6 +20,17 @@ type PortfolioHandler struct {
 }
 
 // CreatePortfolio is a method that creates portfolio information.
+//
+//		@Summary        Create a Portfolio
+//		@Description    Create a Portfolio with the input payload
+//		@Tags           Portfolios
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          portfolio body mmodel.CreatePortfolioInput true "Portfolio Payload"
+//		@Success        200 {object} mmodel.Portfolio
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [post]
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -58,6 +69,16 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 }
 
 // GetAllPortfolios is a method that retrieves all Portfolios.
+//
+//		@Summary        Get all Portfolios
+//		@Description    Get all Portfolios with the input metadata or without metadata
+//		@Tags           Portfolios
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          metadata query string false "Metadata query"
+//		@Success        200 {object} mpostgres.Pagination{items=[]mmodel.Portfolio}
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [get]
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -118,6 +139,16 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 }
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
+//
+//		@Summary        Get a Portfolio by ID
+//		@Description    Get a Portfolio with the input ID
+//		@Tags           Portfolios
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          id path string true "Portfolio ID"
+//		@Success        200 {object} mmodel.Portfolio
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [get]
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -148,6 +179,17 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 }
 
 // UpdatePortfolio is a method that updates Portfolio information.
+//
+//		@Summary        Update a Portfolio
+//		@Description    Update a Portfolio with the input payload
+//		@Tags           Portfolios
+//		@Accept         json
+//		@Produce        json
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          portfolio body mmodel.UpdatePortfolioInput true "Portfolio Payload"
+//		@Success        200 {object} mmodel.Portfolio
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [patch]
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -197,6 +239,15 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 }
 
 // DeletePortfolioByID is a method that removes Portfolio information by a given ids.
+//
+//		@Summary        Delete a Portfolio by ID
+//		@Description    Delete a Portfolio with the input ID
+//		@Tags           Portfolios
+//	 @Param 			organization_id path string true "Organization ID"
+//	 @Param 			ledger_id path string true "Ledger ID"
+//		@Param          id path string true "Portfolio ID"
+//		@Success        204
+//		@Router         /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [delete]
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

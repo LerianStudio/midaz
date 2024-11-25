@@ -3,39 +3,59 @@ package mmodel
 import "time"
 
 // CreateAssetInput is a struct design to encapsulate request create payload data.
+//
+// swagger:model CreateAssetInput
+// @Description CreateAssetInput is a struct design to encapsulate request create payload data.
+// @Param name query string false "Name" e
+// @Param type query string false "Type"
+// @Param code query string false "Code"
+// @Param status query string false "Status"
+// @Param metadata query string false "Metadata"
 type CreateAssetInput struct {
-	Name     string         `json:"name" validate:"max=256"`
-	Type     string         `json:"type"`
-	Code     string         `json:"code" validate:"required,max=100"`
+	Name     string         `json:"name" validate:"max=256" example:"Brazilian Real"`
+	Type     string         `json:"type" example:"currency"`
+	Code     string         `json:"code" validate:"required,max=100" example:"BRL"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
+} // @name CreateAssetInput
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
+//
+// swagger:model UpdateAssetInput
+// @Description UpdateAssetInput is a struct design to encapsulate request update payload data.
 type UpdateAssetInput struct {
-	Name     string         `json:"name" validate:"max=256"`
+	Name     string         `json:"name" validate:"max=256" example:"Bitcoin"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-}
+} // @name UpdateAssetInput
 
 // Asset is a struct designed to encapsulate payload data.
+//
+// swagger:model Asset
+// @Description Asset is a struct designed to encapsulate payload data.
 type Asset struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Type           string         `json:"type"`
-	Code           string         `json:"code"`
+	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	Name           string         `json:"name" example:"Brazilian Real"`
+	Type           string         `json:"type" example:"currency"`
+	Code           string         `json:"code" example:"BRL"`
 	Status         Status         `json:"status"`
-	LedgerID       string         `json:"ledgerId"`
-	OrganizationID string         `json:"organizationId"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
-	DeletedAt      *time.Time     `json:"deletedAt"`
+	LedgerID       string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	CreatedAt      time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
+	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
-}
+} // @name Asset
 
 // Assets struct to return get all.
+//
+// swagger:model Assets
+// @Description Assets struct to return get all.
+// @Param items query string false "Items"
+// @Param page query string false "Page"
+// @Param limit query string false "Limit"
 type Assets struct {
 	Items []Asset `json:"items"`
-	Page  int     `json:"page"`
-	Limit int     `json:"limit"`
-}
+	Page  int     `json:"page" example:"1"`
+	Limit int     `json:"limit" example:"10"`
+} // @name Assets
