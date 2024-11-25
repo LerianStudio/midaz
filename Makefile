@@ -141,6 +141,7 @@ ledger:
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
 
 transaction:
+	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
 all-services:
@@ -159,5 +160,6 @@ tidy:
 	go mod tidy
 
 generate-docs-all:
+	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
 	$(MAKE) -C $(TRANSACTION_DIR) generate-docs

@@ -228,7 +228,7 @@ func InitServers() *Service {
 
 	grpcApp := grpc.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
 
-	serverGRPC := NewServerGRPC(cfg, grpcApp, logger)
+	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
 	return &Service{
 		Server:     serverAPI,

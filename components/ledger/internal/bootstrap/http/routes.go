@@ -6,7 +6,6 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/net/http"
-	lib "github.com/LerianStudio/midaz/common/net/http"
 	_ "github.com/LerianStudio/midaz/components/ledger/api"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -86,8 +85,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 
 	// Doc
 	http.DocAPI("ledger", "Ledger API", f)
-	f.Get("/swagger/*", lib.WithSwaggerEnvConfig("ledger"), fiberSwagger.WrapHandler)
-	lib.DocAPI("ledger", "Ledger API", f)
+	f.Get("/swagger/*", http.WithSwaggerEnvConfig("ledger"), fiberSwagger.WrapHandler)
+	http.DocAPI("ledger", "Ledger API", f)
 
 	f.Use(tlMid.EndTracingSpans)
 
