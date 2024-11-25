@@ -18,6 +18,20 @@ type AssetRateHandler struct {
 }
 
 // CreateAssetRate creates a new asset rate.
+//
+//	@Summary		Create an AssetRate
+//	@Description	Create an AssetRate with the input payload
+//	@Tags			Asset Rates
+//	@Accept			json
+//	@Produce		json
+//
+//	@Param			organization_id	path		string					true	"Organization ID"
+//	@Param			ledger_id		path		string					true	"Ledger ID"
+//
+//	@Param			asset-rate		body		ar.CreateAssetRateInput	true	"AssetRate Input"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	ar.AssetRate
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [post]
 func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -58,6 +72,20 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 }
 
 // GetAssetRate retrieves an asset rate.
+//
+//	@Summary		Get an AssetRate by ID
+//	@Description	Get an AssetRate with the input ID
+//	@Tags			Asset Rates
+//	@Produce		json
+//
+//	@Param			organization_id	path		string					true	"Organization ID"
+//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			asset_rate_id	path		string					true	"AssetRate ID"
+//
+//	@Param			asset-rate		body		ar.CreateAssetRateInput	true	"AssetRate Input"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	ar.AssetRate
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id} [get]
 func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

@@ -59,8 +59,7 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Get("/version", lib.Version)
 
 	// Doc
-	f.Get("/swagger/*", lib.WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
-	lib.DocAPI("transaction", "Transaction API", f)
+	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)
 
 	f.Use(tlMid.EndTracingSpans)
 

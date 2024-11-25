@@ -31,6 +31,20 @@ type TransactionHandler struct {
 }
 
 // CreateTransactionJSON method that create transaction using JSON
+//
+//	@Summary		Create a Transaction using JSON
+//	@Description	Create a Transaction with the input payload
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//
+//	@Param			organization_id	path		string						true	"Organization ID"
+//	@Param			ledger_id		path		string						true	"Ledger ID"
+//
+//	@Param			transaction		body		t.CreateTransactionInput	true	"Transaction Input"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	t.Transaction
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -52,6 +66,20 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 }
 
 // CreateTransactionDSL method that create transaction using DSL
+//
+//	@Summary		Create a Transaction using DSL
+//	@Description	Create a Transaction with the input DSL file
+//	@Tags			Transactions
+//	@Accept			mpfd
+//	@Produce		json
+//
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//
+//	@Param			transaction		formData	file	true	"Transaction DSL file"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	t.Transaction
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -100,6 +128,8 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 }
 
 // CreateTransactionTemplate method that create transaction template
+//
+// TODO: Implement this method and the swagger documentation related to it
 func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -115,6 +145,8 @@ func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx
 }
 
 // CommitTransaction method that commit transaction created before
+//
+// TODO: Implement this method and the swagger documentation related to it
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -128,6 +160,8 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 }
 
 // RevertTransaction method that revert transaction created before
+//
+// TODO: Implement this method and the swagger documentation related to it
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -141,6 +175,21 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 }
 
 // UpdateTransaction method that patch transaction created before
+//
+//	@Summary		Update a Transaction
+//	@Description	Update a Transaction with the input payload
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//
+//	@Param			organization_id	path		string						true	"Organization ID"
+//	@Param			ledger_id		path		string						true	"Ledger ID"
+//	@Param			transaction_id	path		string						true	"Transaction ID"
+//
+//	@Param			transaction		body		t.UpdateTransactionInput	true	"Transaction Input"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	t.Transaction
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -183,6 +232,19 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 }
 
 // GetTransaction method that get transaction created before
+//
+//	@Summary		Get a Transaction by ID
+//	@Description	Get a Transaction with the input ID
+//	@Tags			Transactions
+//	@Produce		json
+//
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
+//
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	t.Transaction
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -210,6 +272,19 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	return commonHTTP.OK(c, tran)
 }
 
+// GetAllTransactions method that get all transactions created before
+//
+//	@Summary		Get all Transactions
+//	@Description	Get all Transactions with the input metadata or without metadata
+//	@Tags			Transactions
+//	@Produce		json
+//
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//
+//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]t.Transaction}
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
