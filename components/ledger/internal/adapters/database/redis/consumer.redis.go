@@ -9,6 +9,15 @@ import (
 	"github.com/LerianStudio/midaz/common/mredis"
 )
 
+// RedisRepository provides an interface for redis.
+//
+//go:generate mockgen --destination=redis.mock.go --package=redis . RedisRepository
+type RedisRepository interface {
+	Set(ctx context.Context, key, value string, ttl time.Duration) error
+	Get(ctx context.Context, key string) error
+	Del(ctx context.Context, key string) error
+}
+
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
 	conn *mredis.RedisConnection

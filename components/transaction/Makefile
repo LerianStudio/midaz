@@ -27,6 +27,7 @@ info:
 	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
 	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
 	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation using swag."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -68,6 +69,9 @@ cover-html:
 
 tidy:
 	@go mod tidy
+
+generate-docs:
+	@swag init -g ./main.go -d ./internal -o ./api --parseDependency --parseInternal
 
 # Docker Compose Commands
 build:

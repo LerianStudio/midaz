@@ -34,6 +34,21 @@ help:
 	@echo ""
 	@echo "$(BOLD)Setup Commands:$(NC)"
 	@echo "  make set-env            - Copy .env.example to .env for all components"
+	@echo "Usage:"
+	@echo "  ## Root Commands"
+	@echo "    make build                               Build all project services."
+	@echo "    make test                                Run tests on all projects."
+	@echo "    make clean                               Clean the directory tree of produced artifacts."
+	@echo "    make lint                                Run static code analysis (lint)."
+	@echo "    make format                              Run code formatter."
+	@echo "    make checkEnvs                           Check if github hooks are installed and secret env on files are not exposed."
+	@echo "    make auth                                Run a command inside the auth app in the components directory to see available commands."
+	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
+	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
+	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
+	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
+	@echo "    make all-services                        Run a command to all services passing any individual container command."
+	@echo "    make generate-docs-all                   Run a command to inside the ledger and transaction app to generate swagger docs."
 	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
 	@echo "  make up                 - Start all services with Docker Compose"
@@ -61,7 +76,7 @@ cover:
 		echo "$(RED)Error: go is not installed$(NC)"; \
 		exit 1; \
 	fi
-	go test -cover ./... 
+	go test -cover ./...
 
 lint:
 	@echo "$(BLUE)Running linter and performance checks...$(NC)"
@@ -143,3 +158,8 @@ goreleaser:
 tidy:
 	@echo "$(BLUE)Running go mod tidy...$(NC)"
 	go mod tidy
+
+generate-docs-all:
+	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
+	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs

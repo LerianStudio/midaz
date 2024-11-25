@@ -1,0 +1,15 @@
+basePath: /
+host: localhost:3000
+info:
+  contact:
+    name: Discord community
+    url: https://discord.gg/DnhqKwkGv3
+  description: This is a swagger documentation for the Midaz Ledger API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Midaz Ledger API
+  version: "1.0"
+paths: {}
+swagger: "2.0"

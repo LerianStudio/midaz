@@ -36,16 +36,16 @@ func (s *Server) Run(l *common.Launcher) error {
 	s.InitializeTelemetry(s.Logger)
 	defer s.ShutdownTelemetry()
 
-	err := s.app.Listen(s.ServerAddress())
-	if err != nil {
-		return errors.Wrap(err, "failed to run the server")
-	}
-
 	defer func() {
 		if err := s.Logger.Sync(); err != nil {
 			s.Logger.Fatalf("Failed to sync logger: %s", err)
 		}
 	}()
+
+	err := s.app.Listen(s.ServerAddress())
+	if err != nil {
+		return errors.Wrap(err, "failed to run the server")
+	}
 
 	return nil
 }
