@@ -45,25 +45,22 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/definitions/mpostgres.Pagination"
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
                                             "items": {
-                                                "type": "array",
-                                                "items": {
-                                                    "$ref": "#/definitions/mmodel.Organization"
-                                                }
+                                                "$ref": "#/definitions/Organization"
                                             }
                                         }
                                     }
-                                ]
-                            }
+                                }
+                            ]
                         }
                     }
                 }
@@ -87,7 +84,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateOrganizationInput"
+                            "$ref": "#/definitions/CreateOrganizationInput"
                         }
                     }
                 ],
@@ -95,7 +92,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Organization"
+                            "$ref": "#/definitions/Organization"
                         }
                     }
                 }
@@ -124,7 +121,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Organization"
+                            "$ref": "#/definitions/Organization"
                         }
                     }
                 }
@@ -176,7 +173,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.UpdateOrganizationInput"
+                            "$ref": "#/definitions/UpdateOrganizationInput"
                         }
                     }
                 ],
@@ -184,7 +181,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Organization"
+                            "$ref": "#/definitions/Organization"
                         }
                     }
                 }
@@ -203,6 +200,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Ledger ID",
                         "name": "id",
                         "in": "path",
@@ -213,25 +217,22 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/definitions/mpostgres.Pagination"
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
                                             "items": {
-                                                "type": "array",
-                                                "items": {
-                                                    "$ref": "#/definitions/mmodel.Ledger"
-                                                }
+                                                "$ref": "#/definitions/Ledger"
                                             }
                                         }
                                     }
-                                ]
-                            }
+                                }
+                            ]
                         }
                     }
                 }
@@ -250,12 +251,19 @@ const docTemplate = `{
                 "summary": "Create a Ledger",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
                         "description": "Ledger Input",
                         "name": "ledger",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateLedgerInput"
+                            "$ref": "#/definitions/CreateLedgerInput"
                         }
                     }
                 ],
@@ -263,7 +271,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Ledger"
+                            "$ref": "#/definitions/Ledger"
                         }
                     }
                 }
@@ -292,7 +300,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Ledger"
+                            "$ref": "#/definitions/Ledger"
                         }
                     }
                 }
@@ -304,6 +312,13 @@ const docTemplate = `{
                 ],
                 "summary": "Delete a Ledger by ID",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "Ledger ID",
@@ -333,6 +348,13 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Ledger ID",
                         "name": "id",
                         "in": "path",
@@ -344,7 +366,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.UpdateLedgerInput"
+                            "$ref": "#/definitions/UpdateLedgerInput"
                         }
                     }
                 ],
@@ -352,7 +374,241 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Ledger"
+                            "$ref": "#/definitions/Ledger"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
+            "get": {
+                "description": "Get all Accounts with the input metadata or without metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Get all Accounts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metadata",
+                        "name": "metadata",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Account"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create an Account with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Create an Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Account",
+                        "name": "account",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateAccountInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
+            "get": {
+                "description": "Get an Account with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Get an Account by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an Account with the input ID",
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Delete an Account by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update an Account with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Update an Account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Account",
+                        "name": "account",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateAccountInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
                         }
                     }
                 }
@@ -371,6 +627,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
@@ -380,25 +650,22 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/definitions/mpostgres.Pagination"
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
                                             "items": {
-                                                "type": "array",
-                                                "items": {
-                                                    "$ref": "#/definitions/mmodel.Asset"
-                                                }
+                                                "$ref": "#/definitions/Asset"
                                             }
                                         }
                                     }
-                                ]
-                            }
+                                }
+                            ]
                         }
                     }
                 }
@@ -417,12 +684,26 @@ const docTemplate = `{
                 "summary": "Create an Asset",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
                         "description": "Asset Input",
                         "name": "asset",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.CreateAssetInput"
+                            "$ref": "#/definitions/CreateAssetInput"
                         }
                     }
                 ],
@@ -430,7 +711,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Asset"
+                            "$ref": "#/definitions/Asset"
                         }
                     }
                 }
@@ -449,6 +730,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Asset ID",
                         "name": "id",
                         "in": "path",
@@ -459,7 +754,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Asset"
+                            "$ref": "#/definitions/Asset"
                         }
                     }
                 }
@@ -471,6 +766,20 @@ const docTemplate = `{
                 ],
                 "summary": "Delete an Asset by ID",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "type": "string",
                         "description": "Asset ID",
@@ -500,6 +809,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Asset ID",
                         "name": "id",
                         "in": "path",
@@ -511,7 +834,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.UpdateAssetInput"
+                            "$ref": "#/definitions/UpdateAssetInput"
                         }
                     }
                 ],
@@ -519,7 +842,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Asset"
+                            "$ref": "#/definitions/Asset"
                         }
                     }
                 }
@@ -538,6 +861,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Metadata query",
                         "name": "metadata",
                         "in": "query"
@@ -547,25 +884,22 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "allOf": [
-                                    {
-                                        "$ref": "#/definitions/mpostgres.Pagination"
-                                    },
-                                    {
-                                        "type": "object",
-                                        "properties": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
                                             "items": {
-                                                "type": "array",
-                                                "items": {
-                                                    "$ref": "#/definitions/mmodel.Portfolio"
-                                                }
+                                                "$ref": "#/definitions/Portfolio"
                                             }
                                         }
                                     }
-                                ]
-                            }
+                                }
+                            ]
                         }
                     }
                 }
@@ -584,44 +918,26 @@ const docTemplate = `{
                 "summary": "Create a Portfolio",
                 "parameters": [
                     {
-                        "description": "Portfolio Payload",
-                        "name": "portfolio",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/mmodel.CreatePortfolioInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/mmodel.Portfolio"
-                        }
-                    }
-                }
-            },
-            "patch": {
-                "description": "Update a Portfolio with the input payload",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Portfolios"
-                ],
-                "summary": "Update a Portfolio",
-                "parameters": [
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "description": "Portfolio Payload",
                         "name": "portfolio",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/mmodel.UpdatePortfolioInput"
+                            "$ref": "#/definitions/CreatePortfolioInput"
                         }
                     }
                 ],
@@ -629,7 +945,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Portfolio"
+                            "$ref": "#/definitions/Portfolio"
                         }
                     }
                 }
@@ -648,6 +964,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Portfolio ID",
                         "name": "id",
                         "in": "path",
@@ -658,7 +988,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Portfolio"
+                            "$ref": "#/definitions/Portfolio"
                         }
                     }
                 }
@@ -672,6 +1002,20 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Portfolio ID",
                         "name": "id",
                         "in": "path",
@@ -683,76 +1027,792 @@ const docTemplate = `{
                         "description": "No Content"
                     }
                 }
+            },
+            "patch": {
+                "description": "Update a Portfolio with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Portfolios"
+                ],
+                "summary": "Update a Portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Portfolio Payload",
+                        "name": "portfolio",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdatePortfolioInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Portfolio"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts": {
+            "get": {
+                "description": "## This endpoint will be deprecated soon. Use Get all Accounts instead. ##\n---\nGet all Accounts with the input metadata or without metadata from a Portfolio",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Get all Accounts from Portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metadata",
+                        "name": "metadata",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Account"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "## This endpoint will be deprecated soon. Use Create an Account instead. ##\n---\nCreate an Account with the input payload from a Portfolio",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Create an Account from Portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Account",
+                        "name": "account",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateAccountInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id}": {
+            "get": {
+                "description": "## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##\n---\nGet an Account with the input ID from a Portfolio.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Get an Account by ID from Portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "## This endpoint will be deprecated soon. Use Delete an Account by ID instead. ##\n---\nDelete an Account with the input ID from a Portfolio",
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Delete an Account by ID from Portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "description": "## This endpoint will be deprecated soon. Use Update an Account instead. ##\n---\nUpdate an Account with the input payload from a Portfolio",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Update an Account from Portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Account",
+                        "name": "account",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateAccountInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/products": {
+            "get": {
+                "description": "Get all Products with the input metadata or without metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Get all Products",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Metadata",
+                        "name": "metadata",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Product"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a Product with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Create a Product",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Product",
+                        "name": "product",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateProductInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Product"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}": {
+            "get": {
+                "description": "Get a Product with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Get a Product by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Product"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a Product with the input ID",
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Delete a Product by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update a Product with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Products"
+                ],
+                "summary": "Update a Product",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Product ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Product",
+                        "name": "product",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateProductInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Product"
+                        }
+                    }
+                }
             }
         }
     },
     "definitions": {
-        "mmodel.Address": {
-            "description": "Address structure for marshaling/unmarshalling JSON.",
+        "Account": {
+            "description": "Account is a struct designed to encapsulate response payload data.",
             "type": "object",
             "properties": {
-                "city": {
-                    "type": "string"
+                "alias": {
+                    "type": "string",
+                    "example": "@person1"
                 },
-                "country": {
-                    "description": "According to ISO 3166-1 alpha-2",
-                    "type": "string"
+                "allowReceiving": {
+                    "type": "boolean",
+                    "example": true
                 },
-                "line1": {
-                    "type": "string"
+                "allowSending": {
+                    "type": "boolean",
+                    "example": true
                 },
-                "line2": {
-                    "type": "string"
+                "assetCode": {
+                    "type": "string",
+                    "example": "BRL"
                 },
-                "state": {
-                    "type": "string"
-                },
-                "zipCode": {
-                    "type": "string"
-                }
-            }
-        },
-        "mmodel.Asset": {
-            "description": "Asset is a struct designed to encapsulate payload data.",
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
+                "balance": {
+                    "$ref": "#/definitions/Balance"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "entityId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "My Account"
                 },
                 "organizationId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "parentAccountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "productId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "creditCard"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
-        "mmodel.CreateAssetInput": {
+        "Address": {
+            "description": "Address structure for marshaling/unmarshalling JSON.",
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string",
+                    "example": "New York"
+                },
+                "country": {
+                    "description": "According to ISO 3166-1 alpha-2",
+                    "type": "string",
+                    "example": "US"
+                },
+                "line1": {
+                    "type": "string",
+                    "example": "Street 1"
+                },
+                "line2": {
+                    "type": "string",
+                    "example": "Street 2"
+                },
+                "state": {
+                    "type": "string",
+                    "example": "NY"
+                },
+                "zipCode": {
+                    "type": "string",
+                    "example": "00000-000"
+                }
+            }
+        },
+        "Asset": {
+            "description": "Asset is a struct designed to encapsulate payload data.",
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Brazilian Real"
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "currency"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "Balance": {
+            "description": "Balance structure for marshaling/unmarshalling JSON.",
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "number",
+                    "example": 1500
+                },
+                "onHold": {
+                    "type": "number",
+                    "example": 500
+                },
+                "scale": {
+                    "type": "number",
+                    "example": 2
+                }
+            }
+        },
+        "CreateAccountInput": {
+            "description": "CreateAccountInput is a struct design to encapsulate request create payload data.",
+            "type": "object",
+            "required": [
+                "assetCode",
+                "type"
+            ],
+            "properties": {
+                "alias": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "@person1"
+                },
+                "allowReceiving": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "allowSending": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "assetCode": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "BRL"
+                },
+                "entityId": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "My Account"
+                },
+                "parentAccountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "productId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "creditCard"
+                }
+            }
+        },
+        "CreateAssetInput": {
             "description": "CreateAssetInput is a struct design to encapsulate request create payload data.",
             "type": "object",
             "required": [
@@ -761,7 +1821,8 @@ const docTemplate = `{
             "properties": {
                 "code": {
                     "type": "string",
-                    "maxLength": 100
+                    "maxLength": 100,
+                    "example": "BRL"
                 },
                 "metadata": {
                     "type": "object",
@@ -769,17 +1830,19 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Brazilian Real"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 },
                 "type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "currency"
                 }
             }
         },
-        "mmodel.CreateLedgerInput": {
+        "CreateLedgerInput": {
             "description": "CreateLedgerInput is a struct design to encapsulate request create payload data for ledger.",
             "type": "object",
             "required": [
@@ -792,14 +1855,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Lerian Studio"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mmodel.CreateOrganizationInput": {
+        "CreateOrganizationInput": {
             "description": "CreateOrganizationInput is a struct design to encapsulate request create payload data for organization.",
             "type": "object",
             "required": [
@@ -808,33 +1872,38 @@ const docTemplate = `{
             ],
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/mmodel.Address"
+                    "$ref": "#/definitions/Address"
                 },
                 "doingBusinessAs": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Lerian Studio"
                 },
                 "legalDocument": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "00000000000000"
                 },
                 "legalName": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Lerian Studio"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mmodel.CreatePortfolioInput": {
+        "CreatePortfolioInput": {
+            "description": "CreatePortfolioInput is a struct design to encapsulate request create payload data.",
             "type": "object",
             "required": [
                 "entityId",
@@ -843,7 +1912,8 @@ const docTemplate = `{
             "properties": {
                 "entityId": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "type": "object",
@@ -851,135 +1921,273 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "My Portfolio"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mmodel.Ledger": {
+        "CreateProductInput": {
+            "description": "CreateProductInput is a struct design to encapsulate request create payload data.",
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "My Product"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                }
+            }
+        },
+        "Ledger": {
             "description": "Ledger is a struct designed to encapsulate payload data.",
             "type": "object",
             "properties": {
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Lerian Studio"
                 },
                 "organizationId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
-        "mmodel.Organization": {
+        "Organization": {
             "description": "Organization is a struct designed to encapsulate response payload data.",
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/mmodel.Address"
+                    "$ref": "#/definitions/Address"
                 },
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "doingBusinessAs": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Lerian Studio"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "legalDocument": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000000000"
                 },
                 "legalName": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Lerian Studio"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
-        "mmodel.Portfolio": {
+        "Pagination": {
+            "description": "Pagination is a struct designed to encapsulate pagination response payload data.",
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "Portfolio": {
+            "description": "Portfolio is a struct designed to encapsulate request update payload data.",
             "type": "object",
             "properties": {
                 "createdAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 },
                 "entityId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "My Portfolio"
                 },
                 "organizationId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 },
                 "updatedAt": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
-        "mmodel.Status": {
+        "Product": {
+            "description": "Product is a struct designed to encapsulate payload data.",
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Product"
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "Status": {
             "description": "Status structure for marshaling/unmarshalling JSON.",
             "type": "object",
             "properties": {
                 "code": {
                     "type": "string",
-                    "maxLength": 100
+                    "maxLength": 100,
+                    "example": "ACTIVE"
                 },
                 "description": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Active status"
                 }
             }
         },
-        "mmodel.UpdateAssetInput": {
+        "UpdateAccountInput": {
+            "description": "UpdateAccountInput is a struct design to encapsulate request update payload data.",
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "@person1"
+                },
+                "allowReceiving": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "allowSending": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "My Account Updated"
+                },
+                "productId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                }
+            }
+        },
+        "UpdateAssetInput": {
             "description": "UpdateAssetInput is a struct design to encapsulate request update payload data.",
             "type": "object",
             "properties": {
@@ -989,14 +2197,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Bitcoin"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mmodel.UpdateLedgerInput": {
+        "UpdateLedgerInput": {
             "description": "UpdateLedgerInput is a struct design to encapsulate request update payload data for ledger.",
             "type": "object",
             "properties": {
@@ -1006,14 +2215,15 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Lerian Studio Updated"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mmodel.UpdateOrganizationInput": {
+        "UpdateOrganizationInput": {
             "description": "UpdateOrganizationInput is a struct design to encapsulate request update payload data for organization.",
             "type": "object",
             "required": [
@@ -1021,29 +2231,33 @@ const docTemplate = `{
             ],
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/mmodel.Address"
+                    "$ref": "#/definitions/Address"
                 },
                 "doingBusinessAs": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "The ledger.io"
                 },
                 "legalName": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "Lerian Studio Updated"
                 },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mmodel.UpdatePortfolioInput": {
+        "UpdatePortfolioInput": {
+            "description": "UpdatePortfolioInput is a struct design to encapsulate payload data.",
             "type": "object",
             "properties": {
                 "metadata": {
@@ -1052,22 +2266,29 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 256,
+                    "example": "My Portfolio Updated"
                 },
                 "status": {
-                    "$ref": "#/definitions/mmodel.Status"
+                    "$ref": "#/definitions/Status"
                 }
             }
         },
-        "mpostgres.Pagination": {
+        "UpdateProductInput": {
+            "description": "UpdateProductInput is a struct design to encapsulate request update payload data.",
             "type": "object",
             "properties": {
-                "items": {},
-                "limit": {
-                    "type": "integer"
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
                 },
-                "page": {
-                    "type": "integer"
+                "name": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "My Product Updated"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
                 }
             }
         }
