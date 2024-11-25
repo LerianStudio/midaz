@@ -8,7 +8,7 @@ import (
 // CreateAccountInput is a struct design to encapsulate request create payload data.
 //
 // swagger:model CreateAccountInput
-// @Description CreateAccountInput is a struct design to encapsulate request create payload data.
+// @Description CreateAccountInput is the input payload to create an account.
 type CreateAccountInput struct {
 	AssetCode       string         `json:"assetCode" validate:"required,max=100" example:"BRL"`
 	Name            string         `json:"name" validate:"max=256" example:"My Account"`
@@ -27,7 +27,7 @@ type CreateAccountInput struct {
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
 //
 // swagger:model UpdateAccountInput
-// @Description UpdateAccountInput is a struct design to encapsulate request update payload data.
+// @Description UpdateAccountInput is the input payload to update an account.
 type UpdateAccountInput struct {
 	Name           string         `json:"name" validate:"max=256" example:"My Account Updated"`
 	Status         Status         `json:"status"`
@@ -41,7 +41,7 @@ type UpdateAccountInput struct {
 // Account is a struct designed to encapsulate response payload data.
 //
 // swagger:model Account
-// @Description Account is a struct designed to encapsulate response payload data.
+// @Description Account is a struct designed to store account data.
 type Account struct {
 	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	Name            string         `json:"name" example:"My Account"`
@@ -67,7 +67,7 @@ type Account struct {
 // Balance structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Balance
-// @Description Balance structure for marshaling/unmarshalling JSON.
+// @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
 	Available *float64 `json:"available" example:"1500"`
 	OnHold    *float64 `json:"onHold" example:"500"`
@@ -82,7 +82,7 @@ func (b Balance) IsEmpty() bool {
 // Accounts struct to return get all.
 //
 // swagger:model Accounts
-// @Description Accounts struct to return get all.
+// @Description Accounts is the struct designed to return a list of accounts with pagination.
 type Accounts struct {
 	Items []Account `json:"items"`
 	Page  int       `json:"page" example:"1"`

@@ -37,12 +37,12 @@ type TransactionHandler struct {
 //	@Accept			json
 //	@Produce		json
 //
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
 //
-//	@Param			transaction		body		t.CreateTransactionInput	true	"Transaction Input"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	t.Transaction
+//	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
+//	@Param			Midaz-Id		header		string								false	"Request ID"
+//	@Success		200				{object}	transaction.Transaction
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -76,8 +76,8 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	t.Transaction
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Success		200				{object}	transaction.Transaction
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -181,13 +181,13 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			transaction_id	path		string						true	"Transaction ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			transaction_id	path		string								true	"Transaction ID"
 //
-//	@Param			transaction		body		t.UpdateTransactionInput	true	"Transaction Input"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	t.Transaction
+//	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
+//	@Param			Midaz-Id		header		string								false	"Request ID"
+//	@Success		200				{object}	transaction.Transaction
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -241,8 +241,8 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //
-//	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	t.Transaction
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Success		200				{object}	transaction.Transaction
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -281,8 +281,8 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //
-//	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]t.Transaction}
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()

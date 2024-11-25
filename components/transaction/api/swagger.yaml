@@ -1,16 +1,24 @@
 basePath: /
 definitions:
   Amount:
-    description: Amount structure for marshaling/unmarshalling JSON.
+    description: Amount is the struct designed to represent the amount of an operation.
     properties:
-      amount:
-        example: 1500
-        type: number
+      asset:
+        example: BRL
+        type: string
       scale:
         example: 2
-        type: number
+        minimum: 0
+        type: integer
+      value:
+        example: 1000
+        type: integer
+    required:
+    - asset
+    - value
     type: object
   AssetRate:
+    description: AssetRate is a struct designed to store asset rate data.
     properties:
       amount:
         example: 5000
@@ -44,7 +52,7 @@ definitions:
         type: string
     type: object
   Balance:
-    description: Balance structure for marshaling/unmarshalling JSON.
+    description: Balance is the struct designed to represent the account balance.
     properties:
       available:
         example: 1500
@@ -57,7 +65,7 @@ definitions:
         type: number
     type: object
   CreateAssetRateInput:
-    description: CreateAssetRateInput is a struct design to encapsulate payload data.
+    description: CreateAssetRateInput is the input payload to create an asset rate.
     properties:
       amount:
         example: 5000
@@ -79,6 +87,7 @@ definitions:
         type: string
     type: object
   CreateTransactionInput:
+    description: CreateTransactionInput is the input payload to create a transaction.
     properties:
       chartOfAccountsGroupName:
         maxLength: 256
@@ -90,20 +99,60 @@ definitions:
         maxLength: 256
         type: string
       distribute:
-        $ref: '#/definitions/model.Distribute'
+        $ref: '#/definitions/Distribute'
       metadata:
         additionalProperties: {}
         type: object
       pending:
         type: boolean
       send:
-        $ref: '#/definitions/model.Send'
+        $ref: '#/definitions/Send'
     required:
     - distribute
     - send
     type: object
+  Distribute:
+    description: Distribute is the struct designed to represent the distribution fields
+      of an operation.
+    properties:
+      remaining:
+        type: string
+      to:
+        items:
+          $ref: '#/definitions/FromTo'
+        type: array
+    required:
+    - to
+    type: object
+  FromTo:
+    description: FromTo is the struct designed to represent the from/to fields of
+      an operation.
+    properties:
+      account:
+        example: '@person1'
+        type: string
+      amount:
+        $ref: '#/definitions/Amount'
+      chartOfAccountsG:
+        example: "1000"
+        type: string
+      description:
+        example: description
+        type: string
+      isFrom:
+        example: true
+        type: boolean
+      metadata:
+        additionalProperties: {}
+        type: object
+      remaining:
+        example: remaining
+        type: string
+      share:
+        $ref: '#/definitions/Share'
+    type: object
   Operation:
-    description: Operation is a struct designed to encapsulate response payload data.
+    description: Operation is a struct designed to store operation data.
     properties:
       accountAlias:
         example: '@person1'
@@ -160,8 +209,8 @@ definitions:
         type: string
     type: object
   Pagination:
-    description: Pagination is a struct designed to encapsulate pagination response
-      payload data.
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
     properties:
       items: {}
       limit:
@@ -171,8 +220,56 @@ definitions:
         example: 1
         type: integer
     type: object
+  Send:
+    description: Send is the struct designed to represent the sending fields of an
+      operation.
+    properties:
+      asset:
+        example: BRL
+        type: string
+      scale:
+        example: 2
+        minimum: 0
+        type: integer
+      source:
+        $ref: '#/definitions/Source'
+      value:
+        example: 1000
+        type: integer
+    required:
+    - asset
+    - source
+    - value
+    type: object
+  Share:
+    description: Share is the struct designed to represent the sharing fields of an
+      operation.
+    properties:
+      descWhatever:
+        type: boolean
+      percentage:
+        type: integer
+      percentageOfPercentage:
+        type: integer
+    required:
+    - percentage
+    type: object
+  Source:
+    description: Source is the struct designed to represent the source fields of an
+      operation.
+    properties:
+      from:
+        items:
+          $ref: '#/definitions/FromTo'
+        type: array
+      remaining:
+        example: remaining
+        type: string
+    required:
+    - from
+    type: object
   Status:
-    description: Status structure for marshaling/unmarshalling JSON.
+    description: Status is the struct designed to represent the status of a transaction.
     properties:
       code:
         example: ACTIVE
@@ -184,8 +281,7 @@ definitions:
         type: string
     type: object
   Transaction:
-    description: Transaction is a struct designed to encapsulate response payload
-      data.
+    description: Transaction is a struct designed to store transaction data.
     properties:
       amount:
         example: 1500
@@ -249,7 +345,7 @@ definitions:
         type: string
     type: object
   UpdateOperationInput:
-    description: UpdateOperationInput is a struct design to encapsulate payload data.
+    description: UpdateOperationInput is the input payload to update an operation.
     properties:
       description:
         example: Credit card operation
@@ -260,8 +356,7 @@ definitions:
         type: object
     type: object
   UpdateTransactionInput:
-    description: UpdateTransactionInput is a struct design to encapsulate payload
-      data.
+    description: UpdateTransactionInput is the input payload to update a transaction.
     properties:
       description:
         example: Transaction description
@@ -270,88 +365,6 @@ definitions:
       metadata:
         additionalProperties: {}
         type: object
-    type: object
-  model.Amount:
-    properties:
-      asset:
-        type: string
-      scale:
-        minimum: 0
-        type: integer
-      value:
-        type: integer
-    required:
-    - asset
-    - value
-    type: object
-  model.Distribute:
-    properties:
-      remaining:
-        type: string
-      to:
-        items:
-          $ref: '#/definitions/model.FromTo'
-        type: array
-    required:
-    - to
-    type: object
-  model.FromTo:
-    properties:
-      account:
-        type: string
-      amount:
-        $ref: '#/definitions/model.Amount'
-      chartOfAccountsG:
-        type: string
-      description:
-        type: string
-      isFrom:
-        type: boolean
-      metadata:
-        additionalProperties: {}
-        type: object
-      remaining:
-        type: string
-      share:
-        $ref: '#/definitions/model.Share'
-    type: object
-  model.Send:
-    properties:
-      asset:
-        type: string
-      scale:
-        minimum: 0
-        type: integer
-      source:
-        $ref: '#/definitions/model.Source'
-      value:
-        type: integer
-    required:
-    - asset
-    - source
-    - value
-    type: object
-  model.Share:
-    properties:
-      descWhatever:
-        type: boolean
-      percentage:
-        type: integer
-      percentageOfPercentage:
-        type: integer
-    required:
-    - percentage
-    type: object
-  model.Source:
-    properties:
-      from:
-        items:
-          $ref: '#/definitions/model.FromTo'
-        type: array
-      remaining:
-        type: string
-    required:
-    - from
     type: object
 host: localhost:3002
 info:

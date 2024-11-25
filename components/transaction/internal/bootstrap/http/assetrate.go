@@ -25,12 +25,12 @@ type AssetRateHandler struct {
 //	@Accept			json
 //	@Produce		json
 //
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
+//	@Param			organization_id	path		string							true	"Organization ID"
+//	@Param			ledger_id		path		string							true	"Ledger ID"
 //
-//	@Param			asset-rate		body		ar.CreateAssetRateInput	true	"AssetRate Input"
+//	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
 //	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	ar.AssetRate
+//	@Success		200				{object}	assetrate.AssetRate
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [post]
 func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -78,13 +78,13 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 //	@Tags			Asset Rates
 //	@Produce		json
 //
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			asset_rate_id	path		string					true	"AssetRate ID"
+//	@Param			organization_id	path		string							true	"Organization ID"
+//	@Param			ledger_id		path		string							true	"Ledger ID"
+//	@Param			asset_rate_id	path		string							true	"AssetRate ID"
 //
-//	@Param			asset-rate		body		ar.CreateAssetRateInput	true	"AssetRate Input"
+//	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
 //	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200				{object}	ar.AssetRate
+//	@Success		200				{object}	assetrate.AssetRate
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id} [get]
 func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
 	ctx := c.UserContext()

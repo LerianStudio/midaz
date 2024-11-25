@@ -128,9 +128,9 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Description	Get an Organization with the input ID
 //	@Tags			Organizations
 //	@Produce		json
-//	@Param			id	path		string	true	"Organization ID"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
-//	@Success		200	{object}	mmodel.Organization
+//	@Param			id			path		string	true	"Organization ID"
+//	@Param			Midaz-Id	header		string	false	"Request ID"
+//	@Success		200			{object}	mmodel.Organization
 //	@Router			/v1/organizations/{id} [get]
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -165,7 +165,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Tags			Organizations
 //	@Produce		json
 //	@Param			metadata	query		string	false	"Metadata"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id	header		string	false	"Request ID"
 //	@Success		200			{object}	mpostgres.Pagination{items=[]mmodel.Organization}
 //	@Router			/v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
@@ -227,8 +227,8 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Summary		Delete an Organization by ID
 //	@Description	Delete an Organization with the input ID
 //	@Tags			Organizations
-//	@Param			id	path	string	true	"Organization ID"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			id			path	string	true	"Organization ID"
+//	@Param			Midaz-Id	header	string	false	"Request ID"
 //	@Success		204
 //	@Router			/v1/organizations/{id} [delete]
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {

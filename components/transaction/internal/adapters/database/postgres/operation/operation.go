@@ -38,7 +38,7 @@ type OperationPostgreSQLModel struct {
 // Status structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Status
-// @Description Status structure for marshaling/unmarshalling JSON.
+// @Description Status is the struct designed to represent the status of an operation.
 type Status struct {
 	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
@@ -52,7 +52,7 @@ func (s Status) IsEmpty() bool {
 // Amount structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Amount
-// @Description Amount structure for marshaling/unmarshalling JSON.
+// @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
 	Amount *float64 `json:"amount" example:"1500"`
 	Scale  *float64 `json:"scale" example:"2"`
@@ -66,7 +66,7 @@ func (a Amount) IsEmpty() bool {
 // Balance structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Balance
-// @Description Balance structure for marshaling/unmarshalling JSON.
+// @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
 	Available *float64 `json:"available" example:"1500"`
 	OnHold    *float64 `json:"onHold" example:"500"`
@@ -81,7 +81,7 @@ func (b Balance) IsEmpty() bool {
 // Operation is a struct designed to encapsulate response payload data.
 //
 // swagger:model Operation
-// @Description Operation is a struct designed to encapsulate response payload data.
+// @Description Operation is a struct designed to store operation data.
 type Operation struct {
 	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	TransactionID   string         `json:"transactionId" example:"00000000-0000-0000-0000-000000000000"`
@@ -101,7 +101,7 @@ type Operation struct {
 	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-	Metadata        map[string]any `json:"metadata" example:map[string]any{"key": "value"}`
+	Metadata        map[string]any `json:"metadata"`
 } // @name Operation
 
 // ToEntity converts an OperationPostgreSQLModel to entity Operation
@@ -198,7 +198,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 // UpdateOperationInput is a struct design to encapsulate payload data.
 //
 // swagger:model UpdateOperationInput
-// @Description UpdateOperationInput is a struct design to encapsulate payload data.
+// @Description UpdateOperationInput is the input payload to update an operation.
 type UpdateOperationInput struct {
 	Description string         `json:"description" validate:"max=256" example:"Credit card operation"`
 	Metadata    map[string]any `json:"metadata,omitempty"`

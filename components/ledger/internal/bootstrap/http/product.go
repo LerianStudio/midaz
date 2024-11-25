@@ -29,7 +29,7 @@ type ProductHandler struct {
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			product			body		mmodel.CreateProductInput	true	"Product"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Product
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products [post]
 func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
@@ -76,7 +76,7 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Product}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products [get]
 func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
@@ -147,7 +147,7 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Product ID"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mmodel.Product
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id} [get]
 func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
@@ -189,7 +189,7 @@ func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			id				path		string						true	"Product ID"
 //	@Param			product			body		mmodel.UpdateProductInput	true	"Product"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Product
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id} [patch]
 func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
@@ -247,7 +247,7 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			id				path	string	true	"Product ID"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Success		204
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id} [delete]
 func (handler *ProductHandler) DeleteProductByID(c *fiber.Ctx) error {

@@ -29,7 +29,7 @@ type PortfolioHandler struct {
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			portfolio		body		mmodel.CreatePortfolioInput	true	"Portfolio Payload"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Portfolio
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [post]
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
@@ -78,7 +78,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata query"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Portfolio}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [get]
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
@@ -149,7 +149,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Portfolio ID"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mmodel.Portfolio
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [get]
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
@@ -191,7 +191,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			portfolio		body		mmodel.UpdatePortfolioInput	true	"Portfolio Payload"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Portfolio
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [patch]
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
@@ -250,7 +250,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			id				path	string	true	"Portfolio ID"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Success		204
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [delete]
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {

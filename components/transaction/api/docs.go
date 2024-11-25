@@ -717,20 +717,30 @@ const docTemplate = `{
     },
     "definitions": {
         "Amount": {
-            "description": "Amount structure for marshaling/unmarshalling JSON.",
+            "description": "Amount is the struct designed to represent the amount of an operation.",
             "type": "object",
+            "required": [
+                "asset",
+                "value"
+            ],
             "properties": {
-                "amount": {
-                    "type": "number",
-                    "example": 1500
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
                 },
                 "scale": {
-                    "type": "number",
+                    "type": "integer",
+                    "minimum": 0,
                     "example": 2
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
         "AssetRate": {
+            "description": "AssetRate is a struct designed to store asset rate data.",
             "type": "object",
             "properties": {
                 "amount": {
@@ -776,7 +786,7 @@ const docTemplate = `{
             }
         },
         "Balance": {
-            "description": "Balance structure for marshaling/unmarshalling JSON.",
+            "description": "Balance is the struct designed to represent the account balance.",
             "type": "object",
             "properties": {
                 "available": {
@@ -794,7 +804,7 @@ const docTemplate = `{
             }
         },
         "CreateAssetRateInput": {
-            "description": "CreateAssetRateInput is a struct design to encapsulate payload data.",
+            "description": "CreateAssetRateInput is the input payload to create an asset rate.",
             "type": "object",
             "properties": {
                 "amount": {
@@ -824,6 +834,7 @@ const docTemplate = `{
             }
         },
         "CreateTransactionInput": {
+            "description": "CreateTransactionInput is the input payload to create a transaction.",
             "type": "object",
             "required": [
                 "distribute",
@@ -843,7 +854,7 @@ const docTemplate = `{
                     "maxLength": 256
                 },
                 "distribute": {
-                    "$ref": "#/definitions/model.Distribute"
+                    "$ref": "#/definitions/Distribute"
                 },
                 "metadata": {
                     "type": "object",
@@ -853,12 +864,66 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "send": {
-                    "$ref": "#/definitions/model.Send"
+                    "$ref": "#/definitions/Send"
+                }
+            }
+        },
+        "Distribute": {
+            "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
+            "type": "object",
+            "required": [
+                "to"
+            ],
+            "properties": {
+                "remaining": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FromTo"
+                    }
+                }
+            }
+        },
+        "FromTo": {
+            "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string",
+                    "example": "@person1"
+                },
+                "amount": {
+                    "$ref": "#/definitions/Amount"
+                },
+                "chartOfAccountsG": {
+                    "type": "string",
+                    "example": "1000"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "description"
+                },
+                "isFrom": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "remaining": {
+                    "type": "string",
+                    "example": "remaining"
+                },
+                "share": {
+                    "$ref": "#/definitions/Share"
                 }
             }
         },
         "Operation": {
-            "description": "Operation is a struct designed to encapsulate response payload data.",
+            "description": "Operation is a struct designed to store operation data.",
             "type": "object",
             "properties": {
                 "accountAlias": {
@@ -936,7 +1001,7 @@ const docTemplate = `{
             }
         },
         "Pagination": {
-            "description": "Pagination is a struct designed to encapsulate pagination response payload data.",
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
             "type": "object",
             "properties": {
                 "items": {},
@@ -950,8 +1015,72 @@ const docTemplate = `{
                 }
             }
         },
+        "Send": {
+            "description": "Send is the struct designed to represent the sending fields of an operation.",
+            "type": "object",
+            "required": [
+                "asset",
+                "source",
+                "value"
+            ],
+            "properties": {
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "scale": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "source": {
+                    "$ref": "#/definitions/Source"
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
+                }
+            }
+        },
+        "Share": {
+            "description": "Share is the struct designed to represent the sharing fields of an operation.",
+            "type": "object",
+            "required": [
+                "percentage"
+            ],
+            "properties": {
+                "descWhatever": {
+                    "type": "boolean"
+                },
+                "percentage": {
+                    "type": "integer"
+                },
+                "percentageOfPercentage": {
+                    "type": "integer"
+                }
+            }
+        },
+        "Source": {
+            "description": "Source is the struct designed to represent the source fields of an operation.",
+            "type": "object",
+            "required": [
+                "from"
+            ],
+            "properties": {
+                "from": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FromTo"
+                    }
+                },
+                "remaining": {
+                    "type": "string",
+                    "example": "remaining"
+                }
+            }
+        },
         "Status": {
-            "description": "Status structure for marshaling/unmarshalling JSON.",
+            "description": "Status is the struct designed to represent the status of a transaction.",
             "type": "object",
             "properties": {
                 "code": {
@@ -967,7 +1096,7 @@ const docTemplate = `{
             }
         },
         "Transaction": {
-            "description": "Transaction is a struct designed to encapsulate response payload data.",
+            "description": "Transaction is a struct designed to store transaction data.",
             "type": "object",
             "properties": {
                 "amount": {
@@ -1056,7 +1185,7 @@ const docTemplate = `{
             }
         },
         "UpdateOperationInput": {
-            "description": "UpdateOperationInput is a struct design to encapsulate payload data.",
+            "description": "UpdateOperationInput is the input payload to update an operation.",
             "type": "object",
             "properties": {
                 "description": {
@@ -1071,7 +1200,7 @@ const docTemplate = `{
             }
         },
         "UpdateTransactionInput": {
-            "description": "UpdateTransactionInput is a struct design to encapsulate payload data.",
+            "description": "UpdateTransactionInput is the input payload to update a transaction.",
             "type": "object",
             "properties": {
                 "description": {
@@ -1082,129 +1211,6 @@ const docTemplate = `{
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
-                }
-            }
-        },
-        "model.Amount": {
-            "type": "object",
-            "required": [
-                "asset",
-                "value"
-            ],
-            "properties": {
-                "asset": {
-                    "type": "string"
-                },
-                "scale": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.Distribute": {
-            "type": "object",
-            "required": [
-                "to"
-            ],
-            "properties": {
-                "remaining": {
-                    "type": "string"
-                },
-                "to": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.FromTo"
-                    }
-                }
-            }
-        },
-        "model.FromTo": {
-            "type": "object",
-            "properties": {
-                "account": {
-                    "type": "string"
-                },
-                "amount": {
-                    "$ref": "#/definitions/model.Amount"
-                },
-                "chartOfAccountsG": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "isFrom": {
-                    "type": "boolean"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "remaining": {
-                    "type": "string"
-                },
-                "share": {
-                    "$ref": "#/definitions/model.Share"
-                }
-            }
-        },
-        "model.Send": {
-            "type": "object",
-            "required": [
-                "asset",
-                "source",
-                "value"
-            ],
-            "properties": {
-                "asset": {
-                    "type": "string"
-                },
-                "scale": {
-                    "type": "integer",
-                    "minimum": 0
-                },
-                "source": {
-                    "$ref": "#/definitions/model.Source"
-                },
-                "value": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.Share": {
-            "type": "object",
-            "required": [
-                "percentage"
-            ],
-            "properties": {
-                "descWhatever": {
-                    "type": "boolean"
-                },
-                "percentage": {
-                    "type": "integer"
-                },
-                "percentageOfPercentage": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.Source": {
-            "type": "object",
-            "required": [
-                "from"
-            ],
-            "properties": {
-                "from": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.FromTo"
-                    }
-                },
-                "remaining": {
-                    "type": "string"
                 }
             }
         }

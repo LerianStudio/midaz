@@ -1784,7 +1784,7 @@ const docTemplate = `{
     },
     "definitions": {
         "Account": {
-            "description": "Account is a struct designed to encapsulate response payload data.",
+            "description": "Account is a struct designed to store account data.",
             "type": "object",
             "properties": {
                 "alias": {
@@ -1864,7 +1864,7 @@ const docTemplate = `{
             }
         },
         "Address": {
-            "description": "Address structure for marshaling/unmarshalling JSON.",
+            "description": "Address is a struct designed to store the address data of an organization.",
             "type": "object",
             "properties": {
                 "city": {
@@ -1895,7 +1895,7 @@ const docTemplate = `{
             }
         },
         "Asset": {
-            "description": "Asset is a struct designed to encapsulate payload data.",
+            "description": "Asset is a struct designed to store asset data.",
             "type": "object",
             "properties": {
                 "code": {
@@ -1944,7 +1944,7 @@ const docTemplate = `{
             }
         },
         "Balance": {
-            "description": "Balance structure for marshaling/unmarshalling JSON.",
+            "description": "Balance is the struct designed to represent the account balance.",
             "type": "object",
             "properties": {
                 "available": {
@@ -1962,7 +1962,7 @@ const docTemplate = `{
             }
         },
         "CreateAccountInput": {
-            "description": "CreateAccountInput is a struct design to encapsulate request create payload data.",
+            "description": "CreateAccountInput is the input payload to create an account.",
             "type": "object",
             "required": [
                 "assetCode",
@@ -2023,7 +2023,7 @@ const docTemplate = `{
             }
         },
         "CreateAssetInput": {
-            "description": "CreateAssetInput is a struct design to encapsulate request create payload data.",
+            "description": "CreateAssetInput is the input payload to create an asset.",
             "type": "object",
             "required": [
                 "code"
@@ -2053,7 +2053,7 @@ const docTemplate = `{
             }
         },
         "CreateLedgerInput": {
-            "description": "CreateLedgerInput is a struct design to encapsulate request create payload data for ledger.",
+            "description": "CreateLedgerInput is the input payload to create a ledger.",
             "type": "object",
             "required": [
                 "name"
@@ -2074,7 +2074,7 @@ const docTemplate = `{
             }
         },
         "CreateOrganizationInput": {
-            "description": "CreateOrganizationInput is a struct design to encapsulate request create payload data for organization.",
+            "description": "CreateOrganizationInput is the input payload to create an organization.",
             "type": "object",
             "required": [
                 "legalDocument",
@@ -2113,7 +2113,7 @@ const docTemplate = `{
             }
         },
         "CreatePortfolioInput": {
-            "description": "CreatePortfolioInput is a struct design to encapsulate request create payload data.",
+            "description": "CreatePortfolioInput is the input payload to create a portfolio.",
             "type": "object",
             "required": [
                 "entityId",
@@ -2140,7 +2140,7 @@ const docTemplate = `{
             }
         },
         "CreateProductInput": {
-            "description": "CreateProductInput is a struct design to encapsulate request create payload data.",
+            "description": "CreateProductInput is the input payload to create a product.",
             "type": "object",
             "required": [
                 "name"
@@ -2161,7 +2161,7 @@ const docTemplate = `{
             }
         },
         "Ledger": {
-            "description": "Ledger is a struct designed to encapsulate payload data.",
+            "description": "Ledger is a struct designed to store ledger data.",
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2198,7 +2198,7 @@ const docTemplate = `{
             }
         },
         "Organization": {
-            "description": "Organization is a struct designed to encapsulate response payload data.",
+            "description": "Organization is a struct designed to store organization data.",
             "type": "object",
             "properties": {
                 "address": {
@@ -2246,7 +2246,7 @@ const docTemplate = `{
             }
         },
         "Pagination": {
-            "description": "Pagination is a struct designed to encapsulate pagination response payload data.",
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
             "type": "object",
             "properties": {
                 "items": {},
@@ -2261,7 +2261,7 @@ const docTemplate = `{
             }
         },
         "Portfolio": {
-            "description": "Portfolio is a struct designed to encapsulate request update payload data.",
+            "description": "Portfolio is a struct designed to store portfolio data.",
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2306,7 +2306,7 @@ const docTemplate = `{
             }
         },
         "Product": {
-            "description": "Product is a struct designed to encapsulate payload data.",
+            "description": "Product is a struct designed to store product data.",
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2347,7 +2347,7 @@ const docTemplate = `{
             }
         },
         "Status": {
-            "description": "Status structure for marshaling/unmarshalling JSON.",
+            "description": "Status is the struct designed to store the status data of an entity.",
             "type": "object",
             "properties": {
                 "code": {
@@ -2363,7 +2363,7 @@ const docTemplate = `{
             }
         },
         "UpdateAccountInput": {
-            "description": "UpdateAccountInput is a struct design to encapsulate request update payload data.",
+            "description": "UpdateAccountInput is the input payload to update an account.",
             "type": "object",
             "properties": {
                 "alias": {
@@ -2398,7 +2398,7 @@ const docTemplate = `{
             }
         },
         "UpdateAssetInput": {
-            "description": "UpdateAssetInput is a struct design to encapsulate request update payload data.",
+            "description": "UpdateAssetInput is the input payload to update an asset.",
             "type": "object",
             "properties": {
                 "metadata": {
@@ -2416,7 +2416,7 @@ const docTemplate = `{
             }
         },
         "UpdateLedgerInput": {
-            "description": "UpdateLedgerInput is a struct design to encapsulate request update payload data for ledger.",
+            "description": "UpdateLedgerInput is the input payload to update a ledger.",
             "type": "object",
             "properties": {
                 "metadata": {
@@ -2434,7 +2434,7 @@ const docTemplate = `{
             }
         },
         "UpdateOrganizationInput": {
-            "description": "UpdateOrganizationInput is a struct design to encapsulate request update payload data for organization.",
+            "description": "UpdateOrganizationInput is the input payload to update an organization.",
             "type": "object",
             "required": [
                 "legalName"
@@ -2467,7 +2467,7 @@ const docTemplate = `{
             }
         },
         "UpdatePortfolioInput": {
-            "description": "UpdatePortfolioInput is a struct design to encapsulate payload data.",
+            "description": "UpdatePortfolioInput is the input payload to update a portfolio.",
             "type": "object",
             "properties": {
                 "metadata": {
@@ -2485,7 +2485,7 @@ const docTemplate = `{
             }
         },
         "UpdateProductInput": {
-            "description": "UpdateProductInput is a struct design to encapsulate request update payload data.",
+            "description": "UpdateProductInput is the input payload to update a product.",
             "type": "object",
             "properties": {
                 "metadata": {

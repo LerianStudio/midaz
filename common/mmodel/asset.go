@@ -6,13 +6,7 @@ import "time"
 //
 // swagger:model CreateAssetInput
 //
-//	@Description	CreateAssetInput is a struct design to encapsulate request create payload da
-//	@Description	CreateAssetInput is a struct design to encapsulate request create payload data.
-//	@Param			name		query	string	false	"Name"	e
-//	@Param			type		query	string	false	"Type"
-//	@Param			code		query	string	false	"Code"
-//	@Param			status		query	string	false	"Status"
-//	@Param			metadata	query	string	false	"Metadata"
+//	@Description	CreateAssetInput is the input payload to create an asset.
 type CreateAssetInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"Brazilian Real"`
 	Type     string         `json:"type" example:"currency"`
@@ -23,9 +17,9 @@ type CreateAssetInput struct {
 
 // UpdateAssetInput is a struct design to encapsulate request update payload data.
 //
-ncapsulate request update payload
 // swagger:model UpdateAssetInput
-//	@Description	UpdateAssetInput is a struct design to encapsulate request update payload data.
+//
+//	@Description	UpdateAssetInput is the input payload to update an asset.
 type UpdateAssetInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"Bitcoin"`
 	Status   Status         `json:"status"`
@@ -34,9 +28,9 @@ type UpdateAssetInput struct {
 
 // Asset is a struct designed to encapsulate payload data.
 //
-          string      
 // swagger:model Asset
-//	@Description	Asset is a struct designed to encapsulate payload data.
+//
+//	@Description	Asset is a struct designed to store asset data.
 type Asset struct {
 	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	Name           string         `json:"name" example:"Brazilian Real"`
@@ -53,13 +47,9 @@ type Asset struct {
 
 // Assets struct to return get all.
 //
-string	false	"Page"
-//	
 // swagger:model Assets
-//	@Description	Assets struct to return get all.
-//	@Param			items	query	string	false	"Items"
-//	@Param			page	query	string	false	"Page"
-//	@Param			limit	query	string	false	"Limit"
+//
+//	@Description	Assets is the struct designed to return a list of assets with pagination.
 type Assets struct {
 	Items []Asset `json:"items"`
 	Page  int     `json:"page" example:"1"`

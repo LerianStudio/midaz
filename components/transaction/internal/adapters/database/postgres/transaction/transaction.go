@@ -33,7 +33,7 @@ type TransactionPostgreSQLModel struct {
 // Status structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Status
-// @Description Status structure for marshaling/unmarshalling JSON.
+// @Description Status is the struct designed to represent the status of a transaction.
 type Status struct {
 	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
@@ -44,7 +44,10 @@ func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
 
-// CreateTransactionInput is a struct design to encapsulate payload data.
+// CreateTransactionInput is  a struct design to encapsulate payload data.
+//
+// swagger:model CreateTransactionInput
+// @Description CreateTransactionInput is the input payload to create a transaction.
 type CreateTransactionInput struct {
 	ChartOfAccountsGroupName string           `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
 	Description              string           `json:"description,omitempty" validate:"max=256"`
@@ -65,7 +68,7 @@ type InputDSL struct {
 // UpdateTransactionInput is a struct design to encapsulate payload data.
 //
 // swagger:model UpdateTransactionInput
-// @Description UpdateTransactionInput is a struct design to encapsulate payload data.
+// @Description UpdateTransactionInput is the input payload to update a transaction.
 type UpdateTransactionInput struct {
 	Description string         `json:"description" validate:"max=256" example:"Transaction description"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
@@ -74,7 +77,7 @@ type UpdateTransactionInput struct {
 // Transaction is a struct designed to encapsulate response payload data.
 //
 // swagger:model Transaction
-// @Description Transaction is a struct designed to encapsulate response payload data.
+// @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
 	ID                       string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	ParentTransactionID      *string        `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
