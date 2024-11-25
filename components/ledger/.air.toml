@@ -11,7 +11,7 @@ cmd = "go build -o ./cmd/tmp/main ./cmd/app"
 # Binary file yields from `cmd`.
 bin = "cmd/tmp/main"
 # Customize binary, can setup environment variables when run your app.
-full_bin = "APP_ENV=develop APP_USER=air ./cmd/tmp/main"
+full_bin = "APP_ENV=local APP_USER=air ./cmd/tmp/main"
 # Watch these filename extensions.
 include_ext = ["go", "tpl", "tmpl", "html"]
 # Ignore these filename extensions or directories.
