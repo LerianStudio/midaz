@@ -5,7 +5,7 @@ import "time"
 // CreateOrganizationInput is a struct design to encapsulate request create payload data.
 //
 // // swagger:model CreateOrganizationInput
-// @Description CreateOrganizationInput is a struct design to encapsulate request create payload data for organization.
+// @Description CreateOrganizationInput is the input payload to create an organization.
 type CreateOrganizationInput struct {
 	LegalName            string         `json:"legalName" validate:"required,max=256" example:"Lerian Studio"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
@@ -19,7 +19,7 @@ type CreateOrganizationInput struct {
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 //
 // // swagger:model UpdateOrganizationInput
-// @Description UpdateOrganizationInput is a struct design to encapsulate request update payload data for organization.
+// @Description UpdateOrganizationInput is the input payload to update an organization.
 type UpdateOrganizationInput struct {
 	LegalName            string         `json:"legalName" validate:"required,max=256" example:"Lerian Studio Updated"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
@@ -32,7 +32,7 @@ type UpdateOrganizationInput struct {
 // Organization is a struct designed to encapsulate response payload data.
 //
 // swagger:model Organization
-// @Description Organization is a struct designed to encapsulate response payload data.
+// @Description Organization is a struct designed to store organization data.
 type Organization struct {
 	ID                   string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" example:"00000000-0000-0000-0000-000000000000"`
@@ -50,7 +50,7 @@ type Organization struct {
 // Address structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Address
-// @Description Address structure for marshaling/unmarshalling JSON.
+// @Description Address is a struct designed to store the address data of an organization.
 type Address struct {
 	Line1   string  `json:"line1" example:"Street 1"`
 	Line2   *string `json:"line2" example:"Street 2"`
@@ -68,7 +68,7 @@ func (a Address) IsEmpty() bool {
 // Organizations struct to return get all.
 //
 // swagger:model Organizations
-// @Description Organizations struct to return get all.
+// @Description Organizations is the struct designed to return a list of organizations with pagination.
 type Organizations struct {
 	Items []Organization `json:"items"`
 	Page  int            `json:"page" example:"1"`

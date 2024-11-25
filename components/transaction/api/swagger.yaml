@@ -1,4 +1,371 @@
 basePath: /
+definitions:
+  Amount:
+    description: Amount is the struct designed to represent the amount of an operation.
+    properties:
+      asset:
+        example: BRL
+        type: string
+      scale:
+        example: 2
+        minimum: 0
+        type: integer
+      value:
+        example: 1000
+        type: integer
+    required:
+    - asset
+    - value
+    type: object
+  AssetRate:
+    description: AssetRate is a struct designed to store asset rate data.
+    properties:
+      amount:
+        example: 5000
+        type: number
+      baseAssetCode:
+        example: BRL
+        type: string
+      counterAssetCode:
+        example: USD
+        type: string
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      scale:
+        example: 2
+        type: number
+      source:
+        example: '@person1'
+        type: string
+    type: object
+  Balance:
+    description: Balance is the struct designed to represent the account balance.
+    properties:
+      available:
+        example: 1500
+        type: number
+      onHold:
+        example: 500
+        type: number
+      scale:
+        example: 2
+        type: number
+    type: object
+  CreateAssetRateInput:
+    description: CreateAssetRateInput is the input payload to create an asset rate.
+    properties:
+      amount:
+        example: 5000
+        type: number
+      baseAssetCode:
+        example: BRL
+        type: string
+      counterAssetCode:
+        example: USD
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      scale:
+        example: 2
+        type: number
+      source:
+        example: '@person1'
+        type: string
+    type: object
+  CreateTransactionInput:
+    description: CreateTransactionInput is the input payload to create a transaction.
+    properties:
+      chartOfAccountsGroupName:
+        maxLength: 256
+        type: string
+      code:
+        maxLength: 100
+        type: string
+      description:
+        maxLength: 256
+        type: string
+      distribute:
+        $ref: '#/definitions/Distribute'
+      metadata:
+        additionalProperties: {}
+        type: object
+      pending:
+        type: boolean
+      send:
+        $ref: '#/definitions/Send'
+    required:
+    - distribute
+    - send
+    type: object
+  Distribute:
+    description: Distribute is the struct designed to represent the distribution fields
+      of an operation.
+    properties:
+      remaining:
+        type: string
+      to:
+        items:
+          $ref: '#/definitions/FromTo'
+        type: array
+    required:
+    - to
+    type: object
+  FromTo:
+    description: FromTo is the struct designed to represent the from/to fields of
+      an operation.
+    properties:
+      account:
+        example: '@person1'
+        type: string
+      amount:
+        $ref: '#/definitions/Amount'
+      chartOfAccountsG:
+        example: "1000"
+        type: string
+      description:
+        example: description
+        type: string
+      isFrom:
+        example: true
+        type: boolean
+      metadata:
+        additionalProperties: {}
+        type: object
+      remaining:
+        example: remaining
+        type: string
+      share:
+        $ref: '#/definitions/Share'
+    type: object
+  Operation:
+    description: Operation is a struct designed to store operation data.
+    properties:
+      accountAlias:
+        example: '@person1'
+        type: string
+      accountId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      amount:
+        $ref: '#/definitions/Amount'
+      assetCode:
+        example: BRL
+        type: string
+      balance:
+        $ref: '#/definitions/Balance'
+      balanceAfter:
+        $ref: '#/definitions/Balance'
+      chartOfAccounts:
+        example: "1000"
+        type: string
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Credit card operation
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      portfolioId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      status:
+        $ref: '#/definitions/Status'
+      transactionId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      type:
+        example: creditCard
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    type: object
+  Pagination:
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
+    properties:
+      items: {}
+      limit:
+        example: 10
+        type: integer
+      page:
+        example: 1
+        type: integer
+    type: object
+  Send:
+    description: Send is the struct designed to represent the sending fields of an
+      operation.
+    properties:
+      asset:
+        example: BRL
+        type: string
+      scale:
+        example: 2
+        minimum: 0
+        type: integer
+      source:
+        $ref: '#/definitions/Source'
+      value:
+        example: 1000
+        type: integer
+    required:
+    - asset
+    - source
+    - value
+    type: object
+  Share:
+    description: Share is the struct designed to represent the sharing fields of an
+      operation.
+    properties:
+      descWhatever:
+        type: boolean
+      percentage:
+        type: integer
+      percentageOfPercentage:
+        type: integer
+    required:
+    - percentage
+    type: object
+  Source:
+    description: Source is the struct designed to represent the source fields of an
+      operation.
+    properties:
+      from:
+        items:
+          $ref: '#/definitions/FromTo'
+        type: array
+      remaining:
+        example: remaining
+        type: string
+    required:
+    - from
+    type: object
+  Status:
+    description: Status is the struct designed to represent the status of a transaction.
+    properties:
+      code:
+        example: ACTIVE
+        maxLength: 100
+        type: string
+      description:
+        example: Active status
+        maxLength: 256
+        type: string
+    type: object
+  Transaction:
+    description: Transaction is a struct designed to store transaction data.
+    properties:
+      amount:
+        example: 1500
+        type: number
+      amountScale:
+        example: 2
+        type: number
+      assetCode:
+        example: BRL
+        type: string
+      chartOfAccountsGroupName:
+        example: Chart of accounts group name
+        type: string
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      description:
+        example: Transaction description
+        type: string
+      destination:
+        example:
+        - '@person2'
+        items:
+          type: string
+        type: array
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      operations:
+        items:
+          $ref: '#/definitions/Operation'
+        type: array
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      parentTransactionId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      source:
+        example:
+        - '@person1'
+        items:
+          type: string
+        type: array
+      status:
+        $ref: '#/definitions/Status'
+      template:
+        example: Transaction template
+        type: string
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    type: object
+  UpdateOperationInput:
+    description: UpdateOperationInput is the input payload to update an operation.
+    properties:
+      description:
+        example: Credit card operation
+        maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+    type: object
+  UpdateTransactionInput:
+    description: UpdateTransactionInput is the input payload to update a transaction.
+    properties:
+      description:
+        example: Transaction description
+        maxLength: 256
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+    type: object
 host: localhost:3002
 info:
   contact:
@@ -11,5 +378,461 @@ info:
   termsOfService: http://swagger.io/terms/
   title: Midaz Transaction API
   version: "1.0"
-paths: {}
+paths:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/Operation'
+                  type: array
+              type: object
+      summary: Get all Operations by account
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
+    get:
+      description: Get an Operation with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      - description: Operation ID
+        in: path
+        name: operation_id
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Operation'
+      summary: Get an Operation by account
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
+    post:
+      consumes:
+      - application/json
+      description: Create an AssetRate with the input payload
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: AssetRate Input
+        in: body
+        name: asset-rate
+        required: true
+        schema:
+          $ref: '#/definitions/CreateAssetRateInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/AssetRate'
+      summary: Create an AssetRate
+      tags:
+      - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id}:
+    get:
+      description: Get an AssetRate with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: AssetRate ID
+        in: path
+        name: asset_rate_id
+        required: true
+        type: string
+      - description: AssetRate Input
+        in: body
+        name: asset-rate
+        required: true
+        schema:
+          $ref: '#/definitions/CreateAssetRateInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/AssetRate'
+      summary: Get an AssetRate by ID
+      tags:
+      - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Portfolio ID
+        in: path
+        name: portfolio_id
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/Operation'
+                  type: array
+              type: object
+      summary: Get all Operations by portfolio
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}:
+    get:
+      description: Get an Operation with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Portfolio ID
+        in: path
+        name: portfolio_id
+        required: true
+        type: string
+      - description: Operation ID
+        in: path
+        name: operation_id
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Operation'
+      summary: Get an Operation by portfolio
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
+    get:
+      description: Get all Transactions with the input metadata or without metadata
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/Transaction'
+                  type: array
+              type: object
+      summary: Get all Transactions
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
+    get:
+      description: Get a Transaction with the input ID
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Transaction'
+      summary: Get a Transaction by ID
+      tags:
+      - Transactions
+    patch:
+      consumes:
+      - application/json
+      description: Update a Transaction with the input payload
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      - description: Transaction Input
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateTransactionInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Transaction'
+      summary: Update a Transaction
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
+    patch:
+      consumes:
+      - application/json
+      description: Update an Operation with the input payload
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      - description: Operation ID
+        in: path
+        name: operation_id
+        required: true
+        type: string
+      - description: Operation Input
+        in: body
+        name: operation
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateOperationInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Operation'
+      summary: Update an Operation
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a Transaction with the input DSL file
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction DSL file
+        in: formData
+        name: transaction
+        required: true
+        type: file
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Transaction'
+      summary: Create a Transaction using DSL
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
+    post:
+      consumes:
+      - application/json
+      description: Create a Transaction with the input payload
+      parameters:
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction Input
+        in: body
+        name: transaction
+        required: true
+        schema:
+          $ref: '#/definitions/CreateTransactionInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Transaction'
+      summary: Create a Transaction using JSON
+      tags:
+      - Transactions
 swagger: "2.0"
