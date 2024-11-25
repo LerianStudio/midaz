@@ -529,6 +529,7 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		if schemes := os.Getenv("SWAGGER_SCHEMES"); schemes != "" {
 			api.SwaggerInfo.Schemes = []string{schemes}
 		}
+
 		return c.Next()
 	}
 }
