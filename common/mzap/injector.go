@@ -38,7 +38,7 @@ func InitializeLogger() mlog.Logger {
 
 	zapCfg.DisableStacktrace = true
 
-	logger, err := zapCfg.Build(zap.AddCallerSkip(1), zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+	logger, err := zapCfg.Build(zap.AddCallerSkip(2), zap.WrapCore(func(core zapcore.Core) zapcore.Core {
 		return zapcore.NewTee(core, otelzap.NewCore(os.Getenv("OTEL_LIBRARY_NAME")))
 	}))
 	if err != nil {

@@ -123,8 +123,8 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 		return err
 	}
 
-	cpuUsage := common.GetCPUUsage()
-	memUsage := common.GetMemUsage()
+	cpuUsage := common.GetCPUUsage(ctx)
+	memUsage := common.GetMemUsage(ctx)
 
 	cpuGauge.Record(ctx, cpuUsage)
 	memGauge.Record(ctx, memUsage)

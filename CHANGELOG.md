@@ -1,3 +1,110 @@
+## [1.29.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.7...v1.29.0-beta.8) (2024-11-21)
+
+
+### Bug Fixes
+
+* add logs using default logger in middleware responsible by collecting metrics :bug: :bug: ([d186c0a](https://github.com/LerianStudio/midaz/commit/d186c0afb50fdd3e71e6c80dffc92a6bd25fc30e))
+* add required and singletransactiontype tags to transaction input by json endpoint :bug: ([8c4e65f](https://github.com/LerianStudio/midaz/commit/8c4e65f4b2b222a75dba849ec24f2d92d09a400d))
+* add validation for scale greater than or equal to zero in transaction by json endpoint :bug: ([c1368a3](https://github.com/LerianStudio/midaz/commit/c1368a33c4aaafba4f366d803665244d00d6f9ce))
+* add zap caller skip to ignore hydrated log function :bug: ([03fd066](https://github.com/LerianStudio/midaz/commit/03fd06695dfd1ac68edadbfa50074093c265f976))
+* resolve validation errors in transaction endpoint :bug: ([9203059](https://github.com/LerianStudio/midaz/commit/9203059d4651a1b92de71d3565ab02b27e264d4f))
+* skip insufficient funds validation for external accounts and update postman collection with new transaction json payload :bug: ([8edcb37](https://github.com/LerianStudio/midaz/commit/8edcb37a6b21b8ddd6b67dda8f2e57b76c82ea0d))
+* update transaction value mismatch error message :bug: ([8210e13](https://github.com/LerianStudio/midaz/commit/8210e1303b1838bb5b2f4e174c8f3e7516cc30e7))
+
+## [1.29.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.6...v1.29.0-beta.7) (2024-11-21)
+
+
+### Features
+
+* added command account in root ([7e2a439](https://github.com/LerianStudio/midaz/commit/7e2a439a26efa5786a5352b09875339d7545b2e6))
+* added sub command create in commmand account with test unit ([29a424c](https://github.com/LerianStudio/midaz/commit/29a424ca8f337f67318d8cd17b8df6c20ba36f33))
+* added sub command delete in commmand account with test unit ([4a1b77b](https://github.com/LerianStudio/midaz/commit/4a1b77bc3e3b8d2d393793fe8d852ee0e78b41a7))
+* added sub command describe in commmand account with test unit ([7990908](https://github.com/LerianStudio/midaz/commit/7990908dde50a023b4a83bd79e159745eb831533))
+* added sub command list in commmand account with test unit ([c6d112a](https://github.com/LerianStudio/midaz/commit/c6d112a3d841fb0574479dfb11f1ed8a4e500379))
+* added sub command update in commmand account with test unit ([59ba185](https://github.com/LerianStudio/midaz/commit/59ba185856661c0afe3243b88ed68f66b46a4938))
+* method of creating account rest ([cb4f377](https://github.com/LerianStudio/midaz/commit/cb4f377c047a7a07e64db4ad826691d6198b5f3c))
+* method of get by id accounts rest ([b5d61b8](https://github.com/LerianStudio/midaz/commit/b5d61b81deb1384dfaff2d78ec727580b78099d5))
+* method of list accounts rest ([5edbc02](https://github.com/LerianStudio/midaz/commit/5edbc027a5df6b61779cd677a98d4dfabafb59fe))
+* method of update and delete accounts rest ([551506e](https://github.com/LerianStudio/midaz/commit/551506eb62dce2e38bf8303a23d1e6e8eec887ff))
+
+## [1.29.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.5...v1.29.0-beta.6) (2024-11-19)
+
+
+### Features
+
+* create git action to update version on env files :sparkles: ([ca28ded](https://github.com/LerianStudio/midaz/commit/ca28ded27672e153adcdbf53db5e2865bd33b123))
+
+## [1.29.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.4...v1.29.0-beta.5) (2024-11-18)
+
+
+### Features
+
+* added command describe from products ([4b4a222](https://github.com/LerianStudio/midaz/commit/4b4a22273e009760e2819b04063a8715388fdfa1))
+* create redis connection :sparkles: ([c8651e5](https://github.com/LerianStudio/midaz/commit/c8651e5c523d2f124dbfa8eaaa3f6647a0d0a5a0))
+* create sub command delete from products ([80d3a62](https://github.com/LerianStudio/midaz/commit/80d3a625fe2f02069b1d9e037f4c28bcc2861ccc))
+* create sub command update from products ([4368bc2](https://github.com/LerianStudio/midaz/commit/4368bc212f7c4602dad0584feccf903a9e6c2c65))
+* implements redis on ledger :sparkles: ([5f1c5e4](https://github.com/LerianStudio/midaz/commit/5f1c5e47aa8507d138ff4739eb966a6beb996212))
+* implements redis on transaction :sparkles: ([7013ca2](https://github.com/LerianStudio/midaz/commit/7013ca20499db2b1063890509afbdffd934def97))
+
+
+### Bug Fixes
+
+* lint :bug: ([1e7f12e](https://github.com/LerianStudio/midaz/commit/1e7f12e82925e9d8f3f10fca6d1f2c13910e8f64))
+
+## [1.29.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.3...v1.29.0-beta.4) (2024-11-18)
+
+
+### Features
+
+* add version endpoint to ledger and transaction services :sparkles: ([bb646b7](https://github.com/LerianStudio/midaz/commit/bb646b75161b1698adacc32164862d910fa5e987))
+
+
+### Bug Fixes
+
+* add doc endpoint comment in transaction routes.go ([41f637d](https://github.com/LerianStudio/midaz/commit/41f637d32c37f3e090321d21e46ab0fa180e5e73))
+* remove build number from version endpoint in ledger and transaction services :bug: ([798406f](https://github.com/LerianStudio/midaz/commit/798406f2ac00eb9e11fa8076c38906c0aa322f47))
+
+## [1.29.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.2...v1.29.0-beta.3) (2024-11-18)
+
+
+### Bug Fixes
+
+* update transaction error messages to comply with gitbook :bug: ([36ae998](https://github.com/LerianStudio/midaz/commit/36ae9985b908784ea59669087e99cc56e9399f14))
+
+## [1.29.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.1...v1.29.0-beta.2) (2024-11-18)
+
+
+### Features
+
+* added command list from products ([fe7503e](https://github.com/LerianStudio/midaz/commit/fe7503ea6c4b971be4ffba55ed21035bfeb15710))
+* create rest get product ([bf9a271](https://github.com/LerianStudio/midaz/commit/bf9a271ddd396e7800c2d69a1f3d87fc00916077))
+
+## [1.29.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.28.0...v1.29.0-beta.1) (2024-11-14)
+
+
+### Features
+
+* add :sparkles: ([8baab22](https://github.com/LerianStudio/midaz/commit/8baab221b425c84fc56ee1eadcb8da3d09048543))
+* add blocked to open pr to main if not come from develop or hotfix :sparkles: ([327448d](https://github.com/LerianStudio/midaz/commit/327448dafbd03db064c0f9488c0950e270d6556f))
+* add reviewdog :sparkles: ([e5af335](https://github.com/LerianStudio/midaz/commit/e5af335e030c4e1ee7c68ec7ba6997db7c56cd4c))
+* add reviewdog again :sparkles: ([3636404](https://github.com/LerianStudio/midaz/commit/363640416c1c263238ab8e3634f90cef348b8c5e))
+* add rule to pr :sparkles: ([6e0ff0c](https://github.com/LerianStudio/midaz/commit/6e0ff0c010ea23feb1e3140ebe8e88abca2ae547))
+* rollback lint :sparkles: ([4672464](https://github.com/LerianStudio/midaz/commit/4672464c97531f7817df66d6941d8d535ab45f31))
+* test rewiewdog lint :sparkles: ([5d69cc1](https://github.com/LerianStudio/midaz/commit/5d69cc14acbf4658ed832e2ad9ad0dd38ed69018))
+* update git actions :sparkles: ([525b0ac](https://github.com/LerianStudio/midaz/commit/525b0acfc002bacfcc39bd6e3b65a10e9f995377))
+
+
+### Bug Fixes
+
+* golint :bug: ([0aae8f8](https://github.com/LerianStudio/midaz/commit/0aae8f8649d288183746fd87cb6669da5161569d))
+* resolve lint :bug: ([062fe5b](https://github.com/LerianStudio/midaz/commit/062fe5b8acc492c913e31b1039ef8ffbf5a5aff7))
+* update :bug: ([981384c](https://github.com/LerianStudio/midaz/commit/981384c9b7f682336db312535b8302883e463b73))
+* update comment only instead request changes :bug: ([e3d28eb](https://github.com/LerianStudio/midaz/commit/e3d28eb6b06b045358edc89ca954c0bd0724fa04))
+* update git actions name :bug: ([2015cec](https://github.com/LerianStudio/midaz/commit/2015cecdc9b66d2a60ad974ad43e43a4db51a978))
+* update message :bug: ([f39d104](https://github.com/LerianStudio/midaz/commit/f39d1042edbfd00907c7285d3f1c32c753443453))
+* update message :bug: ([33269c3](https://github.com/LerianStudio/midaz/commit/33269c3a2dcbdef2b68c7abcdcbfc51e81dbd0a0))
+* when both go_version and go_version_file inputs are specified, only go_version will be used :bug: ([62508f8](https://github.com/LerianStudio/midaz/commit/62508f8bd074d8a0b64f66861be3a6101bb36daf))
+
 ## [1.28.0](https://github.com/LerianStudio/midaz/compare/v1.27.0...v1.28.0) (2024-11-14)
 
 

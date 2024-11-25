@@ -78,6 +78,9 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// Health
 	f.Get("/health", lib.Ping)
 
+	// Version
+	f.Get("/version", lib.Version)
+
 	// Doc
 	lib.DocAPI("ledger", "Ledger API", f)
 
