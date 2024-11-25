@@ -54,12 +54,8 @@ antlr:
 	rm -f antlr-$(ANTLR4_VERSION)-complete.jar
 
 # COMMONS
-
-wire:
-	@go generate ./...
-
 run:
-	@go run internal/main.go .env
+	@go run cmd/app/main.go .env
 
 test:
 	@go test -v ./...
@@ -71,7 +67,7 @@ tidy:
 	@go mod tidy
 
 generate-docs:
-	@swag init -g ./main.go -d ./internal -o ./api --parseDependency --parseInternal
+	@swag init -g ../../../cmd/app/main.go -d ./internal/bootstrap/http -o ./api --parseDependency --parseInternal
 
 # Docker Compose Commands
 build:
