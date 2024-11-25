@@ -1,3 +1,12 @@
+## [1.29.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.10...v1.29.0-beta.11) (2024-11-25)
+
+
+### Bug Fixes
+
+* create .keep file to commit folder :bug: ([605c270](https://github.com/LerianStudio/midaz/commit/605c270e7e962cfca1027f149d71b54ffb834601))
+* final adjusts :bug: ([c30532f](https://github.com/LerianStudio/midaz/commit/c30532f678b9a1ccc6a1902058279bbdaf90ce14))
+* rollback version :bug: ([b4543f7](https://github.com/LerianStudio/midaz/commit/b4543f72fcdb9897a6fced1a9314f06fb2edc7d4))
+
 ## [1.29.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.9...v1.29.0-beta.10) (2024-11-25)
 
 
