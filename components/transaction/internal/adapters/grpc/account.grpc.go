@@ -2,13 +2,22 @@ package grpc
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mgrpc"
 	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/google/uuid"
 )
+
+// Repository provides an interface for gRPC operations related to account in the Ledger.
+//
+//go:generate mockgen --destination=account.mock.go --package=grpc . Repository
+type Repository interface {
+	GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error)
+	GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error)
+	UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error)
+}
 
 // AccountGRPCRepository is a gRPC implementation of the account.proto
 type AccountGRPCRepository struct {
