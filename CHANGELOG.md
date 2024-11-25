@@ -1,3 +1,10 @@
+## [1.29.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.9...v1.29.0-beta.10) (2024-11-25)
+
+
+### Bug Fixes
+
+* update ledger makefile to generate swagger docs :bug: ([fe346fd](https://github.com/LerianStudio/midaz/commit/fe346fdfa99892bf29c2e6a0353b1ba8444d0358))
+
 ## [1.29.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.8...v1.29.0-beta.9) (2024-11-25)
 
 
