@@ -13,14 +13,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"strings"
-	"sync"
 )
 
 type TelemetryMiddleware struct {
 	*mopentelemetry.Telemetry
 }
-
-var onceTrace sync.Once
 
 // NewTelemetryMiddleware creates a new instance of TelemetryMiddleware.
 func NewTelemetryMiddleware(tl *mopentelemetry.Telemetry) *TelemetryMiddleware {
