@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
-	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
+	"github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
@@ -19,11 +19,11 @@ import (
 type AccountProto struct {
 	Command *command.UseCase
 	Query   *query.UseCase
-	proto.UnimplementedAccountProtoServer
+	account.UnimplementedAccountProtoServer
 }
 
 // GetAccountsByIds is a method that retrieves Account information by a given ids.
-func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.AccountsID) (*proto.AccountsResponse, error) {
+func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.AccountsID) (*account.AccountsResponse, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -32,12 +32,12 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 
 	organizationUUID, err := uuid.Parse(ids.GetOrganizationId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
+		return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 	}
 
 	ledgerUUID, err := uuid.Parse(ids.GetLedgerId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
+		return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 	}
 
 	var invalidUUIDs []string
@@ -56,7 +56,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 	}
 
 	if len(invalidUUIDs) > 0 {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
+		return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
 	}
 
 	acc, err := ap.Query.ListAccountsByIDs(ctx, organizationUUID, ledgerUUID, uuids)
@@ -65,15 +65,15 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 
 		logger.Errorf("Failed to retrieve Accounts by ids for grpc, Error: %s", err.Error())
 
-		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, common.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
-	accounts := make([]*proto.Account, 0)
+	accounts := make([]*account.Account, 0)
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
 	}
 
-	response := proto.AccountsResponse{
+	response := account.AccountsResponse{
 		Accounts: accounts,
 	}
 
@@ -81,7 +81,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *proto.Account
 }
 
 // GetAccountsByAliases is a method that retrieves Account information by a given aliases.
-func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto.AccountsAlias) (*proto.AccountsResponse, error) {
+func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *account.AccountsAlias) (*account.AccountsResponse, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -90,12 +90,12 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 
 	organizationUUID, err := uuid.Parse(aliases.GetOrganizationId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
+		return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 	}
 
 	ledgerUUID, err := uuid.Parse(aliases.GetLedgerId())
 	if err != nil {
-		return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
+		return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 	}
 
 	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, aliases.GetAliases())
@@ -104,15 +104,15 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 
 		logger.Errorf("Failed to retrieve Accounts by aliases for grpc, Error: %s", err.Error())
 
-		return nil, common.ValidateBusinessError(cn.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, common.ValidateBusinessError(constant.ErrFailedToRetrieveAccountsByAliases, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
-	accounts := make([]*proto.Account, 0)
-	for _, ac := range acc {
-		accounts = append(accounts, ac.ToProto())
+	accounts := make([]*account.Account, 0)
+	for _, a := range acc {
+		accounts = append(accounts, a.ToProto())
 	}
 
-	response := proto.AccountsResponse{
+	response := account.AccountsResponse{
 		Accounts: accounts,
 	}
 
@@ -120,57 +120,57 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *proto
 }
 
 // UpdateAccounts is a method that update Account balances by a given ids.
-func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.AccountsRequest) (*proto.AccountsResponse, error) {
+func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.UpdateAccounts")
 	defer span.End()
 
-	accounts := make([]*proto.Account, 0)
+	accounts := make([]*account.Account, 0)
 
 	uuids := make([]uuid.UUID, 0)
 
-	for _, account := range update.GetAccounts() {
-		if common.IsNilOrEmpty(&account.Id) {
+	for _, getacc := range update.GetAccounts() {
+		if common.IsNilOrEmpty(&getacc.Id) {
 			mopentelemetry.HandleSpanError(&span, "Failed to update Accounts because id is empty", nil)
 
 			logger.Errorf("Failed to update Accounts because id is empty")
 
-			return nil, common.ValidateBusinessError(cn.ErrNoAccountIDsProvided, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrNoAccountIDsProvided, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		balance := mmodel.Balance{
-			Available: &account.Balance.Available,
-			OnHold:    &account.Balance.OnHold,
-			Scale:     &account.Balance.Scale,
+			Available: &getacc.Balance.Available,
+			OnHold:    &getacc.Balance.OnHold,
+			Scale:     &getacc.Balance.Scale,
 		}
 
-		organizationUUID, err := uuid.Parse(account.GetOrganizationId())
+		organizationUUID, err := uuid.Parse(getacc.GetOrganizationId())
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
+			return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 		}
 
-		ledgerUUID, err := uuid.Parse(account.GetLedgerId())
+		ledgerUUID, err := uuid.Parse(getacc.GetLedgerId())
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
+			return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 		}
 
-		accountUUID, err := uuid.Parse(account.GetId())
+		accountUUID, err := uuid.Parse(getacc.GetId())
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), accountUUID)
+			return nil, common.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), accountUUID)
 		}
 
 		_, err = ap.Command.UpdateAccountByID(ctx, organizationUUID, ledgerUUID, accountUUID, &balance)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
 
-			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", account.OrganizationId, account.LedgerId, err.Error())
+			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", getacc.OrganizationId, getacc.LedgerId, err.Error())
 
-			return nil, common.ValidateBusinessError(cn.ErrBalanceUpdateFailed, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrBalanceUpdateFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		uuids = append(uuids, uuid.MustParse(account.Id))
+		uuids = append(uuids, uuid.MustParse(getacc.Id))
 	}
 
 	organizationID := update.GetOrganizationId()
@@ -182,14 +182,14 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *proto.Accoun
 
 		logger.Errorf("Failed to retrieve Accounts by ids for organizationId %s and ledgerId %s in grpc, Error: %s", organizationID, ledgerID, err.Error())
 
-		return nil, common.ValidateBusinessError(cn.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, common.ValidateBusinessError(constant.ErrNoAccountsFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	for _, ac := range acc {
 		accounts = append(accounts, ac.ToProto())
 	}
 
-	response := proto.AccountsResponse{
+	response := account.AccountsResponse{
 		Accounts: accounts,
 	}
 
