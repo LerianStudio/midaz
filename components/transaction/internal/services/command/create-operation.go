@@ -98,7 +98,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					UpdatedAt:       time.Now(),
 				}
 
-				operation, er := uc.OperationRepo.Create(ctx, save)
+				op, er := uc.OperationRepo.Create(ctx, save)
 				if er != nil {
 					mopentelemetry.HandleSpanError(&span, "Failed to create operation", er)
 
@@ -107,14 +107,14 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					err <- er
 				}
 
-				er = uc.createMetadata(ctx, logger, fromTo[i].Metadata, operation)
+				er = uc.createMetadata(ctx, logger, fromTo[i].Metadata, op)
 				if er != nil {
 					mopentelemetry.HandleSpanError(&span, "Failed to create metadata on operation", er)
 
 					err <- er
 				}
 
-				operations = append(operations, operation)
+				operations = append(operations, op)
 
 				break
 			}

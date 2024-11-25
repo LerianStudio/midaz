@@ -83,7 +83,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Operation by account")
 
-	operation, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
+	op, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Operation by account", err)
 
@@ -94,7 +94,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved Operation by account")
 
-	return http.OK(c, operation)
+	return http.OK(c, op)
 }
 
 func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
@@ -160,7 +160,7 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Operation by portfolio")
 
-	operation, err := handler.Query.GetOperationByPortfolio(ctx, organizationID, ledgerID, portfolioID, operationID)
+	op, err := handler.Query.GetOperationByPortfolio(ctx, organizationID, ledgerID, portfolioID, operationID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Operation by portfolio", err)
 
@@ -171,7 +171,7 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 
 	logger.Infof("Successfully retrieved Operation by portfolio")
 
-	return http.OK(c, operation)
+	return http.OK(c, op)
 }
 
 // UpdateOperation method that patch operation created before
@@ -210,7 +210,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	operation, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
+	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Operation on query", err)
 
@@ -221,5 +221,5 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 
 	logger.Infof("Successfully updated Operation with Organization ID: %s, Ledger ID: %s, Transaction ID: %s and ID: %s", organizationID, ledgerID, transactionID, operationID)
 
-	return http.OK(c, operation)
+	return http.OK(c, op)
 }
