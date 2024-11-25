@@ -6,8 +6,8 @@ package mmodel
 // @Description Status structure for marshaling/unmarshalling JSON.
 type Status struct {
 	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
-	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
-} // @name Status
+	Description *string `json:"description" validate:"omitempty,max=256" example:"The organization is active"`
+}
 
 // IsEmpty method that set empty or nil in fields
 func (s Status) IsEmpty() bool {

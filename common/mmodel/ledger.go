@@ -10,7 +10,7 @@ type CreateLedgerInput struct {
 	Name     string         `json:"name" validate:"required,max=256" example:"Lerian Studio"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateLedgerInput
+}
 
 // UpdateLedgerInput is a struct design to encapsulate request update payload data.
 //
@@ -20,7 +20,7 @@ type UpdateLedgerInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"Lerian Studio Updated"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name UpdateLedgerInput
+}
 
 // Ledger is a struct designed to encapsulate payload data.
 //
@@ -35,7 +35,7 @@ type Ledger struct {
 	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt      *time.Time     `json:"deletedAt" sql:"index" example:"2021-01-01T00:00:00Z"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
-} // @name Ledger
+}
 
 // Ledgers struct to return get all.
 //
@@ -45,4 +45,4 @@ type Ledgers struct {
 	Items []Ledger `json:"items"`
 	Page  int      `json:"page" example:"1"`
 	Limit int      `json:"limit" example:"10"`
-} // @name Ledgers
+}

@@ -10,7 +10,7 @@ type CreateProductInput struct {
 	Name     string         `json:"name" validate:"required,max=256" example:"My Product"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateProductInput
+}
 
 // UpdateProductInput is a struct design to encapsulate request update payload data.
 //
@@ -20,7 +20,7 @@ type UpdateProductInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"My Product Updated"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name UpdateProductInput
+}
 
 // Product is a struct designed to encapsulate payload data.
 //
@@ -36,7 +36,7 @@ type Product struct {
 	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
-} // @name Product
+}
 
 // Products struct to return get all.
 //
@@ -46,4 +46,4 @@ type Products struct {
 	Items []Product `json:"items"`
 	Page  int       `json:"page" example:"1"`
 	Limit int       `json:"limit" example:"10"`
-} // @name Products
+}

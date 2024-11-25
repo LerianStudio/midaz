@@ -22,7 +22,7 @@ type CreateAccountInput struct {
 	AllowSending    *bool          `json:"allowSending" example:"true"`
 	AllowReceiving  *bool          `json:"allowReceiving" example:"true"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateAccountInput
+}
 
 // UpdateAccountInput is a struct design to encapsulate request update payload data.
 //
@@ -36,7 +36,7 @@ type UpdateAccountInput struct {
 	Alias          *string        `json:"alias" validate:"max=100" example:"@person1"`
 	ProductID      *string        `json:"productId" validate:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name UpdateAccountInput
+}
 
 // Account is a struct designed to encapsulate response payload data.
 //
@@ -62,7 +62,7 @@ type Account struct {
 	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
-} // @name Account
+}
 
 // Balance structure for marshaling/unmarshalling JSON.
 //
@@ -72,7 +72,7 @@ type Balance struct {
 	Available *float64 `json:"available" example:"1500"`
 	OnHold    *float64 `json:"onHold" example:"500"`
 	Scale     *float64 `json:"scale" example:"2"`
-} // @name Balance
+}
 
 // IsEmpty method that set empty or nil in fields
 func (b Balance) IsEmpty() bool {
@@ -87,7 +87,7 @@ type Accounts struct {
 	Items []Account `json:"items"`
 	Page  int       `json:"page" example:"1"`
 	Limit int       `json:"limit" example:"10"`
-} // @name Accounts
+}
 
 // ToProto converts entity Account to a response protobuf proto
 func (e *Account) ToProto() *proto.Account {

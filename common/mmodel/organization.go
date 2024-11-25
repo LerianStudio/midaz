@@ -14,7 +14,7 @@ type CreateOrganizationInput struct {
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateOrganizationInput
+}
 
 // UpdateOrganizationInput is a struct design to encapsulate request update payload data.
 //
@@ -27,7 +27,7 @@ type UpdateOrganizationInput struct {
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
 	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name UpdateOrganizationInput
+}
 
 // Organization is a struct designed to encapsulate response payload data.
 //
@@ -45,7 +45,7 @@ type Organization struct {
 	UpdatedAt            time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt            *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata             map[string]any `json:"metadata,omitempty"`
-} // @name Organization
+}
 
 // Address structure for marshaling/unmarshalling JSON.
 //
@@ -58,7 +58,7 @@ type Address struct {
 	City    string  `json:"city" example:"New York"`
 	State   string  `json:"state" example:"NY"`
 	Country string  `json:"country" example:"US"` // According to ISO 3166-1 alpha-2
-} // @name Address
+}
 
 // IsEmpty method that set empty or nil in fields
 func (a Address) IsEmpty() bool {
@@ -73,4 +73,4 @@ type Organizations struct {
 	Items []Organization `json:"items"`
 	Page  int            `json:"page" example:"1"`
 	Limit int            `json:"limit" example:"10"`
-} // @name Organizations
+}
