@@ -22,7 +22,1199 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {}
+    "paths": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+            "get": {
+                "description": "Get all Operations with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Get all Operations by account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Operation"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}": {
+            "get": {
+                "description": "Get an Operation with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Get an Operation by account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Operation ID",
+                        "name": "operation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Operation"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
+            "post": {
+                "description": "Create an AssetRate with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset Rates"
+                ],
+                "summary": "Create an AssetRate",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "AssetRate Input",
+                        "name": "asset-rate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateAssetRateInput"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/AssetRate"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id}": {
+            "get": {
+                "description": "Get an AssetRate with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset Rates"
+                ],
+                "summary": "Get an AssetRate by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "AssetRate ID",
+                        "name": "asset_rate_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "AssetRate Input",
+                        "name": "asset-rate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateAssetRateInput"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/AssetRate"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations": {
+            "get": {
+                "description": "Get all Operations with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Get all Operations by portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Operation"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}": {
+            "get": {
+                "description": "Get an Operation with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Get an Operation by portfolio",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Portfolio ID",
+                        "name": "portfolio_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Operation ID",
+                        "name": "operation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Operation"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
+            "get": {
+                "description": "Get all Transactions with the input metadata or without metadata",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Get all Transactions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/Transaction"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl": {
+            "post": {
+                "description": "Create a Transaction with the input DSL file",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Create a Transaction using DSL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Transaction DSL file",
+                        "name": "transaction",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json": {
+            "post": {
+                "description": "Create a Transaction with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Create a Transaction using JSON",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Input",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/CreateTransactionInput"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}": {
+            "get": {
+                "description": "Get a Transaction with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Get a Transaction by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update a Transaction with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Update a Transaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Transaction Input",
+                        "name": "transaction",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateTransactionInput"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Transaction"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}": {
+            "patch": {
+                "description": "Update an Operation with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Update an Operation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "transaction_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Operation ID",
+                        "name": "operation_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Operation Input",
+                        "name": "operation",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/UpdateOperationInput"
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Operation"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "Amount": {
+            "description": "Amount is the struct designed to represent the amount of an operation.",
+            "type": "object",
+            "required": [
+                "asset",
+                "value"
+            ],
+            "properties": {
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "scale": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
+                }
+            }
+        },
+        "AssetRate": {
+            "description": "AssetRate is a struct designed to store asset rate data.",
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 5000
+                },
+                "baseAssetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "counterAssetCode": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "scale": {
+                    "type": "number",
+                    "example": 2
+                },
+                "source": {
+                    "type": "string",
+                    "example": "@person1"
+                }
+            }
+        },
+        "Balance": {
+            "description": "Balance is the struct designed to represent the account balance.",
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "number",
+                    "example": 1500
+                },
+                "onHold": {
+                    "type": "number",
+                    "example": 500
+                },
+                "scale": {
+                    "type": "number",
+                    "example": 2
+                }
+            }
+        },
+        "CreateAssetRateInput": {
+            "description": "CreateAssetRateInput is the input payload to create an asset rate.",
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 5000
+                },
+                "baseAssetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "counterAssetCode": {
+                    "type": "string",
+                    "example": "USD"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "scale": {
+                    "type": "number",
+                    "example": 2
+                },
+                "source": {
+                    "type": "string",
+                    "example": "@person1"
+                }
+            }
+        },
+        "CreateTransactionInput": {
+            "description": "CreateTransactionInput is the input payload to create a transaction.",
+            "type": "object",
+            "required": [
+                "distribute",
+                "send"
+            ],
+            "properties": {
+                "chartOfAccountsGroupName": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "code": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "distribute": {
+                    "$ref": "#/definitions/Distribute"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "pending": {
+                    "type": "boolean"
+                },
+                "send": {
+                    "$ref": "#/definitions/Send"
+                }
+            }
+        },
+        "Distribute": {
+            "description": "Distribute is the struct designed to represent the distribution fields of an operation.",
+            "type": "object",
+            "required": [
+                "to"
+            ],
+            "properties": {
+                "remaining": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FromTo"
+                    }
+                }
+            }
+        },
+        "FromTo": {
+            "description": "FromTo is the struct designed to represent the from/to fields of an operation.",
+            "type": "object",
+            "properties": {
+                "account": {
+                    "type": "string",
+                    "example": "@person1"
+                },
+                "amount": {
+                    "$ref": "#/definitions/Amount"
+                },
+                "chartOfAccountsG": {
+                    "type": "string",
+                    "example": "1000"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "description"
+                },
+                "isFrom": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "remaining": {
+                    "type": "string",
+                    "example": "remaining"
+                },
+                "share": {
+                    "$ref": "#/definitions/Share"
+                }
+            }
+        },
+        "Operation": {
+            "description": "Operation is a struct designed to store operation data.",
+            "type": "object",
+            "properties": {
+                "accountAlias": {
+                    "type": "string",
+                    "example": "@person1"
+                },
+                "accountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "amount": {
+                    "$ref": "#/definitions/Amount"
+                },
+                "assetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "balance": {
+                    "$ref": "#/definitions/Balance"
+                },
+                "balanceAfter": {
+                    "$ref": "#/definitions/Balance"
+                },
+                "chartOfAccounts": {
+                    "type": "string",
+                    "example": "1000"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Credit card operation"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "portfolioId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "transactionId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "creditCard"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "Pagination": {
+            "description": "Pagination is the struct designed to store the pagination data of an entity list.",
+            "type": "object",
+            "properties": {
+                "items": {},
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "Send": {
+            "description": "Send is the struct designed to represent the sending fields of an operation.",
+            "type": "object",
+            "required": [
+                "asset",
+                "source",
+                "value"
+            ],
+            "properties": {
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "scale": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "source": {
+                    "$ref": "#/definitions/Source"
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
+                }
+            }
+        },
+        "Share": {
+            "description": "Share is the struct designed to represent the sharing fields of an operation.",
+            "type": "object",
+            "required": [
+                "percentage"
+            ],
+            "properties": {
+                "descWhatever": {
+                    "type": "boolean"
+                },
+                "percentage": {
+                    "type": "integer"
+                },
+                "percentageOfPercentage": {
+                    "type": "integer"
+                }
+            }
+        },
+        "Source": {
+            "description": "Source is the struct designed to represent the source fields of an operation.",
+            "type": "object",
+            "required": [
+                "from"
+            ],
+            "properties": {
+                "from": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/FromTo"
+                    }
+                },
+                "remaining": {
+                    "type": "string",
+                    "example": "remaining"
+                }
+            }
+        },
+        "Status": {
+            "description": "Status is the struct designed to represent the status of a transaction.",
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "example": "ACTIVE"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Active status"
+                }
+            }
+        },
+        "Transaction": {
+            "description": "Transaction is a struct designed to store transaction data.",
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 1500
+                },
+                "amountScale": {
+                    "type": "number",
+                    "example": 2
+                },
+                "assetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "chartOfAccountsGroupName": {
+                    "type": "string",
+                    "example": "Chart of accounts group name"
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Transaction description"
+                },
+                "destination": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "@person2"
+                    ]
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "operations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Operation"
+                    }
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "parentTransactionId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "source": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "@person1"
+                    ]
+                },
+                "status": {
+                    "$ref": "#/definitions/Status"
+                },
+                "template": {
+                    "type": "string",
+                    "example": "Transaction template"
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "UpdateOperationInput": {
+            "description": "UpdateOperationInput is the input payload to update an operation.",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Credit card operation"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        },
+        "UpdateTransactionInput": {
+            "description": "UpdateTransactionInput is the input payload to update a transaction.",
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "Transaction description"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                }
+            }
+        }
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

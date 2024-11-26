@@ -5,7 +5,7 @@ import "time"
 // CreatePortfolioInput is a struct design to encapsulate request create payload data.
 //
 // swagger:model CreatePortfolioInput
-// @Description CreatePortfolioInput is a struct design to encapsulate request create payload data.
+// @Description CreatePortfolioInput is the input payload to create a portfolio.
 type CreatePortfolioInput struct {
 	EntityID string         `json:"entityId" validate:"required,max=256" example:"00000000-0000-0000-0000-000000000000"`
 	Name     string         `json:"name" validate:"required,max=256" example:"My Portfolio"`
@@ -16,7 +16,7 @@ type CreatePortfolioInput struct {
 // UpdatePortfolioInput is a struct design to encapsulate payload data.
 //
 // swagger:model UpdatePortfolioInput
-// @Description UpdatePortfolioInput is a struct design to encapsulate payload data.
+// @Description UpdatePortfolioInput is the input payload to update a portfolio.
 type UpdatePortfolioInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"My Portfolio Updated"`
 	Status   Status         `json:"status"`
@@ -26,7 +26,7 @@ type UpdatePortfolioInput struct {
 // Portfolio is a struct designed to encapsulate request update payload data.
 //
 // swagger:model Portfolio
-// @Description Portfolio is a struct designed to encapsulate request update payload data.
+// @Description Portfolio is a struct designed to store portfolio data.
 type Portfolio struct {
 	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	Name           string         `json:"name" example:"My Portfolio"`
@@ -43,7 +43,7 @@ type Portfolio struct {
 // Portfolios struct to return get all.
 //
 // swagger:model Portfolios
-// @Description Portfolios struct to return get all.
+// @Description Portfolios is the struct designed to return a list of portfolios with pagination.
 type Portfolios struct {
 	Items []Portfolio `json:"items"`
 	Page  int         `json:"page" example:"1"`

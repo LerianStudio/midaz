@@ -31,17 +31,23 @@ type TransactionPostgreSQLModel struct {
 }
 
 // Status structure for marshaling/unmarshalling JSON.
+//
+// swagger:model Status
+// @Description Status is the struct designed to represent the status of a transaction.
 type Status struct {
-	Code        string  `json:"code" validate:"max=100"`
-	Description *string `json:"description" validate:"omitempty,max=256"`
-}
+	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
+	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
+} // @name Status
 
 // IsEmpty method that set empty or nil in fields
 func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
 
-// CreateTransactionInput is a struct design to encapsulate payload data.
+// CreateTransactionInput is  a struct design to encapsulate payload data.
+//
+// swagger:model CreateTransactionInput
+// @Description CreateTransactionInput is the input payload to create a transaction.
 type CreateTransactionInput struct {
 	ChartOfAccountsGroupName string           `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
 	Description              string           `json:"description,omitempty" validate:"max=256"`
@@ -50,7 +56,7 @@ type CreateTransactionInput struct {
 	Metadata                 map[string]any   `json:"metadata,omitempty"`
 	Send                     *gold.Send       `json:"send,omitempty" validate:"required,dive"`
 	Distribute               *gold.Distribute `json:"distribute,omitempty" validate:"required,dive"`
-}
+} // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.
 type InputDSL struct {
@@ -60,32 +66,38 @@ type InputDSL struct {
 }
 
 // UpdateTransactionInput is a struct design to encapsulate payload data.
+//
+// swagger:model UpdateTransactionInput
+// @Description UpdateTransactionInput is the input payload to update a transaction.
 type UpdateTransactionInput struct {
-	Description string         `json:"description" validate:"max=256"`
+	Description string         `json:"description" validate:"max=256" example:"Transaction description"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
-}
+} // @name UpdateTransactionInput
 
 // Transaction is a struct designed to encapsulate response payload data.
+//
+// swagger:model Transaction
+// @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ID                       string         `json:"id"`
-	ParentTransactionID      *string        `json:"parentTransactionId,omitempty"`
-	Description              string         `json:"description"`
-	Template                 string         `json:"template"`
+	ID                       string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	ParentTransactionID      *string        `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Description              string         `json:"description" example:"Transaction description"`
+	Template                 string         `json:"template" example:"Transaction template"`
 	Status                   Status         `json:"status"`
-	Amount                   *float64       `json:"amount"`
-	AmountScale              *float64       `json:"amountScale"`
-	AssetCode                string         `json:"assetCode"`
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName"`
-	Source                   []string       `json:"source"`
-	Destination              []string       `json:"destination"`
-	LedgerID                 string         `json:"ledgerId"`
-	OrganizationID           string         `json:"organizationId"`
-	CreatedAt                time.Time      `json:"createdAt"`
-	UpdatedAt                time.Time      `json:"updatedAt"`
-	DeletedAt                *time.Time     `json:"deletedAt"`
+	Amount                   *float64       `json:"amount" example:"1500"`
+	AmountScale              *float64       `json:"amountScale" example:"2"`
+	AssetCode                string         `json:"assetCode" example:"BRL"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName" example:"Chart of accounts group name"`
+	Source                   []string       `json:"source" example:"@person1"`
+	Destination              []string       `json:"destination" example:"@person2"`
+	LedgerID                 string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID           string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	CreatedAt                time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+	UpdatedAt                time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
+	DeletedAt                *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata                 map[string]any `json:"metadata,omitempty"`
 	Operations               []*o.Operation `json:"operations"`
-}
+} // @name Transaction
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
 func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {

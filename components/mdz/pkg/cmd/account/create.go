@@ -107,25 +107,25 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 		return err
 	}
 
-	if account.Alias != nil {
+	if len(f.Alias) > 0 {
 		account.Alias = &f.Alias
 	}
 
 	account.Type = f.Type
 
-	if account.ParentAccountID != nil {
+	if len(f.ParentAccountID) > 0 {
 		account.ParentAccountID = &f.ParentAccountID
 	}
 
-	if account.ProductID != nil {
+	if len(f.ProductID) > 0 {
 		account.ProductID = &f.ProductID
 	}
 
-	if account.PortfolioID != nil {
+	if len(f.PortfolioID) > 0 {
 		account.PortfolioID = &f.PortfolioID
 	}
 
-	if account.EntityID != nil {
+	if len(f.EntityID) > 0 {
 		account.EntityID = &f.EntityID
 	}
 
@@ -151,10 +151,6 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 		}
 
 		account.AllowReceiving = &allowReceive
-	}
-
-	if account.EntityID != nil {
-		account.EntityID = &f.EntityID
 	}
 
 	var metadata map[string]any

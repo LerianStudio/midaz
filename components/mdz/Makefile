@@ -51,7 +51,15 @@ perfsprint: get-perfsprint-deps
 test: 
 	 go test ./...
 
-.PHONY : build
+.PHONY: test_integration
+test_integration:
+	go test -v -tags=integration ./test/integration/...
+
+.PHONY: build
 build:
 	go version
 	go build -ldflags "$(LDFLAGS)" -o ./bin/$(NAME) ./main.go
+
+.PHONY: install-local
+install-local: build
+	sudo cp -r bin/mdz /usr/local/bin

@@ -1,3 +1,26 @@
+## [1.29.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.16...v1.29.0-beta.17) (2024-11-26)
+
+## [1.29.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.15...v1.29.0-beta.16) (2024-11-26)
+
+## [1.29.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.14...v1.29.0-beta.15) (2024-11-26)
+
+## [1.29.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.13...v1.29.0-beta.14) (2024-11-26)
+
+## [1.29.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.12...v1.29.0-beta.13) (2024-11-26)
+
+## [1.29.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.11...v1.29.0-beta.12) (2024-11-25)
+
+
+### Features
+
+* add swagger documentation to transaction service :sparkles: ([e06a30e](https://github.com/LerianStudio/midaz/commit/e06a30e360e70079ce66c7f3aeecdd5536c8b134))
+* add swagger generated docs from transaction :sparkles: ([a6e3775](https://github.com/LerianStudio/midaz/commit/a6e377576673c4a2c0a2691f717518d9ade65e0f))
+
+
+### Bug Fixes
+
+* adjust ledger swagger docs :bug: ([1e2c606](https://github.com/LerianStudio/midaz/commit/1e2c606819f154a085a3bd223b4aef1d8b114e19))
+
 ## [1.29.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.10...v1.29.0-beta.11) (2024-11-25)
 
 
