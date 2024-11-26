@@ -125,7 +125,6 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/google/uuid v1.6.0
-	github.com/google/wire v0.6.0
 	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/lestrrat-go/jwx v1.2.30
 	github.com/mattn/go-colorable v0.1.13 // indirect
