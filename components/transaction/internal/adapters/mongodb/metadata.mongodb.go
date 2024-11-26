@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -20,7 +21,7 @@ import (
 //go:generate mockgen --destination=metadata.mock.go --package=mongodb . Repository
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
-	FindList(ctx context.Context, collection string, filter any) ([]*Metadata, error)
+	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
 	Delete(ctx context.Context, collection, id string) error
@@ -87,7 +88,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 }
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
-func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter any) ([]*Metadata, error) {
+func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
@@ -106,7 +107,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, filter, opts)
+	cur, err := coll.Find(ctx, filter.Metadata, opts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
 

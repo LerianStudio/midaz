@@ -37,5 +37,26 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		return nil, err
 	}
 
+	if op != nil {
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+		}
+
+		metadataMap := make(map[string]map[string]any, len(metadata))
+
+		for _, meta := range metadata {
+			metadataMap[meta.EntityID] = meta.Data
+		}
+
+		for i := range op {
+			if data, ok := metadataMap[op[i].ID]; ok {
+				op[i].Metadata = data
+			}
+		}
+	}
+
 	return op, nil
 }
