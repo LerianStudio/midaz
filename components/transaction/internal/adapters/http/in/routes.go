@@ -1,13 +1,13 @@
-package http
+package in
 
 import (
 	"github.com/LerianStudio/midaz/common/mcasdoor"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/net/http"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/assetrate"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberSwagger "github.com/swaggo/fiber-swagger"

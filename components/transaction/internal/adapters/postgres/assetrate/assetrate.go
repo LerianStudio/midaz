@@ -1,8 +1,9 @@
 package assetrate
 
 import (
-	"github.com/LerianStudio/midaz/common"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
 )
 
 // AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database

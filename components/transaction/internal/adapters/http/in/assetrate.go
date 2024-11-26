@@ -1,10 +1,10 @@
-package http
+package in
 
 import (
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/net/http"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/gofiber/fiber/v2"

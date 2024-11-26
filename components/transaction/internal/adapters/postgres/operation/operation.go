@@ -2,8 +2,9 @@ package operation
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/common"
 	"time"
+
+	"github.com/LerianStudio/midaz/common"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database

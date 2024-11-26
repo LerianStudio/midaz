@@ -1,4 +1,4 @@
-package grpc
+package out
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 // Repository provides an interface for gRPC operations related to account in the Ledger.
 //
-//go:generate mockgen --destination=account.mock.go --package=grpc . Repository
+//go:generate mockgen --destination=account.mock.go --package=out . Repository
 type Repository interface {
 	GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error)
 	GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error)
