@@ -1,0 +1,12 @@
+FIELDS               VALUES                                   
+ID:                  01933f96-ed04-7c57-be5b-c091388830f8     
+Asset Code:                                                   
+Name:                2Real                                    
+Type:                commodity                                
+Status Code:         ACTIVE                                   
+Status Description:  Teste Ledger                             
+Organization ID:     0192e250-ed9d-7e5c-a614-9b294151b572     
+Ledger ID:           0192e251-328d-7390-99f5-5c54980115ed     
+Created At:          2024-10-31 11:23:45.165229 +0000 UTC     
+Update At:           2024-10-31 11:23:45.165229 +0000 UTC     
+Metadata:            map[chave1:valor1 chave2:2 chave3:true]  

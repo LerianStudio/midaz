@@ -27,6 +27,7 @@ info:
 	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
 	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
 	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation using swag."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -53,12 +54,8 @@ antlr:
 	rm -f antlr-$(ANTLR4_VERSION)-complete.jar
 
 # COMMONS
-
-wire:
-	@go generate ./...
-
 run:
-	@go run internal/main.go .env
+	@go run cmd/app/main.go .env
 
 test:
 	@go test -v ./...
@@ -68,6 +65,9 @@ cover-html:
 
 tidy:
 	@go mod tidy
+
+generate-docs:
+	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
 
 # Docker Compose Commands
 build:

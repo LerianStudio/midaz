@@ -1,0 +1,57 @@
+package query
+
+import (
+	"context"
+	"errors"
+	"go.uber.org/mock/gomock"
+	"testing"
+
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/pkg"
+
+	"github.com/stretchr/testify/assert"
+)
+
+// TestGetAllOperationsByAccount is responsible to test GetAllOperationsByAccount with success and error
+func TestGetAllOperationsByAccount(t *testing.T) {
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	accountID := pkg.GenerateUUIDv7()
+	limit := 10
+	page := 1
+
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+
+	uc := UseCase{
+		OperationRepo: mockOperationRepo,
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		trans := []*operation.Operation{{}}
+		mockOperationRepo.
+			EXPECT().
+			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, limit, page).
+			Return(trans, nil).
+			Times(1)
+		res, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, limit, page)
+
+		assert.NoError(t, err)
+		assert.Len(t, res, 1)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		errMsg := "errDatabaseItemNotFound"
+		mockOperationRepo.
+			EXPECT().
+			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, limit, page).
+			Return(nil, errors.New(errMsg)).
+			Times(1)
+		res, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, limit, page)
+
+		assert.EqualError(t, err, errMsg)
+		assert.Nil(t, res)
+	})
+}

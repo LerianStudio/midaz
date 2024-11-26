@@ -2,13 +2,14 @@ package portfolio
 
 import (
 	"bytes"
+	"go.uber.org/mock/gomock"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func Test_newCmdPortfolioDelete(t *testing.T) {

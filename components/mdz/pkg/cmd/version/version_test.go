@@ -6,6 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
