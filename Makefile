@@ -151,10 +151,9 @@ all-services:
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
-<<<<<<< HEAD
 test_integration_cli:
 	go test -v -tags=integration ./components/mdz/test/integration/...
-=======
+
 goreleaser:
 	@echo "$(BLUE)Creating release snapshot...$(NC)"
 	goreleaser release --snapshot --skip-publish --rm-dist
@@ -167,4 +166,3 @@ generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
 	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
->>>>>>> develop
