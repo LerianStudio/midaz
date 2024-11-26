@@ -24,10 +24,12 @@ func (r *account) Create(
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
+	body := bytes.NewReader(jsonData)
+
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
 
-	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
