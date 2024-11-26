@@ -42,7 +42,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
-			return nil, common.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

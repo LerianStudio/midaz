@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/midaz/common/net/http"
+	http "github.com/LerianStudio/midaz/pkg/net/http"
 	gomock "go.uber.org/mock/gomock"
 )
 
