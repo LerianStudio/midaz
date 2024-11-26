@@ -30,7 +30,6 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(asset.NewCmdAsset(f.factory))
 	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
 	cmd.AddCommand(product.NewCmdProduct(f.factory))
-	cmd.AddCommand(asset.NewCmdAsset(f.factory))
 	cmd.AddCommand(account.NewCmdAccount(f.factory))
 }
 
