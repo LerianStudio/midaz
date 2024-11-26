@@ -6,6 +6,9 @@ on:
       - develop
     types:
       - opened
+      - edited
+      - synchronize
+      - reopened
 
 permissions:
   id-token: write
