@@ -1,3 +1,11 @@
+## [1.29.0-beta.20](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.19...v1.29.0-beta.20) (2024-11-26)
+
+
+### Bug Fixes
+
+* adjust to update version once in develop instead of main because rules :bug: ([3f3fdca](https://github.com/LerianStudio/midaz/commit/3f3fdca54493c4a5f4deafa571bb9000f398c597))
+* types :bug: ([6aed2e1](https://github.com/LerianStudio/midaz/commit/6aed2e1ebc5af1b625351ee643c647cb367cf8ab))
+
 ## [1.29.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.18...v1.29.0-beta.19) (2024-11-26)
 
 
