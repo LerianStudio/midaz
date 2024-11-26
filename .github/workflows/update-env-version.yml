@@ -3,9 +3,12 @@ name: Update Envs Version With TAG Release
 on:
   pull_request:
     branches:
-      - main
+      - develop
     types:
       - opened
+      - edited
+      - synchronize
+      - reopened
 
 permissions:
   id-token: write
@@ -53,19 +56,32 @@ jobs:
           echo "Formatted release: $FORMATTED_RELEASE"
           echo "::set-output name=tag::$FORMATTED_RELEASE"
 
+      - name: Fetch Env Release
+        id: env_release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          VERSION=$(grep '^VERSION=' ./components/ledger/.env.example | cut -d '=' -f2)
+          echo "LEDGER version: $VERSION"
+          echo "::set-output name=version::$VERSION"
+
       - name: Update LEDGER Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/ledger/.env.example
 
       - name: Update TRANSACTION Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/transaction/.env.example
 
       - name: Git Diff
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |
           git diff
 
       - name: Commit Changes
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
