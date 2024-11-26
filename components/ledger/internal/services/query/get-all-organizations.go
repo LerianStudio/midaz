@@ -6,14 +6,14 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 )
 
 // GetAllOrganizations fetch all Organizations from the repository
-func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.QueryHeader) ([]*mmodel.Organization, error) {
+func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Organization, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	logger.Infof("Retrieving organizations")
 
@@ -22,7 +22,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 		logger.Errorf("Error getting organizations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
@@ -31,7 +31,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter commonHTTP.Qu
 	if organizations != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
 		if err != nil {
-			return nil, common.ValidateBusinessError(cn.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrNoOrganizationsFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

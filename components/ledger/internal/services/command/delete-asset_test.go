@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )

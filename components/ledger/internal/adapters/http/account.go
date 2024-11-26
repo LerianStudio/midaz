@@ -5,7 +5,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -55,19 +55,19 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create Account on command", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created Account")
 
-	return commonHTTP.Created(c, account)
+	return http.Created(c, account)
 }
 
 // GetAllAccounts is a method that retrieves all Accounts.
@@ -96,7 +96,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	var portfolioID *uuid.UUID
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -119,14 +119,14 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Accounts by metadata")
 
 		pagination.SetItems(accounts)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Accounts ")
@@ -139,14 +139,14 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Accounts")
 
 	pagination.SetItems(accounts)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // GetAccountByID is a method that retrieves Account information by a given account id.
@@ -182,12 +182,12 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
 
-	return commonHTTP.OK(c, account)
+	return http.OK(c, account)
 }
 
 // UpdateAccount is a method that updates Account information.
@@ -226,7 +226,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
@@ -235,7 +235,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
@@ -244,12 +244,12 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Account with ID: %s", id.String())
 
-	return commonHTTP.OK(c, account)
+	return http.OK(c, account)
 }
 
 // DeleteAccountByID is a method that removes Account information by a given account id.
@@ -283,12 +283,12 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Account with ID: %s", id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }
 
 // TODO: Remove the following methods after the deprecation period.
@@ -329,12 +329,12 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created Account")
 
-	return commonHTTP.Created(c, account)
+	return http.Created(c, account)
 }
 
 // GetAllAccountsByIDFromPortfolio is a method that retrieves all Accounts by a given portfolio id.
@@ -364,7 +364,7 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 
 	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID.String())
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -378,14 +378,14 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 		if err != nil {
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Accounts by metadata")
 
 		pagination.SetItems(accounts)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Accounts ")
@@ -396,14 +396,14 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 	if err != nil {
 		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Accounts")
 
 	pagination.SetItems(accounts)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // GetAccountByIDFromPortfolio is a method that retrieves Account information by a given portfolio id and account id.
@@ -438,12 +438,12 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	return commonHTTP.OK(c, account)
+	return http.OK(c, account)
 }
 
 // UpdateAccountFromPortfolio is a method that updates Account information from a given portfolio id and account id.
@@ -483,19 +483,19 @@ func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) e
 	if err != nil {
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, &portfolioID, id)
 	if err != nil {
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	return commonHTTP.OK(c, account)
+	return http.OK(c, account)
 }
 
 // DeleteAccountByIDFromPortfolio is a method that removes Account information by a given portfolio id and account id.
@@ -526,10 +526,10 @@ func (handler *AccountHandler) DeleteAccountByIDFromPortfolio(c *fiber.Ctx) erro
 
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, &portfolioID, id); err != nil {
 		logger.Errorf("Failed to remove Account with Portfolio ID: %s and Account ID: %s, Error: %s", portfolioID.String(), id.String(), err.Error())
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }

@@ -2,10 +2,10 @@ package command
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {

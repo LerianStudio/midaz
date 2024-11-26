@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpointers"
@@ -44,9 +44,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
-		mopentelemetry.HandleSpanError(&span, "Failed to find asset", cn.ErrAssetCodeNotFound)
+		mopentelemetry.HandleSpanError(&span, "Failed to find asset", constant.ErrAssetCodeNotFound)
 
-		return nil, common.ValidateBusinessError(cn.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, common.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	var portfolioUUID uuid.UUID
@@ -71,13 +71,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find parent account", err)
 
-			return nil, common.ValidateBusinessError(cn.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		if acc.AssetCode != cai.AssetCode {
-			mopentelemetry.HandleSpanError(&span, "Failed to validate parent account", cn.ErrMismatchedAssetCode)
+			mopentelemetry.HandleSpanError(&span, "Failed to validate parent account", constant.ErrMismatchedAssetCode)
 
-			return nil, common.ValidateBusinessError(cn.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 	}
 

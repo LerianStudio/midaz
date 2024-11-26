@@ -5,7 +5,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -54,7 +54,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
@@ -63,12 +63,12 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created Asset")
 
-	return commonHTTP.Created(c, asset)
+	return http.Created(c, asset)
 }
 
 // GetAllAssets is a method that retrieves all Assets.
@@ -98,7 +98,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -114,14 +114,14 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Assets by metadata")
 
 		pagination.SetItems(assets)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Assets ")
@@ -134,14 +134,14 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Assets")
 
 	pagination.SetItems(assets)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
@@ -177,12 +177,12 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	return commonHTTP.OK(c, asset)
+	return http.OK(c, asset)
 }
 
 // UpdateAsset is a method that updates Asset information.
@@ -221,7 +221,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
@@ -230,7 +230,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
@@ -239,12 +239,12 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	return commonHTTP.OK(c, asset)
+	return http.OK(c, asset)
 }
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
@@ -278,10 +278,10 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }

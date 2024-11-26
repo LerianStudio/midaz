@@ -5,7 +5,7 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
@@ -244,11 +244,11 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove organization: "+cn.ErrActionNotPermitted.Error(), cn.ErrActionNotPermitted)
+		mopentelemetry.HandleSpanError(&span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
 
 		logger.Errorf("Failed to remove Organization with ID: %s in ", id.String())
 
-		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := common.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		return http.WithError(c, err)
 	}

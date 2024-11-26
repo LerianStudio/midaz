@@ -5,11 +5,11 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -54,19 +54,19 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create ledger on command", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created ledger")
 
-	return commonHTTP.Created(c, ledger)
+	return http.Created(c, ledger)
 }
 
 // GetLedgerByID is a method that retrieves Ledger information by a given id.
@@ -99,12 +99,12 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Ledger with ID: %s", id.String())
 
-	return commonHTTP.OK(c, ledger)
+	return http.OK(c, ledger)
 }
 
 // GetAllLedgers is a method that retrieves all ledgers.
@@ -129,7 +129,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -145,14 +145,14 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Ledgers by metadata")
 
 		pagination.SetItems(ledgers)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Ledgers ")
@@ -165,14 +165,14 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Ledgers")
 
 	pagination.SetItems(ledgers)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // UpdateLedger is a method that updates Ledger information.
@@ -209,7 +209,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
@@ -218,7 +218,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
@@ -227,12 +227,12 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Ledger with ID: %s", id.String())
 
-	return commonHTTP.OK(c, ledger)
+	return http.OK(c, ledger)
 }
 
 // DeleteLedgerByID is a method that removes Ledger information by a given id.
@@ -260,13 +260,13 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	if os.Getenv("ENV_NAME") == "production" {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", cn.ErrActionNotPermitted)
+		mopentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", constant.ErrActionNotPermitted)
 
 		logger.Errorf("Failed to remove Ledger with ID: %s in ", id.String())
 
-		err := common.ValidateBusinessError(cn.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
+		err := common.ValidateBusinessError(constant.ErrActionNotPermitted, reflect.TypeOf(mmodel.Ledger{}).Name())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
@@ -274,10 +274,10 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Ledeger with ID: %s", id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }

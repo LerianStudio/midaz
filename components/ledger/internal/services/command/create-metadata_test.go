@@ -3,11 +3,11 @@ package command
 import (
 	"context"
 	"errors"
-	mongodb2 "github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
 	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
@@ -15,13 +15,13 @@ import (
 
 // TestMetadataCreateSuccess is responsible to test MetadataCreate with success
 func TestMetadataCreateSuccess(t *testing.T) {
-	metadata := mongodb2.Metadata{ID: primitive.NewObjectID()}
+	metadata := mongodb.Metadata{ID: primitive.NewObjectID()}
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
-		MetadataRepo: mongodb2.NewMockRepository(gomock.NewController(t)),
+		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.MetadataRepo.(*mongodb2.MockRepository).
+	uc.MetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
 		Create(gomock.Any(), collection, &metadata).
 		Return(nil).
@@ -34,13 +34,13 @@ func TestMetadataCreateSuccess(t *testing.T) {
 // TestMetadataCreateError is responsible to test MetadataCreate with error
 func TestMetadataCreateError(t *testing.T) {
 	errMSG := "err to create metadata on mongodb"
-	metadata := mongodb2.Metadata{ID: primitive.NewObjectID()}
+	metadata := mongodb.Metadata{ID: primitive.NewObjectID()}
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
-		MetadataRepo: mongodb2.NewMockRepository(gomock.NewController(t)),
+		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
 	}
 
-	uc.MetadataRepo.(*mongodb2.MockRepository).
+	uc.MetadataRepo.(*mongodb.MockRepository).
 		EXPECT().
 		Create(gomock.Any(), collection, &metadata).
 		Return(errors.New(errMSG)).

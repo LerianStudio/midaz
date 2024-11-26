@@ -6,16 +6,16 @@ import (
 	"reflect"
 
 	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataAssets fetch all Assets from the repository
-func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*mmodel.Asset, error) {
+func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error) {
 	logger := common.NewLoggerFromContext(ctx)
 	tracer := common.NewTracerFromContext(ctx)
 
@@ -28,7 +28,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 	if err != nil || metadata == nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
 
-		return nil, common.ValidateBusinessError(cn.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		return nil, common.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -46,7 +46,7 @@ func (uc *UseCase) GetAllMetadataAssets(ctx context.Context, organizationID, led
 		logger.Errorf("Error getting assets on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, common.ValidateBusinessError(constant.ErrNoAssetsFound, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 
 		return nil, err

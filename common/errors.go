@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	cn "github.com/LerianStudio/midaz/common/constant"
+	"github.com/LerianStudio/midaz/common/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -234,7 +234,7 @@ type UnknownFields map[string]any
 func ValidateInternalError(err error, entityType string) error {
 	return InternalServerError{
 		EntityType: entityType,
-		Code:       cn.ErrInternalServer.Error(),
+		Code:       constant.ErrInternalServer.Error(),
 		Title:      "Internal Server Error",
 		Message:    "The server encountered an unexpected error. Please try again later or contact support.",
 		Err:        err,
@@ -259,7 +259,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 	if len(unknownFields) > 0 {
 		return ValidationUnknownFieldsError{
 			EntityType: entityType,
-			Code:       cn.ErrUnexpectedFieldsInTheRequest.Error(),
+			Code:       constant.ErrUnexpectedFieldsInTheRequest.Error(),
 			Title:      "Unexpected Fields in the Request",
 			Message:    "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.",
 			Fields:     unknownFields,
@@ -269,7 +269,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 	if len(requiredFields) > 0 {
 		return ValidationKnownFieldsError{
 			EntityType: entityType,
-			Code:       cn.ErrMissingFieldsInRequest.Error(),
+			Code:       constant.ErrMissingFieldsInRequest.Error(),
 			Title:      "Missing Fields in Request",
 			Message:    "Your request is missing one or more required fields. Please refer to the documentation to ensure all necessary fields are included in your request.",
 			Fields:     requiredFields,
@@ -278,7 +278,7 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 
 	return ValidationKnownFieldsError{
 		EntityType: entityType,
-		Code:       cn.ErrBadRequest.Error(),
+		Code:       constant.ErrBadRequest.Error(),
 		Title:      "Bad Request",
 		Message:    "The server could not understand the request due to malformed syntax. Please check the listed fields and try again.",
 		Fields:     knownInvalidFields,
@@ -296,424 +296,424 @@ func ValidateBadRequestFieldsError(requiredFields, knownInvalidFields map[string
 //   - error: The appropriate business error with code, title, and message.
 func ValidateBusinessError(err error, entityType string, args ...any) error {
 	errorMap := map[error]error{
-		cn.ErrDuplicateLedger: EntityConflictError{
+		constant.ErrDuplicateLedger: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrDuplicateLedger.Error(),
+			Code:       constant.ErrDuplicateLedger.Error(),
 			Title:      "Duplicate Ledger Error",
 			Message:    fmt.Sprintf("A ledger with the name %s already exists in the division %s. Please rename the ledger or choose a different division to attach it to.", args...),
 		},
-		cn.ErrLedgerNameConflict: EntityConflictError{
+		constant.ErrLedgerNameConflict: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrLedgerNameConflict.Error(),
+			Code:       constant.ErrLedgerNameConflict.Error(),
 			Title:      "Ledger Name Conflict",
 			Message:    fmt.Sprintf("A ledger named %s already exists in your organization. Please rename the ledger, or if you want to use the same name, consider creating a new ledger for a different division.", args...),
 		},
-		cn.ErrAssetNameOrCodeDuplicate: EntityConflictError{
+		constant.ErrAssetNameOrCodeDuplicate: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrAssetNameOrCodeDuplicate.Error(),
+			Code:       constant.ErrAssetNameOrCodeDuplicate.Error(),
 			Title:      "Asset Name or Code Duplicate",
 			Message:    "An asset with the same name or code already exists in your ledger. Please modify the name or code of your new asset.",
 		},
-		cn.ErrCodeUppercaseRequirement: ValidationError{
+		constant.ErrCodeUppercaseRequirement: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrCodeUppercaseRequirement.Error(),
+			Code:       constant.ErrCodeUppercaseRequirement.Error(),
 			Title:      "Code Uppercase Requirement",
 			Message:    "The code must be in uppercase. Please ensure that the code is in uppercase format and try again.",
 		},
-		cn.ErrCurrencyCodeStandardCompliance: ValidationError{
+		constant.ErrCurrencyCodeStandardCompliance: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrCurrencyCodeStandardCompliance.Error(),
+			Code:       constant.ErrCurrencyCodeStandardCompliance.Error(),
 			Title:      "Currency Code Standard Compliance",
 			Message:    "Currency-type assets must comply with the ISO-4217 standard. Please use a currency code that conforms to ISO-4217 guidelines.",
 		},
-		cn.ErrUnmodifiableField: ValidationError{
+		constant.ErrUnmodifiableField: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrUnmodifiableField.Error(),
+			Code:       constant.ErrUnmodifiableField.Error(),
 			Title:      "Unmodifiable Field Error",
 			Message:    "Your request includes a field that cannot be modified. Please review your request and try again, removing any uneditable fields. Please refer to the documentation for guidance.",
 		},
-		cn.ErrEntityNotFound: EntityNotFoundError{
+		constant.ErrEntityNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrEntityNotFound.Error(),
+			Code:       constant.ErrEntityNotFound.Error(),
 			Title:      "Entity Not Found",
 			Message:    "No entity was found for the given ID. Please make sure to use the correct ID for the entity you are trying to manage.",
 		},
-		cn.ErrActionNotPermitted: ValidationError{
+		constant.ErrActionNotPermitted: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrActionNotPermitted.Error(),
+			Code:       constant.ErrActionNotPermitted.Error(),
 			Title:      "Action Not Permitted",
 			Message:    "The action you are attempting is not allowed in the current environment. Please refer to the documentation for guidance.",
 		},
-		cn.ErrAccountTypeImmutable: ValidationError{
+		constant.ErrAccountTypeImmutable: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrAccountTypeImmutable.Error(),
+			Code:       constant.ErrAccountTypeImmutable.Error(),
 			Title:      "Account Type Immutable",
 			Message:    "The account type specified cannot be modified. Please ensure the correct account type is being used and try again.",
 		},
-		cn.ErrInactiveAccountType: ValidationError{
+		constant.ErrInactiveAccountType: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInactiveAccountType.Error(),
+			Code:       constant.ErrInactiveAccountType.Error(),
 			Title:      "Inactive Account Type Error",
 			Message:    "The account type specified cannot be set to INACTIVE. Please ensure the correct account type is being used and try again.",
 		},
-		cn.ErrAccountBalanceDeletion: ValidationError{
+		constant.ErrAccountBalanceDeletion: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrAccountBalanceDeletion.Error(),
+			Code:       constant.ErrAccountBalanceDeletion.Error(),
 			Title:      "Account Balance Deletion Error",
 			Message:    "An account or sub-account cannot be deleted if it has a remaining balance. Please ensure all remaining balances are transferred to another account before attempting to delete.",
 		},
 
-		cn.ErrAccountBalanceDeletion: ValidationError{
+		constant.ErrAccountBalanceDeletion: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrAccountBalanceDeletion.Error(),
+			Code:       constant.ErrAccountBalanceDeletion.Error(),
 			Title:      "Account Balance Deletion Error",
 			Message:    "An account or sub-account cannot be deleted if it has a remaining balance. Please ensure all remaining balances are transferred to another account before attempting to delete.",
 		},
-		cn.ErrResourceAlreadyDeleted: ValidationError{
+		constant.ErrResourceAlreadyDeleted: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrResourceAlreadyDeleted.Error(),
+			Code:       constant.ErrResourceAlreadyDeleted.Error(),
 			Title:      "Resource Already Deleted",
 			Message:    "The resource you are trying to delete has already been deleted. Ensure you are using the correct ID and try again.",
 		},
-		cn.ErrProductIDInactive: ValidationError{
+		constant.ErrProductIDInactive: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrProductIDInactive.Error(),
+			Code:       constant.ErrProductIDInactive.Error(),
 			Title:      "Product ID Inactive",
 			Message:    "The Product ID you are attempting to use is inactive. Please use another Product ID and try again.",
 		},
-		cn.ErrDuplicateProductName: EntityConflictError{
+		constant.ErrDuplicateProductName: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrDuplicateProductName.Error(),
+			Code:       constant.ErrDuplicateProductName.Error(),
 			Title:      "Duplicate Product Name Error",
 			Message:    fmt.Sprintf("A product with the name %s already exists for this ledger ID %s. Please try again with a different ledger or name.", args...),
 		},
-		cn.ErrBalanceRemainingDeletion: UnprocessableOperationError{
+		constant.ErrBalanceRemainingDeletion: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       cn.ErrBalanceRemainingDeletion.Error(),
+			Code:       constant.ErrBalanceRemainingDeletion.Error(),
 			Title:      "Balance Remaining Deletion Error",
 			Message:    "The asset cannot be deleted because there is a remaining balance. Please ensure all balances are cleared before attempting to delete again.",
 		},
-		cn.ErrInvalidScriptFormat: EntityConflictError{
+		constant.ErrInvalidScriptFormat: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidScriptFormat.Error(),
+			Code:       constant.ErrInvalidScriptFormat.Error(),
 			Title:      "Invalid Script Format Error",
 			Message:    "The script provided in your request is invalid or in an unsupported format. Please verify the script format and try again.",
 		},
-		cn.ErrInsufficientFunds: UnprocessableOperationError{
+		constant.ErrInsufficientFunds: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       cn.ErrInsufficientFunds.Error(),
+			Code:       constant.ErrInsufficientFunds.Error(),
 			Title:      "Insufficient Funds Error",
 			Message:    "The transaction could not be completed due to insufficient funds in the account. Please add sufficient funds to your account and try again.",
 		},
-		cn.ErrAccountIneligibility: UnprocessableOperationError{
+		constant.ErrAccountIneligibility: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       cn.ErrAccountIneligibility.Error(),
+			Code:       constant.ErrAccountIneligibility.Error(),
 			Title:      "Account Ineligibility Error",
 			Message:    "One or more accounts listed in the transaction are not eligible to participate. Please review the account statuses and try again.",
 		},
-		cn.ErrAliasUnavailability: EntityConflictError{
+		constant.ErrAliasUnavailability: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrAliasUnavailability.Error(),
+			Code:       constant.ErrAliasUnavailability.Error(),
 			Title:      "Alias Unavailability Error",
 			Message:    fmt.Sprintf("The alias %s is already in use. Please choose a different alias and try again.", args...),
 		},
-		cn.ErrParentTransactionIDNotFound: EntityNotFoundError{
+		constant.ErrParentTransactionIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrParentTransactionIDNotFound.Error(),
+			Code:       constant.ErrParentTransactionIDNotFound.Error(),
 			Title:      "Parent Transaction ID Not Found",
 			Message:    fmt.Sprintf("The parentTransactionId %s does not correspond to any existing transaction. Please review the ID and try again.", args...),
 		},
-		cn.ErrImmutableField: ValidationError{
+		constant.ErrImmutableField: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrImmutableField.Error(),
+			Code:       constant.ErrImmutableField.Error(),
 			Title:      "Immutable Field Error",
 			Message:    fmt.Sprintf("The %s field cannot be modified. Please remove this field from your request and try again.", args...),
 		},
-		cn.ErrTransactionTimingRestriction: UnprocessableOperationError{
+		constant.ErrTransactionTimingRestriction: UnprocessableOperationError{
 			EntityType: entityType,
-			Code:       cn.ErrTransactionTimingRestriction.Error(),
+			Code:       constant.ErrTransactionTimingRestriction.Error(),
 			Title:      "Transaction Timing Restriction",
 			Message:    fmt.Sprintf("You can only perform another transaction using %s of %f from %s to %s after %s. Please wait until the specified time to try again.", args...),
 		},
-		cn.ErrAccountStatusTransactionRestriction: ValidationError{
+		constant.ErrAccountStatusTransactionRestriction: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrAccountStatusTransactionRestriction.Error(),
+			Code:       constant.ErrAccountStatusTransactionRestriction.Error(),
 			Title:      "Account Status Transaction Restriction",
 			Message:    "The current statuses of the source and/or destination accounts do not permit transactions. Change the account status(es) and try again.",
 		},
-		cn.ErrInsufficientAccountBalance: ValidationError{
+		constant.ErrInsufficientAccountBalance: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInsufficientAccountBalance.Error(),
+			Code:       constant.ErrInsufficientAccountBalance.Error(),
 			Title:      "Insufficient Account Balance Error",
 			Message:    fmt.Sprintf("The account %s does not have sufficient balance. Please try again with an amount that is less than or equal to the available balance.", args...),
 		},
-		cn.ErrTransactionMethodRestriction: ValidationError{
+		constant.ErrTransactionMethodRestriction: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrTransactionMethodRestriction.Error(),
+			Code:       constant.ErrTransactionMethodRestriction.Error(),
 			Title:      "Transaction Method Restriction",
 			Message:    fmt.Sprintf("Transactions involving %s are not permitted for the specified source and/or destination. Please try again using accounts that allow transactions with %s.", args...),
 		},
-		cn.ErrDuplicateTransactionTemplateCode: EntityConflictError{
+		constant.ErrDuplicateTransactionTemplateCode: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrDuplicateTransactionTemplateCode.Error(),
+			Code:       constant.ErrDuplicateTransactionTemplateCode.Error(),
 			Title:      "Duplicate Transaction Template Code Error",
 			Message:    fmt.Sprintf("A transaction template with the code %s already exists for your ledger. Please use a different code and try again.", args...),
 		},
-		cn.ErrDuplicateAssetPair: EntityConflictError{
+		constant.ErrDuplicateAssetPair: EntityConflictError{
 			EntityType: entityType,
-			Code:       cn.ErrDuplicateAssetPair.Error(),
+			Code:       constant.ErrDuplicateAssetPair.Error(),
 			Title:      "Duplicate Asset Pair Error",
 			Message:    fmt.Sprintf("A pair for the assets %s%s already exists with the ID %s. Please update the existing entry instead of creating a new one.", args...),
 		},
-		cn.ErrInvalidParentAccountID: ValidationError{
+		constant.ErrInvalidParentAccountID: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidParentAccountID.Error(),
+			Code:       constant.ErrInvalidParentAccountID.Error(),
 			Title:      "Invalid Parent Account ID",
 			Message:    "The specified parent account ID does not exist. Please verify the ID is correct and attempt your request again.",
 		},
-		cn.ErrMismatchedAssetCode: ValidationError{
+		constant.ErrMismatchedAssetCode: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrMismatchedAssetCode.Error(),
+			Code:       constant.ErrMismatchedAssetCode.Error(),
 			Title:      "Mismatched Asset Code",
 			Message:    "The parent account ID you provided is associated with a different asset code than the one specified in your request. Please make sure the asset code matches that of the parent account, or use a different parent account ID and try again.",
 		},
-		cn.ErrChartTypeNotFound: ValidationError{
+		constant.ErrChartTypeNotFound: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrChartTypeNotFound.Error(),
+			Code:       constant.ErrChartTypeNotFound.Error(),
 			Title:      "Chart Type Not Found",
 			Message:    fmt.Sprintf("The chart type %s does not exist. Please provide a valid chart type and refer to the documentation if you have any questions.", args...),
 		},
-		cn.ErrInvalidCountryCode: ValidationError{
+		constant.ErrInvalidCountryCode: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidCountryCode.Error(),
+			Code:       constant.ErrInvalidCountryCode.Error(),
 			Title:      "Invalid Country Code",
 			Message:    "The provided country code in the 'address.country' field does not conform to the ISO-3166 alpha-2 standard. Please provide a valid alpha-2 country code.",
 		},
-		cn.ErrInvalidCodeFormat: ValidationError{
+		constant.ErrInvalidCodeFormat: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidCodeFormat.Error(),
+			Code:       constant.ErrInvalidCodeFormat.Error(),
 			Title:      "Invalid Code Format",
 			Message:    "The 'code' field must be alphanumeric, in upper case, and must contain at least one letter. Please provide a valid code.",
 		},
-		cn.ErrAssetCodeNotFound: EntityNotFoundError{
+		constant.ErrAssetCodeNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrAssetCodeNotFound.Error(),
+			Code:       constant.ErrAssetCodeNotFound.Error(),
 			Title:      "Asset Code Not Found",
 			Message:    "The provided asset code does not exist in our records. Please verify the asset code and try again.",
 		},
-		cn.ErrPortfolioIDNotFound: EntityNotFoundError{
+		constant.ErrPortfolioIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrPortfolioIDNotFound.Error(),
+			Code:       constant.ErrPortfolioIDNotFound.Error(),
 			Title:      "Portfolio ID Not Found",
 			Message:    "The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again.",
 		},
-		cn.ErrProductIDNotFound: EntityNotFoundError{
+		constant.ErrProductIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrProductIDNotFound.Error(),
+			Code:       constant.ErrProductIDNotFound.Error(),
 			Title:      "Product ID Not Found",
 			Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
 		},
-		cn.ErrLedgerIDNotFound: EntityNotFoundError{
+		constant.ErrLedgerIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrLedgerIDNotFound.Error(),
+			Code:       constant.ErrLedgerIDNotFound.Error(),
 			Title:      "Ledger ID Not Found",
 			Message:    "The provided ledger ID does not exist in our records. Please verify the ledger ID and try again.",
 		},
-		cn.ErrOrganizationIDNotFound: EntityNotFoundError{
+		constant.ErrOrganizationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrOrganizationIDNotFound.Error(),
+			Code:       constant.ErrOrganizationIDNotFound.Error(),
 			Title:      "Organization ID Not Found",
 			Message:    "The provided organization ID does not exist in our records. Please verify the organization ID and try again.",
 		},
-		cn.ErrParentOrganizationIDNotFound: EntityNotFoundError{
+		constant.ErrParentOrganizationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrParentOrganizationIDNotFound.Error(),
+			Code:       constant.ErrParentOrganizationIDNotFound.Error(),
 			Title:      "Parent Organization ID Not Found",
 			Message:    "The provided parent organization ID does not exist in our records. Please verify the parent organization ID and try again.",
 		},
-		cn.ErrInvalidType: ValidationError{
+		constant.ErrInvalidType: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidType.Error(),
+			Code:       constant.ErrInvalidType.Error(),
 			Title:      "Invalid Type",
 			Message:    "The provided 'type' is not valid. Accepted types are currency, crypto, commodities, or others. Please provide a valid type.",
 		},
-		cn.ErrTokenMissing: UnauthorizedError{
+		constant.ErrTokenMissing: UnauthorizedError{
 			EntityType: entityType,
-			Code:       cn.ErrTokenMissing.Error(),
+			Code:       constant.ErrTokenMissing.Error(),
 			Title:      "Token Missing",
 			Message:    "A valid token must be provided in the request header. Please include a token and try again.",
 		},
-		cn.ErrInvalidToken: UnauthorizedError{
+		constant.ErrInvalidToken: UnauthorizedError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidToken.Error(),
+			Code:       constant.ErrInvalidToken.Error(),
 			Title:      "Invalid Token",
 			Message:    "The provided token is expired, invalid or malformed. Please provide a valid token and try again.",
 		},
-		cn.ErrInsufficientPrivileges: ForbiddenError{
+		constant.ErrInsufficientPrivileges: ForbiddenError{
 			EntityType: entityType,
-			Code:       cn.ErrInsufficientPrivileges.Error(),
+			Code:       constant.ErrInsufficientPrivileges.Error(),
 			Title:      "Insufficient Privileges",
 			Message:    "You do not have the necessary permissions to perform this action. Please contact your administrator if you believe this is an error.",
 		},
-		cn.ErrPermissionEnforcement: FailedPreconditionError{
+		constant.ErrPermissionEnforcement: FailedPreconditionError{
 			EntityType: entityType,
-			Code:       cn.ErrPermissionEnforcement.Error(),
+			Code:       constant.ErrPermissionEnforcement.Error(),
 			Title:      "Permission Enforcement Error",
 			Message:    "The enforcer is not configured properly. Please contact your administrator if you believe this is an error.",
 		},
-		cn.ErrJWKFetch: FailedPreconditionError{
+		constant.ErrJWKFetch: FailedPreconditionError{
 			EntityType: entityType,
-			Code:       cn.ErrJWKFetch.Error(),
+			Code:       constant.ErrJWKFetch.Error(),
 			Title:      "JWK Fetch Error",
 			Message:    "The JWK keys could not be fetched from the source. Please verify the source environment variable configuration and try again.",
 		},
-		cn.ErrInvalidDSLFileFormat: ValidationError{
+		constant.ErrInvalidDSLFileFormat: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidDSLFileFormat.Error(),
+			Code:       constant.ErrInvalidDSLFileFormat.Error(),
 			Title:      "Invalid DSL File Format",
 			Message:    fmt.Sprintf("The submitted DSL file %s is in an incorrect format. Please ensure that the file follows the expected structure and syntax.", args...),
 		},
-		cn.ErrEmptyDSLFile: ValidationError{
+		constant.ErrEmptyDSLFile: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrEmptyDSLFile.Error(),
+			Code:       constant.ErrEmptyDSLFile.Error(),
 			Title:      "Empty DSL File",
 			Message:    fmt.Sprintf("The submitted DSL file %s is empty. Please provide a valid file with content.", args...),
 		},
-		cn.ErrMetadataKeyLengthExceeded: ValidationError{
+		constant.ErrMetadataKeyLengthExceeded: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrMetadataKeyLengthExceeded.Error(),
+			Code:       constant.ErrMetadataKeyLengthExceeded.Error(),
 			Title:      "Metadata Key Length Exceeded",
 			Message:    fmt.Sprintf("The metadata key %s exceeds the maximum allowed length of %s characters. Please use a shorter key.", args...),
 		},
-		cn.ErrMetadataValueLengthExceeded: ValidationError{
+		constant.ErrMetadataValueLengthExceeded: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrMetadataValueLengthExceeded.Error(),
+			Code:       constant.ErrMetadataValueLengthExceeded.Error(),
 			Title:      "Metadata Value Length Exceeded",
 			Message:    fmt.Sprintf("The metadata value %s exceeds the maximum allowed length of %s characters. Please use a shorter value.", args...),
 		},
-		cn.ErrAccountIDNotFound: EntityNotFoundError{
+		constant.ErrAccountIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrAccountIDNotFound.Error(),
+			Code:       constant.ErrAccountIDNotFound.Error(),
 			Title:      "Account ID Not Found",
 			Message:    "The provided account ID does not exist in our records. Please verify the account ID and try again.",
 		},
-		cn.ErrIDsNotFoundForAccounts: EntityNotFoundError{
+		constant.ErrIDsNotFoundForAccounts: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrIDsNotFoundForAccounts.Error(),
+			Code:       constant.ErrIDsNotFoundForAccounts.Error(),
 			Title:      "IDs Not Found for Accounts",
 			Message:    "No accounts were found for the provided IDs. Please verify the IDs and try again.",
 		},
-		cn.ErrAssetIDNotFound: EntityNotFoundError{
+		constant.ErrAssetIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrAssetIDNotFound.Error(),
+			Code:       constant.ErrAssetIDNotFound.Error(),
 			Title:      "Asset ID Not Found",
 			Message:    "The provided asset ID does not exist in our records. Please verify the asset ID and try again.",
 		},
-		cn.ErrNoAssetsFound: EntityNotFoundError{
+		constant.ErrNoAssetsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoAssetsFound.Error(),
+			Code:       constant.ErrNoAssetsFound.Error(),
 			Title:      "No Assets Found",
 			Message:    "No assets were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrNoProductsFound: EntityNotFoundError{
+		constant.ErrNoProductsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoProductsFound.Error(),
+			Code:       constant.ErrNoProductsFound.Error(),
 			Title:      "No Products Found",
 			Message:    "No products were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrNoPortfoliosFound: EntityNotFoundError{
+		constant.ErrNoPortfoliosFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoPortfoliosFound.Error(),
+			Code:       constant.ErrNoPortfoliosFound.Error(),
 			Title:      "No Portfolios Found",
 			Message:    "No portfolios were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrNoOrganizationsFound: EntityNotFoundError{
+		constant.ErrNoOrganizationsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoOrganizationsFound.Error(),
+			Code:       constant.ErrNoOrganizationsFound.Error(),
 			Title:      "No Organizations Found",
 			Message:    "No organizations were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrNoLedgersFound: EntityNotFoundError{
+		constant.ErrNoLedgersFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoLedgersFound.Error(),
+			Code:       constant.ErrNoLedgersFound.Error(),
 			Title:      "No Ledgers Found",
 			Message:    "No ledgers were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrBalanceUpdateFailed: EntityNotFoundError{
+		constant.ErrBalanceUpdateFailed: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrBalanceUpdateFailed.Error(),
+			Code:       constant.ErrBalanceUpdateFailed.Error(),
 			Title:      "Balance Update Failed",
 			Message:    "The balance could not be updated for the specified account ID. Please verify the account ID and try again.",
 		},
-		cn.ErrNoAccountIDsProvided: EntityNotFoundError{
+		constant.ErrNoAccountIDsProvided: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoAccountIDsProvided.Error(),
+			Code:       constant.ErrNoAccountIDsProvided.Error(),
 			Title:      "No Account IDs Provided",
 			Message:    "No account IDs were provided for the balance update. Please provide valid account IDs and try again.",
 		},
-		cn.ErrFailedToRetrieveAccountsByAliases: EntityNotFoundError{
+		constant.ErrFailedToRetrieveAccountsByAliases: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrFailedToRetrieveAccountsByAliases.Error(),
+			Code:       constant.ErrFailedToRetrieveAccountsByAliases.Error(),
 			Title:      "Failed To Retrieve Accounts By Aliases",
 			Message:    "The accounts could not be retrieved using the specified aliases. Please verify the aliases for accuracy and try again.",
 		},
-		cn.ErrNoAccountsFound: EntityNotFoundError{
+		constant.ErrNoAccountsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoAccountsFound.Error(),
+			Code:       constant.ErrNoAccountsFound.Error(),
 			Title:      "No Accounts Found",
 			Message:    "No accounts were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrInvalidPathParameter: ValidationError{
+		constant.ErrInvalidPathParameter: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidPathParameter.Error(),
+			Code:       constant.ErrInvalidPathParameter.Error(),
 			Title:      "Invalid Path Parameter",
 			Message:    fmt.Sprintf("One or more path parameters are in an incorrect format. Please check the following parameters %s and ensure they meet the required format before trying again.", args),
 		},
-		cn.ErrInvalidAccountType: ValidationError{
+		constant.ErrInvalidAccountType: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidAccountType.Error(),
+			Code:       constant.ErrInvalidAccountType.Error(),
 			Title:      "Invalid Account Type",
 			Message:    "The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
 		},
-		cn.ErrInvalidMetadataNesting: ValidationError{
+		constant.ErrInvalidMetadataNesting: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidMetadataNesting.Error(),
+			Code:       constant.ErrInvalidMetadataNesting.Error(),
 			Title:      "Invalid Metadata Nesting",
 			Message:    fmt.Sprintf("The metadata object cannot contain nested values. Please ensure that the value %s is not nested and try again.", args...),
 		},
-		cn.ErrOperationIDNotFound: EntityNotFoundError{
+		constant.ErrOperationIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrOperationIDNotFound.Error(),
+			Code:       constant.ErrOperationIDNotFound.Error(),
 			Title:      "Operation ID Not Found",
 			Message:    "The provided operation ID does not exist in our records. Please verify the operation ID and try again.",
 		},
-		cn.ErrNoOperationsFound: EntityNotFoundError{
+		constant.ErrNoOperationsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoOperationsFound.Error(),
+			Code:       constant.ErrNoOperationsFound.Error(),
 			Title:      "No Operations Found",
 			Message:    "No operations were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrTransactionIDNotFound: EntityNotFoundError{
+		constant.ErrTransactionIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrTransactionIDNotFound.Error(),
+			Code:       constant.ErrTransactionIDNotFound.Error(),
 			Title:      "Transaction ID Not Found",
 			Message:    "The provided transaction ID does not exist in our records. Please verify the transaction ID and try again.",
 		},
-		cn.ErrNoTransactionsFound: EntityNotFoundError{
+		constant.ErrNoTransactionsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       cn.ErrNoTransactionsFound.Error(),
+			Code:       constant.ErrNoTransactionsFound.Error(),
 			Title:      "No Transactions Found",
 			Message:    "No transactions were found in the search. Please review the search criteria and try again.",
 		},
-		cn.ErrInvalidTransactionType: ValidationError{
+		constant.ErrInvalidTransactionType: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrInvalidTransactionType.Error(),
+			Code:       constant.ErrInvalidTransactionType.Error(),
 			Title:      "Invalid Transaction Type",
 			Message:    fmt.Sprintf("Only one transaction type ('amount', 'share', or 'remaining') must be specified in the '%s' field for each entry. Please review your input and try again.", args...),
 		},
-		cn.ErrTransactionValueMismatch: ValidationError{
+		constant.ErrTransactionValueMismatch: ValidationError{
 			EntityType: entityType,
-			Code:       cn.ErrTransactionValueMismatch.Error(),
+			Code:       constant.ErrTransactionValueMismatch.Error(),
 			Title:      "Transaction Value Mismatch",
 			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
 		},

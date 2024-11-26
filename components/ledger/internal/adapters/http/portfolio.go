@@ -5,7 +5,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -54,19 +54,19 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create Portfolio on command", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created Portfolio")
 
-	return commonHTTP.Created(c, portfolio)
+	return http.Created(c, portfolio)
 }
 
 // GetAllPortfolios is a method that retrieves all Portfolios.
@@ -94,7 +94,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID.String(), ledgerID.String())
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -110,14 +110,14 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Portfolios by metadata")
 
 		pagination.SetItems(portfolios)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Portfolios")
@@ -130,14 +130,14 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Portfolios, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Portfolios")
 
 	pagination.SetItems(portfolios)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
@@ -173,12 +173,12 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
 
-	return commonHTTP.OK(c, portfolio)
+	return http.OK(c, portfolio)
 }
 
 // UpdatePortfolio is a method that updates Portfolio information.
@@ -216,7 +216,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdatePortfolioByID(ctx, organizationID, ledgerID, id, payload)
@@ -225,7 +225,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Portfolio with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
@@ -234,12 +234,12 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
 
-	return commonHTTP.OK(c, portfolio)
+	return http.OK(c, portfolio)
 }
 
 // DeletePortfolioByID is a method that removes Portfolio information by a given ids.
@@ -273,10 +273,10 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Portfolio with Ledger ID: %s and Portfolio ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Portfolio with Ledger ID: %s and Portfolio ID: %s", ledgerID.String(), id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }

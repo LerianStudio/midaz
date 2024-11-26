@@ -5,7 +5,7 @@ import (
 	"github.com/LerianStudio/midaz/common/mmodel"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/common/mpostgres"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -52,19 +52,19 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	product, err := handler.Command.CreateProduct(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create Product on command", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully created Product")
 
-	return commonHTTP.Created(c, product)
+	return http.Created(c, product)
 }
 
 // GetAllProducts is a method that retrieves all Products.
@@ -92,7 +92,7 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Get Products with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
-	headerParams := commonHTTP.ValidateParameters(c.Queries())
+	headerParams := http.ValidateParameters(c.Queries())
 
 	pagination := mpostgres.Pagination{
 		Limit: headerParams.Limit,
@@ -108,14 +108,14 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve all Products, Error: %s", err.Error())
 
-			return commonHTTP.WithError(c, err)
+			return http.WithError(c, err)
 		}
 
 		logger.Infof("Successfully retrieved all Products by metadata")
 
 		pagination.SetItems(products)
 
-		return commonHTTP.OK(c, pagination)
+		return http.OK(c, pagination)
 	}
 
 	logger.Infof("Initiating retrieval of all Products ")
@@ -128,14 +128,14 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve all Products, Error: %s", err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved all Products")
 
 	pagination.SetItems(products)
 
-	return commonHTTP.OK(c, pagination)
+	return http.OK(c, pagination)
 }
 
 // GetProductByID is a method that retrieves Product information by a given id.
@@ -170,12 +170,12 @@ func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully retrieved Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	return commonHTTP.OK(c, product)
+	return http.OK(c, product)
 }
 
 // UpdateProduct is a method that updates Product information.
@@ -213,7 +213,7 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateProductByID(ctx, organizationID, ledgerID, id, payload)
@@ -222,7 +222,7 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to update Product with ID: %s, Error: %s", id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	product, err := handler.Query.GetProductByID(ctx, organizationID, ledgerID, id)
@@ -231,12 +231,12 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully updated Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	return commonHTTP.OK(c, product)
+	return http.OK(c, product)
 }
 
 // DeleteProductByID is a method that removes Product information by a given ids.
@@ -270,10 +270,10 @@ func (handler *ProductHandler) DeleteProductByID(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to remove Product with Ledger ID: %s and Product ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
-		return commonHTTP.WithError(c, err)
+		return http.WithError(c, err)
 	}
 
 	logger.Infof("Successfully removed Product with Organization ID: %s and Ledger ID: %s and Product ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
-	return commonHTTP.NoContent(c)
+	return http.NoContent(c)
 }
