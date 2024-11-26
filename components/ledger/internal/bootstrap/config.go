@@ -11,8 +11,8 @@ import (
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/http"
+	grpcin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/in"
+	httpin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
@@ -192,41 +192,41 @@ func InitServers() *Service {
 		RedisRepo:        redisConsumerRepository,
 	}
 
-	accountHandler := &http.AccountHandler{
+	accountHandler := &httpin.AccountHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	portfolioHandler := &http.PortfolioHandler{
+	portfolioHandler := &httpin.PortfolioHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	ledgerHandler := &http.LedgerHandler{
+	ledgerHandler := &httpin.LedgerHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	assetHandler := &http.AssetHandler{
+	assetHandler := &httpin.AssetHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	organizationHandler := &http.OrganizationHandler{
+	organizationHandler := &httpin.OrganizationHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	productHandler := &http.ProductHandler{
+	productHandler := &httpin.ProductHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	httpApp := http.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
-	grpcApp := grpc.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
+	grpcApp := grpcin.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
 
 	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
 
