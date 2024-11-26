@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mgrpc"
 	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+
 	"github.com/google/uuid"
 )
 

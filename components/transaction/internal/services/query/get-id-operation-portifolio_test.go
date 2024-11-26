@@ -3,12 +3,13 @@ package query
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetOperationByPortfolio(t *testing.T) {

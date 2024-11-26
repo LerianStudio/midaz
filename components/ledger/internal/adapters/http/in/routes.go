@@ -1,12 +1,13 @@
 package in
 
 import (
+	_ "github.com/LerianStudio/midaz/components/ledger/api"
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	_ "github.com/LerianStudio/midaz/components/ledger/api"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/swaggo/fiber-swagger"

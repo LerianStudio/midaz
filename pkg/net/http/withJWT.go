@@ -3,22 +3,19 @@ package http
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"strings"
 	"sync"
 	"time"
 
-	cn "github.com/LerianStudio/midaz/pkg/constant"
-
 	"github.com/LerianStudio/midaz/pkg"
-	"google.golang.org/grpc/status"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-
+	cn "github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
-	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 
+	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt"
 	"github.com/lestrrat-go/jwx/jwk"

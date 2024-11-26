@@ -10,10 +10,10 @@
 package repository
 
 import (
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockAccount is a mock of Account interface.

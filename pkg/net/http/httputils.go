@@ -2,17 +2,17 @@ package http
 
 import (
 	"bytes"
+	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/LerianStudio/midaz/pkg"
 	cn "github.com/LerianStudio/midaz/pkg/constant"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/gofiber/fiber/v2"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // QueryHeader entity from query parameter from get apis

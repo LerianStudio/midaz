@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz/components/transaction/api"
+
 	"github.com/gofiber/fiber/v2"
 )
 

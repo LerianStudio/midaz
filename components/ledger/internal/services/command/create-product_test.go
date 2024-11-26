@@ -3,13 +3,14 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestCreateProductSuccess is responsible to test CreateProduct with success

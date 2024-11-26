@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 type ledger struct {

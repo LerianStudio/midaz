@@ -1,9 +1,10 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/pkg"
 	"log"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg"
 
 	"github.com/gofiber/fiber/v2"
 )

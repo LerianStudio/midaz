@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
+
 	amqp "github.com/rabbitmq/amqp091-go"
-	"go.uber.org/zap"
 )
 
 // RabbitMQConnection is a hub which deal with rabbitmq connections.

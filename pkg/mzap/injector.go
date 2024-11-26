@@ -2,13 +2,12 @@ package mzap
 
 import (
 	"go.opentelemetry.io/contrib/bridges/otelzap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"log"
 	"os"
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // InitializeLogger initializes our log layer and returns it

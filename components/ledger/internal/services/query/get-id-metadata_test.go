@@ -3,15 +3,16 @@ package query
 import (
 	"context"
 	"errors"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.uber.org/mock/gomock"
 	"reflect"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
+
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
 )
 
 // TestMetadataFindByEntitySuccess is responsible to test MetadataFindByEntity with success

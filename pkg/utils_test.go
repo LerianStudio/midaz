@@ -1,8 +1,9 @@
 package pkg
 
 import (
-	"github.com/google/uuid"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func Test_GenerateUUIDv7(t *testing.T) {

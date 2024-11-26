@@ -3,13 +3,14 @@ package query
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllAccounts is responsible to test GetAllAccounts with success and error

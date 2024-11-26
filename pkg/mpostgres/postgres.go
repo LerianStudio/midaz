@@ -3,18 +3,18 @@ package mpostgres
 import (
 	"database/sql"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/mlog"
+	"go.uber.org/zap"
 	"net/url"
 	"path/filepath"
+	// File system migration source. We need to import it to be able to use it as source in migrate.NewWithSourceInstance
+
+	"github.com/LerianStudio/midaz/pkg/mlog"
 
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"go.uber.org/zap"
-
-	// File system migration source. We need to import it to be able to use it as source in migrate.NewWithSourceInstance
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // PostgresConnection is a hub which deal with postgres connections.

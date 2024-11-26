@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
+
 	"github.com/redis/go-redis/v9"
 )
 

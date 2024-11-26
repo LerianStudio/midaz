@@ -4,9 +4,10 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+
 	"github.com/google/uuid"
 )
 

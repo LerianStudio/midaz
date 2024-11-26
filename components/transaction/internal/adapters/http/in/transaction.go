@@ -2,8 +2,14 @@ package in
 
 import (
 	"context"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
 	"reflect"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
@@ -13,14 +19,9 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // TransactionHandler struct that handle transaction

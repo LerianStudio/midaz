@@ -10,10 +10,10 @@
 package repository
 
 import (
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	model "github.com/LerianStudio/midaz/components/mdz/internal/model"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockAuth is a mock of Auth interface.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	"github.com/google/uuid"
 )
 

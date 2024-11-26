@@ -1,15 +1,16 @@
 package in
 
 import (
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 )
 
 // NewRouterGRPC registers routes to the grpc.

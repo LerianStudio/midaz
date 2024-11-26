@@ -4,11 +4,13 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 	"go.uber.org/zap"
 	"io"
 	"net/http"
+
+	"github.com/LerianStudio/midaz/pkg/mlog"
+
+	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
 )
 
 //go:embed certificates/token_jwt_key.pem

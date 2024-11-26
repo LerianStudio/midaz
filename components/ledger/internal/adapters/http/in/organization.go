@@ -1,20 +1,21 @@
 package in
 
 import (
+	"go.mongodb.org/mongo-driver/bson"
 	"os"
 	"reflect"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.

@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestDeletePortfolioByIDSuccess is responsible to test DeletePortfolioByID with success

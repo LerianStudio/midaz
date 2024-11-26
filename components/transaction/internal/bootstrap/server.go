@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/pkg/errors"
 )

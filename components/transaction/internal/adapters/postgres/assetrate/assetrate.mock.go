@@ -11,10 +11,10 @@ package assetrate
 
 import (
 	context "context"
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.

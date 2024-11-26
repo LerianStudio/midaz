@@ -2,19 +2,19 @@ package http
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	gid "github.com/google/uuid"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
-
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mlog"
+
 	"github.com/gofiber/fiber/v2"
+	gid "github.com/google/uuid"
 )
 
 // RequestInfo is a struct design to store http access log data.

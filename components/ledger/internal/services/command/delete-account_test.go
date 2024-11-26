@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestDeleteAccountByIDSuccess is responsible to test DeleteAccountByID with success

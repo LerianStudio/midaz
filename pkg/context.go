@@ -2,10 +2,12 @@ package pkg
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/pkg/mlog"
-	gid "github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/pkg/mlog"
+
+	gid "github.com/google/uuid"
 )
 
 type customContextKey string

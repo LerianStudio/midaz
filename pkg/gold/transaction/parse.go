@@ -6,6 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz/pkg/gold/parser"
 	"github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+
 	"github.com/antlr4-go/antlr/v4"
 )
 

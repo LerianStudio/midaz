@@ -5,13 +5,14 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
+
 	"github.com/google/uuid"
 )
 

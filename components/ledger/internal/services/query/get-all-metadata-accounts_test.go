@@ -3,16 +3,17 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
-	"testing"
-
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
-	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
+	"reflect"
+	"testing"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestGetAllMetadataAccounts is responsible to test TestGetAllMetadataAccounts with success and error

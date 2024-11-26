@@ -11,10 +11,10 @@ package mongodb
 
 import (
 	context "context"
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	http "github.com/LerianStudio/midaz/pkg/net/http"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.

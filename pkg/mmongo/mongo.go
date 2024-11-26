@@ -2,10 +2,11 @@ package mmongo
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/pkg/mlog"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
+
+	"github.com/LerianStudio/midaz/pkg/mlog"
 )
 
 // MongoConnection is a hub which deal with mongodb connections.

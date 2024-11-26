@@ -3,23 +3,20 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	gold "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 
-	cn "github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/google/uuid"
-
 	"github.com/LerianStudio/midaz/pkg"
-
-	"github.com/gofiber/fiber/v2"
+	cn "github.com/LerianStudio/midaz/pkg/constant"
+	gold "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
-
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"gopkg.in/go-playground/validator.v9"
 )
 

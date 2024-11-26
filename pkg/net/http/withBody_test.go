@@ -2,12 +2,14 @@ package http
 
 import (
 	"encoding/json"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/gofiber/fiber/v2"
-	"github.com/stretchr/testify/require"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/LerianStudio/midaz/pkg"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/require"
 )
 
 type SimpleStruct struct {

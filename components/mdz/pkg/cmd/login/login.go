@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+
 	"github.com/spf13/cobra"
 )
 

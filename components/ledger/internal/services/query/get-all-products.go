@@ -5,12 +5,13 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services"
+
 	"github.com/google/uuid"
 )
 

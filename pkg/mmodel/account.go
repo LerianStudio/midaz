@@ -1,8 +1,9 @@
 package mmodel
 
 import (
-	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"time"
+
+	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 )
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.

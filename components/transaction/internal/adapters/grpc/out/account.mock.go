@@ -11,11 +11,12 @@ package out
 
 import (
 	context "context"
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	account "github.com/LerianStudio/midaz/pkg/mgrpc/account"
+
 	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.

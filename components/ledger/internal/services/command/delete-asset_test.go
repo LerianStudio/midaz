@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestDeleteAssetByIDSuccess is responsible to test DeleteAssetByID with success

@@ -1,8 +1,9 @@
 package mzap
 
 import (
-	"github.com/LerianStudio/midaz/pkg/mlog"
 	"go.uber.org/zap"
+
+	"github.com/LerianStudio/midaz/pkg/mlog"
 )
 
 // ZapWithTraceLogger is a wrapper of otelzap.SugaredLogger.

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/bootstrap"
+	"github.com/LerianStudio/midaz/pkg"
 )
 
 // @title			Midaz Ledger API

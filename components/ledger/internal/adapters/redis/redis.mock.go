@@ -11,10 +11,9 @@ package redis
 
 import (
 	context "context"
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 	time "time"
-
-	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRedisRepository is a mock of RedisRepository interface.

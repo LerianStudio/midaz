@@ -4,9 +4,10 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+
 	"github.com/google/uuid"
 )
 

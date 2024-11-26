@@ -3,14 +3,15 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateProductByIDSuccess is responsible to test UpdateProductByID with success

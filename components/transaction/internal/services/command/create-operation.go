@@ -5,14 +5,14 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.

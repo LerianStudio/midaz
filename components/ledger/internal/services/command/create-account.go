@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
+
 	"github.com/google/uuid"
 )
 

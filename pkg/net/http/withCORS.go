@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 )

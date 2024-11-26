@@ -2,16 +2,16 @@ package mgrpc
 
 import (
 	"context"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	gmtdt "google.golang.org/grpc/metadata"
+	"log"
+
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	gmtdt "google.golang.org/grpc/metadata"
-	"log"
-
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // GRPCConnection is a struct which deal with gRPC connections.

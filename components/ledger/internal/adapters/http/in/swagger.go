@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz/components/ledger/api"
+
 	"github.com/gofiber/fiber/v2"
 )
 

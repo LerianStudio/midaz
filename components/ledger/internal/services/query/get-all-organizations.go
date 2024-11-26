@@ -5,11 +5,11 @@ import (
 	"errors"
 	"reflect"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 )
 
 // GetAllOrganizations fetch all Organizations from the repository

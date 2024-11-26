@@ -1,16 +1,18 @@
 package in
 
 import (
+	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AssetHandler struct contains a cqrs use case for managing asset in related operations.

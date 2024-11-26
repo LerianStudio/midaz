@@ -5,12 +5,13 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+
 	"github.com/google/uuid"
 )
 

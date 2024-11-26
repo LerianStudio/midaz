@@ -3,6 +3,7 @@ package login
 import (
 	"bytes"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
@@ -10,9 +11,9 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestRunE(t *testing.T) {

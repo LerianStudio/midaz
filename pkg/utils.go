@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/google/uuid"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -14,6 +13,8 @@ import (
 	"unicode"
 
 	cn "github.com/LerianStudio/midaz/pkg/constant"
+
+	"github.com/google/uuid"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.

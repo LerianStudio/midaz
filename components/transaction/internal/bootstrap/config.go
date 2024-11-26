@@ -3,15 +3,6 @@ package bootstrap
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mcasdoor"
-	"github.com/LerianStudio/midaz/pkg/mgrpc"
-	"github.com/LerianStudio/midaz/pkg/mmongo"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
-	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mredis"
-	"github.com/LerianStudio/midaz/pkg/mzap"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
@@ -22,6 +13,15 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mcasdoor"
+	"github.com/LerianStudio/midaz/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/pkg/mmongo"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mredis"
+	"github.com/LerianStudio/midaz/pkg/mzap"
 )
 
 const ApplicationName = "transaction"

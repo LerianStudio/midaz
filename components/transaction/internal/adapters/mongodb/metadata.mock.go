@@ -11,9 +11,8 @@ package mongodb
 
 import (
 	context "context"
-	reflect "reflect"
-
 	gomock "go.uber.org/mock/gomock"
+	reflect "reflect"
 )
 
 // MockRepository is a mock of Repository interface.

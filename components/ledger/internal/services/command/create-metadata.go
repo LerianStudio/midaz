@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/pkg"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {

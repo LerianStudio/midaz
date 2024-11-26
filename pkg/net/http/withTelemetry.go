@@ -2,10 +2,6 @@ package http
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/pkg"
-	cn "github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -13,6 +9,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"strings"
+
+	"github.com/LerianStudio/midaz/pkg"
+	cn "github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 type TelemetryMiddleware struct {

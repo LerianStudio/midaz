@@ -3,6 +3,9 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"strings"
 	"time"
 
@@ -11,9 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
