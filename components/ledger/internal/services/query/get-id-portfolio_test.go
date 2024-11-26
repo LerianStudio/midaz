@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,9 +14,9 @@ import (
 
 // TestGetPortfolioByIDSuccess is responsible to test GetPortfolioByID with success
 func TestGetPortfolioByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	p := &mmodel.Portfolio{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
@@ -40,9 +40,9 @@ func TestGetPortfolioByIDSuccess(t *testing.T) {
 
 // TestGetPortfolioByIDError is responsible to test GetPortfolioByID with error
 func TestGetPortfolioByIDError(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

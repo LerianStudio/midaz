@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,8 +14,8 @@ import (
 
 // TestGetAllProductsError is responsible to test GetAllProducts with success and error
 func TestGetAllProducts(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

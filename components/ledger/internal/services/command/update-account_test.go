@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,10 +15,10 @@ import (
 
 // TestUpdateAccountByIDSuccess is responsible to test UpdateAccountByID with success
 func TestUpdateAccountByIDSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	a := &mmodel.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),
@@ -41,9 +41,9 @@ func TestUpdateAccountByIDSuccess(t *testing.T) {
 
 // TestUpdateAccountByIDWithoutPortfolioSuccess is responsible to test UpdateAccountByIDWithoutPortfolio with success
 func TestUpdateAccountByIDWithoutPortfolioSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	a := &mmodel.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),
@@ -67,10 +67,10 @@ func TestUpdateAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 // TestUpdateAccountByIDError is responsible to test UpdateAccountByID with error
 func TestUpdateAccountByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	a := &mmodel.Account{
 		ID:        id.String(),
 		UpdatedAt: time.Now(),

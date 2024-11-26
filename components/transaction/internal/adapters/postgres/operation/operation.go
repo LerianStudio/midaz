@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -161,17 +161,17 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	*t = OperationPostgreSQLModel{
-		ID:                    common.GenerateUUIDv7().String(),
-		TransactionID:         operation.TransactionID,
-		Description:           operation.Description,
-		Type:                  operation.Type,
-		AssetCode:             operation.AssetCode,
-		ChartOfAccounts:       operation.ChartOfAccounts,
-		Amount:                operation.Amount.Amount,
-		AmountScale:           operation.Amount.Scale,
-		BalanceScale:          operation.Balance.Scale,
-		OnHoldBalance:         operation.Balance.OnHold,
-		AvailableBalance:      operation.Balance.Available,
+		ID:               pkg.GenerateUUIDv7().String(),
+		TransactionID:    operation.TransactionID,
+		Description:      operation.Description,
+		Type:             operation.Type,
+		AssetCode:        operation.AssetCode,
+		ChartOfAccounts:  operation.ChartOfAccounts,
+		Amount:           operation.Amount.Amount,
+		AmountScale:      operation.Amount.Scale,
+		BalanceScale:     operation.Balance.Scale,
+		OnHoldBalance:    operation.Balance.OnHold,
+		AvailableBalance: operation.Balance.Available,
 		BalanceScaleAfter:     operation.BalanceAfter.Scale,
 		AvailableBalanceAfter: operation.BalanceAfter.Available,
 		OnHoldBalanceAfter:    operation.BalanceAfter.OnHold,
@@ -191,7 +191,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 
-	if common.IsNilOrEmpty(operation.PortfolioID) {
+	if pkg.IsNilOrEmpty(operation.PortfolioID) {
 		t.PortfolioID = nil
 	}
 }

@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"
@@ -14,28 +14,28 @@ import (
 
 // CreateAssetRate creates a new asset rate and persists data in the repository.
 func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset_rate")
 	defer span.End()
 
 	logger.Infof("Trying to create asset rate: %v", cari)
 
-	if err := common.ValidateCode(cari.BaseAssetCode); err != nil {
+	if err := pkg.ValidateCode(cari.BaseAssetCode); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate base asset code", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
-	if err := common.ValidateCode(cari.CounterAssetCode); err != nil {
+	if err := pkg.ValidateCode(cari.CounterAssetCode); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate counter asset code", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	assetRateDB := &assetrate.AssetRate{
-		ID:               common.GenerateUUIDv7().String(),
+		ID:               pkg.GenerateUUIDv7().String(),
 		BaseAssetCode:    cari.BaseAssetCode,
 		CounterAssetCode: cari.CounterAssetCode,
 		Amount:           cari.Amount,
@@ -56,10 +56,10 @@ func (uc *UseCase) CreateAssetRate(ctx context.Context, organizationID, ledgerID
 	}
 
 	if cari.Metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
+		if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
 
-			return nil, common.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		}
 
 		meta := mongodb.Metadata{

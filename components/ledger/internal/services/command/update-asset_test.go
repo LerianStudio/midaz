@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,9 +15,9 @@ import (
 
 // TestUpdateAssetByIDSuccess is responsible to test UpdateAssetByID with success
 func TestUpdateAssetByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 	a := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
@@ -43,9 +43,9 @@ func TestUpdateAssetByIDSuccess(t *testing.T) {
 // TestUpdateAssetByIDError is responsible to test UpdateAssetByID with error
 func TestUpdateAssetByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	id := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 	a := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),

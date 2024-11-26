@@ -3,10 +3,10 @@ package out
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mgrpc"
-	proto "github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mgrpc"
+	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 )
 
@@ -40,7 +40,7 @@ func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
 
 // GetAccountsByIds returns a grpc accounts on ledger bi given ids.
 func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.get_accounts_by_ids")
 	defer span.End()
@@ -85,7 +85,7 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 
 // GetAccountsByAlias returns a grpc accounts on ledger bi given aliases.
 func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.get_accounts_by_alias")
 	defer span.End()
@@ -130,7 +130,7 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 
 // UpdateAccounts update a grpc accounts on ledger.
 func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.update_accounts")
 	defer span.End()

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/google/uuid"
@@ -15,8 +15,8 @@ import (
 
 // UpdateTransaction update a transaction from the repository by given id.
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction")
 	defer span.End()
@@ -34,14 +34,14 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating transaction on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
 		return nil, err
 	}
 
 	if len(uti.Metadata) > 0 {
-		if err := common.CheckMetadataKeyAndValueLength(100, uti.Metadata); err != nil {
+		if err := pkg.CheckMetadataKeyAndValueLength(100, uti.Metadata); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
 
 			return nil, err
@@ -62,8 +62,8 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, description string) (*transaction.Transaction, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
 	defer span.End()
@@ -86,7 +86,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		logger.Errorf("Error updating status transaction on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
 		return nil, err

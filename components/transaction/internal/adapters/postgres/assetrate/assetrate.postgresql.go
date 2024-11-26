@@ -6,10 +6,10 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/google/uuid"
 )
 
@@ -44,7 +44,7 @@ func NewAssetRatePostgreSQLRepository(pc *mpostgres.PostgresConnection) *AssetRa
 
 // Create a new AssetRate entity into Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset_rate")
 	defer span.End()
@@ -95,7 +95,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create asset rate. Rows affected is 0", err)
 
@@ -107,7 +107,7 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 
 // Find an AssetRate entity by its ID in Postgresql and returns it.
 func (r *AssetRatePostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, assetRateID uuid.UUID) (*AssetRate, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate")
 	defer span.End()
@@ -141,7 +141,7 @@ func (r *AssetRatePostgreSQLRepository) Find(ctx context.Context, organizationID
 		mopentelemetry.HandleSpanError(&span, "Failed to scan asset rate record", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 		}
 
 		return nil, err

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,12 +15,12 @@ import (
 
 // TestUpdatePortfolioByIDSuccess is responsible to test UpdatePortfolioByID with success
 func TestUpdatePortfolioByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	p := &mmodel.Portfolio{
 		ID:             id.String(),
-		EntityID:       common.GenerateUUIDv7().String(),
+		EntityID:       pkg.GenerateUUIDv7().String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
 		UpdatedAt:      time.Now(),
@@ -44,13 +44,13 @@ func TestUpdatePortfolioByIDSuccess(t *testing.T) {
 // TestUpdatePortfolioByIDError is responsible to test UpdatePortfolioByID with error
 func TestUpdatePortfolioByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	p := &mmodel.Portfolio{
 		ID:             id.String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		EntityID:       common.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		EntityID:       pkg.GenerateUUIDv7().String(),
 		LedgerID:       ledgerID.String(),
 		UpdatedAt:      time.Now(),
 	}

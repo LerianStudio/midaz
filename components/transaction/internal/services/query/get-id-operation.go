@@ -4,16 +4,16 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/google/uuid"
 )
 
 // GetOperationByID gets data in the repository.
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_by_id")
 	defer span.End()

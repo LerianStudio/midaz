@@ -5,20 +5,20 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	goldModel "github.com/LerianStudio/midaz/common/gold/transaction/model"
-	"github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
 func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *goldModel.Transaction, validate goldModel.Responses, result chan []*operation.Operation, err chan error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation")
 	defer span.End()
@@ -68,7 +68,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 				}
 
 				description := fromTo[i].Description
-				if common.IsNilOrEmpty(&fromTo[i].Description) {
+				if pkg.IsNilOrEmpty(&fromTo[i].Description) {
 					description = dsl.Description
 				}
 
@@ -80,7 +80,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 				}
 
 				save := &operation.Operation{
-					ID:              common.GenerateUUIDv7().String(),
+					ID:              pkg.GenerateUUIDv7().String(),
 					TransactionID:   transactionID,
 					Description:     description,
 					Type:            typeOperation,
@@ -127,7 +127,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 // createMetadata func that create metadata into operations
 func (uc *UseCase) createMetadata(ctx context.Context, logger mlog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
-		if err := common.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
+		if err := pkg.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
 			return err
 		}
 

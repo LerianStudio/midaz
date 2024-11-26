@@ -1,7 +1,7 @@
 package rabbitmq
 
 import (
-	"github.com/LerianStudio/midaz/common/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 

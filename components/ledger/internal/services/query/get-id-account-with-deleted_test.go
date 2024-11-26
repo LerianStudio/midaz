@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mpointers"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -16,10 +16,10 @@ import (
 
 // TestGetAccountByIDWithDeletedSuccess is responsible to test GetAccountByIDWithDeleted with success
 func TestGetAccountByIDWithDeletedSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 
 	a := &mmodel.Account{
 		ID:             id.String(),
@@ -46,9 +46,9 @@ func TestGetAccountByIDWithDeletedSuccess(t *testing.T) {
 
 // TestGetAccountByIDWithDeletedWithoutPortfolioSuccess is responsible to test GetAccountByIDWithDeleted without portfolio with success
 func TestGetAccountByIDWithDeletedWithoutPortfolioSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 
 	a := &mmodel.Account{
 		ID:             id.String(),
@@ -75,10 +75,10 @@ func TestGetAccountByIDWithDeletedWithoutPortfolioSuccess(t *testing.T) {
 
 // TestGetAccountByIDWithDeletedError is responsible to test GetAccountByIDWithDeleted with error
 func TestGetAccountByIDWithDeletedError(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 
 	errMSG := "errDatabaseItemNotFound"
 

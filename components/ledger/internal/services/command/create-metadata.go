@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 )
 
 func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	logger.Infof("Trying to create metadata for %s: %v", entityName, entityID)
 

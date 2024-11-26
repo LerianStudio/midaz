@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -18,7 +18,7 @@ func TestGetAllLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	organizationID := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -57,7 +57,7 @@ func NewOrganizationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Orga
 
 // Create inserts a new Organization entity into Postgresql and returns the created Organization.
 func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_organization")
 	defer span.End()
@@ -121,7 +121,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create organization. Rows affected is 0", err)
 
@@ -133,7 +133,7 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 // Update an Organization entity into Postgresql and returns the Organization updated.
 func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_organization")
 	defer span.End()
@@ -152,17 +152,17 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 	var args []any
 
-	if !common.IsNilOrEmpty(organization.ParentOrganizationID) {
+	if !pkg.IsNilOrEmpty(organization.ParentOrganizationID) {
 		updates = append(updates, "parent_organization_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.ParentOrganizationID)
 	}
 
-	if !common.IsNilOrEmpty(&organization.LegalName) {
+	if !pkg.IsNilOrEmpty(&organization.LegalName) {
 		updates = append(updates, "legal_name = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.LegalName)
 	}
 
-	if !common.IsNilOrEmpty(organization.DoingBusinessAs) {
+	if !pkg.IsNilOrEmpty(organization.DoingBusinessAs) {
 		updates = append(updates, "doing_business_as = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.DoingBusinessAs)
 	}
@@ -227,7 +227,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update organization. Rows affected is 0", err)
 
@@ -239,7 +239,7 @@ func (r *OrganizationPostgreSQLRepository) Update(ctx context.Context, id uuid.U
 
 // Find retrieves an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_organization")
 	defer span.End()
@@ -267,7 +267,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
 
 		return nil, err
@@ -285,7 +285,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 
 // FindAll retrieves Organizations entities from the database.
 func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*mmodel.Organization, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
 	defer span.End()
@@ -303,8 +303,8 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -361,7 +361,7 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 
 // ListByIDs retrieves Organizations entities from the database using the provided IDs.
 func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_organizations_by_ids")
 	defer span.End()
@@ -421,7 +421,7 @@ func (r *OrganizationPostgreSQLRepository) ListByIDs(ctx context.Context, ids []
 
 // Delete removes an Organization entity from the database using the provided ID.
 func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_organization")
 	defer span.End()
@@ -452,7 +452,7 @@ func (r *OrganizationPostgreSQLRepository) Delete(ctx context.Context, id uuid.U
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete organization. Rows affected is 0", err)
 

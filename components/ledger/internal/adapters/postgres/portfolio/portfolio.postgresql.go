@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -57,7 +57,7 @@ func NewPortfolioPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Portfol
 
 // Create a new portfolio entity into Postgresql and returns it.
 func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_portfolio")
 	defer span.End()
@@ -114,7 +114,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create Portfolio. Rows affected is 0", err)
 
@@ -126,7 +126,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 
 // FindByIDEntity find portfolio from the database using the Entity id.
 func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio_by_id_entity")
 	defer span.End()
@@ -161,7 +161,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 		mopentelemetry.HandleSpanError(&span, "Failed to execute query", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -172,7 +172,7 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 
 // FindAll retrieves Portfolio entities from the database.
 func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Portfolio, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_portfolios")
 	defer span.End()
@@ -192,8 +192,8 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -209,7 +209,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
 	defer rows.Close()
 
@@ -247,7 +247,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 // Find retrieves a Portfolio entity from the database using the provided ID.
 func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Portfolio, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio")
 	defer span.End()
@@ -282,7 +282,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 		mopentelemetry.HandleSpanError(&span, "Failed to execute query", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 		}
 
 		return nil, err
@@ -293,7 +293,7 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 // ListByIDs retrieves Portfolios entities from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Portfolio, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_portfolios_by_ids")
 	defer span.End()
@@ -352,7 +352,7 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 // Update a Portfolio entity into Postgresql and returns the Portfolio updated.
 func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_portfolio")
 	defer span.End()
@@ -427,7 +427,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update Portfolio. Rows affected is 0", err)
 
@@ -439,7 +439,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Portfolio entity from the database using the provided IDs.
 func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_portfolio")
 	defer span.End()
@@ -471,7 +471,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete Portfolio. Rows affected is 0", err)
 

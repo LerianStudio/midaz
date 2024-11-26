@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,9 +14,9 @@ import (
 
 // TestGetAllAccounts is responsible to test GetAllAccounts with success and error
 func TestGetAllAccounts(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
 	limit := 10
 	page := 1
 
@@ -58,8 +58,8 @@ func TestGetAllAccounts(t *testing.T) {
 
 // TestGetAllAccountsWithoutPortfolio is responsible to test GetAllAccounts without portfolio with success and error
 func TestGetAllAccountsWithoutPortfolio(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"

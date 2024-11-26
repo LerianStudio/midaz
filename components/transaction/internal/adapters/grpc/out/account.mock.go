@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	account "github.com/LerianStudio/midaz/common/mgrpc/account"
+	account "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )

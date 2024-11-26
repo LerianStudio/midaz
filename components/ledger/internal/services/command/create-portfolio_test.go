@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,10 +15,10 @@ import (
 // TestCreatePortfolioSuccess is responsible to test CreatePortfolio with success
 func TestCreatePortfolioSuccess(t *testing.T) {
 	p := &mmodel.Portfolio{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		EntityID:       common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		EntityID:       pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -40,10 +40,10 @@ func TestCreatePortfolioSuccess(t *testing.T) {
 func TestCreatePortfolioError(t *testing.T) {
 	errMSG := "err to create portfolio on database"
 	p := &mmodel.Portfolio{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		EntityID:       common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		EntityID:       pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

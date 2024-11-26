@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,9 +14,9 @@ import (
 // TestCreateAssetRateSuccess is responsible to test CreateAssetRate with success
 func TestCreateAssetRateSuccess(t *testing.T) {
 	assetRate := &assetrate.AssetRate{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -38,9 +38,9 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 func TestCreateAssetRateError(t *testing.T) {
 	errMSG := "err to create asset rate on database"
 	assetRate := &assetrate.AssetRate{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

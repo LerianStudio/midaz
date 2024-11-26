@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,9 +14,9 @@ import (
 // TestCreateTransactionSuccess is responsible to test CreateTransaction with success
 func TestCreateTransactionSuccess(t *testing.T) {
 	tran := &transaction.Transaction{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -38,11 +38,11 @@ func TestCreateTransactionSuccess(t *testing.T) {
 func TestCreateTransactionError(t *testing.T) {
 	errMSG := "err to create tran on database"
 
-	ID := common.GenerateUUIDv7().String()
+	ID := pkg.GenerateUUIDv7().String()
 	tran := &transaction.Transaction{
 		ID:                  ID,
-		OrganizationID:      common.GenerateUUIDv7().String(),
-		LedgerID:            common.GenerateUUIDv7().String(),
+		OrganizationID:      pkg.GenerateUUIDv7().String(),
+		LedgerID:            pkg.GenerateUUIDv7().String(),
 		ParentTransactionID: &ID,
 	}
 

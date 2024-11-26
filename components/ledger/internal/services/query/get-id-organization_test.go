@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,7 +14,7 @@ import (
 
 // TestGetOrganizationByIDSuccess is responsible to test GetOrganizationByID with success
 func TestGetOrganizationByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	o := &mmodel.Organization{ID: id.String()}
 
 	uc := UseCase{
@@ -34,7 +34,7 @@ func TestGetOrganizationByIDSuccess(t *testing.T) {
 
 // TestGetOrganizationByIDError is responsible to test GetOrganizationByID with error
 func TestGetOrganizationByIDError(t *testing.T) {
-	id := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

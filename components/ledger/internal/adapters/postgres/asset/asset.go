@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database
@@ -54,7 +54,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
 func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 	*t = AssetPostgreSQLModel{
-		ID:                common.GenerateUUIDv7().String(),
+		ID:                pkg.GenerateUUIDv7().String(),
 		Name:              asset.Name,
 		Type:              asset.Type,
 		Code:              asset.Code,

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,7 +16,7 @@ import (
 
 // TestMetadataFindByEntitySuccess is responsible to test MetadataFindByEntity with success
 func TestMetadataFindByEntitySuccess(t *testing.T) {
-	id := common.GenerateUUIDv7().String()
+	id := pkg.GenerateUUIDv7().String()
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	metadata := &mongodb.Metadata{ID: primitive.NewObjectID()}
 	uc := UseCase{
@@ -38,7 +38,7 @@ func TestMetadataFindByEntitySuccess(t *testing.T) {
 // TestMetadataFindByEntityError is responsible to test MetadataFindByEntity with error
 func TestMetadataFindByEntityError(t *testing.T) {
 	errMSG := "err to findByEntity metadata on mongodb"
-	id := common.GenerateUUIDv7().String()
+	id := pkg.GenerateUUIDv7().String()
 	collection := reflect.TypeOf(mmodel.Organization{}).Name()
 	uc := UseCase{
 		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),

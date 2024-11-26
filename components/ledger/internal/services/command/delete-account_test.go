@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -13,10 +13,10 @@ import (
 
 // TestDeleteAccountByIDSuccess is responsible to test DeleteAccountByID with success
 func TestDeleteAccountByIDSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	uc := UseCase{
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
@@ -33,9 +33,9 @@ func TestDeleteAccountByIDSuccess(t *testing.T) {
 
 // TestDeleteAccountByIDWithoutPortfolioSuccess is responsible to test DeleteAccountByID without portfolio with success
 func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	uc := UseCase{
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
@@ -52,10 +52,10 @@ func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 
 // TestDeleteAccountByIDError is responsible to test DeleteAccountByID with error
 func TestDeleteAccountByIDError(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

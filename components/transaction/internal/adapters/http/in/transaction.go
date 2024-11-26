@@ -4,15 +4,15 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	goldTransaction "github.com/LerianStudio/midaz/common/gold/transaction"
-	goldModel "github.com/LerianStudio/midaz/common/gold/transaction/model"
-	"github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -47,8 +47,8 @@ type TransactionHandler struct {
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction")
 	defer span.End()
@@ -82,8 +82,8 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_transaction_dsl")
 	defer span.End()
@@ -103,7 +103,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	errListener := goldTransaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := common.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate script in DSL", err)
 
@@ -114,7 +114,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	parserDSL, ok := parsed.(goldModel.Transaction)
 	if !ok {
-		err := common.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to parse script in DSL", err)
 
@@ -132,8 +132,8 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	tracer.Start(ctx, "handler.create_transaction_template")
 
@@ -149,8 +149,8 @@ func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
@@ -164,8 +164,8 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
@@ -192,8 +192,8 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_transaction")
 	defer span.End()
@@ -247,8 +247,8 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_transaction")
 	defer span.End()
@@ -287,8 +287,8 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_transactions")
 	defer span.End()
@@ -359,7 +359,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 // createTransaction func that received struct from DSL parsed and create Transaction
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.Logger, parserDSL goldModel.Transaction) error {
 	ctx := c.UserContext()
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -506,7 +506,7 @@ func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.
 	var aliases []string
 
 	for _, item := range input {
-		if common.IsUUID(item) {
+		if pkg.IsUUID(item) {
 			ids = append(ids, item)
 		} else {
 			aliases = append(aliases, item)

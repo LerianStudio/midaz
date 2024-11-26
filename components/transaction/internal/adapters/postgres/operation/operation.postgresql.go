@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -57,7 +57,7 @@ func NewOperationPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Operati
 
 // Create a new Operation entity into Postgresql and returns it.
 func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *Operation) (*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_operation")
 	defer span.End()
@@ -123,7 +123,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create operation. Rows affected is 0", err)
 
@@ -135,7 +135,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 
 // FindAll retrieves Operations entities from the database.
 func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, limit, page int) ([]*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
 	defer span.End()
@@ -156,8 +156,8 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Where(squirrel.Expr("transaction_id = ?", transactionID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -226,7 +226,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 // ListByIDs retrieves Operation entities from the database using the provided IDs.
 func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_all_operations_by_ids")
 	defer span.End()
@@ -300,7 +300,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 // Find retrieves a Operation entity from the database using the provided ID.
 func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operation")
 	defer span.End()
@@ -350,7 +350,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 		}
 
 		return nil, err
@@ -361,7 +361,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 
 // FindByAccount retrieves a Operation entity from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
@@ -411,7 +411,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 		}
 
 		return nil, err
@@ -422,7 +422,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 
 // FindByPortfolio retrieves a Operation entity from the database using the provided portfolio ID.
 func (r *OperationPostgreSQLRepository) FindByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_operations_by_portfolio")
 	defer span.End()
@@ -472,7 +472,7 @@ func (r *OperationPostgreSQLRepository) FindByPortfolio(ctx context.Context, org
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 		}
 
 		return nil, err
@@ -483,7 +483,7 @@ func (r *OperationPostgreSQLRepository) FindByPortfolio(ctx context.Context, org
 
 // Update a Operation entity into Postgresql and returns the Operation updated.
 func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_operation")
 	defer span.End()
@@ -546,7 +546,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update operation. Rows affected is 0", err)
 
@@ -558,7 +558,7 @@ func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organization
 
 // Delete removes a Operation entity from the database using the provided IDs.
 func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	trace := common.NewTracerFromContext(ctx)
+	trace := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := trace.Start(ctx, "postgres.delete_operation")
 	defer span.End()
@@ -590,7 +590,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete operation. Rows affected is 0", err)
 
@@ -602,7 +602,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
 func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, limit, page int) ([]*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
 	defer span.End()
@@ -623,8 +623,8 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.Expr("account_id = ?", accountID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -693,7 +693,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 // FindAllByPortfolio retrieves Operations entities from the database using the provided portfolio ID.
 func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*Operation, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_by_portfolio")
 	defer span.End()
@@ -714,8 +714,8 @@ func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, 
 		Where(squirrel.Expr("portfolio_id = ?", portfolioID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

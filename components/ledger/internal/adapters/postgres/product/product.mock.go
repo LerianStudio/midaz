@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	mmodel "github.com/LerianStudio/midaz/common/mmodel"
+	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )

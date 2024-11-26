@@ -1,10 +1,10 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
@@ -36,8 +36,8 @@ type OperationHandler struct {
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
 	defer span.End()
@@ -98,8 +98,8 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
 	defer span.End()
@@ -142,8 +142,8 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_portfolio")
 	defer span.End()
@@ -204,8 +204,8 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_portfolio")
 	defer span.End()
@@ -251,8 +251,8 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
 	defer span.End()

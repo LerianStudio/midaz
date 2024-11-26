@@ -5,15 +5,15 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
@@ -21,7 +21,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	logger.Infof("Trying to create organization: %v", coi)
 
 	var status mmodel.Status
-	if coi.Status.IsEmpty() || common.IsNilOrEmpty(&coi.Status.Code) {
+	if coi.Status.IsEmpty() || pkg.IsNilOrEmpty(&coi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -31,16 +31,16 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	status.Description = coi.Status.Description
 
-	if common.IsNilOrEmpty(coi.ParentOrganizationID) {
+	if pkg.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
 	}
 
 	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
 
-	if err := common.ValidateCountryAddress(coi.Address.Country); err != nil {
+	if err := pkg.ValidateCountryAddress(coi.Address.Country); err != nil {
 		mopentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanAddressValidation.End()

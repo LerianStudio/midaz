@@ -5,16 +5,16 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	span.End()
@@ -22,7 +22,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	logger.Infof("Trying to create ledger: %v", cli)
 
 	var status mmodel.Status
-	if cli.Status.IsEmpty() || common.IsNilOrEmpty(&cli.Status.Code) {
+	if cli.Status.IsEmpty() || pkg.IsNilOrEmpty(&cli.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}

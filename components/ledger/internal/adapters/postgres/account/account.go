@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
@@ -79,17 +79,17 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	*t = AccountPostgreSQLModel{
-		ID:                common.GenerateUUIDv7().String(),
-		Name:              account.Name,
-		ParentAccountID:   account.ParentAccountID,
-		EntityID:          account.EntityID,
-		AssetCode:         account.AssetCode,
-		OrganizationID:    account.OrganizationID,
-		LedgerID:          account.LedgerID,
-		ProductID:         account.ProductID,
-		AvailableBalance:  account.Balance.Available,
-		OnHoldBalance:     account.Balance.OnHold,
-		BalanceScale:      account.Balance.Scale,
+		ID:               pkg.GenerateUUIDv7().String(),
+		Name:             account.Name,
+		ParentAccountID:  account.ParentAccountID,
+		EntityID:         account.EntityID,
+		AssetCode:        account.AssetCode,
+		OrganizationID:   account.OrganizationID,
+		LedgerID:         account.LedgerID,
+		ProductID:        account.ProductID,
+		AvailableBalance: account.Balance.Available,
+		OnHoldBalance:    account.Balance.OnHold,
+		BalanceScale:     account.Balance.Scale,
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
 		Alias:             account.Alias,
@@ -106,7 +106,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		t.AllowReceiving = *account.AllowReceiving
 	}
 
-	if !common.IsNilOrEmpty(account.PortfolioID) {
+	if !pkg.IsNilOrEmpty(account.PortfolioID) {
 		t.PortfolioID = account.PortfolioID
 	}
 

@@ -3,14 +3,14 @@ package bootstrap
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mcasdoor"
-	"github.com/LerianStudio/midaz/common/mmongo"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/mrabbitmq"
-	"github.com/LerianStudio/midaz/common/mredis"
-	"github.com/LerianStudio/midaz/common/mzap"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mcasdoor"
+	"github.com/LerianStudio/midaz/pkg/mmongo"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mredis"
+	"github.com/LerianStudio/midaz/pkg/mzap"
 	grpcin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/in"
 	httpin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
@@ -79,7 +79,7 @@ type Config struct {
 func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := common.SetConfigFromEnvVars(cfg); err != nil {
+	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
 		panic(err)
 	}
 

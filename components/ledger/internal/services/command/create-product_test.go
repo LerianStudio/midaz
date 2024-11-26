@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,9 +15,9 @@ import (
 // TestCreateProductSuccess is responsible to test CreateProduct with success
 func TestCreateProductSuccess(t *testing.T) {
 	p := &mmodel.Product{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -39,9 +39,9 @@ func TestCreateProductSuccess(t *testing.T) {
 func TestCreateProductError(t *testing.T) {
 	errMSG := "err to create product on database"
 	p := &mmodel.Product{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

@@ -1,11 +1,11 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -35,8 +35,8 @@ type PortfolioHandler struct {
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
 	defer span.End()
@@ -84,8 +84,8 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_portfolios")
 	defer span.End()
@@ -155,8 +155,8 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_portfolio_by_id")
 	defer span.End()
@@ -197,8 +197,8 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
 	defer span.End()
@@ -256,8 +256,8 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_portfolio_by_id")
 	defer span.End()

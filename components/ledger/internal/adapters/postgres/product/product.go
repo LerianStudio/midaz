@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // ProductPostgreSQLModel represents the entity Product into SQL context in Database
@@ -51,7 +51,7 @@ func (t *ProductPostgreSQLModel) ToEntity() *mmodel.Product {
 // FromEntity converts an entity.Product to ProductPostgreSQLModel
 func (t *ProductPostgreSQLModel) FromEntity(product *mmodel.Product) {
 	*t = ProductPostgreSQLModel{
-		ID:                common.GenerateUUIDv7().String(),
+		ID:                pkg.GenerateUUIDv7().String(),
 		Name:              product.Name,
 		LedgerID:          product.LedgerID,
 		OrganizationID:    product.OrganizationID,

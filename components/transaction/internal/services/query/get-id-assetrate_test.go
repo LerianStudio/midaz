@@ -5,16 +5,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetAssetRateByID(t *testing.T) {
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
 		ID:             ID.String(),
@@ -39,9 +39,9 @@ func TestGetAssetRateByID(t *testing.T) {
 
 // TestGetAssetRateByIDError is responsible to test GetAssetRateByID with error
 func TestGetAssetRateByIDError(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

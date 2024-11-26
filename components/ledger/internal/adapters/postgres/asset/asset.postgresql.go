@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -57,7 +57,7 @@ func NewAssetPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AssetPostgr
 
 // Create a new asset entity into Postgresql and returns it.
 func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset")
 	defer span.End()
@@ -115,7 +115,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create asset. Rows affected is 0", err)
 
@@ -127,7 +127,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 
 // FindByNameOrCode retrieves Asset entities by name or code from the database.
 func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
 	defer span.End()
@@ -153,7 +153,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	spanQuery.End()
 
 	if rows.Next() {
-		err := common.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Asset name or code already exists", err)
 
@@ -165,7 +165,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 // FindAll retrieves Asset entities from the database.
 func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Asset, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
 	defer span.End()
@@ -185,8 +185,8 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -231,7 +231,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 
 // ListByIDs retrieves Assets entities from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
 	defer span.End()
@@ -281,7 +281,7 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 // Find retrieves an Asset entity from the database using the provided ID.
 func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset")
 	defer span.End()
@@ -307,7 +307,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 
 		return nil, err
@@ -318,7 +318,7 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 
 // Update an Asset entity into Postgresql and returns the Asset updated.
 func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, asset *mmodel.Asset) (*mmodel.Asset, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")
 	defer span.End()
@@ -393,7 +393,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update asset. Rows affected is 0", err)
 
@@ -405,7 +405,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 // Delete removes an Asset entity from the database using the provided IDs.
 func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_asset")
 	defer span.End()
@@ -437,7 +437,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete asset. Rows affected is 0", err)
 

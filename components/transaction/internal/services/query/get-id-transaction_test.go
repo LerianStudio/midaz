@@ -5,16 +5,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetTransactionByID(t *testing.T) {
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 
 	tran := &transaction.Transaction{
 		ID:             ID.String(),
@@ -39,9 +39,9 @@ func TestGetTransactionByID(t *testing.T) {
 
 func TestGetTransactionByIDError(t *testing.T) {
 	errMSG := "err to create account on database"
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 
 	uc := UseCase{
 		TransactionRepo: transaction.NewMockRepository(gomock.NewController(t)),

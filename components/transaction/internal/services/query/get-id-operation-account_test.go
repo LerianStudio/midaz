@@ -5,17 +5,17 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
 func TestGetOperationByAccount(t *testing.T) {
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	accountID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	accountID := pkg.GenerateUUIDv7()
 
 	o := &operation.Operation{
 		ID:             ID.String(),
@@ -41,10 +41,10 @@ func TestGetOperationByAccount(t *testing.T) {
 
 func TestGetOperationByAccountError(t *testing.T) {
 	errMSG := "err to get operation on database"
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	accountID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	accountID := pkg.GenerateUUIDv7()
 
 	uc := UseCase{
 		OperationRepo: operation.NewMockRepository(gomock.NewController(t)),

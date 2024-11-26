@@ -1,11 +1,11 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/common/mcasdoor"
-	"github.com/LerianStudio/midaz/common/mgrpc/account"
-	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg/mcasdoor"
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"google.golang.org/grpc"

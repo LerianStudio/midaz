@@ -5,32 +5,32 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpointers"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/google/uuid"
 )
 
 // CreateAccount creates a new account persists data in the repository.
 func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, cai *mmodel.CreateAccountInput) (*mmodel.Account, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
 
 	logger.Infof("Trying to create account: %v", cai)
 
-	if common.IsNilOrEmpty(&cai.Name) {
+	if pkg.IsNilOrEmpty(&cai.Name) {
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
 
-	if err := common.ValidateAccountType(cai.Type); err != nil {
+	if err := pkg.ValidateAccountType(cai.Type); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate account type", err)
 
-		return nil, common.ValidateBusinessError(err, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	status := uc.determineStatus(cai)
@@ -46,12 +46,12 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if !isAsset {
 		mopentelemetry.HandleSpanError(&span, "Failed to find asset", constant.ErrAssetCodeNotFound)
 
-		return nil, common.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	var portfolioUUID uuid.UUID
 
-	if common.IsNilOrEmpty(cai.EntityID) && !common.IsNilOrEmpty(cai.PortfolioID) {
+	if pkg.IsNilOrEmpty(cai.EntityID) && !pkg.IsNilOrEmpty(cai.PortfolioID) {
 		portfolioUUID = uuid.MustParse(*cai.PortfolioID)
 
 		portfolio, err := uc.PortfolioRepo.Find(ctx, organizationID, ledgerID, portfolioUUID)
@@ -66,22 +66,22 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		cai.EntityID = &portfolio.EntityID
 	}
 
-	if !common.IsNilOrEmpty(cai.ParentAccountID) {
+	if !pkg.IsNilOrEmpty(cai.ParentAccountID) {
 		acc, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, &portfolioUUID, uuid.MustParse(*cai.ParentAccountID))
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find parent account", err)
 
-			return nil, common.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		if acc.AssetCode != cai.AssetCode {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate parent account", constant.ErrMismatchedAssetCode)
 
-			return nil, common.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 	}
 
-	if !common.IsNilOrEmpty(cai.Alias) {
+	if !pkg.IsNilOrEmpty(cai.Alias) {
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
@@ -99,7 +99,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	account := &mmodel.Account{
-		ID:              common.GenerateUUIDv7().String(),
+		ID:              pkg.GenerateUUIDv7().String(),
 		AssetCode:       cai.AssetCode,
 		Alias:           cai.Alias,
 		Name:            cai.Name,
@@ -144,7 +144,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // determineStatus determines the status of the account.
 func (uc *UseCase) determineStatus(cai *mmodel.CreateAccountInput) mmodel.Status {
 	var status mmodel.Status
-	if cai.Status.IsEmpty() || common.IsNilOrEmpty(&cai.Status.Code) {
+	if cai.Status.IsEmpty() || pkg.IsNilOrEmpty(&cai.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}

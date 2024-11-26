@@ -1,11 +1,11 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -35,8 +35,8 @@ type AccountHandler struct {
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
@@ -47,7 +47,7 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.CreateAccountInput)
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
-	if !common.IsNilOrEmpty(payload.PortfolioID) {
+	if !pkg.IsNilOrEmpty(payload.PortfolioID) {
 		logger.Infof("Initiating create of Account with Portfolio ID: %s", *payload.PortfolioID)
 	}
 
@@ -85,8 +85,8 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
@@ -103,7 +103,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		Page:  headerParams.Page,
 	}
 
-	if !common.IsNilOrEmpty(&headerParams.PortfolioID) {
+	if !pkg.IsNilOrEmpty(&headerParams.PortfolioID) {
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
 
@@ -164,8 +164,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -207,8 +207,8 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
@@ -266,8 +266,8 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
@@ -313,7 +313,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts [post]
 func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := common.NewLoggerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -356,7 +356,7 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := common.NewLoggerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -431,7 +431,7 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 	id := c.Locals("id").(uuid.UUID)
 
-	logger := common.NewLoggerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 	logger.Infof("Initiating retrieval of Account with Portfolio ID: %s and Account ID: %s", portfolioID.String(), id.String())
 
 	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, &portfolioID, id)
@@ -467,7 +467,7 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [patch]
 func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := common.NewLoggerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -515,7 +515,7 @@ func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) e
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [delete]
 func (handler *AccountHandler) DeleteAccountByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := common.NewLoggerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)

@@ -1,11 +1,11 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"github.com/gofiber/fiber/v2"
@@ -35,8 +35,8 @@ type AssetHandler struct {
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
@@ -86,8 +86,8 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
 	defer span.End()
@@ -159,8 +159,8 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
 	defer span.End()
@@ -202,8 +202,8 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
@@ -261,8 +261,8 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
 	defer span.End()

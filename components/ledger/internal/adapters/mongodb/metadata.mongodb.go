@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmongo"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/net/http"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmongo"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -48,7 +48,7 @@ func NewMetadataMongoDBRepository(mc *mmongo.MongoConnection) *MetadataMongoDBRe
 
 // Create inserts a new metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
 	defer span.End()
@@ -85,7 +85,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
 func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
 	defer span.End()
@@ -153,7 +153,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
 func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
 	defer span.End()
@@ -188,8 +188,8 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 // Update an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata")
 	defer span.End()
@@ -213,7 +213,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		mopentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return common.ValidateBusinessError(constant.ErrEntityNotFound, collection)
+			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, collection)
 		}
 
 		return err
@@ -230,7 +230,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 
 // Delete an metadata entity into mongodb.
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_metadata")
 	defer span.End()
@@ -242,7 +242,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	logger := common.NewLoggerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	opts := options.Delete()
 

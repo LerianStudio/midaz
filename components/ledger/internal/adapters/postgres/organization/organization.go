@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // OrganizationPostgreSQLModel represents the entity Organization into SQL context in Database
@@ -54,7 +54,7 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 // FromEntity converts an entity.Organization to OrganizationPostgresModel
 func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organization) {
 	*t = OrganizationPostgreSQLModel{
-		ID:                   common.GenerateUUIDv7().String(),
+		ID:                   pkg.GenerateUUIDv7().String(),
 		ParentOrganizationID: organization.ParentOrganizationID,
 		LegalName:            organization.LegalName,
 		DoingBusinessAs:      organization.DoingBusinessAs,

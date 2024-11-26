@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -15,9 +15,9 @@ import (
 // TestCreateAssetSuccess is responsible to test CreateAsset with success
 func TestCreateAssetSuccess(t *testing.T) {
 	a := &mmodel.Asset{
-		ID:             common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -39,8 +39,8 @@ func TestCreateAssetSuccess(t *testing.T) {
 func TestCreateAssetError(t *testing.T) {
 	errMSG := "err to create asset on database"
 	a := &mmodel.Asset{
-		ID:       common.GenerateUUIDv7().String(),
-		LedgerID: common.GenerateUUIDv7().String(),
+		ID:       pkg.GenerateUUIDv7().String(),
+		LedgerID: pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -53,7 +53,7 @@ func NewTransactionPostgreSQLRepository(pc *mpostgres.PostgresConnection) *Trans
 
 // Create a new Transaction entity into Postgresql and returns it.
 func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
 	defer span.End()
@@ -110,7 +110,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to create transaction. Rows affected is 0", err)
 
@@ -122,7 +122,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 
 // FindAll retrieves Transactions entities from the database.
 func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*Transaction, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
 	defer span.End()
@@ -142,8 +142,8 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
 		OrderBy("created_at DESC").
-		Limit(common.SafeIntToUint64(limit)).
-		Offset(common.SafeIntToUint64((page - 1) * limit)).
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -203,7 +203,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 // ListByIDs retrieves Transaction entities from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
 	defer span.End()
@@ -267,7 +267,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 // Find retrieves a Transaction entity from the database using the provided ID.
 func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
 	defer span.End()
@@ -308,7 +308,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 		}
 
 		return nil, err
@@ -319,7 +319,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction")
 	defer span.End()
@@ -389,7 +389,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update transaction. Rows affected is 0", err)
 
@@ -401,7 +401,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 // Delete removes a Transaction entity from the database using the provided IDs.
 func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	tracer := common.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction")
 	defer span.End()
@@ -433,7 +433,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	}
 
 	if rowsAffected == 0 {
-		err := common.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to delete transaction. Rows affected is 0", err)
 

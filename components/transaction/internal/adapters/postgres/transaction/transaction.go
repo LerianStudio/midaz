@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	goldModel "github.com/LerianStudio/midaz/common/gold/transaction/model"
+	"github.com/LerianStudio/midaz/pkg"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/google/uuid"
 )
@@ -133,7 +133,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	*t = TransactionPostgreSQLModel{
-		ID:                       common.GenerateUUIDv7().String(),
+		ID:                       pkg.GenerateUUIDv7().String(),
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
 		Template:                 transaction.Template,

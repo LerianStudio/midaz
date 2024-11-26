@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -14,9 +14,9 @@ import (
 
 // TestGetAssetByIDSuccess is responsible to test GetAssetByID with success
 func TestGetAssetByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 	a := &mmodel.Asset{
 		ID:             id.String(),
 		LedgerID:       ledgerID.String(),
@@ -40,9 +40,9 @@ func TestGetAssetByIDSuccess(t *testing.T) {
 
 // TestGetAssetByIDError is responsible to test GetAssetByID with error
 func TestGetAssetByIDError(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
