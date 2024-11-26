@@ -1,7 +1,7 @@
 basePath: /
 definitions:
   Account:
-    description: Account is a struct designed to encapsulate response payload data.
+    description: Account is a struct designed to store account data.
     properties:
       alias:
         example: '@person1'
@@ -60,7 +60,7 @@ definitions:
         type: string
     type: object
   Address:
-    description: Address structure for marshaling/unmarshalling JSON.
+    description: Address is a struct designed to store the address data of an organization.
     properties:
       city:
         example: New York
@@ -83,7 +83,7 @@ definitions:
         type: string
     type: object
   Asset:
-    description: Asset is a struct designed to encapsulate payload data.
+    description: Asset is a struct designed to store asset data.
     properties:
       code:
         example: BRL
@@ -119,7 +119,7 @@ definitions:
         type: string
     type: object
   Balance:
-    description: Balance structure for marshaling/unmarshalling JSON.
+    description: Balance is the struct designed to represent the account balance.
     properties:
       available:
         example: 1500
@@ -132,8 +132,7 @@ definitions:
         type: number
     type: object
   CreateAccountInput:
-    description: CreateAccountInput is a struct design to encapsulate request create
-      payload data.
+    description: CreateAccountInput is the input payload to create an account.
     properties:
       alias:
         example: '@person1'
@@ -179,8 +178,7 @@ definitions:
     - type
     type: object
   CreateAssetInput:
-    description: CreateAssetInput is a struct design to encapsulate request create
-      payload data.
+    description: CreateAssetInput is the input payload to create an asset.
     properties:
       code:
         example: BRL
@@ -202,8 +200,7 @@ definitions:
     - code
     type: object
   CreateLedgerInput:
-    description: CreateLedgerInput is a struct design to encapsulate request create
-      payload data for ledger.
+    description: CreateLedgerInput is the input payload to create a ledger.
     properties:
       metadata:
         additionalProperties: {}
@@ -218,8 +215,7 @@ definitions:
     - name
     type: object
   CreateOrganizationInput:
-    description: CreateOrganizationInput is a struct design to encapsulate request
-      create payload data for organization.
+    description: CreateOrganizationInput is the input payload to create an organization.
     properties:
       address:
         $ref: '#/definitions/Address'
@@ -248,8 +244,7 @@ definitions:
     - legalName
     type: object
   CreatePortfolioInput:
-    description: CreatePortfolioInput is a struct design to encapsulate request create
-      payload data.
+    description: CreatePortfolioInput is the input payload to create a portfolio.
     properties:
       entityId:
         example: 00000000-0000-0000-0000-000000000000
@@ -269,8 +264,7 @@ definitions:
     - name
     type: object
   CreateProductInput:
-    description: CreateProductInput is a struct design to encapsulate request create
-      payload data.
+    description: CreateProductInput is the input payload to create a product.
     properties:
       metadata:
         additionalProperties: {}
@@ -285,7 +279,7 @@ definitions:
     - name
     type: object
   Ledger:
-    description: Ledger is a struct designed to encapsulate payload data.
+    description: Ledger is a struct designed to store ledger data.
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -312,8 +306,7 @@ definitions:
         type: string
     type: object
   Organization:
-    description: Organization is a struct designed to encapsulate response payload
-      data.
+    description: Organization is a struct designed to store organization data.
     properties:
       address:
         $ref: '#/definitions/Address'
@@ -348,8 +341,8 @@ definitions:
         type: string
     type: object
   Pagination:
-    description: Pagination is a struct designed to encapsulate pagination response
-      payload data.
+    description: Pagination is the struct designed to store the pagination data of
+      an entity list.
     properties:
       items: {}
       limit:
@@ -360,8 +353,7 @@ definitions:
         type: integer
     type: object
   Portfolio:
-    description: Portfolio is a struct designed to encapsulate request update payload
-      data.
+    description: Portfolio is a struct designed to store portfolio data.
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -394,7 +386,7 @@ definitions:
         type: string
     type: object
   Product:
-    description: Product is a struct designed to encapsulate payload data.
+    description: Product is a struct designed to store product data.
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -424,7 +416,7 @@ definitions:
         type: string
     type: object
   Status:
-    description: Status structure for marshaling/unmarshalling JSON.
+    description: Status is the struct designed to store the status data of an entity.
     properties:
       code:
         example: ACTIVE
@@ -436,8 +428,7 @@ definitions:
         type: string
     type: object
   UpdateAccountInput:
-    description: UpdateAccountInput is a struct design to encapsulate request update
-      payload data.
+    description: UpdateAccountInput is the input payload to update an account.
     properties:
       alias:
         example: '@person1'
@@ -463,8 +454,7 @@ definitions:
         $ref: '#/definitions/Status'
     type: object
   UpdateAssetInput:
-    description: UpdateAssetInput is a struct design to encapsulate request update
-      payload data.
+    description: UpdateAssetInput is the input payload to update an asset.
     properties:
       metadata:
         additionalProperties: {}
@@ -477,8 +467,7 @@ definitions:
         $ref: '#/definitions/Status'
     type: object
   UpdateLedgerInput:
-    description: UpdateLedgerInput is a struct design to encapsulate request update
-      payload data for ledger.
+    description: UpdateLedgerInput is the input payload to update a ledger.
     properties:
       metadata:
         additionalProperties: {}
@@ -491,8 +480,7 @@ definitions:
         $ref: '#/definitions/Status'
     type: object
   UpdateOrganizationInput:
-    description: UpdateOrganizationInput is a struct design to encapsulate request
-      update payload data for organization.
+    description: UpdateOrganizationInput is the input payload to update an organization.
     properties:
       address:
         $ref: '#/definitions/Address'
@@ -516,7 +504,7 @@ definitions:
     - legalName
     type: object
   UpdatePortfolioInput:
-    description: UpdatePortfolioInput is a struct design to encapsulate payload data.
+    description: UpdatePortfolioInput is the input payload to update a portfolio.
     properties:
       metadata:
         additionalProperties: {}
@@ -529,8 +517,7 @@ definitions:
         $ref: '#/definitions/Status'
     type: object
   UpdateProductInput:
-    description: UpdateProductInput is a struct design to encapsulate request update
-      payload data.
+    description: UpdateProductInput is the input payload to update a product.
     properties:
       metadata:
         additionalProperties: {}
@@ -563,6 +550,10 @@ paths:
         in: query
         name: metadata
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -591,6 +582,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateOrganizationInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -610,6 +605,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -623,6 +622,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -650,6 +653,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateOrganizationInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -673,6 +680,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -707,6 +718,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateLedgerInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -731,6 +746,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -744,6 +763,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -776,6 +799,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateLedgerInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -803,6 +830,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -842,6 +873,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -871,6 +906,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -894,6 +933,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -931,6 +974,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -958,6 +1005,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -997,6 +1048,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAssetInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1026,6 +1081,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1049,6 +1108,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1086,6 +1149,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAssetInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1113,6 +1180,10 @@ paths:
       - description: Metadata query
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1152,6 +1223,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreatePortfolioInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1181,6 +1256,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1204,6 +1283,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1236,6 +1319,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdatePortfolioInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1271,6 +1358,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1318,6 +1409,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1350,6 +1445,10 @@ paths:
         name: portfolio_id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1381,6 +1480,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1426,6 +1529,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAccountInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1453,6 +1560,10 @@ paths:
       - description: Metadata
         in: query
         name: metadata
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1492,6 +1603,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateProductInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:
@@ -1521,6 +1636,10 @@ paths:
         name: id
         required: true
         type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       responses:
         "204":
           description: No Content
@@ -1544,6 +1663,10 @@ paths:
         in: path
         name: id
         required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1581,6 +1704,10 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateProductInput'
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       produces:
       - application/json
       responses:

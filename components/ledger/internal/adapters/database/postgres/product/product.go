@@ -3,7 +3,7 @@ package product
 import (
 	"database/sql"
 	"time"
-	
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/mmodel"
 )

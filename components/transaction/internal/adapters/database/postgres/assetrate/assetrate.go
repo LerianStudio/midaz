@@ -20,28 +20,34 @@ type AssetRatePostgreSQLModel struct {
 }
 
 // CreateAssetRateInput is a struct design to encapsulate payload data.
+//
+// swagger:model CreateAssetRateInput
+// @Description CreateAssetRateInput is the input payload to create an asset rate.
 type CreateAssetRateInput struct {
-	BaseAssetCode    string         `json:"baseAssetCode"`
-	CounterAssetCode string         `json:"counterAssetCode"`
-	Amount           float64        `json:"amount"`
-	Scale            float64        `json:"scale"`
-	Source           string         `json:"source"`
+	BaseAssetCode    string         `json:"baseAssetCode" example:"BRL"`
+	CounterAssetCode string         `json:"counterAssetCode" example:"USD"`
+	Amount           float64        `json:"amount" example:"5000"`
+	Scale            float64        `json:"scale" example:"2"`
+	Source           string         `json:"source" example:"@person1"`
 	Metadata         map[string]any `json:"metadata,omitempty"`
-}
+} // @name CreateAssetRateInput
 
 // AssetRate is a struct designed to encapsulate response payload data.
+//
+// swagger:model AssetRate
+// @Description AssetRate is a struct designed to store asset rate data.
 type AssetRate struct {
-	ID               string         `json:"id"`
-	BaseAssetCode    string         `json:"baseAssetCode"`
-	CounterAssetCode string         `json:"counterAssetCode"`
-	Amount           float64        `json:"amount"`
-	Scale            float64        `json:"scale"`
-	Source           string         `json:"source"`
-	OrganizationID   string         `json:"organizationId"`
-	LedgerID         string         `json:"ledgerId"`
-	CreatedAt        time.Time      `json:"createdAt"`
+	ID               string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	BaseAssetCode    string         `json:"baseAssetCode" example:"BRL"`
+	CounterAssetCode string         `json:"counterAssetCode" example:"USD"`
+	Amount           float64        `json:"amount" example:"5000"`
+	Scale            float64        `json:"scale" example:"2"`
+	Source           string         `json:"source" example:"@person1"`
+	OrganizationID   string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	LedgerID         string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	CreatedAt        time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	Metadata         map[string]any `json:"metadata"`
-}
+} // @name AssetRate
 
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
 func (a *AssetRatePostgreSQLModel) ToEntity() *AssetRate {
