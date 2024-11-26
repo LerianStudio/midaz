@@ -124,10 +124,21 @@ func (f *factoryAccountDescribe) describePrint(account *mmodel.Account) {
 	tbl.AddRow("ID:", account.ID)
 	tbl.AddRow("Asset Code:", account.AssetCode)
 	tbl.AddRow("Name:", account.Name)
-	tbl.AddRow("Entity ID:", account.EntityID)
+
+	if account.EntityID != nil {
+		tbl.AddRow("Entity ID:", *account.EntityID)
+	}
+
+	if account.ProductID != nil {
+		tbl.AddRow("Product ID:", *account.ProductID)
+	}
 
 	if account.ParentAccountID != nil {
 		tbl.AddRow("Parent Account ID:", *account.ParentAccountID)
+	}
+
+	if account.Alias != nil {
+		tbl.AddRow("Alias:", *account.Alias)
 	}
 
 	tbl.AddRow("Type:", account.Type)
