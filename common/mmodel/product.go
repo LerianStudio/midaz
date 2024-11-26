@@ -5,7 +5,7 @@ import "time"
 // CreateProductInput is a struct design to encapsulate request create payload data.
 //
 // swagger:model CreateProductInput
-// @Description CreateProductInput is a struct design to encapsulate request create payload data.
+// @Description CreateProductInput is the input payload to create a product.
 type CreateProductInput struct {
 	Name     string         `json:"name" validate:"required,max=256" example:"My Product"`
 	Status   Status         `json:"status"`
@@ -15,7 +15,7 @@ type CreateProductInput struct {
 // UpdateProductInput is a struct design to encapsulate request update payload data.
 //
 // swagger:model UpdateProductInput
-// @Description UpdateProductInput is a struct design to encapsulate request update payload data.
+// @Description UpdateProductInput is the input payload to update a product.
 type UpdateProductInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"My Product Updated"`
 	Status   Status         `json:"status"`
@@ -25,7 +25,7 @@ type UpdateProductInput struct {
 // Product is a struct designed to encapsulate payload data.
 //
 // swagger:model Product
-// @Description Product is a struct designed to encapsulate payload data.
+// @Description Product is a struct designed to store product data.
 type Product struct {
 	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
 	Name           string         `json:"name" example:"My Product"`
@@ -41,7 +41,7 @@ type Product struct {
 // Products struct to return get all.
 //
 // swagger:model Products
-// @Description Products struct to return get all.
+// @Description Products is the struct designed to return a list of products with pagination.
 type Products struct {
 	Items []Product `json:"items"`
 	Page  int       `json:"page" example:"1"`
