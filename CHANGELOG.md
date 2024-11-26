@@ -1,3 +1,11 @@
+## [1.29.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.18...v1.29.0-beta.19) (2024-11-26)
+
+
+### Bug Fixes
+
+* adjust import lint issues :bug: ([9fc524f](https://github.com/LerianStudio/midaz/commit/9fc524f924dc161e8138aaf918d6e10683fc90fb))
+* include metadata in transaction get all operations endpoint response :bug: ([b07adfa](https://github.com/LerianStudio/midaz/commit/b07adfab0966c7b3c87258806b6615aad273da8b))
+
 ## [1.29.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.17...v1.29.0-beta.18) (2024-11-26)
 
 
