@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )

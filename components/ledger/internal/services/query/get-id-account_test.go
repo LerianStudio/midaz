@@ -3,22 +3,23 @@ package query
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mpointers"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestGetAccountByIDSuccess is responsible to test GetAccountByID with success
 func TestGetAccountByIDSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 
 	a := &mmodel.Account{
 		ID:             id.String(),
@@ -44,9 +45,9 @@ func TestGetAccountByIDSuccess(t *testing.T) {
 
 // TestGetAccountByIDWithoutPortfolioSuccess is responsible to test GetAccountByID without portfolio with success
 func TestGetAccountByIDWithoutPortfolioSuccess(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 
 	a := &mmodel.Account{
 		ID:             id.String(),
@@ -72,10 +73,10 @@ func TestGetAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 
 // TestGetAccountByIDError is responsible to test GetAccountByID with error
 func TestGetAccountByIDError(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	portfolioID := common.GenerateUUIDv7()
-	id := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	portfolioID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
 
 	errMSG := "errDatabaseItemNotFound"
 

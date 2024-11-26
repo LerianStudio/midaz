@@ -3,18 +3,19 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestCreateOrganizationSuccess is responsible to test CreateOrganization with success
 func TestCreateOrganizationSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7().String()
+	id := pkg.GenerateUUIDv7().String()
 	o := &mmodel.Organization{ID: id}
 
 	uc := UseCase{

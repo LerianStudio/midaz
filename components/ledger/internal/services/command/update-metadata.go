@@ -3,13 +3,13 @@ package command
 import (
 	"context"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 )
 
 func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_metadata")
 	defer span.End()
@@ -29,7 +29,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 		}
 
 		if existingMetadata != nil {
-			metadataToUpdate = common.MergeMaps(metadata, existingMetadata.Data)
+			metadataToUpdate = pkg.MergeMaps(metadata, existingMetadata.Data)
 		}
 	} else {
 		metadataToUpdate = map[string]any{}

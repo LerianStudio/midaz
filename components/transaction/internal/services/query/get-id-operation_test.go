@@ -3,19 +3,20 @@ package query
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetOperationByID(t *testing.T) {
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	transactionID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	transactionID := pkg.GenerateUUIDv7()
 
 	o := &operation.Operation{
 		ID:             ID.String(),
@@ -41,10 +42,10 @@ func TestGetOperationByID(t *testing.T) {
 
 func TestGetOperationByIDError(t *testing.T) {
 	errMSG := "err to get operation on database"
-	ID := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
-	transactionID := common.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	transactionID := pkg.GenerateUUIDv7()
 
 	uc := UseCase{
 		OperationRepo: operation.NewMockRepository(gomock.NewController(t)),

@@ -5,19 +5,20 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	commonHTTP "github.com/LerianStudio/midaz/common/net/http"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+
 	"github.com/google/uuid"
 )
 
 // GetAllMetadataProducts fetch all Products from the repository
-func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter commonHTTP.QueryHeader) ([]*mmodel.Product, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Product, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_products")
 	defer span.End()
@@ -28,7 +29,7 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 	if err != nil || metadata == nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo by query params", err)
 
-		return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(mmodel.Product{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrNoProductsFound, reflect.TypeOf(mmodel.Product{}).Name())
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -46,7 +47,7 @@ func (uc *UseCase) GetAllMetadataProducts(ctx context.Context, organizationID, l
 		logger.Errorf("Error getting products on repo by query params: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrNoProductsFound, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrNoProductsFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err

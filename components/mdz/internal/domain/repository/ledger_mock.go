@@ -10,10 +10,10 @@
 package repository
 
 import (
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
-	mmodel "github.com/LerianStudio/midaz/common/mmodel"
-	gomock "go.uber.org/mock/gomock"
+	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // MockLedger is a mock of Ledger interface.

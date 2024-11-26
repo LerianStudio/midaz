@@ -3,23 +3,24 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mpointers"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestCreateAccountSuccess is responsible to test CreateAccount with success
 func TestCreateAccountSuccess(t *testing.T) {
 	a := &mmodel.Account{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
-		PortfolioID:    mpointers.String(common.GenerateUUIDv7().String()),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
+		PortfolioID:    mpointers.String(pkg.GenerateUUIDv7().String()),
 	}
 
 	uc := UseCase{
@@ -40,9 +41,9 @@ func TestCreateAccountSuccess(t *testing.T) {
 // TestCreateWithoutPortfolioAccountSuccess is responsible to test CreateAccountWithoutPortfolio with success
 func TestCreateWithoutPortfolioAccountSuccess(t *testing.T) {
 	a := &mmodel.Account{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -64,10 +65,10 @@ func TestCreateWithoutPortfolioAccountSuccess(t *testing.T) {
 func TestCreateAccountError(t *testing.T) {
 	errMSG := "err to create account on database"
 	a := &mmodel.Account{
-		ID:             common.GenerateUUIDv7().String(),
-		OrganizationID: common.GenerateUUIDv7().String(),
-		LedgerID:       common.GenerateUUIDv7().String(),
-		PortfolioID:    mpointers.String(common.GenerateUUIDv7().String()),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
+		PortfolioID:    mpointers.String(pkg.GenerateUUIDv7().String()),
 	}
 
 	uc := UseCase{

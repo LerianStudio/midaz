@@ -1,13 +1,14 @@
 package bootstrap
 
 import (
+	"google.golang.org/grpc"
 	"net"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+
 	"github.com/pkg/errors"
-	"google.golang.org/grpc"
 )
 
 // ServerGRPC represents the gRPC server for Ledger service.
@@ -34,7 +35,7 @@ func NewServerGRPC(cfg *Config, server *grpc.Server, logger mlog.Logger, telemet
 }
 
 // Run gRPC server.
-func (sgrpc *ServerGRPC) Run(l *common.Launcher) error {
+func (sgrpc *ServerGRPC) Run(l *pkg.Launcher) error {
 	sgrpc.InitializeTelemetry(sgrpc.Logger)
 	defer sgrpc.ShutdownTelemetry()
 

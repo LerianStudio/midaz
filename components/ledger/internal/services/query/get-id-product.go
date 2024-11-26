@@ -5,18 +5,19 @@ import (
 	"errors"
 	"reflect"
 
-	"github.com/LerianStudio/midaz/common"
-	cn "github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+
 	"github.com/google/uuid"
 )
 
 // GetProductByID get a Product from the repository by given id.
 func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_product_by_id")
 	defer span.End()
@@ -30,7 +31,7 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 		logger.Errorf("Error getting product on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, common.ValidateBusinessError(cn.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())
 		}
 
 		return nil, err

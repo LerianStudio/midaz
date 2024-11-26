@@ -10,9 +10,8 @@
 package rabbitmq
 
 import (
-	reflect "reflect"
-
 	gomock "go.uber.org/mock/gomock"
+	reflect "reflect"
 )
 
 // MockConsumerRepository is a mock of ConsumerRepository interface.

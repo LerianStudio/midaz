@@ -3,20 +3,21 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateLedgerByIDSuccess is responsible to test UpdateLedgerByID with success
 func TestUpdateLedgerByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 
 	l := &mmodel.Ledger{
 		ID:             id.String(),
@@ -43,8 +44,8 @@ func TestUpdateLedgerByIDSuccess(t *testing.T) {
 func TestUpdateLedgerByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
 
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 
 	l := &mmodel.Ledger{
 		ID:             id.String(),

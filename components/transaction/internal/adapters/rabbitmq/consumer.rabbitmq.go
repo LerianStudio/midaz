@@ -1,7 +1,7 @@
 package rabbitmq
 
 import (
-	"github.com/LerianStudio/midaz/common/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.

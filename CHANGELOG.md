@@ -1,3 +1,10 @@
+## [1.29.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.17...v1.29.0-beta.18) (2024-11-26)
+
+
+### Bug Fixes
+
+* common change to pkg :bug: ([724a9b4](https://github.com/LerianStudio/midaz/commit/724a9b409e8a988c157ced8650c18a446e1e4e74))
+
 ## [1.29.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.16...v1.29.0-beta.17) (2024-11-26)
 
 ## [1.29.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.15...v1.29.0-beta.16) (2024-11-26)

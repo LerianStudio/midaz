@@ -201,7 +201,7 @@ func rpad(s string, padding int) string {
 	return fmt.Sprintf(template, s)
 }
 
-// dedent removes the smallest common indentation from all lines in a string.
+// dedent removes the smallest pkg indentation from all lines in a string.
 func dedent(s string) string {
 	lines := strings.Split(s, "\n")
 	minIndent := -1

@@ -3,18 +3,19 @@ package query
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/pkg"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllTransactions is responsible to test GetAllTransactions with success and error
 func TestGetAllTransactions(t *testing.T) {
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

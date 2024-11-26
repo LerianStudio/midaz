@@ -3,13 +3,14 @@ package query
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestGetAllLedgersError is responsible to test GetAllLedgers with success and error
@@ -18,7 +19,7 @@ func TestGetAllLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockLedgerRepo := ledger.NewMockRepository(ctrl)
-	organizationID := common.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
 	limit := 10
 	page := 1
 

@@ -3,25 +3,25 @@ package bootstrap
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mcasdoor"
-	"github.com/LerianStudio/midaz/common/mgrpc"
-	"github.com/LerianStudio/midaz/common/mmongo"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/common/mpostgres"
-	"github.com/LerianStudio/midaz/common/mrabbitmq"
-	"github.com/LerianStudio/midaz/common/mredis"
-	"github.com/LerianStudio/midaz/common/mzap"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/assetrate"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/redis"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/components/transaction/internal/bootstrap/http"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mcasdoor"
+	"github.com/LerianStudio/midaz/pkg/mgrpc"
+	"github.com/LerianStudio/midaz/pkg/mmongo"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mredis"
+	"github.com/LerianStudio/midaz/pkg/mzap"
 )
 
 const ApplicationName = "transaction"
@@ -78,7 +78,7 @@ type Config struct {
 func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := common.SetConfigFromEnvVars(cfg); err != nil {
+	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
 		panic(err)
 	}
 
@@ -169,7 +169,7 @@ func InitServers() *Service {
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
 
-	accountGRPCRepository := grpc.NewAccountGRPC(grpcConnection)
+	accountGRPCRepository := out.NewAccountGRPC(grpcConnection)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
@@ -193,22 +193,22 @@ func InitServers() *Service {
 		RedisRepo:       redisConsumerRepository,
 	}
 
-	transactionHandler := &http.TransactionHandler{
+	transactionHandler := &in.TransactionHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
 
-	operationHandler := &http.OperationHandler{
+	operationHandler := &in.OperationHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
 
-	assetRateHandler := &http.AssetRateHandler{
+	assetRateHandler := &in.AssetRateHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
 
-	app := http.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
+	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
