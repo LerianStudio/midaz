@@ -48,7 +48,37 @@ Lerian is committed to also providing a robust set of Transactional Services and
 
 ## Getting Started
 
-To begin using Midaz, please follow our [Getting Started Guide](https://docs.midaz.io/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio/).
+To start using Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).
+
+## Quick Installation Guide: Localhost
+
+First, make sure you have Docker and Docker Compose installed.
+
+   ```bash
+   # Clone the repository
+   git clone https://github.com/LerianStudio/midaz.git
+   cd midaz
+
+   # Set up environment variables
+   make set-env
+
+   # Start all services
+   make up
+   ```
+
+   This will start all components using Docker Compose:
+   - Authentication Service
+   - Infrastructure Service
+   - Ledger Service
+   - Transaction Service
+
+### Additional Commands
+
+- **Run tests**: `make test`
+- **Format code**: `make format`
+- **Run linter**: `make lint`
+- **Set up git hooks**: `make setup-git-hooks`
+- **Show help**: `make help` for all possible project management commands
 
 ## Community & Support
 
@@ -57,10 +87,14 @@ To begin using Midaz, please follow our [Getting Started Guide](https://docs.mid
 - If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/discussions).
 - Follow us on [Twitter](https://twitter.com/LerianStudio) for the latest news and announcements.
 
+## Repo Activity
+
+![Alt](https://repobeats.axiom.co/api/embed/827f95068c3eb21900ed6a7191a53639481cbc75.svg "Repobeats analytics image")
+
 ## Contributing & License
 
 We welcome contributions from the community! Please read our [Contributing Guidelines](CONTRIBUTING.md) to get started. Midaz is released under the Apache License 2.0. See [LICENSE](LICENSE.md) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.
 
 ## About Lerian
 
-Midaz is developed by Lerian, a tech company founded in 2023, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.io](mailto:contact@lerian.io) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).
+Midaz is developed by Lerian, a tech company founded in 2023, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.studio](mailto:contact@lerian.studio) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).

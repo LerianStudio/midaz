@@ -3,18 +3,28 @@ package mongodb
 import (
 	"context"
 	"errors"
-	cn "github.com/LerianStudio/midaz/common/constant"
-	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz/common"
+	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mmongo"
-	m "github.com/LerianStudio/midaz/components/transaction/internal/domain/metadata"
+	"github.com/LerianStudio/midaz/common/mopentelemetry"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+// Repository provides an interface for operations related on mongodb a metadata entities.
+//
+//go:generate mockgen --destination=metadata.mock.go --package=mongodb . Repository
+type Repository interface {
+	Create(ctx context.Context, collection string, metadata *Metadata) error
+	FindList(ctx context.Context, collection string, filter any) ([]*Metadata, error)
+	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
+	Update(ctx context.Context, collection, id string, metadata map[string]any) error
+	Delete(ctx context.Context, collection, id string) error
+}
 
 // MetadataMongoDBRepository is a MongoDD-specific implementation of the MetadataRepository.
 type MetadataMongoDBRepository struct {
@@ -36,7 +46,7 @@ func NewMetadataMongoDBRepository(mc *mmongo.MongoConnection) *MetadataMongoDBRe
 }
 
 // Create inserts a new metadata entity into mongodb.
-func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *m.Metadata) error {
+func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection string, metadata *Metadata) error {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
@@ -52,7 +62,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	logger := common.NewLoggerFromContext(ctx)
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
-	record := &m.MetadataMongoDBModel{}
+	record := &MetadataMongoDBModel{}
 
 	if err := record.FromEntity(metadata); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert metadata to model", err)
@@ -77,7 +87,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 }
 
 // FindList retrieves metadata from the mongodb all metadata or a list by specify metadata.
-func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter any) ([]*m.Metadata, error) {
+func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection string, filter any) ([]*Metadata, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
@@ -105,10 +115,10 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	spanFind.End()
 
-	var meta []*m.MetadataMongoDBModel
+	var meta []*MetadataMongoDBModel
 
 	for cur.Next(ctx) {
-		var record m.MetadataMongoDBModel
+		var record MetadataMongoDBModel
 		if err := cur.Decode(&record); err != nil {
 			mopentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata", err)
 
@@ -130,7 +140,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 		return nil, err
 	}
 
-	metadata := make([]*m.Metadata, 0, len(meta))
+	metadata := make([]*Metadata, 0, len(meta))
 	for i := range meta {
 		metadata = append(metadata, meta[i].ToEntity())
 	}
@@ -139,7 +149,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 }
 
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
-func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*m.Metadata, error) {
+func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
 	tracer := common.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
@@ -154,7 +164,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 	coll := db.Database(strings.ToLower(mmr.Database)).Collection(strings.ToLower(collection))
 
-	var record m.MetadataMongoDBModel
+	var record MetadataMongoDBModel
 
 	ctx, spanFindOne := tracer.Start(ctx, "mongodb.find_by_entity.find_one")
 
@@ -201,7 +211,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		mopentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return common.ValidateBusinessError(cn.ErrEntityNotFound, collection)
+			return common.ValidateBusinessError(constant.ErrEntityNotFound, collection)
 		}
 
 		return err

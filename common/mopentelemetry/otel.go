@@ -2,6 +2,8 @@ package mopentelemetry
 
 import (
 	"context"
+	"os"
+
 	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/common/constant"
 	"github.com/LerianStudio/midaz/common/mlog"
@@ -21,7 +23,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
-	"os"
 )
 
 type Telemetry struct {

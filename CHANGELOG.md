@@ -1,3 +1,69 @@
+## [1.29.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.14...v1.29.0-beta.15) (2024-11-26)
+
+## [1.29.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.13...v1.29.0-beta.14) (2024-11-26)
+
+## [1.29.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.12...v1.29.0-beta.13) (2024-11-26)
+
+## [1.29.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.11...v1.29.0-beta.12) (2024-11-25)
+
+
+### Features
+
+* add swagger documentation to transaction service :sparkles: ([e06a30e](https://github.com/LerianStudio/midaz/commit/e06a30e360e70079ce66c7f3aeecdd5536c8b134))
+* add swagger generated docs from transaction :sparkles: ([a6e3775](https://github.com/LerianStudio/midaz/commit/a6e377576673c4a2c0a2691f717518d9ade65e0f))
+
+
+### Bug Fixes
+
+* adjust ledger swagger docs :bug: ([1e2c606](https://github.com/LerianStudio/midaz/commit/1e2c606819f154a085a3bd223b4aef1d8b114e19))
+
+## [1.29.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.10...v1.29.0-beta.11) (2024-11-25)
+
+
+### Bug Fixes
+
+* create .keep file to commit folder :bug: ([605c270](https://github.com/LerianStudio/midaz/commit/605c270e7e962cfca1027f149d71b54ffb834601))
+* final adjusts :bug: ([c30532f](https://github.com/LerianStudio/midaz/commit/c30532f678b9a1ccc6a1902058279bbdaf90ce14))
+* rollback version :bug: ([b4543f7](https://github.com/LerianStudio/midaz/commit/b4543f72fcdb9897a6fced1a9314f06fb2edc7d4))
+
+## [1.29.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.9...v1.29.0-beta.10) (2024-11-25)
+
+
+### Bug Fixes
+
+* update ledger makefile to generate swagger docs :bug: ([fe346fd](https://github.com/LerianStudio/midaz/commit/fe346fdfa99892bf29c2e6a0353b1ba8444d0358))
+
+## [1.29.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.8...v1.29.0-beta.9) (2024-11-25)
+
+
+### Features
+
+* add base to the swagger documentation and telemetry root span handling for the swagger endpoint calls :sparkles: ([0165a7c](https://github.com/LerianStudio/midaz/commit/0165a7c996a59e5941a2448e03e461b57088a677))
+* add swagger documentation generated for ledger :sparkles: ([cef9e22](https://github.com/LerianStudio/midaz/commit/cef9e22ee6558dc16372ab17e688129a5856212c))
+* add swagger documentation to onboarding context on ledger service :sparkles: ([65ea499](https://github.com/LerianStudio/midaz/commit/65ea499a50e17f6e22f52f9705a833e4d64a134a))
+* add swagger documentation to the portfolio context on ledger service :sparkles: ([fad4b08](https://github.com/LerianStudio/midaz/commit/fad4b08dbb7a0ee47f5b784ccef668d2843bab4f))
+* adjust small issues from swagger docs :sparkles: ([dbdfcf5](https://github.com/LerianStudio/midaz/commit/dbdfcf548aa2bef479ff2fc528506ef66a10da52))
+* update architecture final stage :sparkles: ([fcd6d6b](https://github.com/LerianStudio/midaz/commit/fcd6d6b4eef2678f21be5dac0d9a1a811a3b3890))
+* update swagger documentation base using envs and generate docs in dockerfile :sparkles: ([7597ac2](https://github.com/LerianStudio/midaz/commit/7597ac2e46f5731f3e52be46ed0252720ade8021))
+
+
+### Bug Fixes
+
+* adjust lint issues :bug: ([bce4111](https://github.com/LerianStudio/midaz/commit/bce411179651717a1ead6353fd8a04593f28aafb))
+* adjust makefile remove wire. :bug: ([ef13013](https://github.com/LerianStudio/midaz/commit/ef130134c6df8b61b10e174d958bcbd67ccc4fd1))
+* fix merge with two others repos :bug: ([8bb5853](https://github.com/LerianStudio/midaz/commit/8bb5853e63f6254b2a9606a53e070602f3198fd9))
+* lint :bug: ([36b62d4](https://github.com/LerianStudio/midaz/commit/36b62d45a8b2633e9027ccc66e9f1d2c7266d966))
+* make lint :bug: ([1a2c76e](https://github.com/LerianStudio/midaz/commit/1a2c76e706b8db611dc76373cf92ee2ec3a2c9c3))
+* merge MIDAZ-265 :bug: ([ad73b11](https://github.com/LerianStudio/midaz/commit/ad73b11ec2cef76cbfb7384662f2dbc4fbc74196))
+* reorganize imports :bug: ([80a0206](https://github.com/LerianStudio/midaz/commit/80a02066678faec96da5290c1e33adc96eddf89c))
+* standardize telemetry and logger shutdown in ledger and transaction services :bug: ([d9246bf](https://github.com/LerianStudio/midaz/commit/d9246bfd85fb5c793b05322d0ed010b8400a15fb))
+* update erros and imports :bug: ([9e501c4](https://github.com/LerianStudio/midaz/commit/9e501c424aab1fecfbae24a09fc1a50f6ba19f53))
+* update imports :bug: ([c0d1d14](https://github.com/LerianStudio/midaz/commit/c0d1d1419ef04ca4340a4f7071841cb587c54ea3))
+* update imports names :bug: ([125cfc7](https://github.com/LerianStudio/midaz/commit/125cfc785a831993e478973166f83f84509293a4))
+* update make file :bug: ([4847ffd](https://github.com/LerianStudio/midaz/commit/4847ffdb688274cbe65f82200cf93f12f07c0f60))
+* update wire gen with standardize telemetry shutdown in ledger grpc :bug: ([3cf681d](https://github.com/LerianStudio/midaz/commit/3cf681d2ed29f12fdf1606fa250cd94ce33d4109))
+* update with lint warning :bug: ([d417fe2](https://github.com/LerianStudio/midaz/commit/d417fe28eae349d3b1b0b2bda1518483576cc31b))
+
 ## [1.29.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.7...v1.29.0-beta.8) (2024-11-21)
 
 
