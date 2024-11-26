@@ -94,3 +94,6 @@ all-services:
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
+
+test_integration_cli:
+	go test -v -tags=integration ./components/mdz/test/integration/...
