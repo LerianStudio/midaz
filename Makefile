@@ -3,10 +3,11 @@ INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 TRANSACTION_DIR := ./components/transaction
 MDZ_DIR := ./components/mdz
+AUDIT_DIR := ./components/audit
 
 .PHONY: help test cover lint format check-logs check-tests \
         setup-git-hooks check-hooks goreleaser tidy sec set-env up auth infra ledger \
-        transaction all-services
+        transaction audit all-services
 
 BLUE := \033[36m
 NC := \033[0m
@@ -118,6 +119,7 @@ set-env:
 	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
 	cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
+	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
 up: 
@@ -125,7 +127,8 @@ up:
 	docker-compose -f $(AUTH_DIR)/docker-compose.yml up --build -d && \
 	docker-compose -f $(INFRA_DIR)/docker-compose.yml up --build -d && \
 	docker-compose -f $(LEDGER_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d 
+	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d && \
+	docker-compose -f $(AUDIT_DIR)/docker-compose.yml up --build -d
 	@echo "$(BLUE)All services started successfully$(NC)"
 
 auth:
@@ -144,12 +147,17 @@ transaction:
 	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
+audit:
+	@echo "$(BLUE)Executing command in audit service...$(NC)"
+	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
+
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
-	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
+	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
 
 test_integration_cli:
 	go test -v -tags=integration ./components/mdz/test/integration/...
