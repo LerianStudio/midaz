@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/common/net/http"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"

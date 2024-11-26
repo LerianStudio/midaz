@@ -9,8 +9,8 @@ import (
 	"github.com/LerianStudio/midaz/common/constant"
 	goldModel "github.com/LerianStudio/midaz/common/gold/transaction/model"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
 )
 

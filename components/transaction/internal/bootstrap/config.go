@@ -12,14 +12,14 @@ import (
 	"github.com/LerianStudio/midaz/common/mrabbitmq"
 	"github.com/LerianStudio/midaz/common/mredis"
 	"github.com/LerianStudio/midaz/common/mzap"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/assetrate"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/operation"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/redis"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/components/transaction/internal/bootstrap/http"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 )
@@ -169,7 +169,7 @@ func InitServers() *Service {
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
 	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
 
-	accountGRPCRepository := grpc.NewAccountGRPC(grpcConnection)
+	accountGRPCRepository := out.NewAccountGRPC(grpcConnection)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
@@ -193,22 +193,22 @@ func InitServers() *Service {
 		RedisRepo:       redisConsumerRepository,
 	}
 
-	transactionHandler := &http.TransactionHandler{
+	transactionHandler := &in.TransactionHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
 
-	operationHandler := &http.OperationHandler{
+	operationHandler := &in.OperationHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
 
-	assetRateHandler := &http.AssetRateHandler{
+	assetRateHandler := &in.AssetRateHandler{
 		Command: useCase,
 		Query:   queryUseCase,
 	}
 
-	app := http.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
+	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

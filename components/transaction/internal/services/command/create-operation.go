@@ -11,8 +11,8 @@ import (
 	"github.com/LerianStudio/midaz/common/mgrpc/account"
 	"github.com/LerianStudio/midaz/common/mlog"
 	"github.com/LerianStudio/midaz/common/mopentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/mongodb"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/database/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
