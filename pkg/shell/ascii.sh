@@ -1,4 +1,4 @@
-source $PWD/common/shell/colors.sh
+source $PWD/pkg/shell/colors.sh
 
 border() {
   local str="$*" # Put all arguments into single string
