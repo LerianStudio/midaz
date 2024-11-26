@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/LerianStudio/midaz/common"
 	"github.com/LerianStudio/midaz/components/transaction/internal/bootstrap"
+	"github.com/LerianStudio/midaz/pkg"
 )
 
 // @title			Midaz Transaction API
@@ -16,6 +16,6 @@ import (
 // @host			localhost:3002
 // @BasePath		/
 func main() {
-	common.InitLocalEnvConfig()
+	pkg.InitLocalEnvConfig()
 	bootstrap.InitServers().Run()
 }

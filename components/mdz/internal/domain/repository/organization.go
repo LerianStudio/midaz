@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 type Organization interface {

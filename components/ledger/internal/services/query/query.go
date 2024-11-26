@@ -1,15 +1,15 @@
 package query
 
 import (
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/mongodb"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/account"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/asset"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/ledger"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/organization"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/redis"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/redis"
 )
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementation.

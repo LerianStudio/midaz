@@ -1,8 +1,8 @@
 package bootstrap
 
 import (
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mlog"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mlog"
 )
 
 // Service is the application glue where we put all top level components to be used.
@@ -15,9 +15,9 @@ type Service struct {
 // Run starts the application.
 // This is the only necessary code to run an app in main.go
 func (app *Service) Run() {
-	common.NewLauncher(
-		common.WithLogger(app.Logger),
-		common.RunApp("HTTP server", app.Server),
-		common.RunApp("gRPC server", app.ServerGRPC),
+	pkg.NewLauncher(
+		pkg.WithLogger(app.Logger),
+		pkg.RunApp("HTTP server", app.Server),
+		pkg.RunApp("gRPC server", app.ServerGRPC),
 	).Run()
 }

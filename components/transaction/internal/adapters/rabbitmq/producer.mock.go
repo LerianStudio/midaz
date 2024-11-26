@@ -10,9 +10,8 @@
 package rabbitmq
 
 import (
-	reflect "reflect"
-
 	gomock "go.uber.org/mock/gomock"
+	reflect "reflect"
 )
 
 // MockProducerRepository is a mock of ProducerRepository interface.

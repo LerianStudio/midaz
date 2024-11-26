@@ -1,6 +1,6 @@
 package repository
 
-import "github.com/LerianStudio/midaz/common/mmodel"
+import "github.com/LerianStudio/midaz/pkg/mmodel"
 
 type Account interface {
 	Create(organizationID, ledgerID, portfolioID string, inp mmodel.CreateAccountInput) (*mmodel.Account, error)

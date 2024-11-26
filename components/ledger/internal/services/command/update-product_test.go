@@ -3,21 +3,22 @@ package command
 import (
 	"context"
 	"errors"
+	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/database/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 // TestUpdateProductByIDSuccess is responsible to test UpdateProductByID with success
 func TestUpdateProductByIDSuccess(t *testing.T) {
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	p := &mmodel.Product{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),
@@ -43,9 +44,9 @@ func TestUpdateProductByIDSuccess(t *testing.T) {
 // TestUpdateProductByIDError is responsible to test UpdateProductByID with error
 func TestUpdateProductByIDError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	id := common.GenerateUUIDv7()
-	organizationID := common.GenerateUUIDv7()
-	ledgerID := common.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	p := &mmodel.Product{
 		ID:             id.String(),
 		OrganizationID: organizationID.String(),

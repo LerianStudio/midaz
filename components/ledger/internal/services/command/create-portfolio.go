@@ -5,15 +5,16 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/LerianStudio/midaz/common"
-	"github.com/LerianStudio/midaz/common/mmodel"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+
 	"github.com/google/uuid"
 )
 
 // CreatePortfolio creates a new portfolio persists data in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
-	logger := common.NewLoggerFromContext(ctx)
-	tracer := common.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_portfolio")
 	defer span.End()
@@ -21,7 +22,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status mmodel.Status
-	if cpi.Status.IsEmpty() || common.IsNilOrEmpty(&cpi.Status.Code) {
+	if cpi.Status.IsEmpty() || pkg.IsNilOrEmpty(&cpi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -32,7 +33,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	status.Description = cpi.Status.Description
 
 	portfolio := &mmodel.Portfolio{
-		ID:             common.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -44,7 +45,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
-		common.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
+		pkg.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
 
 		logger.Errorf("Error creating portfolio: %v", err)
 
@@ -53,7 +54,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
-		common.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
+		pkg.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
 
 		logger.Errorf("Error creating portfolio metadata: %v", err)
 

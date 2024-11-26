@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source "$PWD"/common/shell/colors.sh
-source "$PWD"/common/shell/ascii.sh
+source "$PWD"/pkg/shell/colors.sh
+source "$PWD"/pkg/shell/ascii.sh
 
 while read local_ref local_sha remote_ref remote_sha; do
     if [[ "$local_ref" =~ ^refs/heads/ ]]; then
