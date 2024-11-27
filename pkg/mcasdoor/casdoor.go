@@ -23,7 +23,7 @@ type CasdoorConnection struct {
 	Certificate      string
 	OrganizationName string
 	ApplicationName  string
-	EnforcerName     string
+	ModelName        string
 	JWKUri           string
 	Connected        bool
 	Client           *casdoorsdk.Client
