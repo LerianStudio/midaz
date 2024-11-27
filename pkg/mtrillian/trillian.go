@@ -13,13 +13,17 @@ import (
 )
 
 type TrillianConnection struct {
-	Addr   string
-	Conn   *grpc.ClientConn
-	Logger mlog.Logger
+	Addr     string
+	Database string
+	Conn     *grpc.ClientConn
+	Logger   mlog.Logger
 }
 
 // Connect keeps a singleton connection with Trillian gRPC.
 func (c *TrillianConnection) Connect() error {
+
+	c.Logger.Infof("Connecting to Trillian at %v", c.Addr)
+
 	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect on Trillian gRPC: %v", zap.Error(err))
@@ -47,6 +51,8 @@ func (c *TrillianConnection) GetNewClient() (*grpc.ClientConn, error) {
 
 // CreateAndInitTree creates and initializes a tree for storing log entries
 func (c *TrillianConnection) CreateAndInitTree(ctx context.Context, name, description string) (int64, error) {
+
+	c.Logger.Infof("Creating and initializing Trillian Tree at %v", c.Conn.Target())
 
 	adminClient := trillian.NewTrillianAdminClient(c.Conn)
 

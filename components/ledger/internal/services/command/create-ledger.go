@@ -70,5 +70,14 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led.Metadata = metadata
 
+	_, err = uc.CreateAuditTree(ctx, organizationID.String(), ledger.ID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create ledger audit tree", err)
+
+		logger.Errorf("Error creating ledger audit tree: %v", err)
+
+		return nil, err
+	}
+
 	return led, nil
 }
