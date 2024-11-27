@@ -1,8 +1,6 @@
 package asset
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -63,8 +61,7 @@ func (f *factoryAssetDelete) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Asset ID %s has been successfully deleted.", f.AssetID))
+	output.FormatAndPrint(f.factory, f.AssetID, "Asset", output.Deleted)
 
 	return nil
 }

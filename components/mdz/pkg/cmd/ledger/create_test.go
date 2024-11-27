@@ -2,8 +2,9 @@ package ledger
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -76,6 +77,5 @@ func Test_newCmdLedgerCreate(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The ledger_id 0192e251-328d-7390-99f5-5c54980115ed has been successfully created")
-
+	assert.Contains(t, output, "The Ledger 0192e251-328d-7390-99f5-5c54980115ed has been successfully created.")
 }

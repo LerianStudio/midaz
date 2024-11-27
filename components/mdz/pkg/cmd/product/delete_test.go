@@ -2,8 +2,9 @@ package product
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -42,5 +43,5 @@ func Test_newCmdProductDelete(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := factory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Product ID 444 has been successfully deleted.")
+	assert.Contains(t, output, "The Product 444 has been successfully deleted.")
 }

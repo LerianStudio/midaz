@@ -28,10 +28,11 @@ type AccountHandler struct {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			account			body		mmodel.CreateAccountInput	true	"Account"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Account
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [post]
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
@@ -78,10 +79,11 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Description	Get all Accounts with the input metadata or without metadata
 //	@Tags			Accounts
 //	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Account}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
@@ -157,10 +159,11 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Description	Get an Account with the input ID
 //	@Tags			Accounts
 //	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Account ID"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mmodel.Account
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [get]
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
@@ -199,11 +202,12 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			id				path		string						true	"Account ID"
 //	@Param			account			body		mmodel.UpdateAccountInput	true	"Account"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Account
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [patch]
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
@@ -259,10 +263,11 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 //	@Summary		Delete an Account by ID
 //	@Description	Delete an Account with the input ID
 //	@Tags			Accounts
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			id				path	string	true	"Account ID"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Success		204
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [delete]
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
@@ -306,11 +311,12 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			portfolio_id	path		string						true	"Portfolio ID"
 //	@Param			account			body		mmodel.CreateAccountInput	true	"Account"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Account
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts [post]
 func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) error {
@@ -349,11 +355,12 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 //	@Description	Get all Accounts with the input metadata or without metadata from a Portfolio
 //	@Tags			Accounts
 //	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
 //	@Param			metadata		query		string	false	"Metadata"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Account}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) error {
@@ -418,11 +425,12 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 //	@Description	Get an Account with the input ID from a Portfolio.
 //	@Tags			Accounts
 //	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
 //	@Param			id				path		string	true	"Account ID"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mmodel.Account
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [get]
 func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
@@ -459,12 +467,13 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			portfolio_id	path		string						true	"Portfolio ID"
 //	@Param			id				path		string						true	"Account ID"
 //	@Param			account			body		mmodel.UpdateAccountInput	true	"Account"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Account
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [patch]
 func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) error {
@@ -509,10 +518,12 @@ func (handler *AccountHandler) UpdateAccountFromPortfolio(i any, c *fiber.Ctx) e
 //	@Description	---
 //	@Description	Delete an Account with the input ID from a Portfolio
 //	@Tags			Accounts
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			portfolio_id	path	string	true	"Portfolio ID"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			id				path	string	true	"Account ID"
 //	@Success		204
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id} [delete]
 func (handler *AccountHandler) DeleteAccountByIDFromPortfolio(c *fiber.Ctx) error {

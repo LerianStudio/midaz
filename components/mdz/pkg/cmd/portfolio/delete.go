@@ -1,8 +1,6 @@
 package portfolio
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -63,8 +61,7 @@ func (f *factoryPortfolioDelete) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Portfolio ID %s has been successfully deleted.", f.PortfolioID))
+	output.FormatAndPrint(f.factory, f.PortfolioID, "Portfolio", output.Deleted)
 
 	return nil
 }

@@ -1,6 +1,7 @@
 package in
 
 import (
+	"github.com/LerianStudio/midaz/pkg"
 	"os"
 
 	"github.com/LerianStudio/midaz/components/ledger/api"
@@ -22,7 +23,11 @@ func WithSwaggerEnvConfig() fiber.Handler {
 		}
 
 		for env, field := range envVars {
-			if value := os.Getenv(env); value != "" {
+			if value := os.Getenv(env); !pkg.IsNilOrEmpty(&value) {
+				if env == "SWAGGER_HOST" && pkg.ValidateServerAddress(value) == "" {
+					continue
+				}
+
 				*field = value
 			}
 		}
