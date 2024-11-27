@@ -37,8 +37,8 @@ type TransactionHandler struct {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
@@ -71,8 +71,8 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Tags			Transactions
 //	@Accept			mpfd
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
@@ -179,8 +179,8 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
@@ -234,8 +234,8 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Description	Get a Transaction with the input ID
 //	@Tags			Transactions
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
@@ -274,8 +274,8 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Description	Get all Transactions with the input metadata or without metadata
 //	@Tags			Transactions
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction}

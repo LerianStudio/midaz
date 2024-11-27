@@ -28,8 +28,8 @@ type ProductHandler struct {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			product			body		mmodel.CreateProductInput	true	"Product"
@@ -76,8 +76,8 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 //	@Description	Get all Products with the input metadata or without metadata
 //	@Tags			Products
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
@@ -148,8 +148,8 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 //	@Description	Get a Product with the input ID
 //	@Tags			Products
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Product ID"
@@ -190,8 +190,8 @@ func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			id				path		string						true	"Product ID"

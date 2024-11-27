@@ -28,8 +28,8 @@ type AssetHandler struct {
 //	@Tags			Assets
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset Input"
@@ -80,8 +80,8 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Description	Get all Assets with the input metadata or without metadata
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
@@ -154,8 +154,8 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 //	@Description	Get an Asset with the input ID
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Asset ID"
@@ -197,8 +197,8 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 //	@Tags			Assets
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			id				path		string					true	"Asset ID"

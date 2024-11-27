@@ -31,8 +31,8 @@ type LedgerHandler struct {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger			body		mmodel.CreateLedgerInput	true	"Ledger Input"
 //	@Success		200				{object}	mmodel.Ledger
@@ -77,11 +77,11 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 //	@Description	Get a Ledger with the input ID
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			id			path		string	true	"Ledger ID"
-//	@Success		200			{object}	mmodel.Ledger
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			id				path		string	true	"Ledger ID"
+//	@Success		200				{object}	mmodel.Ledger
 //	@Router			/v1/organizations/{organization_id}/ledgers/{id} [get]
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -117,8 +117,8 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Description	Get all Ledgers with the input metadata or without metadata
 //	@Tags			Ledgers
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			id				path		string	true	"Ledger ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Ledger}
@@ -187,8 +187,8 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 //	@Tags			Ledgers
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			id				path		string						true	"Ledger ID"
 //	@Param			ledger			body		mmodel.UpdateLedgerInput	true	"Ledger Input"

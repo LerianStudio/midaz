@@ -27,8 +27,8 @@ type OperationHandler struct {
 //	@Description	Get all Operations with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
@@ -87,8 +87,8 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Description	Get an Operation with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
@@ -131,8 +131,8 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Description	Get all Operations with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
@@ -191,8 +191,8 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 //	@Description	Get an Operation with the input ID
 //	@Tags			Operations
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
@@ -236,8 +236,8 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 //	@Tags			Operations
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			transaction_id	path		string							true	"Transaction ID"

@@ -28,8 +28,8 @@ type AccountHandler struct {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			account			body		mmodel.CreateAccountInput	true	"Account"
@@ -79,8 +79,8 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Description	Get all Accounts with the input metadata or without metadata
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
@@ -159,8 +159,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 //	@Description	Get an Account with the input ID
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Account ID"
@@ -202,8 +202,8 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			id				path		string						true	"Account ID"
@@ -311,8 +311,8 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			portfolio_id	path		string						true	"Portfolio ID"
@@ -355,8 +355,8 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 //	@Description	Get all Accounts with the input metadata or without metadata from a Portfolio
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
@@ -425,8 +425,8 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 //	@Description	Get an Account with the input ID from a Portfolio.
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
@@ -467,8 +467,8 @@ func (handler *AccountHandler) GetAccountByIDFromPortfolio(c *fiber.Ctx) error {
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			portfolio_id	path		string						true	"Portfolio ID"
