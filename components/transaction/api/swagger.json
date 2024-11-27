@@ -30,6 +30,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -48,12 +61,6 @@
                         "name": "account_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -94,6 +101,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -119,12 +139,6 @@
                         "name": "operation_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -153,6 +167,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -173,12 +200,6 @@
                         "schema": {
                             "$ref": "#/definitions/CreateAssetRateInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -202,6 +223,19 @@
                 ],
                 "summary": "Get an AssetRate by ID",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Organization ID",
@@ -231,12 +265,6 @@
                         "schema": {
                             "$ref": "#/definitions/CreateAssetRateInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -262,6 +290,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -280,12 +321,6 @@
                         "name": "portfolio_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -326,6 +361,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -351,12 +399,6 @@
                         "name": "operation_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -382,6 +424,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -393,12 +448,6 @@
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -442,6 +491,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -460,12 +522,6 @@
                         "name": "transaction",
                         "in": "formData",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -494,6 +550,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -514,12 +583,6 @@
                         "schema": {
                             "$ref": "#/definitions/CreateTransactionInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -545,6 +608,19 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -563,12 +639,6 @@
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -593,6 +663,19 @@
                 ],
                 "summary": "Update a Transaction",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Organization ID",
@@ -622,12 +705,6 @@
                         "schema": {
                             "$ref": "#/definitions/UpdateTransactionInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -654,6 +731,19 @@
                 ],
                 "summary": "Update an Operation",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Organization ID",
@@ -690,12 +780,6 @@
                         "schema": {
                             "$ref": "#/definitions/UpdateOperationInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {

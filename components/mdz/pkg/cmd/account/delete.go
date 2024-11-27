@@ -1,8 +1,6 @@
 package account
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -73,8 +71,7 @@ func (f *factoryAccountDelete) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Account ID %s has been successfully deleted.", f.AccountID))
+	output.FormatAndPrint(f.factory, f.AccountID, "Account", output.Deleted)
 
 	return nil
 }

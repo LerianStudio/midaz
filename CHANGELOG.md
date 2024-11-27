@@ -1,3 +1,118 @@
+## [1.30.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.1...v1.30.0-beta.2) (2024-11-27)
+
+## [1.30.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.29.0...v1.30.0-beta.1) (2024-11-27)
+
+
+### Features
+
+* format output colors and set flag global no-color :sparkles: ([7fae4c0](https://github.com/LerianStudio/midaz/commit/7fae4c044e1f060cbafbc751c2fa9c00fd60f308))
+
+## [1.29.0](https://github.com/LerianStudio/midaz/compare/v1.28.0...v1.29.0) (2024-11-26)
+
+
+### Features
+
+* add :sparkles: ([8baab22](https://github.com/LerianStudio/midaz/commit/8baab221b425c84fc56ee1eadcb8da3d09048543))
+* add base to the swagger documentation and telemetry root span handling for the swagger endpoint calls :sparkles: ([0165a7c](https://github.com/LerianStudio/midaz/commit/0165a7c996a59e5941a2448e03e461b57088a677))
+* add blocked to open pr to main if not come from develop or hotfix :sparkles: ([327448d](https://github.com/LerianStudio/midaz/commit/327448dafbd03db064c0f9488c0950e270d6556f))
+* add reviewdog :sparkles: ([e5af335](https://github.com/LerianStudio/midaz/commit/e5af335e030c4e1ee7c68ec7ba6997db7c56cd4c))
+* add reviewdog again :sparkles: ([3636404](https://github.com/LerianStudio/midaz/commit/363640416c1c263238ab8e3634f90cef348b8c5e))
+* add rule to pr :sparkles: ([6e0ff0c](https://github.com/LerianStudio/midaz/commit/6e0ff0c010ea23feb1e3140ebe8e88abca2ae547))
+* add swagger documentation generated for ledger :sparkles: ([cef9e22](https://github.com/LerianStudio/midaz/commit/cef9e22ee6558dc16372ab17e688129a5856212c))
+* add swagger documentation to onboarding context on ledger service :sparkles: ([65ea499](https://github.com/LerianStudio/midaz/commit/65ea499a50e17f6e22f52f9705a833e4d64a134a))
+* add swagger documentation to the portfolio context on ledger service :sparkles: ([fad4b08](https://github.com/LerianStudio/midaz/commit/fad4b08dbb7a0ee47f5b784ccef668d2843bab4f))
+* add swagger documentation to transaction service :sparkles: ([e06a30e](https://github.com/LerianStudio/midaz/commit/e06a30e360e70079ce66c7f3aeecdd5536c8b134))
+* add swagger generated docs from transaction :sparkles: ([a6e3775](https://github.com/LerianStudio/midaz/commit/a6e377576673c4a2c0a2691f717518d9ade65e0f))
+* add version endpoint to ledger and transaction services :sparkles: ([bb646b7](https://github.com/LerianStudio/midaz/commit/bb646b75161b1698adacc32164862d910fa5e987))
+* added command account in root ([7e2a439](https://github.com/LerianStudio/midaz/commit/7e2a439a26efa5786a5352b09875339d7545b2e6))
+* added command describe from products ([4b4a222](https://github.com/LerianStudio/midaz/commit/4b4a22273e009760e2819b04063a8715388fdfa1))
+* added command list from products ([fe7503e](https://github.com/LerianStudio/midaz/commit/fe7503ea6c4b971be4ffba55ed21035bfeb15710))
+* added sub command create in commmand account with test unit ([29a424c](https://github.com/LerianStudio/midaz/commit/29a424ca8f337f67318d8cd17b8df6c20ba36f33))
+* added sub command delete in commmand account with test unit ([4a1b77b](https://github.com/LerianStudio/midaz/commit/4a1b77bc3e3b8d2d393793fe8d852ee0e78b41a7))
+* added sub command describe in commmand account with test unit ([7990908](https://github.com/LerianStudio/midaz/commit/7990908dde50a023b4a83bd79e159745eb831533))
+* added sub command list in commmand account with test unit ([c6d112a](https://github.com/LerianStudio/midaz/commit/c6d112a3d841fb0574479dfb11f1ed8a4e500379))
+* added sub command update in commmand account with test unit ([59ba185](https://github.com/LerianStudio/midaz/commit/59ba185856661c0afe3243b88ed68f66b46a4938))
+* adjust small issues from swagger docs :sparkles: ([dbdfcf5](https://github.com/LerianStudio/midaz/commit/dbdfcf548aa2bef479ff2fc528506ef66a10da52))
+* create git action to update version on env files :sparkles: ([ca28ded](https://github.com/LerianStudio/midaz/commit/ca28ded27672e153adcdbf53db5e2865bd33b123))
+* create redis connection :sparkles: ([c8651e5](https://github.com/LerianStudio/midaz/commit/c8651e5c523d2f124dbfa8eaaa3f6647a0d0a5a0))
+* create rest get product ([bf9a271](https://github.com/LerianStudio/midaz/commit/bf9a271ddd396e7800c2d69a1f3d87fc00916077))
+* create sub command delete from products ([80d3a62](https://github.com/LerianStudio/midaz/commit/80d3a625fe2f02069b1d9e037f4c28bcc2861ccc))
+* create sub command update from products ([4368bc2](https://github.com/LerianStudio/midaz/commit/4368bc212f7c4602dad0584feccf903a9e6c2c65))
+* implements redis on ledger :sparkles: ([5f1c5e4](https://github.com/LerianStudio/midaz/commit/5f1c5e47aa8507d138ff4739eb966a6beb996212))
+* implements redis on transaction :sparkles: ([7013ca2](https://github.com/LerianStudio/midaz/commit/7013ca20499db2b1063890509afbdffd934def97))
+* method of creating account rest ([cb4f377](https://github.com/LerianStudio/midaz/commit/cb4f377c047a7a07e64db4ad826691d6198b5f3c))
+* method of get by id accounts rest ([b5d61b8](https://github.com/LerianStudio/midaz/commit/b5d61b81deb1384dfaff2d78ec727580b78099d5))
+* method of list accounts rest ([5edbc02](https://github.com/LerianStudio/midaz/commit/5edbc027a5df6b61779cd677a98d4dfabafb59fe))
+* method of update and delete accounts rest ([551506e](https://github.com/LerianStudio/midaz/commit/551506eb62dce2e38bf8303a23d1e6e8eec887ff))
+* rollback lint :sparkles: ([4672464](https://github.com/LerianStudio/midaz/commit/4672464c97531f7817df66d6941d8d535ab45f31))
+* test rewiewdog lint :sparkles: ([5d69cc1](https://github.com/LerianStudio/midaz/commit/5d69cc14acbf4658ed832e2ad9ad0dd38ed69018))
+* update architecture final stage :sparkles: ([fcd6d6b](https://github.com/LerianStudio/midaz/commit/fcd6d6b4eef2678f21be5dac0d9a1a811a3b3890))
+* update git actions :sparkles: ([525b0ac](https://github.com/LerianStudio/midaz/commit/525b0acfc002bacfcc39bd6e3b65a10e9f995377))
+* update swagger documentation base using envs and generate docs in dockerfile :sparkles: ([7597ac2](https://github.com/LerianStudio/midaz/commit/7597ac2e46f5731f3e52be46ed0252720ade8021))
+
+
+### Bug Fixes
+
+* add doc endpoint comment in transaction routes.go ([41f637d](https://github.com/LerianStudio/midaz/commit/41f637d32c37f3e090321d21e46ab0fa180e5e73))
+* add logs using default logger in middleware responsible by collecting metrics :bug: :bug: ([d186c0a](https://github.com/LerianStudio/midaz/commit/d186c0afb50fdd3e71e6c80dffc92a6bd25fc30e))
+* add required and singletransactiontype tags to transaction input by json endpoint :bug: ([8c4e65f](https://github.com/LerianStudio/midaz/commit/8c4e65f4b2b222a75dba849ec24f2d92d09a400d))
+* add validation for scale greater than or equal to zero in transaction by json endpoint :bug: ([c1368a3](https://github.com/LerianStudio/midaz/commit/c1368a33c4aaafba4f366d803665244d00d6f9ce))
+* add zap caller skip to ignore hydrated log function :bug: ([03fd066](https://github.com/LerianStudio/midaz/commit/03fd06695dfd1ac68edadbfa50074093c265f976))
+* adjust import lint issues :bug: ([9fc524f](https://github.com/LerianStudio/midaz/commit/9fc524f924dc161e8138aaf918d6e10683fc90fb))
+* adjust ledger swagger docs :bug: ([1e2c606](https://github.com/LerianStudio/midaz/commit/1e2c606819f154a085a3bd223b4aef1d8b114e19))
+* adjust lint issues :bug: ([bce4111](https://github.com/LerianStudio/midaz/commit/bce411179651717a1ead6353fd8a04593f28aafb))
+* adjust makefile remove wire. :bug: ([ef13013](https://github.com/LerianStudio/midaz/commit/ef130134c6df8b61b10e174d958bcbd67ccc4fd1))
+* adjust to update version once in develop instead of main because rules :bug: ([3f3fdca](https://github.com/LerianStudio/midaz/commit/3f3fdca54493c4a5f4deafa571bb9000f398c597))
+* common change to pkg :bug: ([724a9b4](https://github.com/LerianStudio/midaz/commit/724a9b409e8a988c157ced8650c18a446e1e4e74))
+* create .keep file to commit folder :bug: ([605c270](https://github.com/LerianStudio/midaz/commit/605c270e7e962cfca1027f149d71b54ffb834601))
+* final adjusts :bug: ([c30532f](https://github.com/LerianStudio/midaz/commit/c30532f678b9a1ccc6a1902058279bbdaf90ce14))
+* fix merge with two others repos :bug: ([8bb5853](https://github.com/LerianStudio/midaz/commit/8bb5853e63f6254b2a9606a53e070602f3198fd9))
+* golint :bug: ([0aae8f8](https://github.com/LerianStudio/midaz/commit/0aae8f8649d288183746fd87cb6669da5161569d))
+* include metadata in transaction get all operations endpoint response :bug: ([b07adfa](https://github.com/LerianStudio/midaz/commit/b07adfab0966c7b3c87258806b6615aad273da8b))
+* lint :bug: ([1e7f12e](https://github.com/LerianStudio/midaz/commit/1e7f12e82925e9d8f3f10fca6d1f2c13910e8f64))
+* lint :bug: ([36b62d4](https://github.com/LerianStudio/midaz/commit/36b62d45a8b2633e9027ccc66e9f1d2c7266d966))
+* make lint :bug: ([1a2c76e](https://github.com/LerianStudio/midaz/commit/1a2c76e706b8db611dc76373cf92ee2ec3a2c9c3))
+* merge MIDAZ-265 :bug: ([ad73b11](https://github.com/LerianStudio/midaz/commit/ad73b11ec2cef76cbfb7384662f2dbc4fbc74196))
+* remove build number from version endpoint in ledger and transaction services :bug: ([798406f](https://github.com/LerianStudio/midaz/commit/798406f2ac00eb9e11fa8076c38906c0aa322f47))
+* reorganize imports :bug: ([80a0206](https://github.com/LerianStudio/midaz/commit/80a02066678faec96da5290c1e33adc96eddf89c))
+* resolve lint :bug: ([062fe5b](https://github.com/LerianStudio/midaz/commit/062fe5b8acc492c913e31b1039ef8ffbf5a5aff7))
+* resolve validation errors in transaction endpoint :bug: ([9203059](https://github.com/LerianStudio/midaz/commit/9203059d4651a1b92de71d3565ab02b27e264d4f))
+* rollback version :bug: ([b4543f7](https://github.com/LerianStudio/midaz/commit/b4543f72fcdb9897a6fced1a9314f06fb2edc7d4))
+* skip insufficient funds validation for external accounts and update postman collection with new transaction json payload :bug: ([8edcb37](https://github.com/LerianStudio/midaz/commit/8edcb37a6b21b8ddd6b67dda8f2e57b76c82ea0d))
+* standardize telemetry and logger shutdown in ledger and transaction services :bug: ([d9246bf](https://github.com/LerianStudio/midaz/commit/d9246bfd85fb5c793b05322d0ed010b8400a15fb))
+* types :bug: ([6aed2e1](https://github.com/LerianStudio/midaz/commit/6aed2e1ebc5af1b625351ee643c647cb367cf8ab))
+* update :bug: ([981384c](https://github.com/LerianStudio/midaz/commit/981384c9b7f682336db312535b8302883e463b73))
+* update comment only instead request changes :bug: ([e3d28eb](https://github.com/LerianStudio/midaz/commit/e3d28eb6b06b045358edc89ca954c0bd0724fa04))
+* update erros and imports :bug: ([9e501c4](https://github.com/LerianStudio/midaz/commit/9e501c424aab1fecfbae24a09fc1a50f6ba19f53))
+* update git actions name :bug: ([2015cec](https://github.com/LerianStudio/midaz/commit/2015cecdc9b66d2a60ad974ad43e43a4db51a978))
+* update imports :bug: ([c0d1d14](https://github.com/LerianStudio/midaz/commit/c0d1d1419ef04ca4340a4f7071841cb587c54ea3))
+* update imports names :bug: ([125cfc7](https://github.com/LerianStudio/midaz/commit/125cfc785a831993e478973166f83f84509293a4))
+* update ledger makefile to generate swagger docs :bug: ([fe346fd](https://github.com/LerianStudio/midaz/commit/fe346fdfa99892bf29c2e6a0353b1ba8444d0358))
+* update make file :bug: ([4847ffd](https://github.com/LerianStudio/midaz/commit/4847ffdb688274cbe65f82200cf93f12f07c0f60))
+* update message :bug: ([f39d104](https://github.com/LerianStudio/midaz/commit/f39d1042edbfd00907c7285d3f1c32c753443453))
+* update message :bug: ([33269c3](https://github.com/LerianStudio/midaz/commit/33269c3a2dcbdef2b68c7abcdcbfc51e81dbd0a0))
+* update transaction error messages to comply with gitbook :bug: ([36ae998](https://github.com/LerianStudio/midaz/commit/36ae9985b908784ea59669087e99cc56e9399f14))
+* update transaction value mismatch error message :bug: ([8210e13](https://github.com/LerianStudio/midaz/commit/8210e1303b1838bb5b2f4e174c8f3e7516cc30e7))
+* update wire gen with standardize telemetry shutdown in ledger grpc :bug: ([3cf681d](https://github.com/LerianStudio/midaz/commit/3cf681d2ed29f12fdf1606fa250cd94ce33d4109))
+* update with lint warning :bug: ([d417fe2](https://github.com/LerianStudio/midaz/commit/d417fe28eae349d3b1b0b2bda1518483576cc31b))
+* when both go_version and go_version_file inputs are specified, only go_version will be used :bug: ([62508f8](https://github.com/LerianStudio/midaz/commit/62508f8bd074d8a0b64f66861be3a6101bb36daf))
+
+## [1.29.0-beta.20](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.19...v1.29.0-beta.20) (2024-11-26)
+
+
+### Bug Fixes
+
+* adjust to update version once in develop instead of main because rules :bug: ([3f3fdca](https://github.com/LerianStudio/midaz/commit/3f3fdca54493c4a5f4deafa571bb9000f398c597))
+* types :bug: ([6aed2e1](https://github.com/LerianStudio/midaz/commit/6aed2e1ebc5af1b625351ee643c647cb367cf8ab))
+
+## [1.29.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.18...v1.29.0-beta.19) (2024-11-26)
+
+
+### Bug Fixes
+
+* adjust import lint issues :bug: ([9fc524f](https://github.com/LerianStudio/midaz/commit/9fc524f924dc161e8138aaf918d6e10683fc90fb))
+* include metadata in transaction get all operations endpoint response :bug: ([b07adfa](https://github.com/LerianStudio/midaz/commit/b07adfab0966c7b3c87258806b6615aad273da8b))
+
 ## [1.29.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.29.0-beta.17...v1.29.0-beta.18) (2024-11-26)
 
 

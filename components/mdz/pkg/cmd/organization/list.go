@@ -39,9 +39,6 @@ func (f *factoryOrganizationList) runE(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	headerFmt := color.New(color.FgYellow).SprintfFunc()
-	columnFmt := color.New(color.FgYellow).SprintfFunc()
-
 	tbl := table.New(
 		"ID",
 		"PARENT_ORGANIZATION_ID",
@@ -54,7 +51,12 @@ func (f *factoryOrganizationList) runE(cmd *cobra.Command, _ []string) error {
 		"UPDATED_AT",
 	)
 
-	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+	if !f.factory.NoColor {
+		headerFmt := color.New(color.FgYellow).SprintfFunc()
+		columnFmt := color.New(color.FgYellow).SprintfFunc()
+		tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+	}
+
 	tbl.WithWriter(f.factory.IOStreams.Out)
 
 	for _, i := range orgs.Items {

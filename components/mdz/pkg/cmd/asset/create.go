@@ -3,7 +3,6 @@ package asset
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
@@ -76,8 +75,7 @@ func (f *factoryAssetCreate) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Asset ID %s has been successfully created", resp.ID))
+	output.FormatAndPrint(f.factory, resp.ID, "Asset", output.Created)
 
 	return nil
 }

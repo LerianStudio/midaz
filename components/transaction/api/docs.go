@@ -36,6 +36,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -54,12 +67,6 @@ const docTemplate = `{
                         "name": "account_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -100,6 +107,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -125,12 +145,6 @@ const docTemplate = `{
                         "name": "operation_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -159,6 +173,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -179,12 +206,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateAssetRateInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -208,6 +229,19 @@ const docTemplate = `{
                 ],
                 "summary": "Get an AssetRate by ID",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Organization ID",
@@ -237,12 +271,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateAssetRateInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -268,6 +296,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -286,12 +327,6 @@ const docTemplate = `{
                         "name": "portfolio_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -332,6 +367,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -357,12 +405,6 @@ const docTemplate = `{
                         "name": "operation_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -388,6 +430,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -399,12 +454,6 @@ const docTemplate = `{
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -448,6 +497,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -466,12 +528,6 @@ const docTemplate = `{
                         "name": "transaction",
                         "in": "formData",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -500,6 +556,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -520,12 +589,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateTransactionInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -551,6 +614,19 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
                         "description": "Organization ID",
                         "name": "organization_id",
                         "in": "path",
@@ -569,12 +645,6 @@ const docTemplate = `{
                         "name": "transaction_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -599,6 +669,19 @@ const docTemplate = `{
                 ],
                 "summary": "Update a Transaction",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Organization ID",
@@ -628,12 +711,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateTransactionInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {
@@ -660,6 +737,19 @@ const docTemplate = `{
                 ],
                 "summary": "Update an Operation",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Organization ID",
@@ -696,12 +786,6 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/UpdateOperationInput"
                         }
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
                     }
                 ],
                 "responses": {

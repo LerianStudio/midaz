@@ -3,7 +3,6 @@ package account
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
@@ -106,8 +105,7 @@ func (f *factoryAccountUpdate) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Account ID %s has been successfully updated.", resp.ID))
+	output.FormatAndPrint(f.factory, resp.ID, "Account", output.Updated)
 
 	return nil
 }

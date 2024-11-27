@@ -3,7 +3,6 @@ package portfolio
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
@@ -74,8 +73,7 @@ func (f *factoryPortfolioCreate) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Portfolio ID %s has been successfully created", resp.ID))
+	output.FormatAndPrint(f.factory, resp.ID, "Portfolio", output.Created)
 
 	return nil
 }

@@ -4,10 +4,72 @@ import (
 	"fmt"
 	"io"
 	"log"
+
+	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
+	"github.com/fatih/color"
+)
+
+const (
+	Created = "created"
+	Deleted = "deleted"
+	Updated = "updated"
+)
+
+var (
+	// IDs in pink and bold
+	idStyle = color.New(color.FgHiMagenta, color.Bold).SprintFunc()
+
+	// Confirmations: "Y" in green and "N" in red
+	// yesStyle = color.New(color.FgGreen).SprintFunc()
+	// noStyle  = color.New(color.FgRed).SprintFunc()
+
+	// entitys in blue and bold
+	entityStyle = color.New(color.FgBlue, color.Bold).SprintFunc()
+
+	// HTTP methods in specific colors
+	postStyle   = color.New(color.FgYellow, color.Bold).SprintFunc()
+	deleteStyle = color.New(color.FgRed, color.Bold).SprintFunc()
+	// putStyle    = color.New(color.FgBlue, color.Bold).SprintFunc()
+	patchStyle = color.New(color.FgBlue, color.Bold).SprintFunc()
+	// getStyle    = color.New(color.FgGreen, color.Bold).SprintFunc()
 )
 
 type Output interface {
 	Output() error
+}
+
+// FormatAndPrint formats and prints a message indicating the success of an operation,
+// with or without style, depending on the color configuration.
+func FormatAndPrint(f *factory.Factory, id, entity, method string) {
+	var msg, methodStyle string
+
+	if f.NoColor {
+		msg = fmt.Sprintf("The %s %s has been successfully %s.",
+			entity,
+			id,
+			method,
+		)
+	} else {
+		switch method {
+		case Created:
+			methodStyle = postStyle(method)
+		case Deleted:
+			methodStyle = deleteStyle(method)
+		case Updated:
+			methodStyle = patchStyle(method)
+		default:
+			methodStyle = method
+		}
+
+		msg = fmt.Sprintf("✔︎  The %s %s has been successfully %s.",
+			entityStyle(entity),
+			idStyle(id),
+			methodStyle,
+		)
+	}
+
+	g := GeneralOutput{Msg: msg, Out: f.IOStreams.Out}
+	g.Output()
 }
 
 func Printf(w io.Writer, msg string) {

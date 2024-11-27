@@ -2,8 +2,9 @@ package asset
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -70,5 +71,5 @@ func Test_newCmdLedgerUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Asset ID 412 has been successfully updated.")
+	assert.Contains(t, output, "The Asset 412 has been successfully updated.")
 }

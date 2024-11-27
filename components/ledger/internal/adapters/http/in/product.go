@@ -28,10 +28,11 @@ type ProductHandler struct {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			product			body		mmodel.CreateProductInput	true	"Product"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Product
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products [post]
 func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
@@ -75,10 +76,11 @@ func (handler *ProductHandler) CreateProduct(i any, c *fiber.Ctx) error {
 //	@Description	Get all Products with the input metadata or without metadata
 //	@Tags			Products
 //	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Product}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products [get]
 func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
@@ -146,10 +148,11 @@ func (handler *ProductHandler) GetAllProducts(c *fiber.Ctx) error {
 //	@Description	Get a Product with the input ID
 //	@Tags			Products
 //	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Product ID"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Success		200				{object}	mmodel.Product
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id} [get]
 func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
@@ -187,11 +190,12 @@ func (handler *ProductHandler) GetProductByID(c *fiber.Ctx) error {
 //	@Tags			Products
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			id				path		string						true	"Product ID"
 //	@Param			product			body		mmodel.UpdateProductInput	true	"Product"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
 //	@Success		200				{object}	mmodel.Product
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id} [patch]
 func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
@@ -246,10 +250,11 @@ func (handler *ProductHandler) UpdateProduct(i any, c *fiber.Ctx) error {
 //	@Summary		Delete a Product by ID
 //	@Description	Delete a Product with the input ID
 //	@Tags			Products
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			id				path	string	true	"Product ID"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
 //	@Success		204
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id} [delete]
 func (handler *ProductHandler) DeleteProductByID(c *fiber.Ctx) error {
