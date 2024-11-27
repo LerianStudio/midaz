@@ -1,8 +1,6 @@
 package ledger
 
 import (
-	"fmt"
-
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -45,8 +43,7 @@ func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.Printf(f.factory.IOStreams.Out,
-		fmt.Sprintf("The Ledger %s has been successfully deleted.", f.ledgerID))
+	output.FormatAndPrint(f.factory, f.ledgerID, "Ledger", output.Deleted)
 
 	return nil
 }

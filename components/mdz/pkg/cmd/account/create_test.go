@@ -2,8 +2,9 @@ package account
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -92,5 +93,5 @@ func Test_newCmdAccountCreate(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Account ID 01933f96-ed04-7c57-be5b-c091388830f8 has been successfully created")
+	assert.Contains(t, output, "The Account 01933f96-ed04-7c57-be5b-c091388830f8 has been successfully created.")
 }

@@ -35,6 +35,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 }
 
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().BoolVar(&f.factory.NoColor, "no-color", false, "Changes the output format passing the json value to the flag")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 

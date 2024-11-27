@@ -2,16 +2,16 @@ package account
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_newCmdLedgerUpdate(t *testing.T) {
@@ -71,5 +71,5 @@ func Test_newCmdLedgerUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Account ID 777 has been successfully updated.")
+	assert.Contains(t, output, "The Account 777 has been successfully updated.")
 }
