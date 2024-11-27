@@ -1,11 +1,12 @@
-package command
+package services
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb/audit"
+	"time"
+
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"time"
 )
 
 func (uc *UseCase) CreateAuditTree(ctx context.Context, organizationID, ledgerId string) (*int64, error) {

@@ -1,9 +1,7 @@
 package command
 
 import (
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
@@ -42,10 +40,4 @@ type UseCase struct {
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository
-
-	// TrillianRepo provides an abstraction on top of Trillian gRPC.
-	TrillianRepo out.Repository
-
-	// AuditRepo provides an abstraction on top of the audit data source
-	AuditRepo audit.Repository
 }

@@ -2,11 +2,10 @@ package bootstrap
 
 import (
 	"fmt"
+
 	grpcin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/in"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/out"
 	httpin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
@@ -24,7 +23,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mredis"
-	"github.com/LerianStudio/midaz/pkg/mtrillian"
 	"github.com/LerianStudio/midaz/pkg/mzap"
 )
 
@@ -75,9 +73,6 @@ type Config struct {
 	RedisPort               string `env:"REDIS_PORT"`
 	RedisUser               string `env:"REDIS_USER"`
 	RedisPassword           string `env:"REDIS_PASSWORD"`
-	TrillianHost            string `env:"TRILLIAN_HOST"`
-	TrillianPort            string `env:"TRILLIAN_PORT"`
-	TrillianDatabase        string `env:"TRILLIAN_DATABASE"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -159,23 +154,6 @@ func InitServers() *Service {
 		Logger:   logger,
 	}
 
-	trillianSource := fmt.Sprintf("%s:%s", cfg.TrillianHost, cfg.TrillianPort)
-
-	trillianConnection := &mtrillian.TrillianConnection{
-		Addr:     trillianSource,
-		Database: cfg.TrillianDatabase,
-		Logger:   logger,
-	}
-
-	mongoAuditSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
-		cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
-
-	mongoAuditConnection := &mmongo.MongoConnection{
-		ConnectionStringSource: mongoAuditSource,
-		Database:               cfg.TrillianDatabase,
-		Logger:                 logger,
-	}
-
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
 	productPostgreSQLRepository := product.NewProductPostgreSQLRepository(postgresConnection)
@@ -190,10 +168,6 @@ func InitServers() *Service {
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
-	trillianRepository := out.NewTrillianRepository(trillianConnection)
-
-	auditMongoDBRepository := audit.NewAuditMongoDBRepository(mongoAuditConnection)
-
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
@@ -204,8 +178,6 @@ func InitServers() *Service {
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
-		TrillianRepo:     trillianRepository,
-		AuditRepo:        auditMongoDBRepository,
 	}
 
 	queryUseCase := &query.UseCase{

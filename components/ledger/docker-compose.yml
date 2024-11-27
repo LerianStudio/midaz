@@ -15,7 +15,6 @@ services:
       - ledger_network
       - auth_network
       - infra_network
-      - audit_network
 
 networks:
   ledger_network:
@@ -26,7 +25,4 @@ networks:
     driver: bridge
   infra_network:
     name: infra_network
-    driver: bridge
-  audit_network:
-    name: audit_network
     driver: bridge

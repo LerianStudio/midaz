@@ -53,6 +53,10 @@ jobs:
           echo "Formatted release: $FORMATTED_RELEASE"
           echo "::set-output name=tag::$FORMATTED_RELEASE"
 
+      - name: Update AUDIT Env
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/audit/.env.example
+
       - name: Update LEDGER Env
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/ledger/.env.example

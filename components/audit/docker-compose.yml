@@ -1,4 +1,17 @@
 services:
+
+  midaz-audit:
+    container_name: midaz-audit
+    build:
+      context: ../../
+      dockerfile: ./components/audit/Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - .:/usr/src/app
+    networks:
+      - infra_network
+
   midaz-audit-db:
     container_name: midaz-audit-db
     image: mariadb:latest
@@ -52,6 +65,6 @@ volumes:
   audit-data:
 
 networks:
-  audit_network:
-    name: audit_network
+  infra_network:
+    name: infra_network
     driver: bridge
