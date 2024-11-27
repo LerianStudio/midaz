@@ -56,10 +56,6 @@ jobs:
           echo "Formatted release: $FORMATTED_RELEASE"
           echo "::set-output name=tag::$FORMATTED_RELEASE"
 
-      - name: Update AUDIT Env
-        run: |
-          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/audit/.env.example
-
       - name: Fetch Env Release
         id: env_release
         env:
@@ -68,6 +64,11 @@ jobs:
           VERSION=$(grep '^VERSION=' ./components/ledger/.env.example | cut -d '=' -f2)
           echo "LEDGER version: $VERSION"
           echo "::set-output name=version::$VERSION"
+
+      - name: Update AUDIT Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/audit/.env.example
 
       - name: Update LEDGER Env
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
