@@ -70,9 +70,6 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	headerFmt := color.New(color.FgYellow).SprintfFunc()
-	columnFmt := color.New(color.FgYellow).SprintfFunc()
-
 	tbl := table.New(
 		"ID",
 		"NAME",
@@ -82,7 +79,12 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 		"CREATED_AT",
 	)
 
-	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+	if !f.factory.NoColor {
+		headerFmt := color.New(color.FgYellow).SprintfFunc()
+		fieldFmt := color.New(color.FgYellow).SprintfFunc()
+		tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
+	}
+
 	tbl.WithWriter(f.factory.IOStreams.Out)
 
 	for _, i := range accounts.Items {

@@ -106,10 +106,12 @@ func (f *factoryAssetDescribe) outputAsset(cmd *cobra.Command, asset *mmodel.Ass
 func (f *factoryAssetDescribe) describePrint(asset *mmodel.Asset) {
 	tbl := table.New("FIELDS", "VALUES")
 
-	headerFmt := color.New(color.FgYellow).SprintfFunc()
-	fieldFmt := color.New(color.FgYellow).SprintfFunc()
+	if !f.factory.NoColor {
+		headerFmt := color.New(color.FgYellow).SprintfFunc()
+		fieldFmt := color.New(color.FgYellow).SprintfFunc()
+		tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
+	}
 
-	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
 	tbl.WithWriter(f.factory.IOStreams.Out)
 
 	tbl.AddRow("ID:", asset.ID)

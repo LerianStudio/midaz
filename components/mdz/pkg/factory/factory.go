@@ -15,6 +15,11 @@ type Factory struct {
 	HTTPClient *http.Client
 	IOStreams  *iostreams.IOStreams
 	Env        *environment.Env
+	Flags
+}
+
+type Flags struct {
+	NoColor bool
 }
 
 func NewFactory(env *environment.Env) *Factory {

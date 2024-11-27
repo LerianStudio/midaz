@@ -84,10 +84,12 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 func (f *factoryLedgerDescribe) describePrint(led *mmodel.Ledger) {
 	tbl := table.New("FIELDS", "VALUES")
 
-	headerFmt := color.New(color.FgYellow).SprintfFunc()
-	fieldFmt := color.New(color.FgYellow).SprintfFunc()
+	if !f.factory.NoColor {
+		headerFmt := color.New(color.FgYellow).SprintfFunc()
+		fieldFmt := color.New(color.FgYellow).SprintfFunc()
+		tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
+	}
 
-	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
 	tbl.WithWriter(f.factory.IOStreams.Out)
 
 	tbl.AddRow("ID:", led.ID)
