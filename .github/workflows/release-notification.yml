@@ -24,7 +24,7 @@ jobs:
         uses: rtCamp/action-slack-notify@v2
         if: '!github.event.release.prerelease'
         env:
-          SLACK_CHANNEL: "#lerian-product-releases" # Channel of Slack
+          SLACK_CHANNEL: "#lerian-product-release" # Channel of Slack
           SLACK_COLOR: "#36a64f"
           SLACK_ICON: ":rocket:"
           SLACK_MESSAGE: "🎉 *Nova Release Publicada!* Versão: ${GITHUB_REF#refs/tags/} \n\n<https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF#refs/tags/}|Clique aqui para detalhes.>"
