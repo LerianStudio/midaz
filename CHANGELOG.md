@@ -1,3 +1,10 @@
+## [1.30.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.3...v1.30.0-beta.4) (2024-11-28)
+
+
+### Bug Fixes
+
+* remove slack release notification :bug: ([de07047](https://github.com/LerianStudio/midaz/commit/de0704713e601d8c5a06198bc46a66f433ebc711))
+
 ## [1.30.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.2...v1.30.0-beta.3) (2024-11-28)
 
 ## [1.30.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.1...v1.30.0-beta.2) (2024-11-27)
