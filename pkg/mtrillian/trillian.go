@@ -80,7 +80,7 @@ func (c *TrillianConnection) CreateAndInitTree(ctx context.Context, name, descri
 	return tree.TreeId, nil
 }
 
-func (c *TrillianConnection) WriteLog(ctx context.Context, treeID int64, content []byte) ([]byte, error) {
+func (c *TrillianConnection) CreateLog(ctx context.Context, treeID int64, content []byte) ([]byte, error) {
 	logClient := trillian.NewTrillianLogClient(c.Conn)
 
 	response, err := logClient.QueueLeaf(ctx, &trillian.QueueLeafRequest{

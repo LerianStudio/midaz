@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"encoding/hex"
 	"github.com/LerianStudio/midaz/pkg/mtrillian"
 )
 
@@ -10,6 +11,7 @@ import (
 //go:generate mockgen --destination=trillian.mock.go --package=out . Repository
 type Repository interface {
 	CreateLogTree(ctx context.Context, name, description string) (int64, error)
+	CreateLog(ctx context.Context, treeID int64, operation []byte) (string, error)
 }
 
 // TrillianRepository interacts with Trillian log server
@@ -40,4 +42,13 @@ func (t TrillianRepository) CreateLogTree(ctx context.Context, name, description
 	}
 
 	return tree, nil
+}
+
+func (t TrillianRepository) CreateLog(ctx context.Context, treeID int64, operation []byte) (string, error) {
+	logHash, err := t.conn.CreateLog(ctx, treeID, operation)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(logHash), nil
 }
