@@ -1,6 +1,7 @@
 services:
   transaction:
     container_name: midaz-transaction
+    restart: always
     build:
       context: ../../
       dockerfile: ./components/transaction/Dockerfile

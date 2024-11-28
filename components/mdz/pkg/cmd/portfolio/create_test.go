@@ -2,8 +2,9 @@ package portfolio
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -83,6 +84,6 @@ func Test_newCmdPortfolioCreate(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Portfolio ID 01931c99-adef-7b98-ad68-72d7e263066a has been successfully created")
+	assert.Contains(t, output, "The Portfolio 01931c99-adef-7b98-ad68-72d7e263066a has been successfully created.")
 
 }

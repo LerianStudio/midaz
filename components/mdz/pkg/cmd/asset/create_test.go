@@ -2,8 +2,9 @@ package asset
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -89,5 +90,5 @@ func Test_newCmdAssetCreate(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Asset ID 01930219-2c25-7a37-a5b9-610d44ae0a27 has been successfully created")
+	assert.Contains(t, output, "The Asset 01930219-2c25-7a37-a5b9-610d44ae0a27 has been successfully created.")
 }
