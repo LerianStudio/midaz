@@ -2,14 +2,14 @@ package services
 
 import (
 	"context"
-	"time"
-
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 )
 
-func (uc *UseCase) CreateAuditTree(ctx context.Context, organizationID, ledgerId string) (*int64, error) {
+func (uc *UseCase) CreateAuditTree(ctx context.Context, auditObj audit.Audit) (*int64, error) {
+
+	// TODO: move to create-log
 
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
@@ -17,11 +17,9 @@ func (uc *UseCase) CreateAuditTree(ctx context.Context, organizationID, ledgerId
 	ctx, span := tracer.Start(ctx, "command.create_audit_tree")
 	span.End()
 
-	logger.Infof("Trying to create audit tree for ledger: %v", ledgerId)
+	logger.Infof("Trying to create audit tree for ledger: %v", auditObj.ID.LedgerID)
 
-	// TODO: search first to see if it already exists?
-
-	treeID, err := uc.TrillianRepo.CreateLogTree(ctx, organizationID, ledgerId)
+	treeID, err := uc.TrillianRepo.CreateLogTree(ctx, "My LOG Tree", auditObj.ID.LedgerID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create audit tree", err)
 
@@ -30,18 +28,11 @@ func (uc *UseCase) CreateAuditTree(ctx context.Context, organizationID, ledgerId
 		return nil, err
 	}
 
-	auditID := audit.AuditID{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerId,
-	}
+	logger.Infof("Created audit tree for ledger: %v", treeID)
 
-	tree := audit.Audit{
-		ID:        auditID,
-		TreeID:    treeID,
-		CreatedAt: time.Now(),
-	}
+	auditObj.TreeID = treeID
 
-	if err := uc.AuditRepo.Create(ctx, audit.TreeCollection, &tree); err != nil {
+	if err := uc.AuditRepo.Create(ctx, audit.TreeCollection, &auditObj); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to save audit tree info", err)
 
 		logger.Errorf("Error saving %s audit: %v", audit.TreeCollection, err)
