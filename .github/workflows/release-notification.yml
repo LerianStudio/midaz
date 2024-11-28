@@ -19,15 +19,3 @@ jobs:
           content: "||@everyone||"
           footer_title: "Changelog"
           footer_timestamp: true
-
-      - name: Notify Slack of New Release
-        uses: rtCamp/action-slack-notify@v2
-        if: '!github.event.release.prerelease'
-        env:
-          SLACK_CHANNEL: "#lerian-product-releases" # Channel of Slack
-          SLACK_COLOR: "#36a64f"
-          SLACK_ICON: ":rocket:"
-          SLACK_MESSAGE: "🎉 *Nova Release Publicada!* Versão: ${GITHUB_REF#refs/tags/} \n\n<https://github.com/${{ github.repository }}/releases/tag/${GITHUB_REF#refs/tags/}|Clique aqui para detalhes.>"
-          SLACK_TITLE: "Novo Release"
-          SLACK_USERNAME: "Release Bot"
-          SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }} # Webhook Release Notification
