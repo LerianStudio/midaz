@@ -1,3 +1,15 @@
+## [1.30.0](https://github.com/LerianStudio/midaz/compare/v1.29.0...v1.30.0) (2024-11-28)
+
+
+### Features
+
+* format output colors and set flag global no-color :sparkles: ([7fae4c0](https://github.com/LerianStudio/midaz/commit/7fae4c044e1f060cbafbc751c2fa9c00fd60f308))
+
+
+### Bug Fixes
+
+* remove slack release notification :bug: ([de07047](https://github.com/LerianStudio/midaz/commit/de0704713e601d8c5a06198bc46a66f433ebc711))
+
 ## [1.30.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.3...v1.30.0-beta.4) (2024-11-28)
 
 
