@@ -6,8 +6,39 @@ jobs:
   github-releases-to-discord:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
+
+      - name: Fetch Latest Release
+        id: latest_release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
+          echo "Raw release: $RAW_RELEASE"
+          echo "::set-output name=tag::$RAW_RELEASE"
+
+      - name: Notify Slack of New Release
+        uses: rtCamp/action-slack-notify@v2
+        if: '!github.event.prerelease'
+        env:
+          SLACK_CHANNEL: "Marvin" # Channel of Slack
+          SLACK_COLOR: "#36a64f"
+          SLACK_ICON_EMOJI: ":rocket"
+          SLACK_TITLE: "Midaz New Release: ${{ steps.latest_release.outputs.tag }}"
+          SLACK_MESSAGE: "🎉 *Nova Release Publicada!* \n \n <https://github.com/${{ github.repository }}/releases/tag/${{ steps.latest_release.outputs.tag }} | *Clique aqui para detalhes*>"
+          SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }} # Webhook Release Notification
 
       - name: Github Releases To Discord
         uses: SethCohen/github-releases-to-discord@v1.13.1
