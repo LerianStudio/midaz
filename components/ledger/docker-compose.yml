@@ -1,6 +1,7 @@
 services:
   ledger:
     container_name: midaz-ledger
+    restart: always
     build:
       context: ../../
       dockerfile: ./components/ledger/Dockerfile
