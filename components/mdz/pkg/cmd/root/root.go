@@ -5,6 +5,7 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/account"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/configure"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
@@ -32,6 +33,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
 	cmd.AddCommand(product.NewCmdProduct(f.factory))
 	cmd.AddCommand(account.NewCmdAccount(f.factory))
+	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }
 
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
@@ -48,7 +50,25 @@ func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 			return errors.New("Try the login command first " + err.Error())
 		}
 
-		f.factory.Token = sett.Token
+		if len(sett.Env.ClientID) > 0 {
+			f.factory.Env.ClientID = sett.ClientID
+		}
+
+		if len(sett.Env.ClientSecret) > 0 {
+			f.factory.Env.ClientSecret = sett.ClientSecret
+		}
+
+		if len(sett.Env.URLAPIAuth) > 0 {
+			f.factory.Env.URLAPIAuth = sett.URLAPIAuth
+		}
+
+		if len(sett.Env.URLAPILedger) > 0 {
+			f.factory.Env.URLAPILedger = sett.URLAPILedger
+		}
+
+		if len(sett.Token) > 0 {
+			f.factory.Token = sett.Token
+		}
 	}
 
 	return nil

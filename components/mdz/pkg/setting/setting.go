@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/pelletier/go-toml/v2"
 )
 
 type Setting struct {
 	Token string
+	environment.Env
 }
 
 // getPathSetting returns the path of the configuration directory of ~/.config/mdz/.

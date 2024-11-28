@@ -64,11 +64,14 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	sett := setting.Setting{
-		Token: l.token,
+	sett, err := setting.Read()
+	if err != nil {
+		return err
 	}
 
-	if err := setting.Save(sett); err != nil {
+	sett.Token = l.token
+
+	if err := setting.Save(*sett); err != nil {
 		return err
 	}
 
