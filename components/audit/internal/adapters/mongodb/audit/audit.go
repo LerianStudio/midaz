@@ -8,53 +8,47 @@ const TreeCollection = "tree"
 
 // AuditMongoDBModel represents the Audit into mongodb context
 type AuditMongoDBModel struct {
-	ID        AuditID   `bson:"_id"`
-	TreeID    int64     `bson:"audit_id"`
-	CreatedAt time.Time `bson:"created_at"`
+	ID         AuditID           `bson:"_id"`
+	TreeID     int64             `bson:"tree_id"`
+	CreatedAt  time.Time         `bson:"created_at"`
+	Operations map[string]string `bson:"operations"`
 }
 
 // Audit is a struct designed to encapsulate payload data.
 type Audit struct {
-	ID        AuditID
-	TreeID    int64
-	CreatedAt time.Time
+	ID         AuditID `json:"-"`
+	TreeID     int64
+	Operations map[string]string
+	CreatedAt  time.Time `json:"createdAt"`
 }
 
 type AuditID struct {
-	OrganizationID string `bson:"organization_id"`
-	LedgerID       string `bson:"ledger_id"`
+	OrganizationID string `json:"organizationId" bson:"organization_id"`
+	LedgerID       string `json:"ledgerId" bson:"ledger_id"`
+	TransactionID  string `json:"transactionId" bson:"transaction_id"`
 }
 
-// AuditToEntity converts an AuditMongoDBModel to entity.Audit
-func (mmm *AuditMongoDBModel) AuditToEntity() *Audit {
+// ToEntity converts an AuditMongoDBModel to entity.Audit
+func (mar *AuditMongoDBModel) ToEntity() *Audit {
 
 	AuditID := AuditID{
-		OrganizationID: mmm.ID.OrganizationID,
-		LedgerID:       mmm.ID.LedgerID,
+		OrganizationID: mar.ID.OrganizationID,
+		LedgerID:       mar.ID.LedgerID,
+		TransactionID:  mar.ID.TransactionID,
 	}
 
 	return &Audit{
-		ID:        AuditID,
-		TreeID:    mmm.TreeID,
-		CreatedAt: mmm.CreatedAt,
+		ID:         AuditID,
+		TreeID:     mar.TreeID,
+		CreatedAt:  mar.CreatedAt,
+		Operations: mar.Operations,
 	}
 }
 
-// AuditFromEntity converts an entity.Audit to AuditMongoDBModel
-func (mmm *AuditMongoDBModel) AuditFromEntity(md *Audit) {
-	mmm.ID = md.ID
-	mmm.TreeID = md.TreeID
-	mmm.CreatedAt = md.CreatedAt
-}
-
-type LeafMongoDBModel struct {
-	ID        LeafID    `bson:"_id"`
-	TreeID    int64     `bson:"audit_id"`
-	CreatedAt time.Time `bson:"created_at"`
-}
-
-type LeafID struct {
-	OrganizationID string `bson:"organization_id"`
-	LedgerID       string `bson:"ledger_id"`
-	TransactionID  string `bson:"transaction_id"`
+// FromEntity converts an entity.Audit to AuditMongoDBModel
+func (mar *AuditMongoDBModel) FromEntity(md *Audit) {
+	mar.ID = md.ID
+	mar.TreeID = md.TreeID
+	mar.CreatedAt = md.CreatedAt
+	mar.Operations = md.Operations
 }
