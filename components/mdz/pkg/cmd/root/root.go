@@ -93,7 +93,7 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 			"Midaz is an open-source ledger designed to offer multi-asset and multi-currency",
 			"transaction capabilities within a single, natively immutable and fully auditable platform.",
 		),
-		Version: fRoot.factory.CLIVersion,
+		Version: fRoot.factory.Env.Version,
 		Example: utils.Format(
 			"$ mdz",
 			"$ mdz -h",
@@ -112,7 +112,7 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 		fRoot.help(cmd, args)
 	})
 
-	cmd.SetVersionTemplate(color.New(color.Bold).Sprint(fRoot.factory.CLIVersion))
+	cmd.SetVersionTemplate(color.New(color.Bold).Sprint(fRoot.factory.Env.Version))
 	fRoot.setCmds(cmd)
 	fRoot.setFlags(cmd)
 
