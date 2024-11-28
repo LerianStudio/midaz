@@ -29,25 +29,25 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// -- Routes --
 
 	// Transactions
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, th.CreateTransactionDSL)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/dsl", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.CreateTransactionDSL)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/json", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.CreateTransactionInput), th.CreateTransactionJSON))
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/templates", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.InputDSL), th.CreateTransactionTemplate))
 
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, th.CommitTransaction)
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, th.RevertTransaction)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/commit", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.CommitTransaction)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/revert", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.RevertTransaction)
 
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.UpdateTransactionInput), th.UpdateTransaction))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, http.WithBody(new(transaction.UpdateTransactionInput), th.UpdateTransaction))
 
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, th.GetTransaction)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transactions"), http.ParseUUIDPathParameters, th.GetAllTransactions)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.GetTransaction)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.GetAllTransactions)
 
 	// Operations
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), http.ParseUUIDPathParameters, oh.GetAllOperationsByAccount)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), http.ParseUUIDPathParameters, oh.GetOperationByAccount)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), http.ParseUUIDPathParameters, oh.GetAllOperationsByPortfolio)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), http.ParseUUIDPathParameters, oh.GetOperationByPortfolio)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetAllOperationsByAccount)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetOperationByAccount)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetAllOperationsByPortfolio)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetOperationByPortfolio)
 
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operations"), http.ParseUUIDPathParameters, http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))
 
 	// Asset-rate
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateAssetRate))

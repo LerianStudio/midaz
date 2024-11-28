@@ -53,7 +53,7 @@ type Config struct {
 	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
 	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorEnforcerName     string `env:"CASDOOR_ENFORCER_NAME"`
+	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
 	RabbitMQHost            string `env:"RABBITMQ_HOST"`
 	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
@@ -99,7 +99,7 @@ func InitServers() *Service {
 		ClientSecret:     cfg.CasdoorClientSecret,
 		OrganizationName: cfg.CasdoorOrganizationName,
 		ApplicationName:  cfg.CasdoorApplicationName,
-		EnforcerName:     cfg.CasdoorEnforcerName,
+		ModelName:        cfg.CasdoorModelName,
 		Logger:           logger,
 	}
 
