@@ -5,6 +5,8 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"github.com/fatih/color"
+	"github.com/rodaine/table"
 
 	"github.com/spf13/cobra"
 )
@@ -12,6 +14,8 @@ import (
 type factoryConfigure struct {
 	factory  *factory.Factory
 	tuiInput func(message string) (string, error)
+	read     func() (*setting.Setting, error)
+	save     func(sett setting.Setting) error
 	flagsConfigure
 }
 
@@ -24,13 +28,13 @@ type flagsConfigure struct {
 }
 
 func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
-	sett, err := setting.Read()
+	sett, err := f.read()
 	if err != nil {
 		return err
 	}
 
 	if !cmd.Flags().Changed("client-id") {
-		clientID, err := tui.Input("Enter your client-id")
+		clientID, err := f.tuiInput("Enter your client-id")
 		if err != nil {
 			return err
 		}
@@ -43,7 +47,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("client-secret") {
-		clientSecret, err := tui.Input("Enter your client-secret")
+		clientSecret, err := f.tuiInput("Enter your client-secret")
 		if err != nil {
 			return err
 		}
@@ -56,7 +60,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("url-api-auth") {
-		urlAPIAuth, err := tui.Input("Enter your url-api-auth")
+		urlAPIAuth, err := f.tuiInput("Enter your url-api-auth")
 		if err != nil {
 			return err
 		}
@@ -69,7 +73,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("url-api-ledger") {
-		urlAPILedger, err := tui.Input("Enter your url-api-ledger")
+		urlAPILedger, err := f.tuiInput("Enter your url-api-ledger")
 		if err != nil {
 			return err
 		}
@@ -81,10 +85,27 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 		sett.URLAPILedger = f.URLAPILedger
 	}
 
-	err = setting.Save(*sett)
+	err = f.save(*sett)
 	if err != nil {
 		return err
 	}
+
+	tbl := table.New("FIELDS", "VALUES")
+
+	if !f.factory.NoColor {
+		headerFmt := color.New(color.FgYellow).SprintfFunc()
+		fieldFmt := color.New(color.FgYellow).SprintfFunc()
+		tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(fieldFmt)
+	}
+
+	tbl.WithWriter(f.factory.IOStreams.Out)
+
+	tbl.AddRow("client-id:", f.ClientID)
+	tbl.AddRow("client-secret:", f.ClientSecret)
+	tbl.AddRow("url-api-auth:", f.URLAPIAuth)
+	tbl.AddRow("url-api-ledger:", f.URLAPILedger)
+
+	tbl.Print()
 
 	return nil
 }
@@ -101,13 +122,15 @@ func NewInjectFacConfigure(f *factory.Factory) *factoryConfigure {
 	return &factoryConfigure{
 		factory:  f,
 		tuiInput: tui.Input,
+		read:     setting.Read,
+		save:     setting.Save,
 	}
 }
 
 func NewCmdConfigure(f *factoryConfigure) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "configure",
-		Short: "Defines the service URL and authentication credentials for the Ledger environment.",
+		Short: "Defines the service URLs and credentials for the mdz CLI environment (config: ~/.config/mdz/mdz.toml).",
 		Long: utils.Format(
 			"The mdz CLI configure command allows you to define the URL of the",
 			"service endpoint and the authentication credentials required to",

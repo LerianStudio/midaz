@@ -63,18 +63,31 @@ func Read() (*Setting, error) {
 	}
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("file %s not found", dir)
+		err := os.MkdirAll(dir, os.ModePerm) // os.ModePerm allows standard permissions
+		if err != nil {
+			return nil, fmt.Errorf("failed to create directory %s: %v", dir, err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed check dir %s ", dir)
 	}
 
-	dir = filepath.Join(filepath.Clean(dir), "mdz.toml")
+	filePath := filepath.Join(filepath.Clean(dir), "mdz.toml")
 
-	fileContent, err := os.ReadFile(dir)
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		err := os.WriteFile(filePath, []byte(""), 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create file %s: %v", dir, err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed check dir %s ", dir)
+	}
+
+	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, errors.New("opening TOML file: " + err.Error())
 	}
 
 	var sett Setting
-
 	if err := toml.Unmarshal(fileContent, &sett); err != nil {
 		return nil, errors.New("decoding the TOML file: " + err.Error())
 	}
