@@ -1,3 +1,15 @@
+## [1.31.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.30.0...v1.31.0-beta.1) (2024-11-28)
+
+
+### Features
+
+* steps to send slack message with release ([8957369](https://github.com/LerianStudio/midaz/commit/89573696f68c0a0ab20013cd265ea09874f02da5))
+
+
+### Bug Fixes
+
+* adjust to new code place :bug: ([23ddb23](https://github.com/LerianStudio/midaz/commit/23ddb23d090ded59b060e546e067f85bfd7bf43f))
+
 ## [1.30.0](https://github.com/LerianStudio/midaz/compare/v1.29.0...v1.30.0) (2024-11-28)
 
 
