@@ -1,3 +1,10 @@
+## [1.31.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.1...v1.31.0-beta.2) (2024-11-28)
+
+
+### Bug Fixes
+
+* add get git token to get tag version :bug: ([92b91e6](https://github.com/LerianStudio/midaz/commit/92b91e6c9306568e7a48a95311e82ef8a2ce2463))
+
 ## [1.31.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.30.0...v1.31.0-beta.1) (2024-11-28)
 
 
