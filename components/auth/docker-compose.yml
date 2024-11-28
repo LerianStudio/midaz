@@ -1,16 +1,8 @@
-x-postgres-common:
-  &postgres-common
-  image: postgres:16-alpine
-  restart: always
-  env_file:
-    - .env
-  networks:
-    - auth_network
-
 services:
-  casdoor:
-    container_name: casdoor
+  midaz-casdoor:
+    container_name: midaz-casdoor
     image: casbin/casdoor:latest
+    restart: always
     env_file:
       - .env
     ports:
@@ -18,14 +10,19 @@ services:
     volumes:
       - ./setup/init_data.json:/init_data.json
     depends_on:
-      casdoor-db:
+      midaz-casdoor-db:
         condition: service_healthy
     networks:
       - auth_network
 
-  casdoor-db:
-    <<: *postgres-common
-    container_name: casdoor-db
+  midaz-casdoor-db:
+    container_name: midaz-casdoor-db
+    image: postgres:latest
+    restart: always
+    env_file:
+      - .env
+    networks:
+      - auth_network
     ports:
       - ${CASDOOR_DB_PORT}:${CASDOOR_DB_PORT}
     environment:
