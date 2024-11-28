@@ -6,16 +6,19 @@ jobs:
   github-releases-to-discord:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Github Releases To Discord
+        uses: SethCohen/github-releases-to-discord@v1.13.1
+        if: '!github.event.prerelease'
         with:
-          ref: ${{ github.head_ref }}
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          color: "2105893"
+          username: "Release Changelog"
+          content: "||@everyone||"
+          footer_title: "Changelog"
+          footer_timestamp: true
 
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
@@ -31,22 +34,10 @@ jobs:
 
       - name: Notify Slack of New Release
         uses: rtCamp/action-slack-notify@v2
-        if: '!github.event.prerelease'
         env:
-          SLACK_CHANNEL: "Marvin" # Channel of Slack
+          SLACK_CHANNEL: "lerian-product-release" # Channel of Slack
           SLACK_COLOR: "#36a64f"
           SLACK_ICON_EMOJI: ":rocket"
           SLACK_TITLE: "Midaz New Release: ${{ steps.latest_release.outputs.tag }}"
           SLACK_MESSAGE: "🎉 *Nova Release Publicada!* \n \n <https://github.com/${{ github.repository }}/releases/tag/${{ steps.latest_release.outputs.tag }} | *Clique aqui para detalhes*>"
           SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }} # Webhook Release Notification
-
-      - name: Github Releases To Discord
-        uses: SethCohen/github-releases-to-discord@v1.13.1
-        if: '!github.event.prerelease'
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          color: "2105893"
-          username: "Release Changelog"
-          content: "||@everyone||"
-          footer_title: "Changelog"
-          footer_timestamp: true
