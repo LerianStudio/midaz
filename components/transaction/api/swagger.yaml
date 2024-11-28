@@ -383,6 +383,15 @@ paths:
     get:
       description: Get all Operations with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -397,10 +406,6 @@ paths:
         in: path
         name: account_id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -423,6 +428,15 @@ paths:
     get:
       description: Get an Operation with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -443,10 +457,6 @@ paths:
         name: operation_id
         required: true
         type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -463,6 +473,15 @@ paths:
       - application/json
       description: Create an AssetRate with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -479,10 +498,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAssetRateInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -497,6 +512,15 @@ paths:
     get:
       description: Get an AssetRate with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -518,10 +542,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAssetRateInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -536,6 +556,15 @@ paths:
     get:
       description: Get all Operations with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -550,10 +579,6 @@ paths:
         in: path
         name: portfolio_id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -576,6 +601,15 @@ paths:
     get:
       description: Get an Operation with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -596,10 +630,6 @@ paths:
         name: operation_id
         required: true
         type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -614,6 +644,15 @@ paths:
     get:
       description: Get all Transactions with the input metadata or without metadata
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -623,10 +662,6 @@ paths:
         in: path
         name: ledger_id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -649,6 +684,15 @@ paths:
     get:
       description: Get a Transaction with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -663,10 +707,6 @@ paths:
         in: path
         name: transaction_id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -683,6 +723,15 @@ paths:
       - application/json
       description: Update a Transaction with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -704,10 +753,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateTransactionInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -724,6 +769,15 @@ paths:
       - application/json
       description: Update an Operation with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -750,10 +804,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateOperationInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -770,6 +820,15 @@ paths:
       - multipart/form-data
       description: Create a Transaction with the input DSL file
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -785,10 +844,6 @@ paths:
         name: transaction
         required: true
         type: file
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -805,6 +860,15 @@ paths:
       - application/json
       description: Create a Transaction with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -821,10 +885,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateTransactionInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:

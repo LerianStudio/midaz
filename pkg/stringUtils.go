@@ -168,3 +168,13 @@ func ReplaceUUIDWithPlaceholder(path string) string {
 
 	return re.ReplaceAllString(path, ":id")
 }
+
+// ValidateServerAddress checks if the value matches the pattern <some-address>:<some-port> and returns the value if it does.
+func ValidateServerAddress(value string) string {
+	matched, _ := regexp.MatchString(`^[^:]+:\d+$`, value)
+	if !matched {
+		return ""
+	}
+
+	return value
+}

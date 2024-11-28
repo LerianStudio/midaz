@@ -546,13 +546,18 @@ paths:
     get:
       description: Get all Organizations with the input metadata or without metadata
       parameters:
-      - description: Metadata
-        in: query
-        name: metadata
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
         type: string
       - description: Request ID
         in: header
         name: Midaz-Id
+        type: string
+      - description: Metadata
+        in: query
+        name: metadata
         type: string
       produces:
       - application/json
@@ -576,16 +581,21 @@ paths:
       - application/json
       description: Create an Organization with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization Input
         in: body
         name: organization
         required: true
         schema:
           $ref: '#/definitions/CreateOrganizationInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -600,14 +610,19 @@ paths:
     delete:
       description: Delete an Organization with the input ID
       parameters:
-      - description: Organization ID
-        in: path
-        name: id
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
         required: true
         type: string
       - description: Request ID
         in: header
         name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
         type: string
       responses:
         "204":
@@ -618,14 +633,19 @@ paths:
     get:
       description: Get an Organization with the input ID
       parameters:
-      - description: Organization ID
-        in: path
-        name: id
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
         required: true
         type: string
       - description: Request ID
         in: header
         name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: id
+        required: true
         type: string
       produces:
       - application/json
@@ -642,6 +662,15 @@ paths:
       - application/json
       description: Update an Organization with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: id
@@ -653,10 +682,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateOrganizationInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -671,6 +696,15 @@ paths:
     get:
       description: Get all Ledgers with the input metadata or without metadata
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -680,10 +714,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -707,6 +737,15 @@ paths:
       - application/json
       description: Create a Ledger with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -718,10 +757,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateLedgerInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -736,6 +771,15 @@ paths:
     delete:
       description: Delete a Ledger with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -746,10 +790,6 @@ paths:
         name: id
         required: true
         type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       responses:
         "204":
           description: No Content
@@ -759,14 +799,24 @@ paths:
     get:
       description: Get a Ledger with the input ID
       parameters:
-      - description: Ledger ID
-        in: path
-        name: id
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
         required: true
         type: string
       - description: Request ID
         in: header
         name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: id
+        required: true
         type: string
       produces:
       - application/json
@@ -783,6 +833,15 @@ paths:
       - application/json
       description: Update a Ledger with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -799,10 +858,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateLedgerInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -817,6 +872,15 @@ paths:
     get:
       description: Get all Accounts with the input metadata or without metadata
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -830,10 +894,6 @@ paths:
       - description: Metadata
         in: query
         name: metadata
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -857,6 +917,15 @@ paths:
       - application/json
       description: Create an Account with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -873,10 +942,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAccountInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -891,6 +956,15 @@ paths:
     delete:
       description: Delete an Account with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -905,10 +979,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       responses:
         "204":
@@ -919,6 +989,15 @@ paths:
     get:
       description: Get an Account with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -933,10 +1012,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -953,6 +1028,15 @@ paths:
       - application/json
       description: Update an Account with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -974,10 +1058,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAccountInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -992,6 +1072,15 @@ paths:
     get:
       description: Get all Assets with the input metadata or without metadata
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1005,10 +1094,6 @@ paths:
       - description: Metadata
         in: query
         name: metadata
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1032,6 +1117,15 @@ paths:
       - application/json
       description: Create an Asset with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1048,10 +1142,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAssetInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1066,6 +1156,15 @@ paths:
     delete:
       description: Delete an Asset with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1080,10 +1179,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       responses:
         "204":
@@ -1094,6 +1189,15 @@ paths:
     get:
       description: Get an Asset with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1108,10 +1212,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1128,6 +1228,15 @@ paths:
       - application/json
       description: Update an Asset with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1149,10 +1258,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAssetInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1167,6 +1272,15 @@ paths:
     get:
       description: Get all Portfolios with the input metadata or without metadata
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1180,10 +1294,6 @@ paths:
       - description: Metadata query
         in: query
         name: metadata
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1207,6 +1317,15 @@ paths:
       - application/json
       description: Create a Portfolio with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1223,10 +1342,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreatePortfolioInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1241,6 +1356,15 @@ paths:
     delete:
       description: Delete a Portfolio with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1255,10 +1379,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       responses:
         "204":
@@ -1269,6 +1389,15 @@ paths:
     get:
       description: Get a Portfolio with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1283,10 +1412,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1303,6 +1428,15 @@ paths:
       - application/json
       description: Update a Portfolio with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1313,16 +1447,17 @@ paths:
         name: ledger_id
         required: true
         type: string
+      - description: Portfolio ID
+        in: path
+        name: id
+        required: true
+        type: string
       - description: Portfolio Payload
         in: body
         name: portfolio
         required: true
         schema:
           $ref: '#/definitions/UpdatePortfolioInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1340,6 +1475,15 @@ paths:
         ---
         Get all Accounts with the input metadata or without metadata from a Portfolio
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1358,10 +1502,6 @@ paths:
       - description: Metadata
         in: query
         name: metadata
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1388,6 +1528,15 @@ paths:
         ---
         Create an Account with the input payload from a Portfolio
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1409,10 +1558,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateAccountInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1430,37 +1575,15 @@ paths:
         ---
         Delete an Account with the input ID from a Portfolio
       parameters:
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
         required: true
         type: string
       - description: Request ID
         in: header
         name: Midaz-Id
         type: string
-      responses:
-        "204":
-          description: No Content
-      summary: Delete an Account by ID from Portfolio
-      tags:
-      - Accounts
-    get:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##
-        ---
-        Get an Account with the input ID from a Portfolio.
-      parameters:
       - description: Organization ID
         in: path
         name: organization_id
@@ -1481,9 +1604,46 @@ paths:
         name: id
         required: true
         type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete an Account by ID from Portfolio
+      tags:
+      - Accounts
+    get:
+      description: |-
+        ## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##
+        ---
+        Get an Account with the input ID from a Portfolio.
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
       - description: Request ID
         in: header
         name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Portfolio ID
+        in: path
+        name: portfolio_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: id
+        required: true
         type: string
       produces:
       - application/json
@@ -1503,6 +1663,15 @@ paths:
         ---
         Update an Account with the input payload from a Portfolio
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1529,10 +1698,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateAccountInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1547,6 +1712,15 @@ paths:
     get:
       description: Get all Products with the input metadata or without metadata
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1560,10 +1734,6 @@ paths:
       - description: Metadata
         in: query
         name: metadata
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1587,6 +1757,15 @@ paths:
       - application/json
       description: Create a Product with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1603,10 +1782,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/CreateProductInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:
@@ -1621,6 +1796,15 @@ paths:
     delete:
       description: Delete a Product with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1635,10 +1819,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       responses:
         "204":
@@ -1649,6 +1829,15 @@ paths:
     get:
       description: Get a Product with the input ID
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1663,10 +1852,6 @@ paths:
         in: path
         name: id
         required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
         type: string
       produces:
       - application/json
@@ -1683,6 +1868,15 @@ paths:
       - application/json
       description: Update a Product with the input payload
       parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
       - description: Organization ID
         in: path
         name: organization_id
@@ -1704,10 +1898,6 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/UpdateProductInput'
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
       produces:
       - application/json
       responses:

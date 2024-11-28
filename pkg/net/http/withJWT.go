@@ -328,14 +328,16 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 			return WithError(c, err)
 		}
 
-		enforcer := fmt.Sprintf("%s/%s", t.Owner, jwtm.connection.EnforcerName)
-		casbinReq := casdoorsdk.CasbinRequest{
-			t.Username,
+		model := fmt.Sprintf("%s/%s", t.Owner, jwtm.connection.ModelName)
+		usr := fmt.Sprintf("%s/%s", t.Owner, *t.Username)
+
+		toValidate := casdoorsdk.CasbinRequest{
+			usr,
 			resource,
-			c.Method(),
+			strings.ToLower(c.Method()), // Always send the method as lowercase
 		}
 
-		authorized, err := client.Enforce("", "", "", enforcer, "", casbinReq)
+		authorized, err := client.Enforce("", model, "", "", "", toValidate)
 		if err != nil {
 			msg := errors.Wrap(err, "Failed to enforce permission")
 			l.Error(msg.Error())
@@ -424,7 +426,7 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 			panic("Failed to connect on Casdoor")
 		}
 
-		token, err := jwtm.getTokenFromContext(ctx)
+		t, err := jwtm.getTokenFromContext(ctx)
 		if err != nil {
 			msg := errors.Wrap(err, "Couldn't parse token")
 			l.Error(msg.Error())
@@ -434,15 +436,16 @@ func (jwtm *JWTMiddleware) WithPermissionGrpc() grpc.UnaryServerInterceptor {
 			return nil, jwtm.errorHandlingGrpc(codes.Unauthenticated, e)
 		}
 
-		enforcer := fmt.Sprintf("%s/%s", token.Owner, jwtm.connection.EnforcerName)
+		model := fmt.Sprintf("%s/%s", t.Owner, jwtm.connection.ModelName)
+		usr := fmt.Sprintf("%s/%s", t.Owner, *t.Username)
 
-		casbinReq := casdoorsdk.CasbinRequest{
-			token.Username,
+		toValidate := casdoorsdk.CasbinRequest{
+			usr,
 			jwtm.extractMethod(info.FullMethod),
-			"*",
+			strings.ToLower("*"), // Always send the method as lowercase
 		}
 
-		authorized, err := client.Enforce("", "", "", enforcer, "", casbinReq)
+		authorized, err := client.Enforce("", model, "", "", "", toValidate)
 		if err != nil {
 			msg := errors.Wrap(err, "Failed to enforce permission")
 			l.Error(msg.Error())

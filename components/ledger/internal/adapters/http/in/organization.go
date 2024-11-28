@@ -31,8 +31,9 @@ type OrganizationHandler struct {
 //	@Tags			Organizations
 //	@Accept			json
 //	@Produce		json
-//	@Param			organization	body		mmodel.CreateOrganizationInput	true	"Organization Input"
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
 //	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			organization	body		mmodel.CreateOrganizationInput	true	"Organization Input"
 //	@Success		200				{object}	mmodel.Organization
 //	@Router			/v1/organizations [post]
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
@@ -73,9 +74,10 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Tags			Organizations
 //	@Accept			json
 //	@Produce		json
+//	@Param			Authorization	header		string							true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string							false	"Request ID"
 //	@Param			id				path		string							true	"Organization ID"
 //	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization Input"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
 //	@Success		200				{object}	mmodel.Organization
 //	@Router			/v1/organizations/{id} [patch]
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
@@ -129,9 +131,10 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Description	Get an Organization with the input ID
 //	@Tags			Organizations
 //	@Produce		json
-//	@Param			id			path		string	true	"Organization ID"
-//	@Param			Midaz-Id	header		string	false	"Request ID"
-//	@Success		200			{object}	mmodel.Organization
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			id				path		string	true	"Organization ID"
+//	@Success		200				{object}	mmodel.Organization
 //	@Router			/v1/organizations/{id} [get]
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -165,9 +168,10 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Description	Get all Organizations with the input metadata or without metadata
 //	@Tags			Organizations
 //	@Produce		json
-//	@Param			metadata	query		string	false	"Metadata"
-//	@Param			Midaz-Id	header		string	false	"Request ID"
-//	@Success		200			{object}	mpostgres.Pagination{items=[]mmodel.Organization}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			metadata		query		string	false	"Metadata"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Organization}
 //	@Router			/v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -228,8 +232,9 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Summary		Delete an Organization by ID
 //	@Description	Delete an Organization with the input ID
 //	@Tags			Organizations
-//	@Param			id			path	string	true	"Organization ID"
-//	@Param			Midaz-Id	header	string	false	"Request ID"
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			id				path	string	true	"Organization ID"
 //	@Success		204
 //	@Router			/v1/organizations/{id} [delete]
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
