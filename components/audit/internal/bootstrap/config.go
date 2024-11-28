@@ -52,7 +52,7 @@ type Config struct {
 }
 
 // InitServers initiate http and grpc servers.
-func InitServers() (*services.UseCase, mlog.Logger, *mopentelemetry.Telemetry) {
+func InitServers() (*mrabbitmq.RabbitMQConnection, *services.UseCase, *mopentelemetry.Telemetry, mlog.Logger) {
 	cfg := &Config{}
 
 	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
@@ -112,5 +112,5 @@ func InitServers() (*services.UseCase, mlog.Logger, *mopentelemetry.Telemetry) {
 		AuditRepo:    auditMongoDBRepository,
 	}
 
-	return useCase, logger, telemetry
+	return rabbitMQConnection, useCase, telemetry, logger
 }

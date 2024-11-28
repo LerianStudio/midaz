@@ -1,16 +1,17 @@
 package main
 
 import (
-	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
 	"github.com/LerianStudio/midaz/components/audit/internal/bootstrap"
 	"github.com/LerianStudio/midaz/pkg"
 )
 
 func main() {
-	ctx := context.Background()
 
 	pkg.InitLocalEnvConfig()
-	uc, logger, telemetry := bootstrap.InitServers()
+	rabbit, uc, telemetry, logger := bootstrap.InitServers()
 
 	telemetry.InitializeTelemetry(logger)
 	defer telemetry.ShutdownTelemetry()
@@ -26,20 +27,36 @@ func main() {
 
 	logger.Infof("Launcher: App (%s) finished\n", bootstrap.ApplicationName)
 
-	var obj string
-
-	message := make(chan string)
-
-	uc.RabbitMQRepo.ConsumerDefault(message)
-
-	obj = <-message
-
-	logger.Info(obj)
-
-	treeID, err := uc.CreateAuditTree(ctx, pkg.GenerateUUIDv7().String(), pkg.GenerateUUIDv7().String())
+	message, err := rabbit.Channel.Consume(
+		rabbit.Queue,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
 	if err != nil {
-		logger.Fatalf("Failed to run the server: %s", err)
+		logger.Errorf("Failed to register a consumer: %s", err)
 	}
 
-	logger.Infof("Tree ID: %v", treeID)
+	forever := make(chan bool)
+
+	go func() {
+		for d := range message {
+			var transactionMessage transaction.Transaction
+
+			err = json.Unmarshal(d.Body, &transactionMessage)
+			if err != nil {
+				fmt.Println("Error unmarshalling JSON:", err)
+				return
+			}
+
+			uc.CreateLog(logger, transactionMessage)
+
+			logger.Infof("message consumed: %s", transactionMessage.ID)
+		}
+	}()
+
+	<-forever
 }
