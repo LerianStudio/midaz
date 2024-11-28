@@ -1,8 +1,8 @@
-x-postgres-ledger-common:
-  &postgres-ledger-common
-  image: postgres:16-alpine
-  user: ${USER_EXECUTE_COMMAND}
+x-midaz-postgres-common:
+  &midaz-postgres-common
+  image: postgres:latest
   restart: always
+  user: ${USER_EXECUTE_COMMAND}
   healthcheck:
     test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -p ${DB_PORT}" ]
     interval: 10s
@@ -11,8 +11,8 @@ x-postgres-ledger-common:
   networks:
     - infra_network
 
-x-mongodb-common:
-  &mongodb-common
+x-midaz-mongodb-common:
+  &midaz-mongodb-common
   image: mongo:latest
   restart: always
   healthcheck:
@@ -23,17 +23,18 @@ x-mongodb-common:
   networks:
     - infra_network
 
-x-redis-common:
-  &redis-common
+x-midaz-redis-common:
+  &midaz-redis-common
   image: redis:latest
+  restart: always
   env_file:
     - .env
   networks:
     - infra_network
 
 services:
-  mongodb:
-    <<: *mongodb-common
+  midaz-mongodb:
+    <<: *midaz-mongodb-common
     container_name: midaz-mongodb
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
@@ -44,8 +45,8 @@ services:
     volumes:
       - mongodb_data_container:/data/db
 
-  redis:
-    <<: *redis-common
+  midaz-redis:
+    <<: *midaz-redis-common
     container_name: midaz-redis
     environment:
       - REDIS_USER=${REDIS_USER}
@@ -55,10 +56,9 @@ services:
       - ${REDIS_PORT}:${REDIS_PORT}
     volumes:
       - redis-data:/data
-    restart: always
 
-  primary-ledger:
-    <<: *postgres-ledger-common
+  midaz-postgres-primary:
+    <<: *midaz-postgres-common
     container_name: midaz-postgres-primary
     ports:
       - ${DB_PORT}:${DB_PORT}
@@ -78,8 +78,8 @@ services:
     volumes:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  replica-ledger:
-    <<: *postgres-ledger-common
+  midaz-postgres-replica:
+    <<: *midaz-postgres-common
     container_name: midaz-postgres-replica
     ports:
       - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
@@ -90,12 +90,12 @@ services:
     command: |
       bash -c "
       if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
-        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=primary-ledger --port=${DB_PORT}
+        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-primary --port=${DB_PORT}
         do
-          echo 'Waiting for primary-ledger to connect...'
+          echo 'Waiting for midaz-postgres-primary to connect...'
           sleep 1s
         done
-        echo 'Backup done..., starting replica-ledger...'
+        echo 'Backup done..., starting midaz-postgres-replica...'
         chmod 0700 /var/lib/postgresql/data
         # Ensure the port is set to use for the replica
         sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
@@ -108,12 +108,13 @@ services:
       timeout: 5s
       retries: 5
     depends_on:
-      primary-ledger:
+      midaz-postgres-primary:
         condition: service_healthy
 
-  otel-lgtm:
+  midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
+    restart: always
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
@@ -121,9 +122,10 @@ services:
     networks:
       - infra_network
 
-  rabbitmq:
+  midaz-rabbitmq:
     image: rabbitmq:4.0-management-alpine
     container_name: midaz-rabbitmq
+    restart: always
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}

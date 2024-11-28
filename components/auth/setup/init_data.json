@@ -574,8 +574,7 @@
       "signupApplication": "app-midaz",
       "createdIp": "",
       "groups": [
-        "lerian/group_admin",
-        "lerian/group_developer"
+        "lerian/group_admin"
       ]
     },
     {
@@ -599,8 +598,7 @@
       "signupApplication": "app-midaz",
       "createdIp": "",
       "groups": [
-        "lerian/group_admin",
-        "lerian/group_developer"
+        "lerian/group_user"
       ]
     },
     {
@@ -624,7 +622,7 @@
       "signupApplication": "app-midaz",
       "createdIp": "",
       "groups": [
-        "lerian/group_admin"
+        "lerian/group_developer"
       ]
     },
     {
@@ -752,14 +750,12 @@
       "name": "admin-api-permission",
       "displayName": "Admin API Permission",
       "isEnabled": true,
-      "model": "lerian/api-model",
+      "model": "api-model",
       "roles": [
         "lerian/admin_role"
       ],
       "users": [
-        "lerian/user_john",
-        "lerian/user_kate",
-        "lerian/user_lisa"
+        "lerian/user_john"
       ],
       "resourceType": "Custom",
       "resources": [
@@ -780,24 +776,29 @@
       "name": "developer-api-permission",
       "displayName": "Developer API Permission",
       "isEnabled": true,
-      "model": "lerian/api-model",
+      "model": "api-model",
       "roles": [
         "lerian/developer_role"
       ],
       "users": [
-        "lerian/user_john",
-        "lerian/user_kate",
-        "lerian/user_bob"
+        "lerian/user_lisa"
       ],
       "resourceType": "Custom",
       "resources": [
-        "*"
+        "account",
+        "asset",
+        "ledger",
+        "organization",
+        "portfolio",
+        "product",
+        "transaction",
+        "operation",
+        "asset-rate"
       ],
       "actions": [
-        "GET",
-        "POST",
-        "PATCH",
-        "PUT"
+        "get",
+        "post",
+        "patch"
       ],
       "domains": [],
       "effect": "Allow",
@@ -811,13 +812,13 @@
       "name": "grpc-api-permission",
       "displayName": "GRPC API Permission",
       "isEnabled": true,
-      "model": "lerian/api-model",
+      "model": "api-model",
       "roles": [
         "lerian/grpc_role"
       ],
       "users": [
-        "lerian/user_john",
-        "lerian/user_bob"
+        "lerian/user_bob",
+        "lerian/user_lisa"
       ],
       "resourceType": "Custom",
       "resources": [
@@ -838,19 +839,28 @@
       "name": "user-api-permission",
       "displayName": "User API Permission",
       "isEnabled": true,
-      "model": "lerian/api-model",
+      "model": "api-model",
       "roles": [
         "lerian/user_role"
       ],
       "users": [
-        "lerian/user_mike"
+        "lerian/user_mike",
+        "lerian/user_kate"
       ],
       "resourceType": "Custom",
       "resources": [
-        "*"
+        "account",
+        "asset",
+        "ledger",
+        "organization",
+        "portfolio",
+        "product",
+        "transaction",
+        "operation",
+        "asset-rate"
       ],
       "actions": [
-        "GET"
+        "get"
       ],
       "domains": [],
       "effect": "Allow",
@@ -869,9 +879,7 @@
       "owner": "lerian",
       "roles": [],
       "users": [
-        "lerian/user_john",
-        "lerian/user_kate",
-        "lerian/user_lisa"
+        "lerian/user_john"
       ]
     },
     {
@@ -881,9 +889,7 @@
       "owner": "lerian",
       "roles": [],
       "users": [
-        "lerian/user_john",
-        "lerian/user_kate",
-        "lerian/user_bob"
+        "lerian/user_lisa"
       ]
     },
     {
@@ -893,8 +899,8 @@
       "owner": "lerian",
       "roles": [],
       "users": [
-        "lerian/user_john",
-        "lerian/user_bob"
+        "lerian/user_bob",
+        "lerian/user_lisa"
       ]
     },
     {
@@ -904,7 +910,8 @@
       "owner": "lerian",
       "roles": [],
       "users": [
-        "lerian/user_mike"
+        "lerian/user_mike",
+        "lerian/user_kate"
       ]
     }
   ],
@@ -958,7 +965,7 @@
     {
       "owner": "lerian",
       "name": "lerian-adapter",
-      "table": "casbin_lerian_rule",
+      "table": "casbin_lerian_enforcer_rule",
       "useSameDb": true
     }
   ],
