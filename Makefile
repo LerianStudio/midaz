@@ -47,6 +47,7 @@ help:
 	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
 	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
+	@echo "    make audit                         		Run a command inside the audit app in the components directory to see available commands."
 	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo "    make generate-docs-all                   Run a command to inside the ledger and transaction app to generate swagger docs."
@@ -57,6 +58,7 @@ help:
 	@echo "  make infra COMMAND=<cmd> - Run command in infra service"
 	@echo "  make ledger COMMAND=<cmd> - Run command in ledger service"
 	@echo "  make transaction COMMAND=<cmd> - Run command in transaction service"
+	@echo "  make audit COMMAND=<cmd> - Run command in transaction service"
 	@echo "  make all-services COMMAND=<cmd> - Run command across all services"
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
@@ -127,8 +129,7 @@ up:
 	docker-compose -f $(AUTH_DIR)/docker-compose.yml up --build -d && \
 	docker-compose -f $(INFRA_DIR)/docker-compose.yml up --build -d && \
 	docker-compose -f $(LEDGER_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(AUDIT_DIR)/docker-compose.yml up --build -d
+	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
 	@echo "$(BLUE)All services started successfully$(NC)"
 
 auth:
@@ -156,8 +157,7 @@ all-services:
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
-	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
 test_integration_cli:
 	go test -v -tags=integration ./components/mdz/test/integration/...
