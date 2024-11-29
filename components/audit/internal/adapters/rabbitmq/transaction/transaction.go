@@ -1,8 +1,9 @@
 package transaction
 
 import (
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/operation"
 	"time"
+
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/operation"
 )
 
 type Transaction struct {

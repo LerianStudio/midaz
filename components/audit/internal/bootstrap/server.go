@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
@@ -12,6 +13,7 @@ import (
 // Server represents the http server for Ledger services.
 type Server struct {
 	app           *fiber.App
+	rabbitmq      *rabbitmq.ConsumerRabbitMQRepository
 	serverAddress string
 	mlog.Logger
 	mopentelemetry.Telemetry
@@ -23,9 +25,10 @@ func (s *Server) ServerAddress() string {
 }
 
 // NewServer creates an instance of Server.
-func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopentelemetry.Telemetry) *Server {
+func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopentelemetry.Telemetry, rabbitmq *rabbitmq.ConsumerRabbitMQRepository) *Server {
 	return &Server{
 		app:           app,
+		rabbitmq:      rabbitmq,
 		serverAddress: cfg.ServerAddress,
 		Logger:        logger,
 		Telemetry:     *telemetry,
@@ -47,6 +50,9 @@ func (s *Server) Run(l *pkg.Launcher) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to run the server")
 	}
+
+	s.Logger.Infof("Run rabbit...")
+	s.rabbitmq.ConsumerAudit()
 
 	return nil
 }

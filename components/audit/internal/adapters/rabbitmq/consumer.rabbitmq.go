@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"

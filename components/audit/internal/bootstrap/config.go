@@ -52,7 +52,7 @@ type Config struct {
 }
 
 // InitServers initiate http and grpc servers.
-func InitServers() (*Service, *rabbitmq.ConsumerRabbitMQRepository) {
+func InitServers() *Service {
 	cfg := &Config{}
 
 	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
@@ -111,20 +111,16 @@ func InitServers() (*Service, *rabbitmq.ConsumerRabbitMQRepository) {
 
 	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection, useCase)
 
-	consumerRabbitMQRepository.ConsumerAudit()
-
 	trillianHandler := &in.TrillianHandler{
 		UseCase: useCase,
 	}
 
 	app := in.NewRouter(logger, telemetry, trillianHandler)
 
-	server := NewServer(cfg, app, logger, telemetry)
+	server := NewServer(cfg, app, logger, telemetry, consumerRabbitMQRepository)
 
-	service := &Service{
+	return &Service{
 		Server: server,
 		Logger: logger,
 	}
-
-	return service, consumerRabbitMQRepository
 }
