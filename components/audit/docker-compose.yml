@@ -1,5 +1,4 @@
 services:
-
   midaz-audit:
     container_name: midaz-audit
     build:
@@ -27,6 +26,11 @@ services:
       - audit-data:/var/lib/mysql
       - ./db:/docker-entrypoint-initdb.d/:ro
     restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-P", "${TRILLIAN_DATABASE_PORT}", "-u", "${TRILLIAN_DATABASE_USER}", "--password=${TRILLIAN_DATABASE_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   midaz-audit-server:
     container_name: midaz-audit-server
