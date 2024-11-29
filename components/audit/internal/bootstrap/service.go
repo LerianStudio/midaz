@@ -18,4 +18,6 @@ func (app *Service) Run() {
 		pkg.WithLogger(app.Logger),
 		pkg.RunApp("services", app.Server),
 	).Run()
+
+	app.rabbitmq.ConsumerAudit()
 }

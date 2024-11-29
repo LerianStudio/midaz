@@ -51,8 +51,5 @@ func (s *Server) Run(l *pkg.Launcher) error {
 		return errors.Wrap(err, "failed to run the server")
 	}
 
-	s.Logger.Infof("Run rabbit...")
-	s.rabbitmq.ConsumerAudit()
-
 	return nil
 }
