@@ -57,7 +57,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 			return amount, balanceAfter, err
 		}
 
-		if ba.Available < 0 && !strings.Contains(acc.Alias, "@external") {
+		if ba.Available < 0 && acc.Type != "external" {
 			return amount, balanceAfter, pkg.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
 		}
 
@@ -361,7 +361,7 @@ func validateAccountsFrom(key string, acc *a.Account) error {
 	}
 
 	if acc.Id == key || acc.Alias == key && acc.AllowSending {
-		if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
+		if acc.Balance.Available <= 0 && acc.Type != "external" {
 			return pkg.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
 		}
 	}
