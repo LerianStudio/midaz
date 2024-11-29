@@ -7,5 +7,7 @@ import (
 
 func main() {
 	pkg.InitLocalEnvConfig()
-	bootstrap.InitServers().Run()
+	service, rabbitmq := bootstrap.InitServers()
+	go rabbitmq.ConsumerAudit()
+	service.Run()
 }
