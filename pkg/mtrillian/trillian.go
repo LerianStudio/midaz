@@ -49,11 +49,8 @@ func (c *TrillianConnection) GetNewClient() (*grpc.ClientConn, error) {
 	return c.Conn, nil
 }
 
-// CreateAndInitTree creates and initializes a tree for storing log entries
-func (c *TrillianConnection) CreateAndInitTree(ctx context.Context, name, description string) (int64, error) {
-
-	c.Logger.Infof("Creating and initializing Trillian Tree at %v", c.Conn.Target())
-
+// CreateTree creates a Trillian tree to store log entries
+func (c *TrillianConnection) CreateTree(ctx context.Context, name, description string) (int64, error) {
 	adminClient := trillian.NewTrillianAdminClient(c.Conn)
 
 	tree, err := adminClient.CreateTree(ctx, &trillian.CreateTreeRequest{
@@ -67,17 +64,23 @@ func (c *TrillianConnection) CreateAndInitTree(ctx context.Context, name, descri
 	})
 	if err != nil {
 		c.Logger.Fatalf("Error while creating Tree: %v", zap.Error(err))
+		return 0, err
 	}
 
+	return tree.TreeId, nil
+}
+
+// InitTree initializes a Trillian tree previously created
+func (c *TrillianConnection) InitTree(ctx context.Context, treeId int64) error {
 	logClient := trillian.NewTrillianLogClient(c.Conn)
 
-	_, err = logClient.InitLog(ctx, &trillian.InitLogRequest{LogId: tree.TreeId})
+	_, err := logClient.InitLog(ctx, &trillian.InitLogRequest{LogId: treeId})
 	if err != nil {
 		c.Logger.Fatalf("Error initializing tree: %v", zap.Error(err))
+		return err
 	}
 
-	c.Logger.Infof("Log tree created and initialized: %v", tree.TreeId)
-	return tree.TreeId, nil
+	return nil
 }
 
 func (c *TrillianConnection) CreateLog(ctx context.Context, treeID int64, content []byte) ([]byte, error) {
