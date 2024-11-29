@@ -104,12 +104,13 @@ func InitServers() *Service {
 
 	auditMongoDBRepository := audit.NewAuditMongoDBRepository(mongoAuditConnection)
 
+	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
+
 	useCase := &services.UseCase{
 		TrillianRepo: trillianRepository,
 		AuditRepo:    auditMongoDBRepository,
+		RabbitRepo:   consumerRabbitMQRepository,
 	}
-
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection, useCase)
 
 	trillianHandler := &in.TrillianHandler{
 		UseCase: useCase,
@@ -117,7 +118,7 @@ func InitServers() *Service {
 
 	app := in.NewRouter(logger, telemetry, trillianHandler)
 
-	server := NewServer(cfg, app, logger, telemetry, consumerRabbitMQRepository)
+	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
 		Server: server,

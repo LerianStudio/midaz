@@ -3,9 +3,9 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
-	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -21,14 +21,12 @@ type ConsumerRepository interface {
 // ConsumerRabbitMQRepository is a rabbitmq implementation of the consumer
 type ConsumerRabbitMQRepository struct {
 	conn *mrabbitmq.RabbitMQConnection
-	uc   *services.UseCase
 }
 
 // NewConsumerRabbitMQ returns a new instance of ConsumerRabbitMQRepository using the given rabbitmq connection.
-func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection, uc *services.UseCase) *ConsumerRabbitMQRepository {
+func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ConsumerRabbitMQRepository {
 	crmq := &ConsumerRabbitMQRepository{
 		conn: c,
-		uc:   uc,
 	}
 
 	_, err := c.GetNewConnect()
@@ -77,7 +75,9 @@ func (crmq *ConsumerRabbitMQRepository) ConsumerAudit() {
 				return
 			}
 
-			crmq.uc.CreateLog(ctx, transactionMessage)
+			fmt.Println("aaaaaaaaaaaaaaaaaaaaaaaaaa: " + midazID)
+
+			//crmq.uc.CreateLog(ctx, transactionMessage)
 
 			crmq.conn.Logger.Infof("Message consumed: %s", transactionMessage.ID)
 		}
