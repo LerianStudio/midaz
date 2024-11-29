@@ -2,12 +2,12 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc"
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc/out"
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
@@ -20,6 +20,7 @@ const ApplicationName = "audit"
 // Config is the top level configuration struct for the entire application.
 type Config struct {
 	EnvName                 string `env:"ENV_NAME"`
+	ServerAddress           string `env:"SERVER_ADDRESS"`
 	LogLevel                string `env:"LOG_LEVEL"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
 	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
@@ -33,7 +34,6 @@ type Config struct {
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	ServerAddress           string `env:"SERVER_ADDRESS"`
 	MongoDBHost             string `env:"MONGO_HOST"`
 	MongoDBName             string `env:"MONGO_NAME"`
 	MongoDBUser             string `env:"MONGO_USER"`
@@ -52,7 +52,7 @@ type Config struct {
 }
 
 // InitServers initiate http and grpc servers.
-func InitServers() (*mrabbitmq.RabbitMQConnection, *services.UseCase, *mopentelemetry.Telemetry, mlog.Logger) {
+func InitServers() (*Service, *rabbitmq.ConsumerRabbitMQRepository) {
 	cfg := &Config{}
 
 	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
@@ -100,17 +100,31 @@ func InitServers() (*mrabbitmq.RabbitMQConnection, *services.UseCase, *mopentele
 		Logger:                 logger,
 	}
 
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
-
-	trillianRepository := grpc.NewTrillianRepository(trillianConnection)
+	trillianRepository := out.NewTrillianRepository(trillianConnection)
 
 	auditMongoDBRepository := audit.NewAuditMongoDBRepository(mongoAuditConnection)
 
 	useCase := &services.UseCase{
-		RabbitMQRepo: consumerRabbitMQRepository,
 		TrillianRepo: trillianRepository,
 		AuditRepo:    auditMongoDBRepository,
 	}
 
-	return rabbitMQConnection, useCase, telemetry, logger
+	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection, useCase)
+
+	consumerRabbitMQRepository.ConsumerAudit()
+
+	trillianHandler := &in.TrillianHandler{
+		UseCase: useCase,
+	}
+
+	app := in.NewRouter(logger, telemetry, trillianHandler)
+
+	server := NewServer(cfg, app, logger, telemetry)
+
+	service := &Service{
+		Server: server,
+		Logger: logger,
+	}
+
+	return service, consumerRabbitMQRepository
 }

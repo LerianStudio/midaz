@@ -1,25 +1,33 @@
 package rabbitmq
 
 import (
+	"context"
+	"encoding/json"
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
+	"github.com/LerianStudio/midaz/components/audit/internal/services"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 //
 //go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
 type ConsumerRepository interface {
-	ConsumerDefault(message chan string)
+	ConsumerAudit()
 }
 
 // ConsumerRabbitMQRepository is a rabbitmq implementation of the consumer
 type ConsumerRabbitMQRepository struct {
 	conn *mrabbitmq.RabbitMQConnection
+	uc   *services.UseCase
 }
 
 // NewConsumerRabbitMQ returns a new instance of ConsumerRabbitMQRepository using the given rabbitmq connection.
-func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ConsumerRabbitMQRepository {
+func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection, uc *services.UseCase) *ConsumerRabbitMQRepository {
 	crmq := &ConsumerRabbitMQRepository{
 		conn: c,
+		uc:   uc,
 	}
 
 	_, err := c.GetNewConnect()
@@ -30,7 +38,7 @@ func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ConsumerRabbitMQRepos
 	return crmq
 }
 
-func (crmq *ConsumerRabbitMQRepository) ConsumerDefault(response chan string) {
+func (crmq *ConsumerRabbitMQRepository) ConsumerAudit() {
 	crmq.conn.Logger.Infoln("init consumer message")
 
 	message, err := crmq.conn.Channel.Consume(
@@ -50,8 +58,27 @@ func (crmq *ConsumerRabbitMQRepository) ConsumerDefault(response chan string) {
 
 	go func() {
 		for d := range message {
-			//response <- string(d.Body[:])
-			crmq.conn.Logger.Infof("message consumed: %s", d.Body)
+			midazID := d.Headers["Midaz-Id"].(string)
+
+			l := crmq.conn.Logger.WithFields(
+				http.HeaderMidazID, midazID,
+				http.HeaderCorrelationID, d.CorrelationId,
+			).WithDefaultMessageTemplate(midazID + " | ")
+
+			ctx := pkg.ContextWithMidazID(context.Background(), midazID)
+			ctx = pkg.ContextWithLogger(ctx, l)
+
+			var transactionMessage transaction.Transaction
+
+			err = json.Unmarshal(d.Body, &transactionMessage)
+			if err != nil {
+				crmq.conn.Logger.Errorf("Error unmarshalling transaction message JSON: %v", err)
+				return
+			}
+
+			crmq.uc.CreateLog(ctx, transactionMessage)
+
+			crmq.conn.Logger.Infof("Message consumed: %s", transactionMessage.ID)
 		}
 	}()
 

@@ -10,8 +10,8 @@ func WithCorrelationID() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		cid := gid.New().String()
 
-		c.Set(headerCorrelationID, cid)
-		c.Request().Header.Add(headerCorrelationID, cid)
+		c.Set(HeaderCorrelationID, cid)
+		c.Request().Header.Add(HeaderCorrelationID, cid)
 
 		return c.Next()
 	}
