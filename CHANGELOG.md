@@ -1,3 +1,49 @@
+## [1.31.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.2...v1.31.0-beta.3) (2024-11-29)
+
+
+### Features
+
+* added command configure :sparkles: ([f269cf3](https://github.com/LerianStudio/midaz/commit/f269cf3c6a9f3badd2cea2bf93982433ff72e4af))
+* configure command created defines the envs variables used in ldflags via command with the unit test of the ending with print command and print fields :sparkles: ([f407ab8](https://github.com/LerianStudio/midaz/commit/f407ab85224d30aa9f923dd27f9f49e76669e3d4))
+
+## [1.31.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.1...v1.31.0-beta.2) (2024-11-28)
+
+
+### Bug Fixes
+
+* add get git token to get tag version :bug: ([92b91e6](https://github.com/LerianStudio/midaz/commit/92b91e6c9306568e7a48a95311e82ef8a2ce2463))
+
+## [1.31.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.30.0...v1.31.0-beta.1) (2024-11-28)
+
+
+### Features
+
+* steps to send slack message with release ([8957369](https://github.com/LerianStudio/midaz/commit/89573696f68c0a0ab20013cd265ea09874f02da5))
+
+
+### Bug Fixes
+
+* adjust to new code place :bug: ([23ddb23](https://github.com/LerianStudio/midaz/commit/23ddb23d090ded59b060e546e067f85bfd7bf43f))
+
+## [1.30.0](https://github.com/LerianStudio/midaz/compare/v1.29.0...v1.30.0) (2024-11-28)
+
+
+### Features
+
+* format output colors and set flag global no-color :sparkles: ([7fae4c0](https://github.com/LerianStudio/midaz/commit/7fae4c044e1f060cbafbc751c2fa9c00fd60f308))
+
+
+### Bug Fixes
+
+* remove slack release notification :bug: ([de07047](https://github.com/LerianStudio/midaz/commit/de0704713e601d8c5a06198bc46a66f433ebc711))
+
+## [1.30.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.3...v1.30.0-beta.4) (2024-11-28)
+
+
+### Bug Fixes
+
+* remove slack release notification :bug: ([de07047](https://github.com/LerianStudio/midaz/commit/de0704713e601d8c5a06198bc46a66f433ebc711))
+
 ## [1.30.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.2...v1.30.0-beta.3) (2024-11-28)
 
 ## [1.30.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.30.0-beta.1...v1.30.0-beta.2) (2024-11-27)
