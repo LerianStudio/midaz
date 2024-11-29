@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 
@@ -33,10 +34,10 @@ func TestFactoryVersionRunE(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &factory.Factory{
-				CLIVersion: tt.version,
 				IOStreams: &iostreams.IOStreams{
 					Out: new(bytes.Buffer),
 				},
+				Env: &environment.Env{Version: tt.version},
 			}
 
 			fVersion := &factoryVersion{

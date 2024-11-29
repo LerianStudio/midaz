@@ -1,10 +1,13 @@
 package environment
 
+const CLIVersion = "Mdz CLI "
+
 var (
 	ClientID     string
 	ClientSecret string
 	URLAPIAuth   string
 	URLAPILedger string
+	Version      string
 )
 
 type Env struct {
@@ -12,6 +15,7 @@ type Env struct {
 	ClientSecret string
 	URLAPIAuth   string
 	URLAPILedger string
+	Version      string
 }
 
 func New() *Env {
@@ -20,5 +24,6 @@ func New() *Env {
 		ClientSecret: ClientSecret,
 		URLAPIAuth:   URLAPIAuth,
 		URLAPILedger: URLAPILedger,
+		Version:      CLIVersion + Version,
 	}
 }

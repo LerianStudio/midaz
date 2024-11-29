@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 
@@ -35,7 +36,7 @@ func TestNewCmdRoot(t *testing.T) {
 			outBuf := new(bytes.Buffer)
 			errBuf := new(bytes.Buffer)
 			f := &factory.Factory{
-				CLIVersion: tt.version,
+				Env: &environment.Env{Version: tt.version},
 				IOStreams: &iostreams.IOStreams{
 					Out: outBuf,
 					Err: errBuf,
