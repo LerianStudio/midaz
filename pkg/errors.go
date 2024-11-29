@@ -717,6 +717,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction Value Mismatch",
 			Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
 		},
+		constant.ErrForbiddenExternalAccountManipulation: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrForbiddenExternalAccountManipulation.Error(),
+			Title:      "Forbidden External Account Manipulation",
+			Message:    "Manipulation of external accounts is forbidden. Please ensure you are only performing operations on internal accounts.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
