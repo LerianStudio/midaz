@@ -36,9 +36,8 @@ func NewAuditMongoDBRepository(mc *mmongo.MongoConnection) *AuditMongoDBReposito
 	return r
 }
 
+// FindOne retrieves audit information from mongodb searching by organization and ledger id
 func (mar *AuditMongoDBRepository) FindOne(ctx context.Context, collection string, auditID AuditID) (*Audit, error) {
-
-	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_audit")
@@ -46,17 +45,16 @@ func (mar *AuditMongoDBRepository) FindOne(ctx context.Context, collection strin
 
 	db, err := mar.connection.GetDB(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
 
-	logger.Infof("Get connection to %v and collection %v", mar.Database, collection)
 	coll := db.Database(strings.ToLower(mar.Database)).Collection(strings.ToLower(collection))
 
 	var record AuditMongoDBModel
 
-	ctx, spanFindOne := tracer.Start(ctx, "mongodb.find_by_audit_id.find_one")
+	ctx, spanFindOne := tracer.Start(ctx, "mongodb.find_audit.find_one")
 
 	filter := bson.M{
 		"_id.organization_id": auditID.OrganizationID,
@@ -65,10 +63,6 @@ func (mar *AuditMongoDBRepository) FindOne(ctx context.Context, collection strin
 
 	if err = coll.FindOne(ctx, filter).Decode(&record); err != nil {
 		mopentelemetry.HandleSpanError(&spanFindOne, "Failed to find audit by id", err)
-
-		//if errors.Is(err, mongo.ErrNoDocuments) {
-		//	return nil, nil
-		//}
 
 		return nil, err
 	}
