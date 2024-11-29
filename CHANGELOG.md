@@ -1,3 +1,11 @@
+## [1.31.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.2...v1.31.0-beta.3) (2024-11-29)
+
+
+### Features
+
+* added command configure :sparkles: ([f269cf3](https://github.com/LerianStudio/midaz/commit/f269cf3c6a9f3badd2cea2bf93982433ff72e4af))
+* configure command created defines the envs variables used in ldflags via command with the unit test of the ending with print command and print fields :sparkles: ([f407ab8](https://github.com/LerianStudio/midaz/commit/f407ab85224d30aa9f923dd27f9f49e76669e3d4))
+
 ## [1.31.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.1...v1.31.0-beta.2) (2024-11-28)
 
 
