@@ -2,10 +2,9 @@ package rabbitmq
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
-	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 )
@@ -14,68 +13,87 @@ import (
 //
 //go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
 type ConsumerRepository interface {
-	ConsumerAudit()
+	Register(queueName string, handler QueueHandlerFunc)
+	RunConsumers() error
 }
 
-// ConsumerRabbitMQRepository is a rabbitmq implementation of the consumer
-type ConsumerRabbitMQRepository struct {
-	conn *mrabbitmq.RabbitMQConnection
-	uc   *services.UseCase
+// QueueHandlerFunc is a function that process a specific queue.
+type QueueHandlerFunc func(ctx context.Context, body []byte) error
+
+// ConsumerRoutes struct
+type ConsumerRoutes struct {
+	conn   *mrabbitmq.RabbitMQConnection
+	routes map[string]QueueHandlerFunc
+	mlog.Logger
+	mopentelemetry.Telemetry
 }
 
-// NewConsumerRabbitMQ returns a new instance of ConsumerRabbitMQRepository using the given rabbitmq connection.
-func NewConsumerRabbitMQ(c *mrabbitmq.RabbitMQConnection, uc *services.UseCase) *ConsumerRabbitMQRepository {
-	crmq := &ConsumerRabbitMQRepository{
-		conn: c,
-		uc:   uc,
+// NewConsumerRoutes creates a new instance of ConsumerRoutes.
+func NewConsumerRoutes(conn *mrabbitmq.RabbitMQConnection, logger mlog.Logger, telemetry *mopentelemetry.Telemetry) *ConsumerRoutes {
+	cr := &ConsumerRoutes{
+		conn:      conn,
+		routes:    make(map[string]QueueHandlerFunc),
+		Logger:    logger,
+		Telemetry: *telemetry,
 	}
 
-	_, err := c.GetNewConnect()
+	_, err := conn.GetNewConnect()
 	if err != nil {
 		panic("Failed to connect rabbitmq")
 	}
 
-	return crmq
+	return cr
 }
 
-func (crmq *ConsumerRabbitMQRepository) ConsumerAudit() {
-	crmq.conn.Logger.Infoln("init consumer message")
+// Register add a new queue to handler.
+func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
+	cr.routes[queueName] = handler
+}
 
-	message, err := crmq.conn.Channel.Consume(
-		crmq.conn.Queue,
-		"",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
-	if err != nil {
-		crmq.conn.Logger.Errorf("Failed to register a consumer: %s", err)
-	}
+// RunConsumers init consume for all registry queues.
+func (cr *ConsumerRoutes) RunConsumers() error {
+	for queueName, handler := range cr.routes {
+		cr.Logger.Infof("Initializing consumer for queue: %s", queueName)
 
-	for d := range message {
-		midazID := d.Headers["Midaz-Id"].(string)
-
-		l := crmq.conn.Logger.WithFields(
-			http.HeaderMidazID, midazID,
-			http.HeaderCorrelationID, d.CorrelationId,
-		).WithDefaultMessageTemplate(midazID + " | ")
-
-		ctx := pkg.ContextWithMidazID(context.Background(), midazID)
-		ctx = pkg.ContextWithLogger(ctx, l)
-
-		var transactionMessage transaction.Transaction
-
-		err = json.Unmarshal(d.Body, &transactionMessage)
+		messages, err := cr.conn.Channel.Consume(
+			queueName,
+			"",
+			true,
+			false,
+			false,
+			false,
+			nil,
+		)
 		if err != nil {
-			crmq.conn.Logger.Errorf("Error unmarshalling transaction message JSON: %v", err)
-			return
+			return err
 		}
 
-		crmq.uc.CreateLog(ctx, transactionMessage)
+		go func(queue string, handlerFunc QueueHandlerFunc) {
+			for msg := range messages {
+				midazID, found := msg.Headers["Midaz-Id"]
+				if !found {
+					midazID = pkg.GenerateUUIDv7().String()
+				}
 
-		crmq.conn.Logger.Infof("Message consumed: %s", transactionMessage.ID)
+				correlationID := msg.CorrelationId
+				if correlationID == "" {
+					correlationID = pkg.GenerateUUIDv7().String()
+				}
+
+				log := cr.Logger.WithFields(
+					http.HeaderMidazID, midazID.(string),
+					http.HeaderCorrelationID, correlationID,
+				).WithDefaultMessageTemplate(midazID.(string) + " | ")
+
+				ctx := pkg.ContextWithLogger(pkg.ContextWithMidazID(context.Background(), midazID.(string)), log)
+
+				err := handlerFunc(ctx, msg.Body)
+				if err != nil {
+					cr.Logger.Errorf("Error processing message from queue %s: %v", queue, err)
+				}
+			}
+		}(queueName, handler)
 	}
 
+	return nil
 }

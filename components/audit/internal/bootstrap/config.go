@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
 
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/http/in"
@@ -111,15 +112,17 @@ func InitServers() *Service {
 		UseCase: useCase,
 	}
 
-	consumer := NewConsumer(rabbitMQConnection, useCase, logger, telemetry)
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, logger, telemetry)
+
+	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
 	app := in.NewRouter(logger, telemetry, trillianHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server:   server,
-		Consumer: consumer,
-		Logger:   logger,
+		Server:             server,
+		MultiQueueConsumer: multiQueueConsumer,
+		Logger:             logger,
 	}
 }
