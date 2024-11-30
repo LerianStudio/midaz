@@ -26,7 +26,6 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *services.Us
 
 	// Registry handlers for each queue
 	routes.Register("audit_queue", consumer.handleAuditQueue)
-	routes.Register("transaction_operations_queue", consumer.handleTransactionQueue)
 
 	return consumer
 }
@@ -58,21 +57,6 @@ func (mq *MultiQueueConsumer) handleAuditQueue(ctx context.Context, body []byte)
 	logger.Infof("Message consumed: %s", transactionMessage.ID)
 
 	mq.UseCase.CreateLog(ctx, transactionMessage)
-
-	return nil
-}
-
-// handleTransactionQueue process messages from "transaction_operations_queue".
-func (mq *MultiQueueConsumer) handleTransactionQueue(ctx context.Context, body []byte) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "consumer.handleTransactionQueue")
-	defer span.End()
-
-	logger.Info("Processing message from queue_transactions")
-
-	logger.Info(string(body))
 
 	return nil
 }
