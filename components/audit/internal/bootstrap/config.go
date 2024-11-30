@@ -2,10 +2,10 @@ package bootstrap
 
 import (
 	"fmt"
+
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
@@ -14,8 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mtrillian"
 	"github.com/LerianStudio/midaz/pkg/mzap"
 )
-
-const ApplicationName = "audit"
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
@@ -52,7 +50,7 @@ type Config struct {
 }
 
 // InitServers initiate http and grpc servers.
-func InitServers() (*Service, *rabbitmq.ConsumerRabbitMQRepository) {
+func InitServers() *Service {
 	cfg := &Config{}
 
 	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
@@ -109,18 +107,19 @@ func InitServers() (*Service, *rabbitmq.ConsumerRabbitMQRepository) {
 		AuditRepo:    auditMongoDBRepository,
 	}
 
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection, useCase)
-
 	trillianHandler := &in.TrillianHandler{
 		UseCase: useCase,
 	}
+
+	consumer := NewConsumer(rabbitMQConnection, useCase, logger, telemetry)
 
 	app := in.NewRouter(logger, telemetry, trillianHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server: server,
-		Logger: logger,
-	}, consumerRabbitMQRepository
+		Server:   server,
+		Consumer: consumer,
+		Logger:   logger,
+	}
 }
