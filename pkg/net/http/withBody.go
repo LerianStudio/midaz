@@ -272,6 +272,15 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return t
 	})
 
+	_ = v.RegisterTranslation("prohibitedexternalaccountprefix", trans, func(ut ut.Translator) error {
+		prefix := cn.DefaultExternalAccountAliasPrefix
+		return ut.Add("prohibitedexternalaccountprefix", "{0} cannot contain the text '"+prefix+"'", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("prohibitedexternalaccountprefix", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
 	return v, trans
 }
 
@@ -354,7 +363,7 @@ func validateSingleTransactionType(fl validator.FieldLevel) bool {
 func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
 
-	return strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
+	return !strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
 }
 
 // formatErrorFieldName formats metadata field error names for error messages
