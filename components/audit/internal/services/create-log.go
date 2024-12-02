@@ -14,7 +14,7 @@ func (uc *UseCase) CreateLog(ctx context.Context, transactionMessage transaction
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_audit_log")
+	ctx, span := tracer.Start(ctx, "services.create_audit_log")
 	defer span.End()
 
 	logger.Infof("Trying to create log leaves for transaction: %v", transactionMessage.ID)

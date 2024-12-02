@@ -12,7 +12,7 @@ func (uc *UseCase) GetAuditInfo(ctx context.Context, organizationID uuid.UUID, l
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_audit_info")
+	ctx, span := tracer.Start(ctx, "services.get_audit_info")
 	defer span.End()
 
 	logger.Infof("Retrieving audit info")

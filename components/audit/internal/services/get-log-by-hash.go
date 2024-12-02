@@ -12,7 +12,7 @@ func (uc *UseCase) GetLogByHash(ctx context.Context, treeID int64, identityHash 
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_log_by_hash")
+	ctx, span := tracer.Start(ctx, "services.get_log_by_hash")
 	defer span.End()
 
 	log, err := uc.TrillianRepo.GetLogByHash(ctx, treeID, identityHash)

@@ -21,7 +21,7 @@ func (uc *UseCase) ValidatedLogHash(ctx context.Context, treeID int64, identityH
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_validated_log_hash")
+	ctx, span := tracer.Start(ctx, "services.get_validated_log_hash")
 	defer span.End()
 
 	log, err := uc.TrillianRepo.GetLogByHash(ctx, treeID, identityHash)
