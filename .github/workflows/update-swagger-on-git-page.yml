@@ -37,27 +37,20 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-
-      - name: Check place
-        run: |
-          pwd
-          ls
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.MANAGE_TOKEN }}
 
-      - name: Check place
-        run: |
-          pwd
-          ls
-
       - name: Generate Swagger on Ledger and Transaction
         run: |
-          go install github.com/swaggo/swag/cmd/swag@latest
+          make tidy
           
+          ls
+        
           make generate-docs-all
+          
+          ls
           
           cd ..
           
