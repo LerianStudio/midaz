@@ -162,6 +162,10 @@ tidy:
 	@echo "$(BLUE)Running go mod tidy...$(NC)"
 	go mod tidy
 
+cover: 
+	go test ./pkg/... -cover -coverprofile=coverage.out
+	go tool cover -func=coverage.out
+
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
