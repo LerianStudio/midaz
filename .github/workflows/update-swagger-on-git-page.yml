@@ -52,19 +52,13 @@ jobs:
           swag --version
           echo "Go installed at $(which go)"
           
-          cd components/ledger
+          make tidy
+          
+          make generate-docs-all
           
           ls
           
-          swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
-          
-          cd ../transaction      
-          
-          ls
-          
-          wag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
-          
-          cd ../../../
+          cd ..
           
           ls
 
