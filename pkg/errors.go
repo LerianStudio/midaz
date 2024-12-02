@@ -720,8 +720,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrForbiddenExternalAccountManipulation: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrForbiddenExternalAccountManipulation.Error(),
-			Title:      "Forbidden External Account Manipulation",
-			Message:    "Manipulation of external accounts is forbidden. Please ensure you are only performing operations on internal accounts.",
+			Title:      "External Account Modification Prohibited",
+			Message:    "Accounts of type 'external' cannot be deleted or modified as they are used for traceability with external systems. Please review your request and ensure operations are only performed on internal accounts.",
 		},
 	}
 
