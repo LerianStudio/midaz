@@ -68,3 +68,18 @@ func (mr *MockRepositoryMockRecorder) CreateTree(arg0, arg1, arg2 any) *gomock.C
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTree", reflect.TypeOf((*MockRepository)(nil).CreateTree), arg0, arg1, arg2)
 }
+
+// GetLogByHash mocks base method.
+func (m *MockRepository) GetLogByHash(arg0 context.Context, arg1 int64, arg2 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLogByHash", arg0, arg1, arg2)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLogByHash indicates an expected call of GetLogByHash.
+func (mr *MockRepositoryMockRecorder) GetLogByHash(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogByHash", reflect.TypeOf((*MockRepository)(nil).GetLogByHash), arg0, arg1, arg2)
+}

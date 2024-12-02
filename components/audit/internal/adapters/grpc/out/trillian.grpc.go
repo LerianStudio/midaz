@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	CreateTree(ctx context.Context, name, description string) (int64, error)
 	CreateLog(ctx context.Context, treeID int64, operation []byte) (string, error)
+	GetLogByHash(ctx context.Context, treeID int64, hash string) (string, error)
 }
 
 // TrillianRepository interacts with Trillian log server
@@ -78,4 +79,23 @@ func (t TrillianRepository) CreateLog(ctx context.Context, treeID int64, logValu
 	}
 
 	return hex.EncodeToString(logHash), nil
+}
+
+func (t TrillianRepository) GetLogByHash(ctx context.Context, treeID int64, hash string) (string, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "grpc.trillian.get_log_by_hash")
+	defer span.End()
+
+	proof, err := t.conn.GetInclusionProofByHash(ctx, treeID, hash)
+	if err != nil {
+		return "", err
+	}
+
+	leaf, err := t.conn.GetLeafByIndex(ctx, treeID, proof[0].GetLeafIndex())
+	if err != nil {
+		return "", err
+	}
+
+	return string(leaf.LeafValue), nil
 }
