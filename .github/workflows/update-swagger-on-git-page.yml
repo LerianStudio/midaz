@@ -45,35 +45,14 @@ jobs:
           path: midaz
           token: ${{ secrets.MANAGE_TOKEN }}
 
-      - name: Install Swaggo CLI
-        run: |
-          export PATH=$PATH:$(go env GOPATH)/bin
-          go install github.com/swaggo/swag/cmd/swag@latest
-          echo "Swag installed at $(which swag)"
-
-      - name: Check Local I
-        run: |
-          make -version
-
-      - name: Install Swaggo CLI
+      - name: Generate Swagger on Ledger and Transaction
         run: |
           cd midaz
           
-          ls
+          make generate-docs-all
+          
+          cd ..
 
-          cd components/ledger
-          
-          swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
-          
-          cd ../../
-          
-          cd components/transaction
-          
-          swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
-          
-          cd ../../../
-          
-          ls
 
       - name: Pull Git Pages
         uses: actions/checkout@v4
