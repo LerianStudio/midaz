@@ -214,6 +214,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("nonested", validateMetadataNestedValues)
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
 	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
+	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -344,6 +345,16 @@ func validateSingleTransactionType(fl validator.FieldLevel) bool {
 		if count != 1 {
 			return false
 		}
+	}
+
+	return true
+}
+
+// validateProhibitedExternalAccountPrefix
+func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
+	f := fl.Field().Interface().(string)
+	if strings.Contains(f, cn.DefaultExternalAccountAliasPrefix) {
+		return false
 	}
 
 	return true
