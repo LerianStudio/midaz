@@ -10,6 +10,6 @@ FROM alpine:latest
 
 COPY --from=builder /app /app
 
-EXPOSE 3003
+EXPOSE 3005
 
 ENTRYPOINT ["/app"]

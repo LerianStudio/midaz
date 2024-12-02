@@ -1,14 +1,18 @@
 services:
   midaz-audit:
     container_name: midaz-audit
+    restart: always
     build:
       context: ../../
       dockerfile: ./components/audit/Dockerfile
     env_file:
       - .env
+    ports:
+      - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
       - .:/usr/src/app
     networks:
+      - audit_network
       - infra_network
 
   midaz-audit-db:
@@ -31,6 +35,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - audit_network
 
   midaz-audit-server:
     container_name: midaz-audit-server
@@ -48,6 +54,8 @@ services:
     ports:
       - ${TRILLIAN_GRPC_PORT}:${TRILLIAN_GRPC_PORT}
       - ${TRILLIAN_HTTP_PORT}:${TRILLIAN_HTTP_PORT}
+    networks:
+      - audit_network
 
   midaz-audit-signer:
     container_name: midaz-audit-signer
@@ -65,11 +73,16 @@ services:
     restart: always
     ports:
       - ${TRILLIAN_SIGNER_PORT}:${TRILLIAN_HTTP_PORT}
+    networks:
+      - audit_network
 
 volumes:
   audit-data:
 
 networks:
+  audit_network:
+    name: audit_network
+    driver: bridge
   infra_network:
     name: infra_network
     driver: bridge
