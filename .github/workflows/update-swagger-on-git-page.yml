@@ -69,24 +69,16 @@ jobs:
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Copy Swagger.json to Repo Ledger and Transaction
-        working-directory: /home/runner/work/midaz/midaz
+        working-directory: /home/runner/work/midaz
         run: |
           echo "Running PWD: ================================>"
           pwd 
           echo "Running LS: ================================>"
           ls
           
-          cd page
-          echo "Running PWD: ================================>"
-          pwd 
-          echo "Running LS: ================================>"
-          ls        
-          
-          cd ..
-        
-          cp components/ledger/api/swagger.json page/ledger/ 
+          cp midaz/components/ledger/api/swagger.json page/ledger/ 
 
-          cp components/transaction/api/swagger.json page/transaction/
+          cp midaz/components/transaction/api/swagger.json page/transaction/
 
       - name: Check Diff
         working-directory: /home/runner/work/midaz/midaz/page
