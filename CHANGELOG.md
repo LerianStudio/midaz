@@ -1,3 +1,12 @@
+## [1.31.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.4...v1.31.0-beta.5) (2024-12-02)
+
+
+### Bug Fixes
+
+* add slash to the forbidden account external aliases :bug: ([5e28fd5](https://github.com/LerianStudio/midaz/commit/5e28fd56fa2a61a2566a07690db97c01163561f3))
+* add validation to patch and delete methods for external accounts on ledger :bug: ([96ba359](https://github.com/LerianStudio/midaz/commit/96ba359993badc9456ea9d9de9286e33a9b051aa))
+* update error message when patching and deleting external accounts on ledger :bug: ([e0c8614](https://github.com/LerianStudio/midaz/commit/e0c8614d476475e6bc05806c27c84ad62bcac578))
+
 ## [1.31.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.3...v1.31.0-beta.4) (2024-11-29)
 
 
