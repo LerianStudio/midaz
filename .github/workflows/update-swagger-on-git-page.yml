@@ -69,7 +69,7 @@ jobs:
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Copy Swagger.json to Repo Ledger and Transaction
-        working-directory: /home/runner/work/midaz
+        working-directory: /home/runner/work/midaz/midaz
         run: |
           echo "Running PWD: ================================>"
           pwd 
