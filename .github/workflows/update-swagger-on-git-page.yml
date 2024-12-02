@@ -55,6 +55,8 @@ jobs:
         run: |
           cd components/ledger
           
+          swag --version
+          
           ls
           
           swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
