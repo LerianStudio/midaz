@@ -44,7 +44,7 @@ jobs:
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Generate Swagger on Ledger and Transaction
-        working-directory: /home/runner/work/midaz
+        working-directory: /home/runner/work/midaz/midaz
         run: |
           echo "Setting up Go environment"
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
@@ -58,7 +58,6 @@ jobs:
           
           make generate-docs-all
 
-
       - name: Pull Git Pages
         uses: actions/checkout@v4
         with:
@@ -68,7 +67,7 @@ jobs:
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Copy Swagger.json to Repo Ledger and Transaction
-        working-directory: /home/runner/work
+        working-directory: /home/runner/work/midaz
         run: |
           pwd
           
@@ -79,12 +78,12 @@ jobs:
           cp midaz/components/transaction/api/swagger.json page/transaction/
 
       - name: Check Diff
-        working-directory: /home/runner/work/page
+        working-directory: /home/runner/work/midaz/page
         run: |
           git diff
 
       - name: Commit and Push Swagger to Git Page
-        working-directory: /home/runner/work/page
+        working-directory: /home/runner/work/midaz/page
         run: |
           git add page/ledger
           git commit  -S -m "Update Swagger.json from Repo Ledger"
