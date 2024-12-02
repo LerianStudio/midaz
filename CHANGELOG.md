@@ -1,3 +1,10 @@
+## [1.31.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.5...v1.31.0-beta.6) (2024-12-02)
+
+
+### Bug Fixes
+
+* adjust filter by metadata on get all transactions endpoint :bug: ([18c93a7](https://github.com/LerianStudio/midaz/commit/18c93a77b59d4e5d34d50d293534eebae3e22f60))
+
 ## [1.31.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.4...v1.31.0-beta.5) (2024-12-02)
 
 
