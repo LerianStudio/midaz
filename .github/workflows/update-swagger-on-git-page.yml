@@ -38,8 +38,8 @@ jobs:
           git_commit_gpgsign: true
 
       - name: Checkout
-        working-directory: /home/runner/work/midaz
         uses: actions/checkout@v4
+        working-directory: /home/runner/work/midaz
         with:
           token: ${{ secrets.MANAGE_TOKEN }}
 
