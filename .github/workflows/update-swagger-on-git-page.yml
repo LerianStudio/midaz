@@ -16,7 +16,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  update-env-release:
+  update-swaggo-on-pages:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v1
@@ -53,7 +53,7 @@ jobs:
 
       - name: Check Local I
         run: |
-          ls
+          make -version
 
       - name: Install Swaggo CLI
         run: |
