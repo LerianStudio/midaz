@@ -6,6 +6,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mtrillian"
+	"github.com/google/trillian"
 )
 
 // Repository provides an interface for gRPC operations related to Trillian
@@ -14,7 +15,7 @@ import (
 type Repository interface {
 	CreateTree(ctx context.Context, name, description string) (int64, error)
 	CreateLog(ctx context.Context, treeID int64, operation []byte) (string, error)
-	GetLogByHash(ctx context.Context, treeID int64, hash string) (string, error)
+	GetLogByHash(ctx context.Context, treeID int64, hash string) (*trillian.LogLeaf, error)
 }
 
 // TrillianRepository interacts with Trillian log server
@@ -75,13 +76,15 @@ func (t TrillianRepository) CreateLog(ctx context.Context, treeID int64, logValu
 
 	logHash, err := t.conn.CreateLog(ctx, treeID, logValue)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to create log", err)
+
 		return "", err
 	}
 
 	return hex.EncodeToString(logHash), nil
 }
 
-func (t TrillianRepository) GetLogByHash(ctx context.Context, treeID int64, hash string) (string, error) {
+func (t TrillianRepository) GetLogByHash(ctx context.Context, treeID int64, hash string) (*trillian.LogLeaf, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.trillian.get_log_by_hash")
@@ -89,13 +92,17 @@ func (t TrillianRepository) GetLogByHash(ctx context.Context, treeID int64, hash
 
 	proof, err := t.conn.GetInclusionProofByHash(ctx, treeID, hash)
 	if err != nil {
-		return "", err
+		mopentelemetry.HandleSpanError(&span, "Failed to get inclusion proof", err)
+
+		return nil, err
 	}
 
 	leaf, err := t.conn.GetLeafByIndex(ctx, treeID, proof[0].GetLeafIndex())
 	if err != nil {
-		return "", err
+		mopentelemetry.HandleSpanError(&span, "Failed to get leaf by index", err)
+
+		return nil, err
 	}
 
-	return string(leaf.LeafValue), nil
+	return leaf, nil
 }

@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	trillian "github.com/google/trillian"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -70,10 +71,10 @@ func (mr *MockRepositoryMockRecorder) CreateTree(arg0, arg1, arg2 any) *gomock.C
 }
 
 // GetLogByHash mocks base method.
-func (m *MockRepository) GetLogByHash(arg0 context.Context, arg1 int64, arg2 string) (string, error) {
+func (m *MockRepository) GetLogByHash(arg0 context.Context, arg1 int64, arg2 string) (*trillian.LogLeaf, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLogByHash", arg0, arg1, arg2)
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(*trillian.LogLeaf)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

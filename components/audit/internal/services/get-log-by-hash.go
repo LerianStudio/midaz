@@ -26,7 +26,7 @@ func (uc *UseCase) GetLogByHash(ctx context.Context, treeID int64, identityHash 
 
 	var op operation.Operation
 
-	err = json.Unmarshal([]byte(log), &op)
+	err = json.Unmarshal(log.LeafValue, &op)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to unmarshal log", err)
 
