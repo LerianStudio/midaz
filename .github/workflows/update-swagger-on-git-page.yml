@@ -40,6 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          path: midaz
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Generate Swagger on Ledger and Transaction
@@ -60,21 +61,19 @@ jobs:
 
       - name: Pull Git Pages
         uses: actions/checkout@v4
-        working-directory: /home/runner/work/page
         with:
           repository: LerianStudio/LerianStudio.github.io
           ref: main
+          path: page
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Copy Swagger.json to Repo Ledger and Transaction
         working-directory: /home/runner/work
         run: |
-          ls
-          
-          cd ..
+          pwd
           
           ls
-          
+        
           cp midaz/components/ledger/api/swagger.json page/ledger/ 
 
           cp midaz/components/transaction/api/swagger.json page/transaction/
