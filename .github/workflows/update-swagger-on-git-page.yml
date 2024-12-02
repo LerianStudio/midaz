@@ -44,7 +44,6 @@ jobs:
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Generate Swagger on Ledger and Transaction
-        working-directory: /home/runner/work/midaz/midaz
         run: |
           echo "Setting up Go environment"
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
