@@ -45,19 +45,27 @@ jobs:
           path: midaz
           token: ${{ secrets.MANAGE_TOKEN }}
 
+      - name: Check Local I
+        run: |
+          ls
+
       - name: Install Swaggo CLI
         run: |
+          cd midaz
+          
           go install github.com/swaggo/swag/cmd/swag@latest
 
-      - name: Generate Swagger for Repo Ledger
-        working-directory: midaz/components/ledger
-        run: |
+          cd components/ledger
+          
           swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
-
-      - name: Generate Swagger for Repo transaction
-        working-directory: midaz/components/transaction
-        run: |
-          swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal         
+          
+          cd ../../
+          
+          cd components/transaction
+          
+          swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
+          
+          cd ../../../
 
       - name: Pull Git Pages
         uses: actions/checkout@v4
@@ -67,12 +75,14 @@ jobs:
           path: page
           token: ${{ secrets.MANAGE_TOKEN }}
 
-      - name: Copy Swagger.json to Repo Ledger
+      - name: Check Local II
+        run: |
+          ls
+
+      - name: Copy Swagger.json to Repo Ledger and Transaction
         run: |
           cp midaz/components/ledger/api/swagger.json page/ledger/ 
 
-      - name: Copy Swagger.json to Repo Transaction
-        run: |
           cp midaz/components/transaction/api/swagger.json page/transaction/
 
       - name: Check Diff
