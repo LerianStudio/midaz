@@ -56,9 +56,11 @@ jobs:
           
           make generate-docs-all
 
-      - name: Pull Git Pages
+      - name: return to root
         run: |
-          cd ..
+          cd ../../          
+
+      - name: Pull Git Pages
         uses: actions/checkout@v4
         with:
           repository: LerianStudio/LerianStudio.github.io
