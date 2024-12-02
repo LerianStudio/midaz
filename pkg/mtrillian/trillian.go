@@ -2,6 +2,7 @@ package mtrillian
 
 import (
 	"context"
+	"errors"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/google/trillian"
 	"go.uber.org/zap"
@@ -9,11 +10,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"log"
+	"net/http"
 	"time"
 )
 
 type TrillianConnection struct {
-	Addr     string
+	AddrGRPC string
+	AddrHTTP string
 	Database string
 	Conn     *grpc.ClientConn
 	Logger   mlog.Logger
@@ -22,9 +25,15 @@ type TrillianConnection struct {
 // Connect keeps a singleton connection with Trillian gRPC.
 func (c *TrillianConnection) Connect() error {
 
-	c.Logger.Infof("Connecting to Trillian at %v", c.Addr)
+	c.Logger.Infof("Connecting to Trillian at %v", c.AddrGRPC)
 
-	conn, err := grpc.NewClient(c.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if !c.healthCheck() {
+		err := errors.New("can't connect to trillian")
+		c.Logger.Fatalf("Trillian.HealthCheck %v", zap.Error(err))
+		return err
+	}
+
+	conn, err := grpc.NewClient(c.AddrGRPC, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect on Trillian gRPC: %v", zap.Error(err))
 		return nil
@@ -98,4 +107,22 @@ func (c *TrillianConnection) CreateLog(ctx context.Context, treeID int64, conten
 	}
 
 	return response.QueuedLeaf.Leaf.LeafIdentityHash, nil
+}
+
+func (c *TrillianConnection) healthCheck() bool {
+	resp, err := http.Get(c.AddrHTTP + "/healthz")
+
+	if err != nil {
+		c.Logger.Errorf("failed to make GET request: %v", err.Error())
+		return false
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		c.Logger.Info("Trillian health check passed")
+		return true
+	}
+
+	c.Logger.Error("Trillian unhealthy...")
+
+	return false
 }

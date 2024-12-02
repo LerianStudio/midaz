@@ -46,8 +46,8 @@ type Config struct {
 	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
 	RabbitMQKey             string `env:"RABBITMQ_KEY"`
 	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
-	TrillianHost            string `env:"TRILLIAN_HOST"`
-	TrillianPort            string `env:"TRILLIAN_GRPC_PORT"`
+	TrillianGRPCAddress     string `env:"TRILLIAN_GRPC_ADDRESS"`
+	TrillianHTTPAddress     string `env:"TRILLIAN_HTTP_ADDRESS"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -83,11 +83,10 @@ func InitServers() *Service {
 		Logger:                 logger,
 	}
 
-	trillianSource := fmt.Sprintf("%s:%s", cfg.TrillianHost, cfg.TrillianPort)
-
 	trillianConnection := &mtrillian.TrillianConnection{
-		Addr:   trillianSource,
-		Logger: logger,
+		AddrGRPC: cfg.TrillianGRPCAddress,
+		AddrHTTP: cfg.TrillianHTTPAddress,
+		Logger:   logger,
 	}
 
 	mongoSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
