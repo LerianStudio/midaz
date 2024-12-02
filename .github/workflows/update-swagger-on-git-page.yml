@@ -54,19 +54,11 @@ jobs:
           
           cd components/ledger
           
-          go install github.com/swaggo/swag/cmd/swag@latest
-          
-          swag --version
-          
           ls
           
           swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
           
-          cd ../transaction
-          
-          go install github.com/swaggo/swag/cmd/swag@latest
-          
-          swag --version          
+          cd ../transaction      
           
           ls
           
