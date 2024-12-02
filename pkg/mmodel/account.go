@@ -13,7 +13,7 @@ import (
 type CreateAccountInput struct {
 	AssetCode       string         `json:"assetCode" validate:"required,max=100" example:"BRL"`
 	Name            string         `json:"name" validate:"max=256" example:"My Account"`
-	Alias           *string        `json:"alias" validate:"max=100" example:"@person1"`
+	Alias           *string        `json:"alias" validate:"max=100,excludes=@external/" example:"@person1"`
 	Type            string         `json:"type" validate:"required" example:"creditCard"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	ProductID       *string        `json:"productId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
@@ -34,7 +34,7 @@ type UpdateAccountInput struct {
 	Status         Status         `json:"status"`
 	AllowSending   *bool          `json:"allowSending" example:"true"`
 	AllowReceiving *bool          `json:"allowReceiving" example:"true"`
-	Alias          *string        `json:"alias" validate:"max=100" example:"@person1"`
+	Alias          *string        `json:"alias" validate:"max=100,excludes=@external/" example:"@person1"`
 	ProductID      *string        `json:"productId" validate:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name UpdateAccountInput
