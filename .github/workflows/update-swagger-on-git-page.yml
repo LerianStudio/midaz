@@ -42,18 +42,11 @@ jobs:
         with:
           token: ${{ secrets.MANAGE_TOKEN }}
 
-      - name: Install and Configure Swaggo CLI
-        run: |
-          echo "Setting up Go environment"
-          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
-          echo "Installing Swaggo"
-          go install github.com/swaggo/swag/cmd/swag@latest
-          echo "Swag installed at $(which swag)"
-          swag --version
-
       - name: Generate Swagger on Ledger and Transaction
         run: |
           cd components/ledger
+          
+          go install github.com/swaggo/swag/cmd/swag@latest
           
           swag --version
           
@@ -63,10 +56,13 @@ jobs:
           
           cd ../transaction
           
+          go install github.com/swaggo/swag/cmd/swag@latest
+          
+          swag --version          
+          
           ls
           
           wag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
-          
           
           cd ../../../
           
