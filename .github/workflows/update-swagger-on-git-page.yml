@@ -55,13 +55,14 @@ jobs:
           make tidy
           
           make generate-docs-all
-          
+
+          pwd
           ls
-          
+          cd ..
+          pwd
+          ls
           cd ..
           
-          ls
-
 
       - name: Pull Git Pages
         uses: actions/checkout@v4
