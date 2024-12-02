@@ -56,24 +56,21 @@ jobs:
           
           make generate-docs-all
 
-          pwd
-          ls
-          cd ..
-          pwd
-          ls
-          cd ..
-          
-
       - name: Pull Git Pages
+        run: |
+          cd ..
         uses: actions/checkout@v4
         with:
           repository: LerianStudio/LerianStudio.github.io
           ref: main
-          path: page
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Copy Swagger.json to Repo Ledger and Transaction
         run: |
+          ls
+          
+          cd ..
+          
           ls
           
           cp midaz/components/ledger/api/swagger.json page/ledger/ 
