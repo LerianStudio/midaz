@@ -40,10 +40,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: LerianStudio/midaz
-          ref: main
-          path: midaz
           token: ${{ secrets.MANAGE_TOKEN }}
+
+      - name: Check place
+        run: |
+          pwd
 
       - name: Generate Swagger on Ledger and Transaction
         run: |
