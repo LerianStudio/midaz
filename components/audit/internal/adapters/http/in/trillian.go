@@ -19,7 +19,49 @@ func (th *TrillianHandler) CheckEntry(c *fiber.Ctx) error {
 }
 
 func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
-	return http.OK(c, "ok")
+	ctx := c.UserContext()
+
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.audit_Logs")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID := c.Locals("transaction_id").(uuid.UUID)
+
+	auditInfo, err := th.UseCase.GetAuditInfo(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve audit info", err)
+
+		logger.Errorf("Failed to retrieve audit info: %v", err.Error())
+
+		return http.WithError(c, err) // TODO: error message
+	}
+
+	validations := make([]services.HashValidation, 0)
+
+	for key, value := range auditInfo.Operations {
+		v, err := th.UseCase.ValidatedLogHash(ctx, auditInfo.TreeID, value)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to retrieve log validation", err)
+
+			logger.Errorf("Failed to retrieve log validation: %v", err.Error())
+
+			return http.WithError(c, err) // TODO: error message
+		}
+
+		if v.WasTempered {
+			logger.Warnf("Log for %v has been tampered! Expected: %x, Found: %x\n", key, v.ExpectedHash, v.CalculatedHash)
+		}
+
+		v.OperationID = key
+
+		validations = append(validations, *v)
+	}
+
+	return http.OK(c, validations)
 }
 
 func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
