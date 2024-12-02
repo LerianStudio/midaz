@@ -353,11 +353,8 @@ func validateSingleTransactionType(fl validator.FieldLevel) bool {
 // validateProhibitedExternalAccountPrefix
 func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
 	f := fl.Field().Interface().(string)
-	if strings.Contains(f, cn.DefaultExternalAccountAliasPrefix) {
-		return false
-	}
 
-	return true
+	return strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
 }
 
 // formatErrorFieldName formats metadata field error names for error messages
