@@ -44,15 +44,20 @@ jobs:
 
       - name: Generate Swagger on Ledger and Transaction
         run: |
-          make tidy
-          
-          ls
-        
-          make generate-docs-all
+          cd components/ledger
           
           ls
           
-          cd ..
+          swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
+          
+          cd ../transaction
+          
+          ls
+          
+          wag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
+          
+          
+          cd ../../../
           
           ls
 
