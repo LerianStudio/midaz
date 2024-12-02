@@ -70,28 +70,29 @@ jobs:
           token: ${{ secrets.MANAGE_TOKEN }}
 
       - name: Copy Swagger.json to Repo Ledger and Transaction
-        working-directory: /home/runner/work/midaz
+        working-directory: /home/runner/work/midaz/midaz
         run: |
-          pwd
-          
+          echo "Running PWD: ================================>"
+          pwd 
+          echo "Running LS: ================================>"
           ls
         
-          cp midaz/components/ledger/api/swagger.json page/ledger/ 
+          cp components/ledger/api/swagger.json page/ledger/ 
 
-          cp midaz/components/transaction/api/swagger.json page/transaction/
+          cp components/transaction/api/swagger.json page/transaction/
 
       - name: Check Diff
-        working-directory: /home/runner/work/midaz/page
+        working-directory: /home/runner/work/midaz/midaz/page
         run: |
           git diff
 
       - name: Commit and Push Swagger to Git Page
-        working-directory: /home/runner/work/midaz/page
+        working-directory: /home/runner/work/midaz/midaz/page
         run: |
-          git add page/ledger
+          git add ledger
           git commit  -S -m "Update Swagger.json from Repo Ledger"
           
-          git add page/transaction
+          git add transaction
           git commit  -S -m "Update Swagger.json from Repo Transaction"
           
           git push origin main
