@@ -1,3 +1,10 @@
+## [1.31.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.3...v1.31.0-beta.4) (2024-11-29)
+
+
+### Bug Fixes
+
+* exclude external from allowed account types for account creation :bug: ([18ec6ba](https://github.com/LerianStudio/midaz/commit/18ec6bab807943c03722a191229f609fbefb02c9))
+
 ## [1.31.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.2...v1.31.0-beta.3) (2024-11-29)
 
 
