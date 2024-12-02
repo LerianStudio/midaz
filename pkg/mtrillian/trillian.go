@@ -2,9 +2,11 @@ package mtrillian
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -107,6 +109,64 @@ func (c *TrillianConnection) CreateLog(ctx context.Context, treeID int64, conten
 	}
 
 	return response.QueuedLeaf.Leaf.LeafIdentityHash, nil
+}
+
+func (c *TrillianConnection) GetInclusionProofByHash(ctx context.Context, treeID int64, identityHash string) ([]*trillian.Proof, error) {
+	logClient := trillian.NewTrillianLogClient(c.Conn)
+
+	leafHash, err := hex.DecodeString(identityHash)
+	if err != nil {
+		c.Logger.Errorf("Error decoding hash: %v", err.Error())
+		return nil, err
+	}
+
+	respSLR, err := logClient.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{LogId: treeID})
+	if err != nil {
+		log.Fatalf("Error fetching Signed Log Root: %v", err)
+	}
+	signedLogRoot := respSLR.GetSignedLogRoot()
+
+	var logRoot types.LogRootV1
+	if err := logRoot.UnmarshalBinary(signedLogRoot.LogRoot); err != nil {
+		log.Fatalf("Failed to unmarshal LogRoot: %v", err)
+	}
+
+	proofResp, err := logClient.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
+		LogId:    treeID,
+		LeafHash: leafHash,
+		TreeSize: int64(logRoot.TreeSize),
+	})
+	if err != nil {
+		c.Logger.Fatalf("Error getting inclusion proof: %v", zap.Error(err))
+		return nil, err
+	}
+
+	if len(proofResp.Proof) == 0 {
+		c.Logger.Fatalf("Inclusion proof is empty: %v", zap.Error(err))
+		return nil, err
+	}
+
+	return proofResp.GetProof(), nil
+}
+
+func (c *TrillianConnection) GetLeafByIndex(ctx context.Context, treeID int64, leafIndex int64) (*trillian.LogLeaf, error) {
+	logClient := trillian.NewTrillianLogClient(c.Conn)
+
+	leaves, err := logClient.GetLeavesByRange(ctx, &trillian.GetLeavesByRangeRequest{
+		LogId:      treeID,
+		StartIndex: leafIndex,
+		Count:      1,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(leaves.GetLeaves()) == 0 {
+		c.Logger.Fatalf("No leaves found: %v", zap.Error(err))
+		return nil, err
+	}
+
+	return leaves.GetLeaves()[0], nil
 }
 
 func (c *TrillianConnection) healthCheck() bool {
