@@ -45,13 +45,18 @@ jobs:
 
       - name: Generate Swagger on Ledger and Transaction
         run: |
-          echo "Setting up Go environment"
+          echo "Running PWD: ================================>"
+          pwd 
+          echo "Running LS: ================================>"
+          ls
+          
+          echo "Running SET ENV: ================================>"
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
-          echo "Installing Swaggo"
+          echo "Installing Swaggo: ================================>"
           go install github.com/swaggo/swag/cmd/swag@latest
-          echo "Swag installed at $(which swag)"
+          echo "Swag installed at $(which swag): ================================>"
           swag --version
-          echo "Go installed at $(which go)"
+          echo "Go installed at $(which go): ================================>"
           
           make tidy
           
