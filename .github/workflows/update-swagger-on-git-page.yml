@@ -16,7 +16,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  update-swaggo-on-pages:
+  update-swagger-on-pages:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v1
@@ -45,11 +45,10 @@ jobs:
       - name: Check place
         run: |
           pwd
+          ls
 
       - name: Generate Swagger on Ledger and Transaction
         run: |
-          cd midaz
-          
           make generate-docs-all
           
           cd ..
