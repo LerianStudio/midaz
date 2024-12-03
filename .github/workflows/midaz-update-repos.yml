@@ -1,4 +1,4 @@
-name: ""sMidaz Update Submodule on midaz-full and Swagger on Git Pages"
+name: "Midaz Update Submodule on midaz-full and Swagger on Git Pages"
 
 on:
   push:
