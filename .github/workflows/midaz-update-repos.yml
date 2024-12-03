@@ -9,6 +9,7 @@ on:
 
 jobs:
   update-submodule-on-midaz-full:
+    name: Run Update midaz submodule on midaz-full
     runs-on: ubuntu-24.04
     steps:
       - name: Import GPG key
@@ -54,6 +55,7 @@ jobs:
           git push origin main
 
   update-swagger-on-pages:
+    name: Run Update swagger on ledger and transaction in LerianStudio.github.io
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/create-github-app-token@v1
