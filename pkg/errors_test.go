@@ -2,8 +2,10 @@ package pkg
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -215,7 +217,45 @@ func TestValidateBusinessError(t *testing.T) {
 		name    string
 		args    args
 		wantErr bool
-	}{}
+	}{
+		{
+			name: "entity conflict error",
+			args: args{
+				err: EntityConflictError{
+					EntityType: "entityType",
+					Code:       constant.ErrDuplicateLedger.Error(),
+					Title:      "Duplicate Ledger Error",
+					Message:    fmt.Sprintf("A ledger with the name %s already exists in the division %s. Please rename the ledger or choose a different division to attach it to.", "arg1", "arg2"),
+				},
+				entityType: "entityType",
+				args:       []any{"arg1", "arg2"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "transaction value mismatch error",
+			args: args{
+				err: ValidationError{
+					EntityType: "entityType",
+					Code:       constant.ErrTransactionValueMismatch.Error(),
+					Title:      "Transaction Value Mismatch",
+					Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
+				},
+				entityType: "entityType",
+				args:       []any{"arg1", "arg2"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "error not mapped",
+			args: args{
+				err:        errors.New("error not mapped"),
+				entityType: "entityType",
+				args:       []any{"arg1", "arg2"},
+			},
+			wantErr: true,
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := ValidateBusinessError(tt.args.err, tt.args.entityType, tt.args.args...); (err != nil) != tt.wantErr {
