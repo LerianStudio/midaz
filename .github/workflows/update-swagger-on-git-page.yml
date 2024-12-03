@@ -96,15 +96,27 @@ jobs:
         run: |
           cd LerianStudio.github.io
           
-          git diff
+          CURRENT_COMMIT=$(gh api repos/LerianStudio/LerianStudio.github.io/commits/main | jq -r .sha)
+
+          gh api repos/LerianStudio/LerianStudio.github.io/commits/$CURRENT_COMMIT \
+            -q '.files[].patch' > diff.patch
+
+          # Check if the diff is empty
+          if [ -s diff.patch ]; then
+            echo "Changes detected in commit $CURRENT_COMMIT"
+            cat diff.patch
           
-          git add ledger
-          git commit  -S -m "Update Swagger.json from Repo Ledger"
+            git add ledger
+            git commit  -S -m "Update Swagger.json from Repo Ledger"
+            
+            git add transaction
+            git commit  -S -m "Update Swagger.json from Repo Transaction"
+            
+            git push origin main
           
-          git add transaction
-          git commit  -S -m "Update Swagger.json from Repo Transaction"
-          
-          git push origin main
+          else
+            echo "No changes detected in commit $CURRENT_COMMIT"
+          fi
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
