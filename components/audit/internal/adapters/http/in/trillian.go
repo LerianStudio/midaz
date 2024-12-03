@@ -14,6 +14,18 @@ type TrillianHandler struct {
 }
 
 // AuditLogs compares leaf hash with a hash generated from the leaf value
+//
+//	@Summary 		Audit logs by reference ID
+//	@Description 	Audit logs to check if any was tampered
+//	@Tags 			Audit
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			audit_id		path		string	true	"Audit ID"
+//	@Success		200				{object}	HashValidationResponse
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/audit/{audit_id}/audit-logs [get]
 func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -66,6 +78,18 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 }
 
 // ReadLogs retrieves log values by the audit id
+//
+//	@Summary Get 	logs by reference ID
+//	@Description 	Get log values from Trillian by reference ID
+//	@Tags 			Audit
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			audit_id		path		string	true	"Audit ID"
+//	@Success		200				{object}	LogsResponse
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/audit/{audit_id}/read-logs [get]
 func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

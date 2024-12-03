@@ -1,0 +1,124 @@
+basePath: /
+definitions:
+  HashValidationResponse:
+    description: HashValidationResponse show if any of the logs has been tampered
+    properties:
+      auditId:
+        type: string
+      calculatedHash:
+        type: string
+      expectedHash:
+        type: string
+      wasTempered:
+        type: boolean
+    type: object
+  Leaf:
+    description: Leaf stores each audit log
+    properties:
+      body:
+        items:
+          type: integer
+        type: array
+      leaf_id:
+        type: string
+    type: object
+  LogsResponse:
+    description: LogsResponse is the response with audit log values
+    properties:
+      leaves:
+        items:
+          $ref: '#/definitions/Leaf'
+        type: array
+      tree_id:
+        type: integer
+    type: object
+host: localhost:3005
+info:
+  contact:
+    name: Discord community
+    url: https://discord.gg/DnhqKwkGv3
+  description: This is a swagger documentation for the Midaz Audit API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Midaz Audit API
+  version: 1.0.0
+paths:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/audit/{audit_id}/audit-logs:
+    get:
+      description: Audit logs to check if any was tampered
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Audit ID
+        in: path
+        name: audit_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/HashValidationResponse'
+      summary: Audit logs by reference ID
+      tags:
+      - Audit
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/audit/{audit_id}/read-logs:
+    get:
+      description: Get log values from Trillian by reference ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Audit ID
+        in: path
+        name: audit_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/LogsResponse'
+      summary: "Get \tlogs by reference ID"
+      tags:
+      - Audit
+swagger: "2.0"

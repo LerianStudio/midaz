@@ -58,7 +58,7 @@ help:
 	@echo "  make infra COMMAND=<cmd> - Run command in infra service"
 	@echo "  make ledger COMMAND=<cmd> - Run command in ledger service"
 	@echo "  make transaction COMMAND=<cmd> - Run command in transaction service"
-	@echo "  make audit COMMAND=<cmd> - Run command in transaction service"
+	@echo "  make audit COMMAND=<cmd> - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd> - Run command across all services"
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
@@ -173,4 +173,5 @@ tidy:
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
-	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs && \
+	$(MAKE) -C $(AUDIT_DIR) generate-docs

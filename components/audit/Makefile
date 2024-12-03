@@ -4,7 +4,7 @@ artifacts_dir := ./artifacts
 
 $(shell mkdir -p $(artifacts_dir))
 
-.PHONY: info gen run test cover-html tidy help build up start down destroy stop restart logs logs-api ps
+.PHONY: info gen run test cover-html tidy help build up start down destroy stop restart logs logs-api ps generate-docs
 
 # Display available commands
 info:
@@ -15,6 +15,10 @@ info:
 	@echo "make auth COMMAND=\"any\"                                                                                                            "
 	@echo "                                                                                                                                       "
 	@echo "This command will run the specified command inside the auth container. Replace \"any\" with the desired command you want to execute. "
+	@echo "                                                                                                                         "
+	@echo "## App commands:"
+	@echo "                                                                                                                         "
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation using swag."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -60,3 +64,6 @@ logs-api:
 
 ps:
 	@docker-compose -f docker-compose.yml ps
+
+generate-docs:
+	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
