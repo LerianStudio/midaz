@@ -92,9 +92,7 @@ jobs:
 
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
 
-
       - name: Commit and Push Swagger to Git Page
-        working-directory: /home/runner/work/midaz/midaz/page
         run: |
           cd LerianStudio.github.io
           
