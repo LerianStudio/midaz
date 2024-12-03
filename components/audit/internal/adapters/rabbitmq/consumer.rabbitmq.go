@@ -58,7 +58,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		messages, err := cr.conn.Channel.Consume(
 			queueName,
 			"",
-			true,
+			false,
 			false,
 			false,
 			false,
@@ -90,6 +90,14 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 				err := handlerFunc(ctx, msg.Body)
 				if err != nil {
 					cr.Logger.Errorf("Error processing message from queue %s: %v", queue, err)
+					if nackErr := msg.Nack(false, true); nackErr != nil {
+						cr.Logger.Errorf("Error nack message from queue %s: %v", queue, nackErr)
+					}
+					return
+				}
+
+				if ackErr := msg.Ack(false); ackErr != nil {
+					cr.Logger.Errorf("Error ack message from queue %s: %v", queue, ackErr)
 				}
 			}
 		}(queueName, handler)
