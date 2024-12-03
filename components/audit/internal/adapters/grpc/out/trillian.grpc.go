@@ -14,7 +14,7 @@ import (
 //go:generate mockgen --destination=trillian.mock.go --package=out . Repository
 type Repository interface {
 	CreateTree(ctx context.Context, name, description string) (int64, error)
-	CreateLog(ctx context.Context, treeID int64, operation []byte) (string, error)
+	CreateLog(ctx context.Context, treeID int64, logValue []byte) (string, error)
 	GetLogByHash(ctx context.Context, treeID int64, hash string) (*trillian.LogLeaf, error)
 }
 

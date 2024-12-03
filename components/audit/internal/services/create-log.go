@@ -2,33 +2,34 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/google/uuid"
+	"time"
 )
 
 // CreateLog creates an audit log for the operations of a transaction
-func (uc *UseCase) CreateLog(ctx context.Context, transactionMessage transaction.Transaction) {
+func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, auditID uuid.UUID, data []mmodel.QueueData) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "services.create_audit_log")
 	defer span.End()
 
-	logger.Infof("Trying to create log leaves for transaction: %v", transactionMessage.ID)
+	logger.Infof("Trying to create log leaves for audit ID: %v", auditID)
 
 	var auditObj audit.Audit
 
 	auditObj = audit.Audit{
 		ID: audit.AuditID{
-			OrganizationID: transactionMessage.OrganizationID,
-			LedgerID:       transactionMessage.LedgerID,
-			TransactionID:  transactionMessage.ID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			ID:             auditID.String(),
 		},
-		Operations: make(map[string]string),
-		CreatedAt:  transactionMessage.CreatedAt,
+		Leaves:    make(map[string]string),
+		CreatedAt: time.Now(),
 	}
 
 	one, err := uc.AuditRepo.FindOne(ctx, audit.TreeCollection, auditObj.ID)
@@ -47,24 +48,17 @@ func (uc *UseCase) CreateLog(ctx context.Context, transactionMessage transaction
 		auditObj.TreeID = one.TreeID
 	}
 
-	for _, operation := range transactionMessage.Operations {
-		logger.Infof("Saving log for operation %v", operation.ID)
+	for _, item := range data {
+		logger.Infof("Saving leaf for %v", item.ID)
 
-		marshal, err := json.Marshal(operation)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Error marshalling operation", err)
-
-			logger.Errorf("Error marshalling operation %v", err)
-		}
-
-		log, err := uc.TrillianRepo.CreateLog(ctx, auditObj.TreeID, marshal)
+		leaf, err := uc.TrillianRepo.CreateLog(ctx, auditObj.TreeID, []byte(item.Value))
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Error creating audit log", err)
 
 			logger.Errorf("Error creating audit log %v", err)
 		}
 
-		auditObj.Operations[operation.ID] = log
+		auditObj.Leaves[item.ID.String()] = leaf
 	}
 
 	err = uc.AuditRepo.Create(ctx, audit.TreeCollection, &auditObj)

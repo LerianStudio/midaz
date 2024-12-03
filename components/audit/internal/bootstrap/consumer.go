@@ -3,10 +3,10 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/transaction"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 )
@@ -45,18 +45,18 @@ func (mq *MultiQueueConsumer) handleAuditQueue(ctx context.Context, body []byte)
 
 	logger.Info("Processing message from audit_queue")
 
-	var transactionMessage transaction.Transaction
+	var message mmodel.Queue
 
-	err := json.Unmarshal(body, &transactionMessage)
+	err := json.Unmarshal(body, &message)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Error unmarshalling transaction message JSON: %v", err)
+		mopentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 		logger.Errorf("Error unmarshalling transaction message JSON: %v", err)
 		return err
 	}
 
-	logger.Infof("Message consumed: %s", transactionMessage.ID)
+	logger.Infof("Message consumed: %s", message.AuditID)
 
-	mq.UseCase.CreateLog(ctx, transactionMessage)
+	mq.UseCase.CreateLog(ctx, message.OrganizationID, message.LedgerID, message.AuditID, message.QueueData)
 
 	return nil
 }
