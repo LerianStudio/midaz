@@ -109,9 +109,6 @@ jobs:
     runs-on: ubuntu-latest
     name: Run Unit Tests
     needs: setup-environment
-    env:
-      WORKING_DIR: components/ledger
     steps:
       - name: Run Unit Tests
-        working-directory: ${{ env.WORKING_DIR }}
         run: make test
