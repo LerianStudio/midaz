@@ -803,23 +803,14 @@ const docTemplate = `{
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation.",
             "type": "object",
-            "required": [
-                "asset",
-                "value"
-            ],
             "properties": {
-                "asset": {
-                    "type": "string",
-                    "example": "BRL"
+                "amount": {
+                    "type": "number",
+                    "example": 1500
                 },
                 "scale": {
-                    "type": "integer",
-                    "minimum": 0,
+                    "type": "number",
                     "example": 2
-                },
-                "value": {
-                    "type": "integer",
-                    "example": 1000
                 }
             }
         },
@@ -1164,7 +1155,7 @@ const docTemplate = `{
             }
         },
         "Status": {
-            "description": "Status is the struct designed to represent the status of a transaction.",
+            "description": "Status is the struct designed to represent the status of an operation.",
             "type": "object",
             "properties": {
                 "code": {
@@ -1303,7 +1294,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1.0.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{},

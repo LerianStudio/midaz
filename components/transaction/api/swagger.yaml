@@ -3,19 +3,12 @@ definitions:
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
     properties:
-      asset:
-        example: BRL
-        type: string
+      amount:
+        example: 1500
+        type: number
       scale:
         example: 2
-        minimum: 0
-        type: integer
-      value:
-        example: 1000
-        type: integer
-    required:
-    - asset
-    - value
+        type: number
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data.
@@ -269,7 +262,7 @@ definitions:
     - from
     type: object
   Status:
-    description: Status is the struct designed to represent the status of a transaction.
+    description: Status is the struct designed to represent the status of an operation.
     properties:
       code:
         example: ACTIVE
@@ -377,7 +370,7 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Transaction API
-  version: "1.0"
+  version: 1.0.0
 paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:

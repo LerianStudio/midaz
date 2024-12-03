@@ -1,8 +1,11 @@
 name: Update Submodule midaz in midaz-full
+
 on:
   push:
     branches:
       - main
+    tags-ignore:
+      - '**'
 
 jobs:
   update-submodule:

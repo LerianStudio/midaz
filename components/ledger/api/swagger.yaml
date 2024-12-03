@@ -540,7 +540,7 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Ledger API
-  version: "1.0"
+  version: 1.0.0
 paths:
   /v1/organizations:
     get:
