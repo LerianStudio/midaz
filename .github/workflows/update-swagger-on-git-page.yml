@@ -51,7 +51,7 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           echo "Cloning midaz: =============================>"
-          gh repo clone LerianStudio/midaz.git
+          gh repo clone LerianStudio/midaz
           
           echo "Cloning Page: ==============================>"          
           gh repo clone LerianStudio/LerianStudio.github.io
