@@ -6,7 +6,7 @@ import (
 )
 
 // @title			Midaz Ledger API
-// @version		1.0
+// @version		1.0.0
 // @description	This is a swagger documentation for the Midaz Ledger API
 // @termsOfService	http://swagger.io/terms/
 // @contact.name	Discord community
