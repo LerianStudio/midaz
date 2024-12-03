@@ -93,6 +93,9 @@ jobs:
         run: |
           cd LerianStudio.github.io
           
+           # Configurar o repositório remoto com token de autenticação
+          git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
+          
           # Check for any changes in the repository
           if git status --porcelain | grep -qE "^[ MADRCU]"; then
             echo "Changes detected!"
