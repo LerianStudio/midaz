@@ -1,14 +1,11 @@
 name: Update Swagger On Git Pages
 
 on:
-  pull_request:
+  push:
     branches:
-      - develop
-    types:
-      - opened
-      - edited
-      - synchronize
-      - reopened
+      - main
+    tags-ignore:
+      - '**'
 
 permissions:
   id-token: write
@@ -37,7 +34,6 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
@@ -50,10 +46,8 @@ jobs:
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
-          echo "Cloning midaz: =============================>"
           gh repo clone LerianStudio/midaz
-          
-          echo "Cloning Page: ==============================>"          
+               
           gh repo clone LerianStudio/LerianStudio.github.io
 
       - name: Generate Swagger on Ledger and Transaction
@@ -62,8 +56,6 @@ jobs:
         run: |
           cd midaz
           
-          git checkout feature/MIDAZ-350
-
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
           go install github.com/swaggo/swag/cmd/swag@latest
           swag --version
@@ -74,7 +66,7 @@ jobs:
           
           cd ..
 
-      - name: Copy Swagger.json to Repo Ledger and Transaction
+      - name: Copy Swagger.json to Repo Ledger and Transaction to LerianStudio.github.io
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -93,12 +85,10 @@ jobs:
         run: |
           cd LerianStudio.github.io
           
-           # Configurar o repositório remoto com token de autenticação
-          git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
-          
-          # Check for any changes in the repository
           if git status --porcelain | grep -qE "^[ MADRCU]"; then
             echo "Changes detected!"
+          
+            git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
           
             git add ledger
             git commit -S -m "Update Swagger.json from Repo Ledger"
