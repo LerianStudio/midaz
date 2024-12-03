@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"log"
+	"math"
 	"net/http"
 	"time"
 )
@@ -129,6 +130,12 @@ func (c *TrillianConnection) GetInclusionProofByHash(ctx context.Context, treeID
 	var logRoot types.LogRootV1
 	if err := logRoot.UnmarshalBinary(signedLogRoot.LogRoot); err != nil {
 		c.Logger.Errorf("Failed to unmarshal LogRoot: %v", err)
+	}
+
+	if logRoot.TreeSize > uint64(math.MaxInt64) {
+		errorMsg := "TreeSize value is too large to convert to int64"
+		c.Logger.Errorf(errorMsg)
+		return nil, errors.New(errorMsg)
 	}
 
 	proofResp, err := logClient.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
