@@ -1,7 +1,6 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/operation"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
@@ -14,10 +13,7 @@ type TrillianHandler struct {
 	UseCase *services.UseCase
 }
 
-func (th *TrillianHandler) CheckEntry(c *fiber.Ctx) error {
-	return http.OK(c, "ok")
-}
-
+// AuditLogs compares leaf hash with a hash generated from the leaf value
 func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -29,9 +25,9 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	id := c.Locals("audit_id").(uuid.UUID)
 
-	auditInfo, err := th.UseCase.GetAuditInfo(ctx, organizationID, ledgerID, transactionID)
+	auditInfo, err := th.UseCase.GetAuditInfo(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve audit info", err)
 
@@ -40,10 +36,10 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 		return http.WithError(c, err) // TODO: error message
 	}
 
-	validations := make([]services.HashValidation, 0)
+	validations := make([]HashValidationResponse, 0)
 
-	for key, value := range auditInfo.Operations {
-		v, err := th.UseCase.ValidatedLogHash(ctx, auditInfo.TreeID, value)
+	for key, value := range auditInfo.Leaves {
+		expectedHash, calculatedHash, wasTempered, err := th.UseCase.ValidatedLogHash(ctx, auditInfo.TreeID, value)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to retrieve log validation", err)
 
@@ -52,18 +48,24 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 			return http.WithError(c, err) // TODO: error message
 		}
 
-		if v.WasTempered {
-			logger.Warnf("Log for %v has been tampered! Expected: %x, Found: %x\n", key, v.ExpectedHash, v.CalculatedHash)
+		if wasTempered {
+			logger.Warnf("Log for %v has been tampered! Expected: %x, Found: %x\n", key, expectedHash, calculatedHash)
 		}
 
-		v.OperationID = key
+		response := &HashValidationResponse{
+			AuditID:        key,
+			ExpectedHash:   expectedHash,
+			CalculatedHash: calculatedHash,
+			WasTempered:    wasTempered,
+		}
 
-		validations = append(validations, *v)
+		validations = append(validations, *response)
 	}
 
 	return http.OK(c, validations)
 }
 
+// ReadLogs retrieves log values by the audit id
 func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -75,9 +77,9 @@ func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	transactionID := c.Locals("transaction_id").(uuid.UUID)
+	id := c.Locals("audit_id").(uuid.UUID)
 
-	auditInfo, err := th.UseCase.GetAuditInfo(ctx, organizationID, ledgerID, transactionID)
+	auditInfo, err := th.UseCase.GetAuditInfo(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve audit info", err)
 
@@ -86,15 +88,28 @@ func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
 		return http.WithError(c, err) // TODO: error message
 	}
 
-	operations := make([]operation.Operation, 0)
+	leaves := make([]Leaf, 0)
 
-	for _, value := range auditInfo.Operations {
-		o, err := th.UseCase.GetLogByHash(ctx, auditInfo.TreeID, value)
+	for _, value := range auditInfo.Leaves {
+		logHash, logValue, err := th.UseCase.GetLogByHash(ctx, auditInfo.TreeID, value)
 		if err != nil {
-			return err
+			mopentelemetry.HandleSpanError(&span, "Failed to retrieve log by hash", err)
+
+			logger.Errorf("Failed to retrieve log by hash: %v", err.Error())
+
+			return http.WithError(c, err) // TODO: error message
 		}
-		operations = append(operations, o)
+
+		leaves = append(leaves, Leaf{
+			LeafID: logHash,
+			Body:   logValue,
+		})
 	}
 
-	return http.OK(c, operations)
+	response := &LogsResponse{
+		TreeID: auditInfo.TreeID,
+		Leaves: leaves,
+	}
+
+	return http.OK(c, response)
 }

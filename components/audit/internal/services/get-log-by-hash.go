@@ -2,13 +2,14 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq/operation"
+	"encoding/hex"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"strings"
 )
 
-func (uc *UseCase) GetLogByHash(ctx context.Context, treeID int64, identityHash string) (operation.Operation, error) {
+// GetLogByHash search for leaf value by the leaf identity hash
+func (uc *UseCase) GetLogByHash(ctx context.Context, treeID int64, identityHash string) (string, []byte, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -21,20 +22,8 @@ func (uc *UseCase) GetLogByHash(ctx context.Context, treeID int64, identityHash 
 
 		logger.Errorf("Error getting log by hash: %v", err)
 
-		return operation.Operation{}, err
+		return "", nil, err
 	}
 
-	var op operation.Operation
-
-	err = json.Unmarshal(log.LeafValue, &op)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to unmarshal log", err)
-
-		logger.Errorf("Error unmarshalling log: %v", err)
-
-		return operation.Operation{}, err
-	}
-
-	return op, nil
-
+	return strings.ToUpper(hex.EncodeToString(log.MerkleLeafHash)), log.LeafValue, nil
 }

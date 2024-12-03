@@ -10,14 +10,8 @@ import (
 	"strings"
 )
 
-type HashValidation struct {
-	OperationID    string `json:"operationId"`
-	ExpectedHash   string `json:"expectedHash"`
-	CalculatedHash string `json:"calculatedHash"`
-	WasTempered    bool   `json:"wasTempered"`
-}
-
-func (uc *UseCase) ValidatedLogHash(ctx context.Context, treeID int64, identityHash string) (*HashValidation, error) {
+// ValidatedLogHash checks if the leaf value was tampered
+func (uc *UseCase) ValidatedLogHash(ctx context.Context, treeID int64, identityHash string) (string, string, bool, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -30,13 +24,14 @@ func (uc *UseCase) ValidatedLogHash(ctx context.Context, treeID int64, identityH
 
 		logger.Errorf("Error getting log by hash: %v", err)
 
-		return nil, err
+		return "", "", false, err
 	}
 
 	recalculatedHash := rfc6962.DefaultHasher.HashLeaf(log.LeafValue)
-	return &HashValidation{
-		ExpectedHash:   strings.ToUpper(hex.EncodeToString(log.MerkleLeafHash)),
-		CalculatedHash: strings.ToUpper(hex.EncodeToString(recalculatedHash)),
-		WasTempered:    !bytes.Equal(log.MerkleLeafHash, recalculatedHash),
-	}, nil
+
+	return formatHash(log.MerkleLeafHash), formatHash(recalculatedHash), !bytes.Equal(log.MerkleLeafHash, recalculatedHash), nil
+}
+
+func formatHash(input []byte) string {
+	return strings.ToUpper(hex.EncodeToString(input))
 }

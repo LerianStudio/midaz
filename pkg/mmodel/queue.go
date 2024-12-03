@@ -1,6 +1,7 @@
 package mmodel
 
 import (
+	"encoding/json"
 	"github.com/google/uuid"
 )
 
@@ -12,6 +13,6 @@ type Queue struct {
 }
 
 type QueueData struct {
-	ID    uuid.UUID `json:"id"`
-	Value string    `json:"value"`
+	ID    uuid.UUID       `json:"id"`
+	Value json.RawMessage `json:"value"`
 }

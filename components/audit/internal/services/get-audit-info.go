@@ -8,7 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetAuditInfo(ctx context.Context, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) (*audit.Audit, error) {
+// GetAuditInfo retrieves auditing information
+func (uc *UseCase) GetAuditInfo(ctx context.Context, organizationID uuid.UUID, ledgerID uuid.UUID, id uuid.UUID) (*audit.Audit, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -20,7 +21,7 @@ func (uc *UseCase) GetAuditInfo(ctx context.Context, organizationID uuid.UUID, l
 	auditID := audit.AuditID{
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
-		TransactionID:  transactionID.String(),
+		ID:             id.String(),
 	}
 
 	auditInfo, err := uc.AuditRepo.FindByID(ctx, audit.TreeCollection, auditID)
