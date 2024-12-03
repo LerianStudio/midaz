@@ -74,7 +74,7 @@ func (c *TrillianConnection) CreateTree(ctx context.Context, name, description s
 		},
 	})
 	if err != nil {
-		c.Logger.Fatalf("Error while creating Tree: %v", zap.Error(err))
+		c.Logger.Errorf("Error while creating Tree: %v", zap.Error(err))
 		return 0, err
 	}
 
@@ -87,7 +87,7 @@ func (c *TrillianConnection) InitTree(ctx context.Context, treeId int64) error {
 
 	_, err := logClient.InitLog(ctx, &trillian.InitLogRequest{LogId: treeId})
 	if err != nil {
-		c.Logger.Fatalf("Error initializing tree: %v", zap.Error(err))
+		c.Logger.Errorf("Error initializing tree: %v", zap.Error(err))
 		return err
 	}
 
@@ -122,13 +122,13 @@ func (c *TrillianConnection) GetInclusionProofByHash(ctx context.Context, treeID
 
 	respSLR, err := logClient.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{LogId: treeID})
 	if err != nil {
-		log.Fatalf("Error fetching Signed Log Root: %v", err)
+		c.Logger.Errorf("Error fetching Signed Log Root: %v", err)
 	}
 	signedLogRoot := respSLR.GetSignedLogRoot()
 
 	var logRoot types.LogRootV1
 	if err := logRoot.UnmarshalBinary(signedLogRoot.LogRoot); err != nil {
-		log.Fatalf("Failed to unmarshal LogRoot: %v", err)
+		c.Logger.Errorf("Failed to unmarshal LogRoot: %v", err)
 	}
 
 	proofResp, err := logClient.GetInclusionProofByHash(ctx, &trillian.GetInclusionProofByHashRequest{
@@ -137,12 +137,12 @@ func (c *TrillianConnection) GetInclusionProofByHash(ctx context.Context, treeID
 		TreeSize: int64(logRoot.TreeSize),
 	})
 	if err != nil {
-		c.Logger.Fatalf("Error getting inclusion proof: %v", zap.Error(err))
+		c.Logger.Errorf("Error getting inclusion proof: %v", zap.Error(err))
 		return nil, err
 	}
 
 	if len(proofResp.Proof) == 0 {
-		c.Logger.Fatalf("Inclusion proof is empty: %v", zap.Error(err))
+		c.Logger.Errorf("Inclusion proof is empty: %v", zap.Error(err))
 		return nil, err
 	}
 
@@ -162,7 +162,7 @@ func (c *TrillianConnection) GetLeafByIndex(ctx context.Context, treeID int64, l
 	}
 
 	if len(leaves.GetLeaves()) == 0 {
-		c.Logger.Fatalf("No leaves found: %v", zap.Error(err))
+		c.Logger.Errorf("No leaves found: %v", zap.Error(err))
 		return nil, err
 	}
 
