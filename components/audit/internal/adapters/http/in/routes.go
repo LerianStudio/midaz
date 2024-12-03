@@ -23,8 +23,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, th *TrillianHandler
 	// -- Routes --
 
 	// Trillian
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/audit-logs", http.ParseUUIDPathParameters, th.AuditLogs)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/read-logs", http.ParseUUIDPathParameters, th.ReadLogs)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/audit/:audit_id/audit-logs", http.ParseUUIDPathParameters, th.AuditLogs)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/audit/:audit_id/read-logs", http.ParseUUIDPathParameters, th.ReadLogs)
 
 	// Health
 	f.Get("/health", http.Ping)
