@@ -73,7 +73,7 @@ jobs:
           go_version: '1.23'
           tool_name: golint
           level: error
-          fail_level: true
+          fail_level: any
           reporter: github-pr-review
           filter_mode: diff_context
         env:
