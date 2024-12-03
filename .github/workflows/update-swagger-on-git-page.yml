@@ -37,68 +37,24 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.MANAGE_TOKEN }}
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh
 
-      - name: Generate Swagger on Ledger and Transaction
+
+      - name: Get MIDAZ and Pages
         run: |
-          echo "Running PWD: ================================>"
+          echo "Running PWD: ===============================>"
           pwd 
           echo "Running LS: ================================>"
           ls
           
-          echo "Running SET ENV: ================================>"
-          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
-          echo "Installing Swaggo: ================================>"
-          go install github.com/swaggo/swag/cmd/swag@latest
-          echo "Swag installed at $(which swag): ================================>"
-          swag --version
-          echo "Go installed at $(which go): ================================>"
+          echo "Cloning midaz: =============================>"
+          gh repo clone LerianStudio/midaz
           
-          make tidy
+          echo "Cloning Page: ==============================>"          
+          gh repo clone LerianStudio/LerianStudio.github.io
           
-          make generate-docs-all
-
-      - name: Pull Git Pages
-        uses: actions/checkout@v4
-        with:
-          repository: LerianStudio/LerianStudio.github.io
-          ref: main
-          token: ${{ secrets.MANAGE_TOKEN }}
-
-      - name: Copy Swagger.json to Repo Ledger and Transaction
-        working-directory: /home/runner/work/midaz/midaz
-        run: |
-          echo "Running PWD: ================================>"
-          pwd 
           echo "Running LS: ================================>"
           ls
-          
-          cp midaz/components/ledger/api/swagger.json page/ledger/ 
-
-          cp midaz/components/transaction/api/swagger.json page/transaction/
-
-      - name: Check Diff
-        working-directory: /home/runner/work/midaz/midaz/page
-        run: |
-          git diff
-
-      - name: Commit and Push Swagger to Git Page
-        working-directory: /home/runner/work/midaz/midaz/page
-        run: |
-          git add ledger
-          git commit  -S -m "Update Swagger.json from Repo Ledger"
-          
-          git add transaction
-          git commit  -S -m "Update Swagger.json from Repo Transaction"
-          
-          git push origin main
         env:
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-          GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-          GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
