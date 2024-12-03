@@ -20,8 +20,8 @@ permissions:
 
 jobs:
   CodeQL:
-    runs-on: ubuntu-latest
     name: Run CodeQL to Midaz
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -43,8 +43,8 @@ jobs:
           category: "/language:go"
 
   GoLangCI-Lint:
-    runs-on: ubuntu-latest
     name: Run GoLangCI-Lint to Midaz
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
@@ -85,8 +85,8 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
 
   GoSec:
-    runs-on: ubuntu-latest
     name: Run GoSec to Midaz
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -101,8 +101,8 @@ jobs:
           args: ./...
 
   unit-tests:
-    runs-on: ubuntu-latest
     name: Run Unit Tests to Midaz
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -112,6 +112,5 @@ jobs:
           cache: false
 
       - name: Unit Tests
-        working-directory: midaz
         shell: bash
         run: make test
