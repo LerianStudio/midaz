@@ -51,10 +51,10 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           echo "Cloning midaz: =============================>"
-          git clone git@github.com:LerianStudio/midaz.git
+          gh repo clone LerianStudio/midaz.git
           
           echo "Cloning Page: ==============================>"          
-          git clone git@github.com:LerianStudio/LerianStudio.github.io.git
+          gh repo clone LerianStudio/LerianStudio.github.io
 
       - name: Generate Swagger on Ledger and Transaction
         env:
