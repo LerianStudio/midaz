@@ -45,34 +45,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          echo "Running PWD: ===============================>"
-          pwd 
-          echo "Running LS: ================================>"
-          ls
-          
           echo "Cloning midaz: =============================>"
           gh repo clone LerianStudio/midaz
           
           echo "Cloning Page: ==============================>"          
           gh repo clone LerianStudio/LerianStudio.github.io
-          
-          echo "Running LS: ================================>"
-          ls
 
       - name: Generate Swagger on Ledger and Transaction
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           cd midaz
-
-          echo "Running SET ENV: ================================>"
-          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
-          echo "Installing Swaggo: ================================>"
-          go install github.com/swaggo/swag/cmd/swag@latest
-          echo "Swag installed at $(which swag): ================================>"
-          swag --version
-          echo "Go installed at $(which go): ================================>"
           
+          git checkout feature/MIDAZ-350
+
+          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
+          go install github.com/swaggo/swag/cmd/swag@latest
+          swag --version
+
           make tidy
           
           make generate-docs-all  
@@ -83,11 +73,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          echo "Running PWD: ================================>"
-          pwd 
-          echo "Running LS: ================================>"
-          ls
-          
           cp midaz/components/ledger/api/swagger.json LerianStudio.github.io/ledger/ 
 
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
