@@ -21,7 +21,7 @@ permissions:
 jobs:
   CodeQL:
     name: Run CodeQL to Midaz
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
 
   GoLangCI-Lint:
     name: Run GoLangCI-Lint to Midaz
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
@@ -73,7 +73,7 @@ jobs:
           go_version: '1.23'
           tool_name: golint
           level: error
-          fail_on_error: true
+          fail_level: true
           reporter: github-pr-review
           filter_mode: diff_context
         env:
@@ -86,7 +86,7 @@ jobs:
 
   GoSec:
     name: Run GoSec to Midaz
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -102,7 +102,7 @@ jobs:
 
   unit-tests:
     name: Run Unit Tests to Midaz
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
