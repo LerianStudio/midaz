@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-const TreeCollection = "tree"
+const TreeCollection = "trees"
 
 // AuditMongoDBModel represents the Audit into mongodb context
 type AuditMongoDBModel struct {
