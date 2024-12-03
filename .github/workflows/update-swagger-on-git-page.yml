@@ -37,11 +37,13 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
+
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
-
       - name: Get MIDAZ and Pages
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           echo "Running PWD: ===============================>"
           pwd 
@@ -56,5 +58,33 @@ jobs:
           
           echo "Running LS: ================================>"
           ls
+
+      - name: Generate Swagger on Ledger and Transaction
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          cd midaz
+          
+          echo "Running PWD: ================================>"
+          pwd 
+          echo "Running LS: ================================>"
+          ls
+          
+          echo "Running SET ENV: ================================>"
+          export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
+          echo "Installing Swaggo: ================================>"
+          go install github.com/swaggo/swag/cmd/swag@latest
+          echo "Swag installed at $(which swag): ================================>"
+          swag --version
+          echo "Go installed at $(which go): ================================>"
+          
+          make tidy
+          
+          make generate-docs-all  
+          
+          cd ..
+          
+          echo "Running PWD: ================================>"
+          pwd 
+          echo "Running LS: ================================>"
+          ls
