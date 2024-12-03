@@ -9,6 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
@@ -22,17 +23,18 @@ type Config struct {
 	ServerAddress           string `env:"SERVER_ADDRESS"`
 	LogLevel                string `env:"LOG_LEVEL"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
-	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID         string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorEnforcerName     string `env:"CASDOOR_ENFORCER_NAME"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
+	CasdoorClientID         string `env:"CASDOOR_CLIENT_ID"`
+	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
+	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
+	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
+	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
 	MongoDBHost             string `env:"MONGO_HOST"`
 	MongoDBName             string `env:"MONGO_NAME"`
 	MongoDBUser             string `env:"MONGO_USER"`
@@ -66,6 +68,17 @@ func InitServers() *Service {
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+	}
+
+	casDoorConnection := &mcasdoor.CasdoorConnection{
+		JWKUri:           cfg.JWKAddress,
+		Endpoint:         cfg.CasdoorAddress,
+		ClientID:         cfg.CasdoorClientID,
+		ClientSecret:     cfg.CasdoorClientSecret,
+		OrganizationName: cfg.CasdoorOrganizationName,
+		ApplicationName:  cfg.CasdoorApplicationName,
+		ModelName:        cfg.CasdoorModelName,
+		Logger:           logger,
 	}
 
 	rabbitSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
@@ -115,7 +128,7 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	app := in.NewRouter(logger, telemetry, trillianHandler)
+	app := in.NewRouter(logger, telemetry, casDoorConnection, trillianHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
