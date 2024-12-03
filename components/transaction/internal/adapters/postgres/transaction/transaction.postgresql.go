@@ -239,6 +239,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.Description,
 			&transaction.Template,
 			&transaction.Status,
+			&transaction.StatusDescription,
 			&transaction.Amount,
 			&transaction.AmountScale,
 			&transaction.AssetCode,
