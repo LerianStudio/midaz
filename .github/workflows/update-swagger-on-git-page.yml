@@ -78,6 +78,13 @@ jobs:
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
 
       - name: Commit and Push Swagger to Git Page
+        env:
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
+          GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+          GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           cd LerianStudio.github.io
           
@@ -86,20 +93,13 @@ jobs:
             echo "Changes detected!"
           
             git add ledger
-            git commit  -S -m "Update Swagger.json from Repo Ledger"
+            git commit -S -m "Update Swagger.json from Repo Ledger"
           
             git add transaction
-            git commit  -S -m "Update Swagger.json from Repo Transaction"
+            git commit -S -m "Update Swagger.json from Repo Transaction"
           
             git push origin main
           else
             echo "No changes detected."
             exit 0
           fi
-        env:
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-          GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-          GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
