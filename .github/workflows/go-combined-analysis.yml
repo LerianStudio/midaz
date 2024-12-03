@@ -19,45 +19,18 @@ permissions:
   security-events: write
 
 jobs:
-  setup-environment:
+  CodeQL:
     runs-on: ubuntu-latest
-    name: Setup Environment
+    name: Run CodeQL to Midaz
+    timeout-minutes: 10
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
           cache: false
 
-      - name: Export Environment Variables
-        run: echo "GO_VERSION=1.23" >> $GITHUB_ENV
-
-  GoSec:
-    runs-on: ubuntu-latest
-    name: Run GoSec Scanner
-    needs: setup-environment
-    steps:
-      - name: Run GoSec
-        uses: securego/gosec@master
-        with:
-          args: ./...
-
-  unit-tests:
-    runs-on: ubuntu-latest
-    name: Run Unit Tests
-    needs: setup-environment
-    steps:
-      - name: Run Unit Tests
-        run: make test
-
-  CodeQL:
-    runs-on: ubuntu-latest
-    name: Run CodeQL Analysis
-    needs: setup-environment
-    steps:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -71,18 +44,17 @@ jobs:
 
   GoLangCI-Lint:
     runs-on: ubuntu-latest
-    name: Run GoLangCI-Lint
-    needs: setup-environment
+    name: Run GoLangCI-Lint to Midaz
     steps:
-      - name: Setup App Token
-        uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
-      - name: Import GPG Key
+      - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
+        id: import_gpg
         with:
           gpg_private_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
           passphrase: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
@@ -92,7 +64,9 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      - name: Run GoLangCI-Lint
+      - uses: actions/checkout@v4
+
+      - name: GoLangCI-Lint
         uses: reviewdog/action-golangci-lint@v2
         with:
           github_token: ${{ steps.app-token.outputs.token }}
@@ -109,3 +83,35 @@ jobs:
           GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+
+  GoSec:
+    runs-on: ubuntu-latest
+    name: Run GoSec to Midaz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Gosec Scanner
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Run Unit Tests to Midaz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Unit Tests
+        working-directory: midaz
+        shell: bash
+        run: make test
