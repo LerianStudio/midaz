@@ -20,8 +20,8 @@ permissions:
 
 jobs:
   CodeQL:
-    runs-on: ubuntu-latest
     name: Run CodeQL to Midaz
+    runs-on: ubuntu-22.04
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -124,7 +124,7 @@ jobs:
   integration-tests:
     name: Run Integrations Tests to MDZ
     runs-on: ubuntu-24.04
-    if: "contains(github.ref, 'develop')"
+    if: "!contains(github.ref, 'main') || !contains(github.ref, 'develop')"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -153,7 +153,7 @@ jobs:
   update-env-release:
     name: Run Update VERSION on ENV
     runs-on: ubuntu-24.04
-    if: "contains(github.ref, 'develop')"
+    if: "!contains(github.ref, 'main') || !contains(github.ref, 'develop')"
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
