@@ -64,12 +64,7 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           cd midaz
-          
-          echo "Running PWD: ================================>"
-          pwd 
-          echo "Running LS: ================================>"
-          ls
-          
+
           echo "Running SET ENV: ================================>"
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
           echo "Installing Swaggo: ================================>"
@@ -83,8 +78,29 @@ jobs:
           make generate-docs-all  
           
           cd ..
+
+      - name: Copy Swagger.json to Repo Ledger and Transaction
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          echo "Running PWD: ================================>"
+          pwd 
+          echo "Running LS: ================================>"
+          ls
+          
+          cp midaz/components/ledger/api/swagger.json LerianStudio.github.io/ledger/ 
+
+          cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
+
+      - name: Check Diff
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          cd LerianStudio.github.io
           
           echo "Running PWD: ================================>"
           pwd 
           echo "Running LS: ================================>"
           ls
+          
+          git diff
