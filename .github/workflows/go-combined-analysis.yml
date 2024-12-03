@@ -20,9 +20,15 @@ permissions:
 
 jobs:
   CodeQL:
+    runs-on: ubuntu-latest
     name: Run CodeQL to Midaz
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: autobuild
     steps:
       - uses: actions/checkout@v4
 
@@ -34,13 +40,13 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: go
-          build-mode: autobuild
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:go"
+          category: "/language:${{matrix.language}}"
 
   GoLangCI-Lint:
     name: Run GoLangCI-Lint to Midaz
