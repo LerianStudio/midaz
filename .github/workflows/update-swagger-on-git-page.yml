@@ -110,7 +110,7 @@ jobs:
           else
             echo "No changes detected."
             exit 0
-          fi          
+          fi
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
