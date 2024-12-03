@@ -43,13 +43,18 @@ jobs:
 
       - name: Get MIDAZ and Pages
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
+          GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+          GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           echo "Cloning midaz: =============================>"
-          gh repo clone LerianStudio/midaz
+          git clone git@github.com:LerianStudio/midaz.git
           
           echo "Cloning Page: ==============================>"          
-          gh repo clone LerianStudio/LerianStudio.github.io
+          git clone git@github.com:LerianStudio/LerianStudio.github.io.git
 
       - name: Generate Swagger on Ledger and Transaction
         env:
