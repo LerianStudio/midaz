@@ -152,7 +152,7 @@ jobs:
   update-env-release:
     name: Run Update VERSION on ENV
     runs-on: ubuntu-24.04
-    if: github.ref == 'refs/heads/develop'
+    if: "contains(github.ref, 'develop')"
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
