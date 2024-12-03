@@ -50,13 +50,22 @@ func (mq *MultiQueueConsumer) handleAuditQueue(ctx context.Context, body []byte)
 	err := json.Unmarshal(body, &message)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
+
 		logger.Errorf("Error unmarshalling transaction message JSON: %v", err)
+
 		return err
 	}
 
 	logger.Infof("Message consumed: %s", message.AuditID)
 
-	mq.UseCase.CreateLog(ctx, message.OrganizationID, message.LedgerID, message.AuditID, message.QueueData)
+	err = mq.UseCase.CreateLog(ctx, message.OrganizationID, message.LedgerID, message.AuditID, message.QueueData)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Error creating log", err)
+
+		logger.Errorf("Error creating log: %v", err)
+
+		return err
+	}
 
 	return nil
 }

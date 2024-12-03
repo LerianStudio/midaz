@@ -11,7 +11,7 @@ import (
 )
 
 // CreateLog creates an audit log for the operations of a transaction
-func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, auditID uuid.UUID, data []mmodel.QueueData) {
+func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, auditID uuid.UUID, data []mmodel.QueueData) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -41,6 +41,8 @@ func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, audi
 			mopentelemetry.HandleSpanError(&span, "Failed to create audit tree", err)
 
 			logger.Errorf("Error creating audit tree: %v", err)
+
+			return err
 		}
 
 		auditObj.TreeID = treeID
@@ -51,11 +53,13 @@ func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, audi
 	for _, item := range data {
 		logger.Infof("Saving leaf for %v", item.ID)
 
-		leaf, err := uc.TrillianRepo.CreateLog(ctx, auditObj.TreeID, []byte(item.Value))
+		leaf, err := uc.TrillianRepo.CreateLog(ctx, auditObj.TreeID, item.Value)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Error creating audit log", err)
 
 			logger.Errorf("Error creating audit log %v", err)
+
+			return err
 		}
 
 		auditObj.Leaves[item.ID.String()] = leaf
@@ -66,5 +70,9 @@ func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, audi
 		mopentelemetry.HandleSpanError(&span, "Failed to save audit tree info", err)
 
 		logger.Errorf("Error saving %s audit: %v", audit.TreeCollection, err)
+
+		return err
 	}
+
+	return nil
 }
