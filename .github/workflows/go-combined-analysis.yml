@@ -238,7 +238,7 @@ jobs:
   check-branch:
     name: Run Check if PR open in a MAIN
     runs-on: ubuntu-24.04
-    if: "contains(github.ref, 'main')"
+    if: "contains(github.ref, 'main') && github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'hotfix'"
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
