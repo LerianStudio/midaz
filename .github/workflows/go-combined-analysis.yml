@@ -1,4 +1,4 @@
-name: "Go Combined Analysis CodeQL/GoLint/GoSec/unit-tests"
+name: "Go Combined Analysis"
 
 on:
   pull_request:
@@ -238,7 +238,7 @@ jobs:
   check-branch:
     name: Run Check if PR open in a MAIN
     runs-on: ubuntu-24.04
-    if: github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'hotfix'
+    if: "contains(github.ref, 'main')"
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
