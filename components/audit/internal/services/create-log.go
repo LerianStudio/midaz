@@ -20,9 +20,7 @@ func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, audi
 
 	logger.Infof("Trying to create log leaves for audit ID: %v", auditID)
 
-	var auditObj audit.Audit
-
-	auditObj = audit.Audit{
+	auditObj := audit.Audit{
 		ID: audit.AuditID{
 			OrganizationID: organizationID.String(),
 			LedgerID:       ledgerID.String(),
@@ -36,6 +34,7 @@ func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, audi
 	if err != nil {
 		ledgerID := auditObj.ID.LedgerID
 		treeName := ledgerID[len(ledgerID)-12:]
+
 		treeID, err := uc.TrillianRepo.CreateTree(ctx, "Tree "+treeName, ledgerID)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to create audit tree", err)

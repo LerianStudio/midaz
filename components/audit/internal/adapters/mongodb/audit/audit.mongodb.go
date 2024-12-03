@@ -71,7 +71,6 @@ func (mar *AuditMongoDBRepository) FindOne(ctx context.Context, collection strin
 	spanFindOne.End()
 
 	return record.ToEntity(), nil
-
 }
 
 // FindByID retrieves audit information from mongodb searching by organization and ledger id
@@ -103,7 +102,6 @@ func (mar *AuditMongoDBRepository) FindByID(ctx context.Context, collection stri
 	spanFindByID.End()
 
 	return record.ToEntity(), nil
-
 }
 
 // Create inserts a new audit entity into mongodb

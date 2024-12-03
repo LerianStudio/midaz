@@ -27,12 +27,12 @@ type TrillianConnection struct {
 
 // Connect keeps a singleton connection with Trillian gRPC.
 func (c *TrillianConnection) Connect() error {
-
 	c.Logger.Infof("Connecting to Trillian at %v", c.AddrGRPC)
 
 	if !c.healthCheck() {
 		err := errors.New("can't connect to trillian")
 		c.Logger.Fatalf("Trillian.HealthCheck %v", zap.Error(err))
+
 		return err
 	}
 
@@ -83,10 +83,10 @@ func (c *TrillianConnection) CreateTree(ctx context.Context, name, description s
 }
 
 // InitTree initializes a Trillian tree previously created
-func (c *TrillianConnection) InitTree(ctx context.Context, treeId int64) error {
+func (c *TrillianConnection) InitTree(ctx context.Context, treeID int64) error {
 	logClient := trillian.NewTrillianLogClient(c.Conn)
 
-	_, err := logClient.InitLog(ctx, &trillian.InitLogRequest{LogId: treeId})
+	_, err := logClient.InitLog(ctx, &trillian.InitLogRequest{LogId: treeID})
 	if err != nil {
 		c.Logger.Errorf("Error initializing tree: %v", zap.Error(err))
 		return err
@@ -125,6 +125,7 @@ func (c *TrillianConnection) GetInclusionProofByHash(ctx context.Context, treeID
 	if err != nil {
 		c.Logger.Errorf("Error fetching Signed Log Root: %v", err)
 	}
+
 	signedLogRoot := respSLR.GetSignedLogRoot()
 
 	var logRoot types.LogRootV1
@@ -135,6 +136,7 @@ func (c *TrillianConnection) GetInclusionProofByHash(ctx context.Context, treeID
 	if logRoot.TreeSize > uint64(math.MaxInt64) {
 		errorMsg := "TreeSize value is too large to convert to int64"
 		c.Logger.Errorf(errorMsg)
+
 		return nil, errors.New(errorMsg)
 	}
 
@@ -183,6 +185,8 @@ func (c *TrillianConnection) healthCheck() bool {
 		c.Logger.Errorf("failed to make GET request: %v", err.Error())
 		return false
 	}
+
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
 		c.Logger.Info("Trillian health check passed")

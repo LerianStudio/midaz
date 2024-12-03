@@ -31,15 +31,14 @@ type AuditID struct {
 
 // ToEntity converts an AuditMongoDBModel to entity.Audit
 func (mar *AuditMongoDBModel) ToEntity() *Audit {
-
-	AuditID := AuditID{
+	id := AuditID{
 		OrganizationID: mar.ID.OrganizationID,
 		LedgerID:       mar.ID.LedgerID,
 		ID:             mar.ID.ID,
 	}
 
 	return &Audit{
-		ID:        AuditID,
+		ID:        id,
 		TreeID:    mar.TreeID,
 		CreatedAt: mar.CreatedAt,
 		Leaves:    mar.Leaves,

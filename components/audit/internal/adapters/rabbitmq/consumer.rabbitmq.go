@@ -90,9 +90,11 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 				err := handlerFunc(ctx, msg.Body)
 				if err != nil {
 					cr.Logger.Errorf("Error processing message from queue %s: %v", queue, err)
+
 					if nackErr := msg.Nack(false, true); nackErr != nil {
 						cr.Logger.Errorf("Error nack message from queue %s: %v", queue, nackErr)
 					}
+
 					return
 				}
 
