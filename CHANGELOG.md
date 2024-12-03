@@ -1,3 +1,16 @@
+## [1.31.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.6...v1.31.0-beta.7) (2024-12-03)
+
+
+### Features
+
+* soft delete asset and its external account :sparkles: ([7b090ba](https://github.com/LerianStudio/midaz/commit/7b090baf368be777a23c26e09e2ee33a0bbc4e91))
+
+
+### Bug Fixes
+
+* **account:** add error message translation for prohibited external account creation and adjust validation assertion :bug: ([fdd5971](https://github.com/LerianStudio/midaz/commit/fdd59717c8cc8e419817ddea145a91ef7601d35a))
+* **lint:** improve boolean tag validation return :bug: ([fef2192](https://github.com/LerianStudio/midaz/commit/fef219229eb167edaeba8c11ce0a8504ffff07b0))
+
 ## [1.31.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.5...v1.31.0-beta.6) (2024-12-02)
 
 
