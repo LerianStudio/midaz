@@ -17,7 +17,8 @@ permissions:
 
 jobs:
   update-env-release:
-    runs-on: ubuntu-latest
+    name: Run update VERSION in every ENV on components
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
