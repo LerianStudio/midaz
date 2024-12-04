@@ -1,3 +1,31 @@
+## [1.31.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.8...v1.31.0-beta.9) (2024-12-04)
+
+
+### Bug Fixes
+
+* add more actions with same background :bug: ([cdd8164](https://github.com/LerianStudio/midaz/commit/cdd8164c08f51e1d421eb00f67f46077ffcd35e4))
+* add more rules and shrink actions :bug: ([ce2b916](https://github.com/LerianStudio/midaz/commit/ce2b916599073f9baea9c11d2860b2c77c712523))
+* adjust unit test :bug: ([da988f0](https://github.com/LerianStudio/midaz/commit/da988f0d3ee1937c680c197c8b29138281c306c2))
+* change place order :bug: ([96f416d](https://github.com/LerianStudio/midaz/commit/96f416d4feae874a976d2473771776a429655e02))
+* codeql :bug: ([1edae06](https://github.com/LerianStudio/midaz/commit/1edae06355e9c54c3687b0c460c8e2eebdb47ee7))
+* final version :bug: ([65d2656](https://github.com/LerianStudio/midaz/commit/65d26569969efabbc588c2e7c281e3ed85f96cfa))
+* more adjusts :bug: ([dfc3513](https://github.com/LerianStudio/midaz/commit/dfc351324a2fd6f6aebc4c72aab415dd1815a084))
+* more adjusts and replace wrong calls :bug: ([ed7c57d](https://github.com/LerianStudio/midaz/commit/ed7c57d3af59154dffbcc95a84bb2ee355b94271))
+* more shrink actions :bug: ([efa9e96](https://github.com/LerianStudio/midaz/commit/efa9e9694578d9a6fd00cf513d3e3fb0c7b88943))
+* new adjust :bug: ([2259b11](https://github.com/LerianStudio/midaz/commit/2259b1190024ae87911044bb4c5093b7ef81b319))
+* reorganize code :bug: ([54debfc](https://github.com/LerianStudio/midaz/commit/54debfc25a106e263962c94970fd8d21fa757d5a))
+* review dog fail_error to any :bug: ([f7a00f9](https://github.com/LerianStudio/midaz/commit/f7a00f98d557f517ac6295865ed439a8f6755c29))
+* some redefinitions :bug: ([5eae327](https://github.com/LerianStudio/midaz/commit/5eae3274dfefbd0b1d0a01c7d89acaa38146ab8c))
+* ubuntu version :bug: ([64748c7](https://github.com/LerianStudio/midaz/commit/64748c7e6b7e2f30577b550792f6a19b0861ad8d))
+* unify codeql/lint/sec/unit :bug: ([53de44c](https://github.com/LerianStudio/midaz/commit/53de44c785ddb2c990735ec00036b5ad8eed94f5))
+* update check :bug: ([2c98e13](https://github.com/LerianStudio/midaz/commit/2c98e134acb3c80734f635eb667d5fdb985e7349))
+* update check and name :bug: ([7533a52](https://github.com/LerianStudio/midaz/commit/7533a52d75c21fcd6c8888d9e1462db4537e4ddb))
+* update checks :bug: ([7cf15ad](https://github.com/LerianStudio/midaz/commit/7cf15ad57a97460d0c0f0ff94d1aac81bcedec58))
+* update error in yaml syntax :bug: ([322f2c9](https://github.com/LerianStudio/midaz/commit/322f2c9dcad4a98184a7dcd35614bbc5a79f9c4b))
+* update image to ubuntu-24.04 :bug: ([b91d104](https://github.com/LerianStudio/midaz/commit/b91d10489deabb188beb37d583fc1976e970be96))
+* update reference :bug: ([3d2f96f](https://github.com/LerianStudio/midaz/commit/3d2f96f91a663153b156283907aeb69f6196ebc8))
+* update some checks :bug: ([f551b35](https://github.com/LerianStudio/midaz/commit/f551b35126688fbdcb0d9446f24e32ae818cf9b4))
+
 ## [1.31.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.7...v1.31.0-beta.8) (2024-12-03)
 
 
