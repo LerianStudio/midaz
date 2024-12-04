@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/mongo"
 	"time"
 )
 
@@ -32,6 +34,14 @@ func (uc *UseCase) CreateLog(ctx context.Context, organizationID, ledgerID, audi
 
 	one, err := uc.AuditRepo.FindOne(ctx, audit.TreeCollection, auditObj.ID)
 	if err != nil {
+		if !errors.Is(err, mongo.ErrNoDocuments) {
+			mopentelemetry.HandleSpanError(&span, "Failed to get audit info", err)
+
+			logger.Errorf("Failed to get audit info: %v", err)
+
+			return err
+		}
+
 		ledgerID := auditObj.ID.LedgerID
 		treeName := ledgerID[len(ledgerID)-12:]
 
