@@ -112,8 +112,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          cp midaz/components/ledger/api/swagger.json LerianStudio.github.io/ledger/ 
+          cp midaz/components/audit/api/swagger.json LerianStudio.github.io/audit/
 
+          cp midaz/components/ledger/api/swagger.json LerianStudio.github.io/ledger/ 
+          
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
 
       - name: Commit and Push Swagger to Git Page
@@ -131,6 +133,9 @@ jobs:
             echo "Changes detected!"
           
             git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
+          
+            git add audit
+            git commit -S -m "Update Swagger.json from Repo Audit"
           
             git add ledger
             git commit -S -m "Update Swagger.json from Repo Ledger"
