@@ -90,7 +90,7 @@ type FromTo struct {
 	Remaining       string         `json:"remaining,omitempty" example:"remaining"`
 	Rate            *Rate          `json:"rate,omitempty"`
 	Description     string         `json:"description,omitempty" example:"description"`
-	ChartOfAccounts string         `json:"chartOfAccountsG" example:"1000"`
+	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
 } // @name FromTo
