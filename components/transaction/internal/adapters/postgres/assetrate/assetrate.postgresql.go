@@ -22,8 +22,8 @@ import (
 //go:generate mockgen --destination=assetrate.mock.go --package=assetrate . Repository
 type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
-	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)
+	FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error)
 }
 
@@ -114,11 +114,11 @@ func (r *AssetRatePostgreSQLRepository) Create(ctx context.Context, assetRate *A
 	return record.ToEntity(), nil
 }
 
-// Find an AssetRate entity by its ID in Postgresql and returns it.
-func (r *AssetRatePostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, assetRateID uuid.UUID) (*AssetRate, error) {
+// FindByExternalID an AssetRate entity by its external ID in Postgresql and returns it.
+func (r *AssetRatePostgreSQLRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*AssetRate, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate")
+	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_external_id")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
@@ -132,7 +132,7 @@ func (r *AssetRatePostgreSQLRepository) Find(ctx context.Context, organizationID
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 ORDER BY created_at DESC`, organizationID, ledgerID, assetRateID)
+	row := db.QueryRowContext(ctx, `SELECT * FROM asset_rate WHERE organization_id = $1 AND ledger_id = $2 AND external_id = $3 ORDER BY created_at DESC`, organizationID, ledgerID, externalID)
 
 	spanQuery.End()
 
@@ -166,7 +166,7 @@ func (r *AssetRatePostgreSQLRepository) Find(ctx context.Context, organizationID
 func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate")
+	ctx, span := tracer.Start(ctx, "postgres.find_asset_rate_by_currency_pair")
 	defer span.End()
 
 	db, err := r.connection.GetDB()

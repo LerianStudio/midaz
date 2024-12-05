@@ -56,21 +56,6 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, assetRate any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, assetRate)
 }
 
-// Find mocks base method.
-func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(*AssetRate)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Find indicates an expected call of Find.
-func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), ctx, organizationID, ledgerID, id)
-}
-
 // FindByCurrencyPair mocks base method.
 func (m *MockRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
 	m.ctrl.T.Helper()
@@ -84,6 +69,21 @@ func (m *MockRepository) FindByCurrencyPair(ctx context.Context, organizationID,
 func (mr *MockRepositoryMockRecorder) FindByCurrencyPair(ctx, organizationID, ledgerID, from, to any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByCurrencyPair", reflect.TypeOf((*MockRepository)(nil).FindByCurrencyPair), ctx, organizationID, ledgerID, from, to)
+}
+
+// FindByExternalID mocks base method.
+func (m *MockRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByExternalID", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(*AssetRate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByExternalID indicates an expected call of FindByExternalID.
+func (mr *MockRepositoryMockRecorder) FindByExternalID(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByExternalID", reflect.TypeOf((*MockRepository)(nil).FindByExternalID), ctx, organizationID, ledgerID, id)
 }
 
 // Update mocks base method.

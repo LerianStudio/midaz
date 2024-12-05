@@ -71,39 +71,36 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 	return http.Created(c, assetRate)
 }
 
-// GetAssetRate retrieves an asset rate.
+// GetAssetRateByExternalID retrieves an asset rate.
 //
-//	@Summary		Get an AssetRate by ID
-//	@Description	Get an AssetRate with the input ID
+//	@Summary		Get an AssetRate by External ID
+//	@Description	Get an AssetRate by External ID with the input details
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
 //	@Param			Midaz-Id		header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
-//	@Param			asset_rate_id	path		string							true	"AssetRate ID"
-//	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
+//	@Param			external_id		path		string							true	"External ID"
 //	@Success		200				{object}	assetrate.AssetRate
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id} [get]
-func (handler *AssetRateHandler) GetAssetRate(c *fiber.Ctx) error {
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id} [get]
+func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "handler.get_asset_rate")
+	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_external_id")
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
-	logger.Infof("Initiating get of AssetRate with organization ID: %s", organizationID.String())
-
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	logger.Infof("Initiating get of AssetRate with ledger ID: %s", ledgerID.String())
+	externalID := c.Locals("external_id").(uuid.UUID)
 
-	assetRateID := c.Locals("asset_rate_id").(uuid.UUID)
-	logger.Infof("Initiating get of AssetRate with asset rate ID: %s", assetRateID.String())
+	logger.Infof("Initiating get of AssetRate with organization ID '%s', ledger ID: '%s', and external ID: '%s'",
+		organizationID.String(), ledgerID.String(), externalID.String())
 
-	assetRate, err := handler.Query.GetAssetRateByID(ctx, organizationID, ledgerID, assetRateID)
+	assetRate, err := handler.Query.GetAssetRateByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
 

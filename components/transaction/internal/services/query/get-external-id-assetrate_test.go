@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"go.uber.org/mock/gomock"
 	"testing"
 
@@ -13,14 +14,22 @@ import (
 )
 
 func TestGetAssetRateByID(t *testing.T) {
-	ID := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	orgID := pkg.GenerateUUIDv7()
 	ledgerID := pkg.GenerateUUIDv7()
+	exID := pkg.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
-		ID:             ID.String(),
-		OrganizationID: organizationID.String(),
+		ID:             id.String(),
+		OrganizationID: orgID.String(),
 		LedgerID:       ledgerID.String(),
+		ExternalID:     exID.String(),
+		From:           "USD",
+		To:             "BRL",
+		Rate:           100,
+		Scale:          mpointers.Float64(2),
+		Source:         mpointers.String("External System"),
+		TTL:            3600,
 	}
 
 	uc := UseCase{
@@ -29,16 +38,16 @@ func TestGetAssetRateByID(t *testing.T) {
 
 	uc.AssetRateRepo.(*assetrate.MockRepository).
 		EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		FindByExternalID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(assetRate, nil).
 		Times(1)
-	res, err := uc.AssetRateRepo.Find(context.TODO(), organizationID, ledgerID, ID)
+	res, err := uc.AssetRateRepo.FindByExternalID(context.TODO(), orgID, ledgerID, exID)
 
 	assert.Equal(t, assetRate, res)
 	assert.Nil(t, err)
 }
 
-// TestGetAssetRateByIDError is responsible to test GetAssetRateByID with error
+// TestGetAssetRateByIDError is responsible to test GetAssetRateByExternalID with error
 func TestGetAssetRateByIDError(t *testing.T) {
 	id := pkg.GenerateUUIDv7()
 	organizationID := pkg.GenerateUUIDv7()
@@ -51,10 +60,10 @@ func TestGetAssetRateByIDError(t *testing.T) {
 
 	uc.AssetRateRepo.(*assetrate.MockRepository).
 		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, id).
+		FindByExternalID(gomock.Any(), organizationID, ledgerID, id).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.AssetRateRepo.Find(context.TODO(), organizationID, ledgerID, id)
+	res, err := uc.AssetRateRepo.FindByExternalID(context.TODO(), organizationID, ledgerID, id)
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

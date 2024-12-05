@@ -159,7 +159,7 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
             "post": {
-                "description": "Create an AssetRate with the input payload",
+                "description": "Create or Update an AssetRate with the input details",
                 "consumes": [
                     "application/json"
                 ],
@@ -169,7 +169,7 @@ const docTemplate = `{
                 "tags": [
                     "Asset Rates"
                 ],
-                "summary": "Create an AssetRate",
+                "summary": "Create or Update an AssetRate",
                 "parameters": [
                     {
                         "type": "string",
@@ -218,16 +218,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id}": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
             "get": {
-                "description": "Get an AssetRate with the input ID",
+                "description": "Get an AssetRate by External ID with the input details",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Asset Rates"
                 ],
-                "summary": "Get an AssetRate by ID",
+                "summary": "Get an AssetRate by External ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -258,19 +258,10 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "AssetRate ID",
-                        "name": "asset_rate_id",
+                        "description": "External ID",
+                        "name": "external_id",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "description": "AssetRate Input",
-                        "name": "asset-rate",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/CreateAssetRateInput"
-                        }
                     }
                 ],
                 "responses": {
@@ -803,14 +794,23 @@ const docTemplate = `{
         "Amount": {
             "description": "Amount is the struct designed to represent the amount of an operation.",
             "type": "object",
+            "required": [
+                "asset",
+                "value"
+            ],
             "properties": {
-                "amount": {
-                    "type": "number",
-                    "example": 1500
+                "asset": {
+                    "type": "string",
+                    "example": "BRL"
                 },
                 "scale": {
-                    "type": "number",
+                    "type": "integer",
+                    "minimum": 0,
                     "example": 2
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
@@ -818,21 +818,17 @@ const docTemplate = `{
             "description": "AssetRate is a struct designed to store asset rate data.",
             "type": "object",
             "properties": {
-                "amount": {
-                    "type": "number",
-                    "example": 5000
-                },
-                "baseAssetCode": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "counterAssetCode": {
-                    "type": "string",
-                    "example": "USD"
-                },
                 "createdAt": {
                     "type": "string",
                     "example": "2021-01-01T00:00:00Z"
+                },
+                "externalId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "from": {
+                    "type": "string",
+                    "example": "USD"
                 },
                 "id": {
                     "type": "string",
@@ -850,13 +846,29 @@ const docTemplate = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "rate": {
+                    "type": "number",
+                    "example": 100
+                },
                 "scale": {
                     "type": "number",
                     "example": 2
                 },
                 "source": {
                     "type": "string",
-                    "example": "@person1"
+                    "example": "External System"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "ttl": {
+                    "type": "integer",
+                    "example": 3600
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -881,16 +893,17 @@ const docTemplate = `{
         "CreateAssetRateInput": {
             "description": "CreateAssetRateInput is the input payload to create an asset rate.",
             "type": "object",
+            "required": [
+                "from",
+                "rate",
+                "to"
+            ],
             "properties": {
-                "amount": {
-                    "type": "number",
-                    "example": 5000
-                },
-                "baseAssetCode": {
+                "externalId": {
                     "type": "string",
-                    "example": "BRL"
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "counterAssetCode": {
+                "from": {
                     "type": "string",
                     "example": "USD"
                 },
@@ -898,13 +911,26 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "rate": {
+                    "type": "integer",
+                    "example": 100
+                },
                 "scale": {
-                    "type": "number",
+                    "type": "integer",
+                    "minimum": 0,
                     "example": 2
                 },
                 "source": {
                     "type": "string",
-                    "example": "@person1"
+                    "example": "External System"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "ttl": {
+                    "type": "integer",
+                    "example": 3600
                 }
             }
         },
@@ -1155,7 +1181,7 @@ const docTemplate = `{
             }
         },
         "Status": {
-            "description": "Status is the struct designed to represent the status of an operation.",
+            "description": "Status is the struct designed to represent the status of a transaction.",
             "type": "object",
             "properties": {
                 "code": {

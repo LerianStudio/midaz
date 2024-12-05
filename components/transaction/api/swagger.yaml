@@ -3,27 +3,31 @@ definitions:
   Amount:
     description: Amount is the struct designed to represent the amount of an operation.
     properties:
-      amount:
-        example: 1500
-        type: number
+      asset:
+        example: BRL
+        type: string
       scale:
         example: 2
-        type: number
+        minimum: 0
+        type: integer
+      value:
+        example: 1000
+        type: integer
+    required:
+    - asset
+    - value
     type: object
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data.
     properties:
-      amount:
-        example: 5000
-        type: number
-      baseAssetCode:
-        example: BRL
-        type: string
-      counterAssetCode:
-        example: USD
-        type: string
       createdAt:
         example: "2021-01-01T00:00:00Z"
+        type: string
+      externalId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      from:
+        example: USD
         type: string
       id:
         example: 00000000-0000-0000-0000-000000000000
@@ -37,11 +41,23 @@ definitions:
       organizationId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
+      rate:
+        example: 100
+        type: number
       scale:
         example: 2
         type: number
       source:
-        example: '@person1'
+        example: External System
+        type: string
+      to:
+        example: BRL
+        type: string
+      ttl:
+        example: 3600
+        type: integer
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
         type: string
     type: object
   Balance:
@@ -60,24 +76,35 @@ definitions:
   CreateAssetRateInput:
     description: CreateAssetRateInput is the input payload to create an asset rate.
     properties:
-      amount:
-        example: 5000
-        type: number
-      baseAssetCode:
-        example: BRL
+      externalId:
+        example: 00000000-0000-0000-0000-000000000000
         type: string
-      counterAssetCode:
+      from:
         example: USD
         type: string
       metadata:
         additionalProperties: {}
         type: object
+      rate:
+        example: 100
+        type: integer
       scale:
         example: 2
-        type: number
+        minimum: 0
+        type: integer
       source:
-        example: '@person1'
+        example: External System
         type: string
+      to:
+        example: BRL
+        type: string
+      ttl:
+        example: 3600
+        type: integer
+    required:
+    - from
+    - rate
+    - to
     type: object
   CreateTransactionInput:
     description: CreateTransactionInput is the input payload to create a transaction.
@@ -262,7 +289,7 @@ definitions:
     - from
     type: object
   Status:
-    description: Status is the struct designed to represent the status of an operation.
+    description: Status is the struct designed to represent the status of a transaction.
     properties:
       code:
         example: ACTIVE
@@ -464,7 +491,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create an AssetRate with the input payload
+      description: Create or Update an AssetRate with the input details
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -498,12 +525,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/AssetRate'
-      summary: Create an AssetRate
+      summary: Create or Update an AssetRate
       tags:
       - Asset Rates
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
-      description: Get an AssetRate with the input ID
+      description: Get an AssetRate by External ID with the input details
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -524,17 +551,11 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: AssetRate ID
+      - description: External ID
         in: path
-        name: asset_rate_id
+        name: external_id
         required: true
         type: string
-      - description: AssetRate Input
-        in: body
-        name: asset-rate
-        required: true
-        schema:
-          $ref: '#/definitions/CreateAssetRateInput'
       produces:
       - application/json
       responses:
@@ -542,7 +563,7 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/AssetRate'
-      summary: Get an AssetRate by ID
+      summary: Get an AssetRate by External ID
       tags:
       - Asset Rates
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
