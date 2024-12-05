@@ -3,17 +3,19 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc/out"
-	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"errors"
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
+
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc/out"
+	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 func createMockedData() (audit.Audit, []mmodel.QueueData, map[string]string) {
@@ -46,16 +48,16 @@ func validateAudit(actual, expected *audit.Audit) error {
 		actual.ID.OrganizationID != expected.ID.OrganizationID ||
 		actual.ID.LedgerID != expected.ID.LedgerID ||
 		actual.ID.ID != expected.ID.ID {
-		return fmt.Errorf("audit ID fields did not match")
+		return errors.New("audit ID fields did not match")
 	}
 
 	if len(actual.Leaves) != len(expected.Leaves) {
-		return fmt.Errorf("leaves length did not match")
+		return errors.New("leaves length did not match")
 	}
 
 	for k, v := range actual.Leaves {
 		if v != expected.Leaves[k] {
-			return fmt.Errorf("leaf mismatch for key: %s", k)
+			return errors.New("leaf mismatch for key: " + k)
 		}
 	}
 
