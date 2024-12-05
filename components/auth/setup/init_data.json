@@ -792,13 +792,39 @@
         "portfolio",
         "product",
         "transaction",
-        "operation",
-        "asset-rate"
+        "operation"
       ],
       "actions": [
         "get",
         "post",
         "patch"
+      ],
+      "domains": [],
+      "effect": "Allow",
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
+    },
+    {
+      "owner": "lerian",
+      "name": "developer-api-permission",
+      "displayName": "Developer API Permission",
+      "isEnabled": true,
+      "model": "api-model",
+      "roles": [
+        "lerian/developer_role"
+      ],
+      "users": [
+        "lerian/user_lisa"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "asset-rate"
+      ],
+      "actions": [
+        "get",
+        "put"
       ],
       "domains": [],
       "effect": "Allow",

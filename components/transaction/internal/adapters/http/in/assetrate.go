@@ -18,10 +18,10 @@ type AssetRateHandler struct {
 	Query   *query.UseCase
 }
 
-// CreateAssetRate creates a new asset rate.
+// CreateOrUpdateAssetRate creates or updates an asset rate.
 //
-//	@Summary		Create an AssetRate
-//	@Description	Create an AssetRate with the input payload
+//	@Summary		Create or Update an AssetRate
+//	@Description	Create or Update an AssetRate with the input details
 //	@Tags			Asset Rates
 //	@Accept			json
 //	@Produce		json
@@ -32,7 +32,7 @@ type AssetRateHandler struct {
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
 //	@Success		200				{object}	assetrate.AssetRate
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [post]
-func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
+func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := pkg.NewLoggerFromContext(ctx)
@@ -57,7 +57,7 @@ func (handler *AssetRateHandler) CreateAssetRate(p any, c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	assetRate, err := handler.Command.CreateAssetRate(ctx, organizationID, ledgerID, payload)
+	assetRate, err := handler.Command.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, payload)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create AssetRate on command", err)
 

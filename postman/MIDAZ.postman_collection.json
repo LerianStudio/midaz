@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "ad9e2c69-4c89-4027-a957-da5cfb58b0a4",
+		"_postman_id": "b8e21fb3-53bc-4301-b920-90987c5f8ead",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -2795,12 +2795,7 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"const jsonData = JSON.parse(responseBody);\r",
-									"if (jsonData.hasOwnProperty('id')) {\r",
-									"    console.log(\"asset_rate_id before: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
-									"    pm.collectionVariables.set(\"asset_rate_id\", jsonData.id);\r",
-									"    console.log(\"asset_rate_id after: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
-									"}"
+									""
 								],
 								"type": "text/javascript",
 								"packages": {}
@@ -2808,7 +2803,7 @@
 						}
 					],
 					"request": {
-						"method": "POST",
+						"method": "PUT",
 						"header": [
 							{
 								"key": "Midaz-ID",
@@ -2819,7 +2814,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"baseAssetCode\": \"BRL\",\n    \"counterAssetCode\": \"BTC\",\n    \"amount\": 35000000,\n    \"scale\": 2,\n    \"source\": \"Chainlink database\",\n    \"metadata\": {\n        \"updateCycle\": 300,\n        \"urgent\": true\n    }\n}",
+							"raw": "{\n    \"from\": \"USD\",\n    \"to\": \"BRL\",\n    \"rate\": 1000,\n    \"scale\": 2,\n    \"source\": \"External System 2\",\n    \"ttl\": 3600,\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"metadata\": {\n        \"string\": \"string\",\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2842,7 +2837,82 @@
 						},
 						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Midaz-ID",
+										"value": "{{$randomUUID}}",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"from\": \"USD\",\n    \"to\": \"BRL\",\n    \"rate\": 1000,\n    \"scale\": 2,\n    \"source\": \"External System 2\",\n    \"ttl\": 3600,\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"metadata\": {\n        \"string\": \"string\",\n        \"int\": 1\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates",
+									"host": [
+										"{{url_transaction}}"
+									],
+									"path": [
+										"v1",
+										"organizations",
+										"{{organization_id}}",
+										"ledgers",
+										"{{ledger_id}}",
+										"asset-rates"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Date",
+									"value": "Thu, 05 Dec 2024 19:42:41 GMT",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "Content-Length",
+									"value": "425",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "X-Correlation-Id",
+									"value": "3e97d0ff-6d14-42f4-8b60-b2248441d8a3",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "Midaz-Id",
+									"value": "b125a033-f4d8-4309-bfdf-1300b051915b",
+									"description": "",
+									"type": "text"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": \"01939858-92fc-78b0-8ad5-acd0e81f3216\",\n    \"organizationId\": \"01939842-ce59-720a-beac-ba57a4db8622\",\n    \"ledgerId\": \"01939842-dc08-78ec-b03e-8b6200f11314\",\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"from\": \"USD\",\n    \"to\": \"BRL\",\n    \"rate\": 1000,\n    \"scale\": 2,\n    \"source\": \"External System 2\",\n    \"ttl\": 3600,\n    \"createdAt\": \"2024-12-05T16:16:14.617577-03:00\",\n    \"updatedAt\": \"2024-12-05T16:42:41.916575251-03:00\",\n    \"metadata\": {\n        \"int\": 1,\n        \"string\": \"string\"\n    }\n}"
+						}
+					]
 				},
 				{
 					"name": "Asset rates",
