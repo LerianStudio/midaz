@@ -723,6 +723,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "External Account Modification Prohibited",
 			Message:    "Accounts of type 'external' cannot be deleted or modified as they are used for traceability with external systems. Please review your request and ensure operations are only performed on internal accounts.",
 		},
+		constant.ErrAuditRecordNotRetrieved: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditRecordNotRetrieved.Error(),
+			Title:      "Audit Record Not Retrieved",
+			Message:    fmt.Sprintf("The record %v could not be retrieved for audit. Please verify that the submitted data is correct and try again.", args...),
+		},
+		constant.ErrAuditTreeRecordNotFound: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrAuditTreeRecordNotFound.Error(),
+			Title:      "Audit Tree Record Not Found",
+			Message:    fmt.Sprintf("The record %v does not exist in the audit tree. Please ensure the audit tree is available and try again.", args...),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

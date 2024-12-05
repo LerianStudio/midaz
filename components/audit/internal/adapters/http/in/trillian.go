@@ -45,7 +45,7 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve audit info: %v", err.Error())
 
-		return http.WithError(c, err) // TODO: error message
+		return http.WithError(c, err)
 	}
 
 	validations := make([]HashValidationResponse, 0)
@@ -57,7 +57,7 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve log validation: %v", err.Error())
 
-			return http.WithError(c, err) // TODO: error message
+			return http.WithError(c, err)
 		}
 
 		if wasTempered {
@@ -109,7 +109,7 @@ func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
 
 		logger.Errorf("Failed to retrieve audit info: %v", err.Error())
 
-		return http.WithError(c, err) // TODO: error message
+		return http.WithError(c, err)
 	}
 
 	leaves := make([]Leaf, 0)
@@ -121,7 +121,7 @@ func (th *TrillianHandler) ReadLogs(c *fiber.Ctx) error {
 
 			logger.Errorf("Failed to retrieve log by hash: %v", err.Error())
 
-			return http.WithError(c, err) // TODO: error message
+			return http.WithError(c, err)
 		}
 
 		leaves = append(leaves, Leaf{

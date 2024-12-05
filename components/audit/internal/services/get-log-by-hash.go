@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/hex"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/google/trillian"
+	"reflect"
 	"strings"
 )
 
@@ -22,7 +25,7 @@ func (uc *UseCase) GetLogByHash(ctx context.Context, treeID int64, identityHash 
 
 		logger.Errorf("Error getting log by hash: %v", err)
 
-		return "", nil, err
+		return "", nil, pkg.ValidateBusinessError(constant.ErrAuditTreeRecordNotFound, reflect.TypeOf(trillian.LogLeaf{}).Name(), identityHash)
 	}
 
 	return strings.ToUpper(hex.EncodeToString(log.MerkleLeafHash)), log.LeafValue, nil

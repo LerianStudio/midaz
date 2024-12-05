@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/hex"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/google/trillian"
 	"github.com/transparency-dev/merkle/rfc6962"
+	"reflect"
 	"strings"
 )
 
@@ -24,7 +27,7 @@ func (uc *UseCase) ValidatedLogHash(ctx context.Context, treeID int64, identityH
 
 		logger.Errorf("Error getting log by hash: %v", err)
 
-		return "", "", false, err
+		return "", "", false, pkg.ValidateBusinessError(constant.ErrAuditTreeRecordNotFound, reflect.TypeOf(trillian.LogLeaf{}).Name(), identityHash)
 	}
 
 	recalculatedHash := rfc6962.DefaultHasher.HashLeaf(log.LeafValue)

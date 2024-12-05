@@ -4,8 +4,10 @@ import (
 	"context"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/mongodb/audit"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
+	"reflect"
 )
 
 // GetAuditInfo retrieves auditing information
@@ -30,7 +32,7 @@ func (uc *UseCase) GetAuditInfo(ctx context.Context, organizationID uuid.UUID, l
 
 		logger.Errorf("Error getting audit info: %v", err)
 
-		return nil, err
+		return nil, pkg.ValidateBusinessError(constant.ErrAuditRecordNotRetrieved, reflect.TypeOf(audit.Audit{}).Name(), id.String())
 	}
 
 	return auditInfo, nil
