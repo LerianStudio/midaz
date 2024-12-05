@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"math"
 	"math/big"
 	"strings"
@@ -21,7 +20,6 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 		for key := range validate.From {
 			// TODO: Temporary validation to be removed when multi-asset transaction is implemented.
 			if (acc.Id == key || acc.Alias == key) && acc.AssetCode != cn.DefaultAssetCode {
-				fmt.Println("here")
 				return pkg.ValidateBusinessError(cn.ErrAssetCodeNotFound, "ValidateAccounts")
 			}
 
@@ -350,8 +348,6 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 }
 
 func validateAccountsFrom(key string, acc *a.Account) error {
-	fmt.Println(acc)
-
 	if acc.Id == key || acc.Alias == key && !acc.AllowSending {
 		return pkg.ValidateBusinessError(cn.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
 	}
