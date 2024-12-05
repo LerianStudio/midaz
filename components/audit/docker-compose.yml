@@ -14,6 +14,7 @@ services:
     networks:
       - audit_network
       - infra_network
+      - auth_network
 
   midaz-audit-db:
     container_name: midaz-audit-db
@@ -85,4 +86,7 @@ networks:
     driver: bridge
   infra_network:
     name: infra_network
+    driver: bridge
+  auth_network:
+    name: auth_network
     driver: bridge

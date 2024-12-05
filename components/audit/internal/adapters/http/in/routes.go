@@ -26,8 +26,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// -- Routes --
 
 	// Trillian
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/audit/:audit_id/audit-logs", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.AuditLogs)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/audit/:audit_id/read-logs", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("transaction"), http.ParseUUIDPathParameters, th.ReadLogs)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/audit/:audit_id/audit-logs", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("audit"), http.ParseUUIDPathParameters, th.AuditLogs)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/audit/:audit_id/read-logs", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("audit"), http.ParseUUIDPathParameters, th.ReadLogs)
 
 	// Health
 	f.Get("/health", http.Ping)

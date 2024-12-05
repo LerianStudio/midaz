@@ -30,6 +30,7 @@ INSERT INTO "casbin_lerian_enforcer_rule" ("ptype", "v0", "v1", "v2", "v3", "v4"
 ('g',	'user_bob',	'grpc_role',	'',	'',	'',	''),
 ('g',	'user_mike',	'user_role',	'',	'',	'',	''),
 ('g',	'user_kate',	'user_role',	'',	'',	'',	''),
+('g',	'user_jane',	'auditor_role',	'',	'',	'',	''),
 ('p',	'admin_role',	'*',	'*',	'',	'',	''),
 ('p',	'developer_role',	'organization',	'post',	'',	'',	''),
 ('p',	'developer_role',	'organization',	'get',	'',	'',	''),
@@ -67,4 +68,5 @@ INSERT INTO "casbin_lerian_enforcer_rule" ("ptype", "v0", "v1", "v2", "v3", "v4"
 ('p',	'user_role',	'transaction',	'get',	'',	'',	''),
 ('p',	'user_role',	'operation',	'get',	'',	'',	''),
 ('p',	'user_role',	'asset-rate',	'get',	'',	'',	''),
-('p',	'grpc_role',	'account.AccountProto',	'*',	'',	'',	'');
+('p',	'grpc_role',	'account.AccountProto',	'*',	'',	'',	''),
+('p',	'auditor_role',	'audit',	'get',	'',	'',	'');
