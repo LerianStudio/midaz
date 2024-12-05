@@ -2,7 +2,7 @@ package pkg
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -495,7 +495,7 @@ func TestGetCPUUsage(t *testing.T) {
 		{
 			name:         "Error in executing command",
 			mockResponse: nil,
-			mockError:    fmt.Errorf("command failed"),
+			mockError:    errors.New("command failed"),
 			expected:     0,
 			expectError:  true,
 		},
@@ -546,7 +546,7 @@ func TestGetMemUsage(t *testing.T) {
 		{
 			name:         "Error in executing command",
 			mockResponse: nil,
-			mockError:    fmt.Errorf("command failed"),
+			mockError:    errors.New("command failed"),
 			expected:     0,
 			expectError:  true,
 		},
