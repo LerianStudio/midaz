@@ -249,8 +249,10 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	}
 
 	var rate *model.Rate
+
 	if ctx.Rate() != nil {
 		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+
 		if !rateValue.IsEmpty() {
 			rate = &rateValue
 		}
@@ -299,8 +301,10 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	}
 
 	var rate *model.Rate
+
 	if ctx.Rate() != nil {
 		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+
 		if !rateValue.IsEmpty() {
 			rate = &rateValue
 		}
