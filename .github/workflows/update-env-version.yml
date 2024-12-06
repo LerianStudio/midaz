@@ -66,6 +66,11 @@ jobs:
           echo "LEDGER version: $VERSION"
           echo "::set-output name=version::$VERSION"
 
+      - name: Update AUDIT Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/audit/.env.example
+
       - name: Update LEDGER Env
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |

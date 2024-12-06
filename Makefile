@@ -3,10 +3,11 @@ INFRA_DIR := ./components/infra
 LEDGER_DIR := ./components/ledger
 TRANSACTION_DIR := ./components/transaction
 MDZ_DIR := ./components/mdz
+AUDIT_DIR := ./components/audit
 
 .PHONY: help test cover lint format check-logs check-tests \
         setup-git-hooks check-hooks goreleaser tidy sec set-env up auth infra ledger \
-        transaction all-services
+        transaction audit all-services
 
 BLUE := \033[36m
 NC := \033[0m
@@ -46,6 +47,7 @@ help:
 	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
 	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
+	@echo "    make audit                         		Run a command inside the audit app in the components directory to see available commands."
 	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo "    make generate-docs-all                   Run a command to inside the ledger and transaction app to generate swagger docs."
@@ -56,6 +58,7 @@ help:
 	@echo "  make infra COMMAND=<cmd> - Run command in infra service"
 	@echo "  make ledger COMMAND=<cmd> - Run command in ledger service"
 	@echo "  make transaction COMMAND=<cmd> - Run command in transaction service"
+	@echo "  make audit COMMAND=<cmd> - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd> - Run command across all services"
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
@@ -69,6 +72,15 @@ test:
 		exit 1; \
 	fi
 	go test -v ./... ./...
+
+cover:
+	@echo -e "$(BLUE)Generating test coverage...$(NC)"
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "$(RED)Error: go is not installed$(NC)"; \
+		exit 1; \
+	fi
+	@sh ./scripts/coverage.sh
+	@go tool cover -html=coverage.out -o coverage.html
 
 lint:
 	@echo "$(BLUE)Running linter and performance checks...$(NC)"
@@ -110,6 +122,7 @@ set-env:
 	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
 	cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
+	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
 up: 
@@ -136,6 +149,10 @@ transaction:
 	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
+audit:
+	@echo "$(BLUE)Executing command in audit service...$(NC)"
+	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
+
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
@@ -154,15 +171,8 @@ tidy:
 	@echo "$(BLUE)Running go mod tidy...$(NC)"
 	go mod tidy
 
-cover: 
-	@echo -e "$(BLUE)Generating test coverage...$(NC)"
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "$(RED)Error: go is not installed$(NC)"; \
-		exit 1; \
-	fi
-	@sh ./scripts/coverage.sh
-
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
-	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs && \
+	$(MAKE) -C $(AUDIT_DIR) generate-docs
