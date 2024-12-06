@@ -11,19 +11,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetAssetRateByID gets data in the repository.
-func (uc *UseCase) GetAssetRateByID(ctx context.Context, organizationID, ledgerID, assetRateID uuid.UUID) (*assetrate.AssetRate, error) {
+// GetAssetRateByExternalID gets data in the repository.
+func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*assetrate.AssetRate, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_asset_rate_by_id")
+	ctx, span := tracer.Start(ctx, "query.get_asset_rate_by_external_id")
 	defer span.End()
 
-	logger.Infof("Trying to get asset rate")
+	logger.Infof("Trying to get asset rate by external id: %s", externalID.String())
 
-	assetRate, err := uc.AssetRateRepo.Find(ctx, organizationID, ledgerID, assetRateID)
+	assetRate, err := uc.AssetRateRepo.FindByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get asset rate on repository", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get asset rate by external id on repository", err)
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
@@ -31,7 +31,7 @@ func (uc *UseCase) GetAssetRateByID(ctx context.Context, organizationID, ledgerI
 	}
 
 	if assetRate != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), assetRateID.String())
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), assetRate.ID)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset rate", err)
 

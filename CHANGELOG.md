@@ -1,3 +1,12 @@
+## [1.31.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.10...v1.31.0-beta.11) (2024-12-06)
+
+
+### Bug Fixes
+
+* **account:** omit optional fields in update request payload :bug: ([33f3e7d](https://github.com/LerianStudio/midaz/commit/33f3e7dac14088b8a6ff293ed4625eeef62a9448))
+
+## [1.31.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.9...v1.31.0-beta.10) (2024-12-06)
+
 ## [1.31.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.8...v1.31.0-beta.9) (2024-12-04)
 
 
