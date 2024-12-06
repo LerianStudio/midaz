@@ -161,6 +161,25 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	}
 }
 
+func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
+	externalID := ctx.UUID(0).GetText()
+	from := ctx.UUID(1).GetText()
+	to := ctx.UUID(2).GetText()
+	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
+	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
+
+	value, _ := strconv.Atoi(val)
+	scale, _ := strconv.Atoi(scl)
+
+	return model.Rate{
+		From:       from,
+		To:         to,
+		Value:      value,
+		Scale:      scale,
+		ExternalID: externalID,
+	}
+}
+
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	return strings.Trim(ctx.GetText(), ":")
 }
@@ -186,7 +205,6 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	return model.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: 0,
-		DescWhatever:           false,
 	}
 }
 
@@ -197,19 +215,6 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	return model.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: percentageOfPercentage,
-		DescWhatever:           false,
-	}
-}
-
-func (v *TransactionVisitor) VisitShareDescWhatever(ctx *parser.ShareDescWhateverContext) any {
-	percentage, _ := strconv.Atoi(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string))
-	percentageOfPercentage, _ := strconv.Atoi(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string))
-	descWhatever := strings.Contains(ctx.GetText(), ":desc whatever")
-
-	return model.Share{
-		Percentage:             percentage,
-		PercentageOfPercentage: percentageOfPercentage,
-		DescWhatever:           descWhatever,
 	}
 }
 
@@ -239,10 +244,18 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(model.Share)
 	case *parser.ShareIntOfIntContext:
 		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(model.Share)
-	case *parser.ShareDescWhateverContext:
-		share = v.VisitShareDescWhatever(ctx.SendTypes().(*parser.ShareDescWhateverContext)).(model.Share)
 	default:
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
+	}
+
+	var rate *model.Rate
+
+	if ctx.Rate() != nil {
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+
+		if !rateValue.IsEmpty() {
+			rate = &rateValue
+		}
 	}
 
 	return model.FromTo{
@@ -250,6 +263,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		Amount:      &amount,
 		Share:       &share,
 		Remaining:   remaining,
+		Rate:        rate,
 		Description: description,
 		Metadata:    metadata,
 		IsFrom:      true,
@@ -282,10 +296,18 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(model.Share)
 	case *parser.ShareIntOfIntContext:
 		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(model.Share)
-	case *parser.ShareDescWhateverContext:
-		share = v.VisitShareDescWhatever(ctx.SendTypes().(*parser.ShareDescWhateverContext)).(model.Share)
 	default:
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
+	}
+
+	var rate *model.Rate
+
+	if ctx.Rate() != nil {
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+
+		if !rateValue.IsEmpty() {
+			rate = &rateValue
+		}
 	}
 
 	return model.FromTo{
@@ -293,6 +315,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		Amount:      &amount,
 		Share:       &share,
 		Remaining:   remaining,
+		Rate:        rate,
 		Description: description,
 		Metadata:    metadata,
 		IsFrom:      false,

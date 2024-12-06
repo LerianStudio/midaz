@@ -40,8 +40,7 @@ valueOrVariable: INT
                | VARIABLE
                ;
 
-sendTypes: ':amount' UUID valueOrVariable '|' valueOrVariable                # Amount
-         | ':share' valueOrVariable ':of' valueOrVariable ':desc whatever'   # ShareDescWhatever
+sendTypes: ':amount' UUID valueOrVariable '|' valueOrVariable               # Amount
          | ':share' valueOrVariable ':of' valueOrVariable                    # ShareIntOfInt
          | ':share' valueOrVariable                                          # ShareInt
          | REMAINING                                                         # Remaining
@@ -52,9 +51,12 @@ account: VARIABLE
        | UUID
        ;
 
-from: '(' 'from' account sendTypes description? chartOfAccounts? metadata? ')';
-send: '(' 'send' UUID valueOrVariable '|' valueOrVariable source ')';
-source: '(' 'source' REMAINING? from+ ')';
 
-to: '(' 'to' account sendTypes description? chartOfAccounts? metadata? ')';
+rate: '(' 'rate' UUID UUID '->' UUID valueOrVariable '|' valueOrVariable ')';
+
+from: '(' 'from' account sendTypes rate? description? chartOfAccounts? metadata? ')';
+source: '(' 'source' REMAINING? from+ ')';
+send: '(' 'send' UUID valueOrVariable '|' valueOrVariable source ')';
+
+to: '(' 'to' account sendTypes rate? description? chartOfAccounts? metadata? ')';
 distribute: '(' 'distribute' REMAINING? to+ ')';
