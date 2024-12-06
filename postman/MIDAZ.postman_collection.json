@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "b8e21fb3-53bc-4301-b920-90987c5f8ead",
+		"_postman_id": "59eec27f-6d4f-4d1d-9beb-bf423dc59e7d",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "38928920"
+		"_exporter_id": "39008098"
 	},
 	"item": [
 		{
@@ -3144,6 +3144,59 @@
 							"body": "{\n    \"items\": [\n        {\n            \"id\": \"01939984-0ad7-7b34-aecd-2fc17b7bf9f5\",\n            \"organizationId\": \"01939983-8fa8-7b57-bc3e-1f24d0675781\",\n            \"ledgerId\": \"01939983-b0dd-7053-a0ba-6a31df62f7c0\",\n            \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n            \"from\": \"BRL\",\n            \"to\": \"USD\",\n            \"rate\": 600,\n            \"scale\": 2,\n            \"source\": \"External System\",\n            \"ttl\": 3600,\n            \"createdAt\": \"2024-12-05T22:09:47.863527-03:00\",\n            \"updatedAt\": \"2024-12-05T22:09:47.863527-03:00\",\n            \"metadata\": {\n                \"int\": 1,\n                \"string\": \"string\"\n            }\n        },\n        {\n            \"id\": \"01939983-f365-77c1-8223-732f60763a77\",\n            \"organizationId\": \"01939983-8fa8-7b57-bc3e-1f24d0675781\",\n            \"ledgerId\": \"01939983-b0dd-7053-a0ba-6a31df62f7c0\",\n            \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n            \"from\": \"BRL\",\n            \"to\": \"EUR\",\n            \"rate\": 600,\n            \"scale\": 2,\n            \"source\": \"External System\",\n            \"ttl\": 3600,\n            \"createdAt\": \"2024-12-05T22:09:41.861465-03:00\",\n            \"updatedAt\": \"2024-12-05T22:09:41.861465-03:00\",\n            \"metadata\": {\n                \"int\": 1,\n                \"string\": \"string\"\n            }\n        }\n    ],\n    \"page\": 1,\n    \"limit\": 10\n}"
 						}
 					]
+				}
+			]
+		},
+		{
+			"name": "Audit",
+			"item": [
+				{
+					"name": "Read audit logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_audit}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/audit/{{audit_id}}/read-logs",
+							"host": [
+								"{{url_audit}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"audit",
+								"{{audit_id}}",
+								"read-logs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Validate log values",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_audit}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/audit/{{audit_id}}/audit-logs",
+							"host": [
+								"{{url_audit}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"audit",
+								"{{audit_id}}",
+								"audit-logs"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		}
