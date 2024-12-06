@@ -20,17 +20,14 @@ definitions:
   AssetRate:
     description: AssetRate is a struct designed to store asset rate data.
     properties:
-      amount:
-        example: 5000
-        type: number
-      baseAssetCode:
-        example: BRL
-        type: string
-      counterAssetCode:
-        example: USD
-        type: string
       createdAt:
         example: "2021-01-01T00:00:00Z"
+        type: string
+      externalId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      from:
+        example: USD
         type: string
       id:
         example: 00000000-0000-0000-0000-000000000000
@@ -44,11 +41,23 @@ definitions:
       organizationId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
+      rate:
+        example: 100
+        type: number
       scale:
         example: 2
         type: number
       source:
-        example: '@person1'
+        example: External System
+        type: string
+      to:
+        example: BRL
+        type: string
+      ttl:
+        example: 3600
+        type: integer
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
         type: string
     type: object
   Balance:
@@ -67,24 +76,35 @@ definitions:
   CreateAssetRateInput:
     description: CreateAssetRateInput is the input payload to create an asset rate.
     properties:
-      amount:
-        example: 5000
-        type: number
-      baseAssetCode:
-        example: BRL
+      externalId:
+        example: 00000000-0000-0000-0000-000000000000
         type: string
-      counterAssetCode:
+      from:
         example: USD
         type: string
       metadata:
         additionalProperties: {}
         type: object
+      rate:
+        example: 100
+        type: integer
       scale:
         example: 2
-        type: number
+        minimum: 0
+        type: integer
       source:
-        example: '@person1'
+        example: External System
         type: string
+      to:
+        example: BRL
+        type: string
+      ttl:
+        example: 3600
+        type: integer
+    required:
+    - from
+    - rate
+    - to
     type: object
   CreateTransactionInput:
     description: CreateTransactionInput is the input payload to create a transaction.
@@ -377,7 +397,7 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Transaction API
-  version: "1.0"
+  version: 1.0.0
 paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
@@ -471,7 +491,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create an AssetRate with the input payload
+      description: Create or Update an AssetRate with the input details
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -505,12 +525,12 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/AssetRate'
-      summary: Create an AssetRate
+      summary: Create or Update an AssetRate
       tags:
       - Asset Rates
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id}:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
     get:
-      description: Get an AssetRate with the input ID
+      description: Get an AssetRate by External ID with the input details
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -531,17 +551,11 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: AssetRate ID
+      - description: External ID
         in: path
-        name: asset_rate_id
+        name: external_id
         required: true
         type: string
-      - description: AssetRate Input
-        in: body
-        name: asset-rate
-        required: true
-        schema:
-          $ref: '#/definitions/CreateAssetRateInput'
       produces:
       - application/json
       responses:
@@ -549,7 +563,60 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/AssetRate'
-      summary: Get an AssetRate by ID
+      summary: Get an AssetRate by External ID
+      tags:
+      - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
+    get:
+      description: Get an AssetRate by the Asset Code with the input details
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: From Asset Code
+        in: path
+        name: asset_code
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: To Asset Codes
+        example: '"BRL,USD,SGD"'
+        in: query
+        items:
+          type: string
+        name: to
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/AssetRate'
+                  type: array
+              type: object
+      summary: Get an AssetRate by the Asset Code
       tags:
       - Asset Rates
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:

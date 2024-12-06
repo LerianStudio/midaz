@@ -83,7 +83,7 @@ func ValidateCountryAddress(country string) error {
 
 // ValidateAccountType validate type values of accounts
 func ValidateAccountType(t string) error {
-	types := []string{"deposit", "savings", "loans", "marketplace", "creditCard", "external"}
+	types := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
 
 	if !slices.Contains(types, t) {
 		return cn.ErrInvalidAccountType

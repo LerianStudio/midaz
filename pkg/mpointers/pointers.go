@@ -22,6 +22,11 @@ func Int64(t int64) *int64 {
 	return &t
 }
 
+// Float64 just return given t as a pointer
+func Float64(t float64) *float64 {
+	return &t
+}
+
 // Int just return given t as a pointer
 func Int(t int) *int {
 	return &t
