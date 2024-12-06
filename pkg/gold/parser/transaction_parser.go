@@ -35,103 +35,109 @@ func transactionParserInit() {
 	staticData.LiteralNames = []string{
 		"", "'('", "'transaction'", "'transaction-template'", "')'", "'chart-of-accounts-group-name'",
 		"'code'", "'false'", "'true'", "'pending'", "'description'", "'chart-of-accounts'",
-		"'metadata'", "':amount'", "'|'", "':share'", "':of'", "':desc whatever'",
-		"'from'", "'send'", "'source'", "'to'", "'distribute'", "'V1'", "",
+		"'metadata'", "':amount'", "'|'", "':share'", "':of'", "'rate'", "'->'",
+		"'from'", "'source'", "'send'", "'to'", "'distribute'", "'V1'", "",
 		"", "", "':remaining'",
 	}
 	staticData.SymbolicNames = []string{
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-		"", "", "", "", "", "", "VERSION", "INT", "STRING", "UUID", "REMAINING",
+		"", "", "", "", "", "", "", "VERSION", "INT", "STRING", "UUID", "REMAINING",
 		"VARIABLE", "ACCOUNT", "WS",
 	}
 	staticData.RuleNames = []string{
 		"transaction", "chartOfAccountsGroupName", "code", "trueOrFalse", "pending",
 		"description", "chartOfAccounts", "metadata", "pair", "key", "value",
-		"valueOrVariable", "sendTypes", "account", "from", "send", "source",
-		"to", "distribute",
+		"valueOrVariable", "sendTypes", "account", "rate", "from", "source",
+		"send", "to", "distribute",
 	}
 	staticData.PredictionContextCache = antlr.NewPredictionContextCache()
 	staticData.serializedATN = []int32{
-		4, 1, 30, 193, 2, 0, 7, 0, 2, 1, 7, 1, 2, 2, 7, 2, 2, 3, 7, 3, 2, 4, 7,
+		4, 1, 31, 206, 2, 0, 7, 0, 2, 1, 7, 1, 2, 2, 7, 2, 2, 3, 7, 3, 2, 4, 7,
 		4, 2, 5, 7, 5, 2, 6, 7, 6, 2, 7, 7, 7, 2, 8, 7, 8, 2, 9, 7, 9, 2, 10, 7,
 		10, 2, 11, 7, 11, 2, 12, 7, 12, 2, 13, 7, 13, 2, 14, 7, 14, 2, 15, 7, 15,
-		2, 16, 7, 16, 2, 17, 7, 17, 2, 18, 7, 18, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
-		3, 0, 44, 8, 0, 1, 0, 3, 0, 47, 8, 0, 1, 0, 3, 0, 50, 8, 0, 1, 0, 3, 0,
-		53, 8, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-		2, 1, 2, 1, 2, 1, 2, 1, 3, 1, 3, 1, 4, 1, 4, 1, 4, 1, 4, 1, 4, 1, 5, 1,
-		5, 1, 5, 1, 5, 1, 5, 1, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1, 7, 1, 7, 1, 7, 4,
-		7, 89, 8, 7, 11, 7, 12, 7, 90, 1, 7, 1, 7, 1, 8, 1, 8, 1, 8, 1, 8, 1, 8,
-		1, 9, 1, 9, 1, 10, 1, 10, 1, 11, 1, 11, 1, 12, 1, 12, 1, 12, 1, 12, 1,
+		2, 16, 7, 16, 2, 17, 7, 17, 2, 18, 7, 18, 2, 19, 7, 19, 1, 0, 1, 0, 1,
+		0, 1, 0, 1, 0, 3, 0, 46, 8, 0, 1, 0, 3, 0, 49, 8, 0, 1, 0, 3, 0, 52, 8,
+		0, 1, 0, 3, 0, 55, 8, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 3, 1, 3, 1, 4, 1, 4, 1, 4, 1, 4,
+		1, 4, 1, 5, 1, 5, 1, 5, 1, 5, 1, 5, 1, 6, 1, 6, 1, 6, 1, 6, 1, 6, 1, 7,
+		1, 7, 1, 7, 4, 7, 91, 8, 7, 11, 7, 12, 7, 92, 1, 7, 1, 7, 1, 8, 1, 8, 1,
+		8, 1, 8, 1, 8, 1, 9, 1, 9, 1, 10, 1, 10, 1, 11, 1, 11, 1, 12, 1, 12, 1,
 		12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 1, 12,
-		1, 12, 1, 12, 1, 12, 1, 12, 1, 12, 3, 12, 126, 8, 12, 1, 13, 1, 13, 1,
-		14, 1, 14, 1, 14, 1, 14, 1, 14, 3, 14, 135, 8, 14, 1, 14, 3, 14, 138, 8,
-		14, 1, 14, 3, 14, 141, 8, 14, 1, 14, 1, 14, 1, 15, 1, 15, 1, 15, 1, 15,
-		1, 15, 1, 15, 1, 15, 1, 15, 1, 15, 1, 16, 1, 16, 1, 16, 3, 16, 157, 8,
-		16, 1, 16, 4, 16, 160, 8, 16, 11, 16, 12, 16, 161, 1, 16, 1, 16, 1, 17,
-		1, 17, 1, 17, 1, 17, 1, 17, 3, 17, 171, 8, 17, 1, 17, 3, 17, 174, 8, 17,
-		1, 17, 3, 17, 177, 8, 17, 1, 17, 1, 17, 1, 18, 1, 18, 1, 18, 3, 18, 184,
-		8, 18, 1, 18, 4, 18, 187, 8, 18, 11, 18, 12, 18, 188, 1, 18, 1, 18, 1,
-		18, 0, 0, 19, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30,
-		32, 34, 36, 0, 5, 1, 0, 2, 3, 1, 0, 7, 8, 2, 0, 24, 24, 26, 26, 2, 0, 24,
-		24, 28, 28, 2, 0, 26, 26, 28, 29, 192, 0, 38, 1, 0, 0, 0, 2, 58, 1, 0,
-		0, 0, 4, 63, 1, 0, 0, 0, 6, 68, 1, 0, 0, 0, 8, 70, 1, 0, 0, 0, 10, 75,
-		1, 0, 0, 0, 12, 80, 1, 0, 0, 0, 14, 85, 1, 0, 0, 0, 16, 94, 1, 0, 0, 0,
-		18, 99, 1, 0, 0, 0, 20, 101, 1, 0, 0, 0, 22, 103, 1, 0, 0, 0, 24, 125,
-		1, 0, 0, 0, 26, 127, 1, 0, 0, 0, 28, 129, 1, 0, 0, 0, 30, 144, 1, 0, 0,
-		0, 32, 153, 1, 0, 0, 0, 34, 165, 1, 0, 0, 0, 36, 180, 1, 0, 0, 0, 38, 39,
-		5, 1, 0, 0, 39, 40, 7, 0, 0, 0, 40, 41, 5, 23, 0, 0, 41, 43, 3, 2, 1, 0,
-		42, 44, 3, 10, 5, 0, 43, 42, 1, 0, 0, 0, 43, 44, 1, 0, 0, 0, 44, 46, 1,
-		0, 0, 0, 45, 47, 3, 4, 2, 0, 46, 45, 1, 0, 0, 0, 46, 47, 1, 0, 0, 0, 47,
-		49, 1, 0, 0, 0, 48, 50, 3, 8, 4, 0, 49, 48, 1, 0, 0, 0, 49, 50, 1, 0, 0,
-		0, 50, 52, 1, 0, 0, 0, 51, 53, 3, 14, 7, 0, 52, 51, 1, 0, 0, 0, 52, 53,
-		1, 0, 0, 0, 53, 54, 1, 0, 0, 0, 54, 55, 3, 30, 15, 0, 55, 56, 3, 36, 18,
-		0, 56, 57, 5, 4, 0, 0, 57, 1, 1, 0, 0, 0, 58, 59, 5, 1, 0, 0, 59, 60, 5,
-		5, 0, 0, 60, 61, 5, 26, 0, 0, 61, 62, 5, 4, 0, 0, 62, 3, 1, 0, 0, 0, 63,
-		64, 5, 1, 0, 0, 64, 65, 5, 6, 0, 0, 65, 66, 5, 26, 0, 0, 66, 67, 5, 4,
-		0, 0, 67, 5, 1, 0, 0, 0, 68, 69, 7, 1, 0, 0, 69, 7, 1, 0, 0, 0, 70, 71,
-		5, 1, 0, 0, 71, 72, 5, 9, 0, 0, 72, 73, 3, 6, 3, 0, 73, 74, 5, 4, 0, 0,
-		74, 9, 1, 0, 0, 0, 75, 76, 5, 1, 0, 0, 76, 77, 5, 10, 0, 0, 77, 78, 5,
-		25, 0, 0, 78, 79, 5, 4, 0, 0, 79, 11, 1, 0, 0, 0, 80, 81, 5, 1, 0, 0, 81,
-		82, 5, 11, 0, 0, 82, 83, 5, 26, 0, 0, 83, 84, 5, 4, 0, 0, 84, 13, 1, 0,
-		0, 0, 85, 86, 5, 1, 0, 0, 86, 88, 5, 12, 0, 0, 87, 89, 3, 16, 8, 0, 88,
-		87, 1, 0, 0, 0, 89, 90, 1, 0, 0, 0, 90, 88, 1, 0, 0, 0, 90, 91, 1, 0, 0,
-		0, 91, 92, 1, 0, 0, 0, 92, 93, 5, 4, 0, 0, 93, 15, 1, 0, 0, 0, 94, 95,
-		5, 1, 0, 0, 95, 96, 3, 18, 9, 0, 96, 97, 3, 20, 10, 0, 97, 98, 5, 4, 0,
-		0, 98, 17, 1, 0, 0, 0, 99, 100, 7, 2, 0, 0, 100, 19, 1, 0, 0, 0, 101, 102,
-		7, 2, 0, 0, 102, 21, 1, 0, 0, 0, 103, 104, 7, 3, 0, 0, 104, 23, 1, 0, 0,
-		0, 105, 106, 5, 13, 0, 0, 106, 107, 5, 26, 0, 0, 107, 108, 3, 22, 11, 0,
-		108, 109, 5, 14, 0, 0, 109, 110, 3, 22, 11, 0, 110, 126, 1, 0, 0, 0, 111,
-		112, 5, 15, 0, 0, 112, 113, 3, 22, 11, 0, 113, 114, 5, 16, 0, 0, 114, 115,
-		3, 22, 11, 0, 115, 116, 5, 17, 0, 0, 116, 126, 1, 0, 0, 0, 117, 118, 5,
-		15, 0, 0, 118, 119, 3, 22, 11, 0, 119, 120, 5, 16, 0, 0, 120, 121, 3, 22,
-		11, 0, 121, 126, 1, 0, 0, 0, 122, 123, 5, 15, 0, 0, 123, 126, 3, 22, 11,
-		0, 124, 126, 5, 27, 0, 0, 125, 105, 1, 0, 0, 0, 125, 111, 1, 0, 0, 0, 125,
-		117, 1, 0, 0, 0, 125, 122, 1, 0, 0, 0, 125, 124, 1, 0, 0, 0, 126, 25, 1,
-		0, 0, 0, 127, 128, 7, 4, 0, 0, 128, 27, 1, 0, 0, 0, 129, 130, 5, 1, 0,
-		0, 130, 131, 5, 18, 0, 0, 131, 132, 3, 26, 13, 0, 132, 134, 3, 24, 12,
-		0, 133, 135, 3, 10, 5, 0, 134, 133, 1, 0, 0, 0, 134, 135, 1, 0, 0, 0, 135,
-		137, 1, 0, 0, 0, 136, 138, 3, 12, 6, 0, 137, 136, 1, 0, 0, 0, 137, 138,
-		1, 0, 0, 0, 138, 140, 1, 0, 0, 0, 139, 141, 3, 14, 7, 0, 140, 139, 1, 0,
-		0, 0, 140, 141, 1, 0, 0, 0, 141, 142, 1, 0, 0, 0, 142, 143, 5, 4, 0, 0,
-		143, 29, 1, 0, 0, 0, 144, 145, 5, 1, 0, 0, 145, 146, 5, 19, 0, 0, 146,
-		147, 5, 26, 0, 0, 147, 148, 3, 22, 11, 0, 148, 149, 5, 14, 0, 0, 149, 150,
-		3, 22, 11, 0, 150, 151, 3, 32, 16, 0, 151, 152, 5, 4, 0, 0, 152, 31, 1,
-		0, 0, 0, 153, 154, 5, 1, 0, 0, 154, 156, 5, 20, 0, 0, 155, 157, 5, 27,
-		0, 0, 156, 155, 1, 0, 0, 0, 156, 157, 1, 0, 0, 0, 157, 159, 1, 0, 0, 0,
-		158, 160, 3, 28, 14, 0, 159, 158, 1, 0, 0, 0, 160, 161, 1, 0, 0, 0, 161,
-		159, 1, 0, 0, 0, 161, 162, 1, 0, 0, 0, 162, 163, 1, 0, 0, 0, 163, 164,
-		5, 4, 0, 0, 164, 33, 1, 0, 0, 0, 165, 166, 5, 1, 0, 0, 166, 167, 5, 21,
-		0, 0, 167, 168, 3, 26, 13, 0, 168, 170, 3, 24, 12, 0, 169, 171, 3, 10,
-		5, 0, 170, 169, 1, 0, 0, 0, 170, 171, 1, 0, 0, 0, 171, 173, 1, 0, 0, 0,
-		172, 174, 3, 12, 6, 0, 173, 172, 1, 0, 0, 0, 173, 174, 1, 0, 0, 0, 174,
-		176, 1, 0, 0, 0, 175, 177, 3, 14, 7, 0, 176, 175, 1, 0, 0, 0, 176, 177,
-		1, 0, 0, 0, 177, 178, 1, 0, 0, 0, 178, 179, 5, 4, 0, 0, 179, 35, 1, 0,
-		0, 0, 180, 181, 5, 1, 0, 0, 181, 183, 5, 22, 0, 0, 182, 184, 5, 27, 0,
-		0, 183, 182, 1, 0, 0, 0, 183, 184, 1, 0, 0, 0, 184, 186, 1, 0, 0, 0, 185,
-		187, 3, 34, 17, 0, 186, 185, 1, 0, 0, 0, 187, 188, 1, 0, 0, 0, 188, 186,
-		1, 0, 0, 0, 188, 189, 1, 0, 0, 0, 189, 190, 1, 0, 0, 0, 190, 191, 5, 4,
-		0, 0, 191, 37, 1, 0, 0, 0, 16, 43, 46, 49, 52, 90, 125, 134, 137, 140,
-		156, 161, 170, 173, 176, 183, 188,
+		1, 12, 3, 12, 122, 8, 12, 1, 13, 1, 13, 1, 14, 1, 14, 1, 14, 1, 14, 1,
+		14, 1, 14, 1, 14, 1, 14, 1, 14, 1, 14, 1, 14, 1, 15, 1, 15, 1, 15, 1, 15,
+		1, 15, 3, 15, 142, 8, 15, 1, 15, 3, 15, 145, 8, 15, 1, 15, 3, 15, 148,
+		8, 15, 1, 15, 3, 15, 151, 8, 15, 1, 15, 1, 15, 1, 16, 1, 16, 1, 16, 3,
+		16, 158, 8, 16, 1, 16, 4, 16, 161, 8, 16, 11, 16, 12, 16, 162, 1, 16, 1,
+		16, 1, 17, 1, 17, 1, 17, 1, 17, 1, 17, 1, 17, 1, 17, 1, 17, 1, 17, 1, 18,
+		1, 18, 1, 18, 1, 18, 1, 18, 3, 18, 181, 8, 18, 1, 18, 3, 18, 184, 8, 18,
+		1, 18, 3, 18, 187, 8, 18, 1, 18, 3, 18, 190, 8, 18, 1, 18, 1, 18, 1, 19,
+		1, 19, 1, 19, 3, 19, 197, 8, 19, 1, 19, 4, 19, 200, 8, 19, 11, 19, 12,
+		19, 201, 1, 19, 1, 19, 1, 19, 0, 0, 20, 0, 2, 4, 6, 8, 10, 12, 14, 16,
+		18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 0, 5, 1, 0, 2, 3, 1, 0, 7,
+		8, 2, 0, 25, 25, 27, 27, 2, 0, 25, 25, 29, 29, 2, 0, 27, 27, 29, 30, 205,
+		0, 40, 1, 0, 0, 0, 2, 60, 1, 0, 0, 0, 4, 65, 1, 0, 0, 0, 6, 70, 1, 0, 0,
+		0, 8, 72, 1, 0, 0, 0, 10, 77, 1, 0, 0, 0, 12, 82, 1, 0, 0, 0, 14, 87, 1,
+		0, 0, 0, 16, 96, 1, 0, 0, 0, 18, 101, 1, 0, 0, 0, 20, 103, 1, 0, 0, 0,
+		22, 105, 1, 0, 0, 0, 24, 121, 1, 0, 0, 0, 26, 123, 1, 0, 0, 0, 28, 125,
+		1, 0, 0, 0, 30, 136, 1, 0, 0, 0, 32, 154, 1, 0, 0, 0, 34, 166, 1, 0, 0,
+		0, 36, 175, 1, 0, 0, 0, 38, 193, 1, 0, 0, 0, 40, 41, 5, 1, 0, 0, 41, 42,
+		7, 0, 0, 0, 42, 43, 5, 24, 0, 0, 43, 45, 3, 2, 1, 0, 44, 46, 3, 10, 5,
+		0, 45, 44, 1, 0, 0, 0, 45, 46, 1, 0, 0, 0, 46, 48, 1, 0, 0, 0, 47, 49,
+		3, 4, 2, 0, 48, 47, 1, 0, 0, 0, 48, 49, 1, 0, 0, 0, 49, 51, 1, 0, 0, 0,
+		50, 52, 3, 8, 4, 0, 51, 50, 1, 0, 0, 0, 51, 52, 1, 0, 0, 0, 52, 54, 1,
+		0, 0, 0, 53, 55, 3, 14, 7, 0, 54, 53, 1, 0, 0, 0, 54, 55, 1, 0, 0, 0, 55,
+		56, 1, 0, 0, 0, 56, 57, 3, 34, 17, 0, 57, 58, 3, 38, 19, 0, 58, 59, 5,
+		4, 0, 0, 59, 1, 1, 0, 0, 0, 60, 61, 5, 1, 0, 0, 61, 62, 5, 5, 0, 0, 62,
+		63, 5, 27, 0, 0, 63, 64, 5, 4, 0, 0, 64, 3, 1, 0, 0, 0, 65, 66, 5, 1, 0,
+		0, 66, 67, 5, 6, 0, 0, 67, 68, 5, 27, 0, 0, 68, 69, 5, 4, 0, 0, 69, 5,
+		1, 0, 0, 0, 70, 71, 7, 1, 0, 0, 71, 7, 1, 0, 0, 0, 72, 73, 5, 1, 0, 0,
+		73, 74, 5, 9, 0, 0, 74, 75, 3, 6, 3, 0, 75, 76, 5, 4, 0, 0, 76, 9, 1, 0,
+		0, 0, 77, 78, 5, 1, 0, 0, 78, 79, 5, 10, 0, 0, 79, 80, 5, 26, 0, 0, 80,
+		81, 5, 4, 0, 0, 81, 11, 1, 0, 0, 0, 82, 83, 5, 1, 0, 0, 83, 84, 5, 11,
+		0, 0, 84, 85, 5, 27, 0, 0, 85, 86, 5, 4, 0, 0, 86, 13, 1, 0, 0, 0, 87,
+		88, 5, 1, 0, 0, 88, 90, 5, 12, 0, 0, 89, 91, 3, 16, 8, 0, 90, 89, 1, 0,
+		0, 0, 91, 92, 1, 0, 0, 0, 92, 90, 1, 0, 0, 0, 92, 93, 1, 0, 0, 0, 93, 94,
+		1, 0, 0, 0, 94, 95, 5, 4, 0, 0, 95, 15, 1, 0, 0, 0, 96, 97, 5, 1, 0, 0,
+		97, 98, 3, 18, 9, 0, 98, 99, 3, 20, 10, 0, 99, 100, 5, 4, 0, 0, 100, 17,
+		1, 0, 0, 0, 101, 102, 7, 2, 0, 0, 102, 19, 1, 0, 0, 0, 103, 104, 7, 2,
+		0, 0, 104, 21, 1, 0, 0, 0, 105, 106, 7, 3, 0, 0, 106, 23, 1, 0, 0, 0, 107,
+		108, 5, 13, 0, 0, 108, 109, 5, 27, 0, 0, 109, 110, 3, 22, 11, 0, 110, 111,
+		5, 14, 0, 0, 111, 112, 3, 22, 11, 0, 112, 122, 1, 0, 0, 0, 113, 114, 5,
+		15, 0, 0, 114, 115, 3, 22, 11, 0, 115, 116, 5, 16, 0, 0, 116, 117, 3, 22,
+		11, 0, 117, 122, 1, 0, 0, 0, 118, 119, 5, 15, 0, 0, 119, 122, 3, 22, 11,
+		0, 120, 122, 5, 28, 0, 0, 121, 107, 1, 0, 0, 0, 121, 113, 1, 0, 0, 0, 121,
+		118, 1, 0, 0, 0, 121, 120, 1, 0, 0, 0, 122, 25, 1, 0, 0, 0, 123, 124, 7,
+		4, 0, 0, 124, 27, 1, 0, 0, 0, 125, 126, 5, 1, 0, 0, 126, 127, 5, 17, 0,
+		0, 127, 128, 5, 27, 0, 0, 128, 129, 5, 27, 0, 0, 129, 130, 5, 18, 0, 0,
+		130, 131, 5, 27, 0, 0, 131, 132, 3, 22, 11, 0, 132, 133, 5, 14, 0, 0, 133,
+		134, 3, 22, 11, 0, 134, 135, 5, 4, 0, 0, 135, 29, 1, 0, 0, 0, 136, 137,
+		5, 1, 0, 0, 137, 138, 5, 19, 0, 0, 138, 139, 3, 26, 13, 0, 139, 141, 3,
+		24, 12, 0, 140, 142, 3, 28, 14, 0, 141, 140, 1, 0, 0, 0, 141, 142, 1, 0,
+		0, 0, 142, 144, 1, 0, 0, 0, 143, 145, 3, 10, 5, 0, 144, 143, 1, 0, 0, 0,
+		144, 145, 1, 0, 0, 0, 145, 147, 1, 0, 0, 0, 146, 148, 3, 12, 6, 0, 147,
+		146, 1, 0, 0, 0, 147, 148, 1, 0, 0, 0, 148, 150, 1, 0, 0, 0, 149, 151,
+		3, 14, 7, 0, 150, 149, 1, 0, 0, 0, 150, 151, 1, 0, 0, 0, 151, 152, 1, 0,
+		0, 0, 152, 153, 5, 4, 0, 0, 153, 31, 1, 0, 0, 0, 154, 155, 5, 1, 0, 0,
+		155, 157, 5, 20, 0, 0, 156, 158, 5, 28, 0, 0, 157, 156, 1, 0, 0, 0, 157,
+		158, 1, 0, 0, 0, 158, 160, 1, 0, 0, 0, 159, 161, 3, 30, 15, 0, 160, 159,
+		1, 0, 0, 0, 161, 162, 1, 0, 0, 0, 162, 160, 1, 0, 0, 0, 162, 163, 1, 0,
+		0, 0, 163, 164, 1, 0, 0, 0, 164, 165, 5, 4, 0, 0, 165, 33, 1, 0, 0, 0,
+		166, 167, 5, 1, 0, 0, 167, 168, 5, 21, 0, 0, 168, 169, 5, 27, 0, 0, 169,
+		170, 3, 22, 11, 0, 170, 171, 5, 14, 0, 0, 171, 172, 3, 22, 11, 0, 172,
+		173, 3, 32, 16, 0, 173, 174, 5, 4, 0, 0, 174, 35, 1, 0, 0, 0, 175, 176,
+		5, 1, 0, 0, 176, 177, 5, 22, 0, 0, 177, 178, 3, 26, 13, 0, 178, 180, 3,
+		24, 12, 0, 179, 181, 3, 28, 14, 0, 180, 179, 1, 0, 0, 0, 180, 181, 1, 0,
+		0, 0, 181, 183, 1, 0, 0, 0, 182, 184, 3, 10, 5, 0, 183, 182, 1, 0, 0, 0,
+		183, 184, 1, 0, 0, 0, 184, 186, 1, 0, 0, 0, 185, 187, 3, 12, 6, 0, 186,
+		185, 1, 0, 0, 0, 186, 187, 1, 0, 0, 0, 187, 189, 1, 0, 0, 0, 188, 190,
+		3, 14, 7, 0, 189, 188, 1, 0, 0, 0, 189, 190, 1, 0, 0, 0, 190, 191, 1, 0,
+		0, 0, 191, 192, 5, 4, 0, 0, 192, 37, 1, 0, 0, 0, 193, 194, 5, 1, 0, 0,
+		194, 196, 5, 23, 0, 0, 195, 197, 5, 28, 0, 0, 196, 195, 1, 0, 0, 0, 196,
+		197, 1, 0, 0, 0, 197, 199, 1, 0, 0, 0, 198, 200, 3, 36, 18, 0, 199, 198,
+		1, 0, 0, 0, 200, 201, 1, 0, 0, 0, 201, 199, 1, 0, 0, 0, 201, 202, 1, 0,
+		0, 0, 202, 203, 1, 0, 0, 0, 203, 204, 5, 4, 0, 0, 204, 39, 1, 0, 0, 0,
+		18, 45, 48, 51, 54, 92, 121, 141, 144, 147, 150, 157, 162, 180, 183, 186,
+		189, 196, 201,
 	}
 	deserializer := antlr.NewATNDeserializer(nil)
 	staticData.atn = deserializer.Deserialize(staticData.serializedATN)
@@ -192,14 +198,15 @@ const (
 	TransactionParserT__19     = 20
 	TransactionParserT__20     = 21
 	TransactionParserT__21     = 22
-	TransactionParserVERSION   = 23
-	TransactionParserINT       = 24
-	TransactionParserSTRING    = 25
-	TransactionParserUUID      = 26
-	TransactionParserREMAINING = 27
-	TransactionParserVARIABLE  = 28
-	TransactionParserACCOUNT   = 29
-	TransactionParserWS        = 30
+	TransactionParserT__22     = 23
+	TransactionParserVERSION   = 24
+	TransactionParserINT       = 25
+	TransactionParserSTRING    = 26
+	TransactionParserUUID      = 27
+	TransactionParserREMAINING = 28
+	TransactionParserVARIABLE  = 29
+	TransactionParserACCOUNT   = 30
+	TransactionParserWS        = 31
 )
 
 // TransactionParser rules.
@@ -218,11 +225,12 @@ const (
 	TransactionParserRULE_valueOrVariable          = 11
 	TransactionParserRULE_sendTypes                = 12
 	TransactionParserRULE_account                  = 13
-	TransactionParserRULE_from                     = 14
-	TransactionParserRULE_send                     = 15
+	TransactionParserRULE_rate                     = 14
+	TransactionParserRULE_from                     = 15
 	TransactionParserRULE_source                   = 16
-	TransactionParserRULE_to                       = 17
-	TransactionParserRULE_distribute               = 18
+	TransactionParserRULE_send                     = 17
+	TransactionParserRULE_to                       = 18
+	TransactionParserRULE_distribute               = 19
 )
 
 // ITransactionContext is an interface to support dynamic dispatch.
@@ -431,7 +439,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(38)
+		p.SetState(40)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -439,7 +447,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 		}
 	}
 	{
-		p.SetState(39)
+		p.SetState(41)
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserT__1 || _la == TransactionParserT__2) {
@@ -450,7 +458,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 		}
 	}
 	{
-		p.SetState(40)
+		p.SetState(42)
 		p.Match(TransactionParserVERSION)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -458,51 +466,51 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 		}
 	}
 	{
-		p.SetState(41)
+		p.SetState(43)
 		p.ChartOfAccountsGroupName()
 	}
-	p.SetState(43)
+	p.SetState(45)
 	p.GetErrorHandler().Sync(p)
 
 	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 0, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(42)
+			p.SetState(44)
 			p.Description()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(46)
+	p.SetState(48)
 	p.GetErrorHandler().Sync(p)
 
 	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 1, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(45)
+			p.SetState(47)
 			p.Code()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(49)
+	p.SetState(51)
 	p.GetErrorHandler().Sync(p)
 
 	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 2, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(48)
+			p.SetState(50)
 			p.Pending()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(52)
+	p.SetState(54)
 	p.GetErrorHandler().Sync(p)
 
 	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 3, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(51)
+			p.SetState(53)
 			p.Metadata()
 		}
 
@@ -510,15 +518,15 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 		goto errorExit
 	}
 	{
-		p.SetState(54)
+		p.SetState(56)
 		p.Send()
 	}
 	{
-		p.SetState(55)
+		p.SetState(57)
 		p.Distribute()
 	}
 	{
-		p.SetState(56)
+		p.SetState(58)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -624,7 +632,7 @@ func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccount
 	p.EnterRule(localctx, 2, TransactionParserRULE_chartOfAccountsGroupName)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(58)
+		p.SetState(60)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -632,7 +640,7 @@ func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccount
 		}
 	}
 	{
-		p.SetState(59)
+		p.SetState(61)
 		p.Match(TransactionParserT__4)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -640,7 +648,7 @@ func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccount
 		}
 	}
 	{
-		p.SetState(60)
+		p.SetState(62)
 		p.Match(TransactionParserUUID)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -648,7 +656,7 @@ func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccount
 		}
 	}
 	{
-		p.SetState(61)
+		p.SetState(63)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -754,7 +762,7 @@ func (p *TransactionParser) Code() (localctx ICodeContext) {
 	p.EnterRule(localctx, 4, TransactionParserRULE_code)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(63)
+		p.SetState(65)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -762,7 +770,7 @@ func (p *TransactionParser) Code() (localctx ICodeContext) {
 		}
 	}
 	{
-		p.SetState(64)
+		p.SetState(66)
 		p.Match(TransactionParserT__5)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -770,7 +778,7 @@ func (p *TransactionParser) Code() (localctx ICodeContext) {
 		}
 	}
 	{
-		p.SetState(65)
+		p.SetState(67)
 		p.Match(TransactionParserUUID)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -778,7 +786,7 @@ func (p *TransactionParser) Code() (localctx ICodeContext) {
 		}
 	}
 	{
-		p.SetState(66)
+		p.SetState(68)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -877,7 +885,7 @@ func (p *TransactionParser) TrueOrFalse() (localctx ITrueOrFalseContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(68)
+		p.SetState(70)
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserT__6 || _la == TransactionParserT__7) {
@@ -998,7 +1006,7 @@ func (p *TransactionParser) Pending() (localctx IPendingContext) {
 	p.EnterRule(localctx, 8, TransactionParserRULE_pending)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(70)
+		p.SetState(72)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1006,7 +1014,7 @@ func (p *TransactionParser) Pending() (localctx IPendingContext) {
 		}
 	}
 	{
-		p.SetState(71)
+		p.SetState(73)
 		p.Match(TransactionParserT__8)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1014,11 +1022,11 @@ func (p *TransactionParser) Pending() (localctx IPendingContext) {
 		}
 	}
 	{
-		p.SetState(72)
+		p.SetState(74)
 		p.TrueOrFalse()
 	}
 	{
-		p.SetState(73)
+		p.SetState(75)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1124,7 +1132,7 @@ func (p *TransactionParser) Description() (localctx IDescriptionContext) {
 	p.EnterRule(localctx, 10, TransactionParserRULE_description)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(75)
+		p.SetState(77)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1132,7 +1140,7 @@ func (p *TransactionParser) Description() (localctx IDescriptionContext) {
 		}
 	}
 	{
-		p.SetState(76)
+		p.SetState(78)
 		p.Match(TransactionParserT__9)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1140,7 +1148,7 @@ func (p *TransactionParser) Description() (localctx IDescriptionContext) {
 		}
 	}
 	{
-		p.SetState(77)
+		p.SetState(79)
 		p.Match(TransactionParserSTRING)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1148,7 +1156,7 @@ func (p *TransactionParser) Description() (localctx IDescriptionContext) {
 		}
 	}
 	{
-		p.SetState(78)
+		p.SetState(80)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1254,7 +1262,7 @@ func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext)
 	p.EnterRule(localctx, 12, TransactionParserRULE_chartOfAccounts)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(80)
+		p.SetState(82)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1262,7 +1270,7 @@ func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext)
 		}
 	}
 	{
-		p.SetState(81)
+		p.SetState(83)
 		p.Match(TransactionParserT__10)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1270,7 +1278,7 @@ func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext)
 		}
 	}
 	{
-		p.SetState(82)
+		p.SetState(84)
 		p.Match(TransactionParserUUID)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1278,7 +1286,7 @@ func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext)
 		}
 	}
 	{
-		p.SetState(83)
+		p.SetState(85)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1424,7 +1432,7 @@ func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(85)
+		p.SetState(87)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1432,14 +1440,14 @@ func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 		}
 	}
 	{
-		p.SetState(86)
+		p.SetState(88)
 		p.Match(TransactionParserT__11)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
-	p.SetState(88)
+	p.SetState(90)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -1448,11 +1456,11 @@ func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 
 	for ok := true; ok; ok = _la == TransactionParserT__0 {
 		{
-			p.SetState(87)
+			p.SetState(89)
 			p.Pair()
 		}
 
-		p.SetState(90)
+		p.SetState(92)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -1460,7 +1468,7 @@ func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
-		p.SetState(92)
+		p.SetState(94)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1595,7 +1603,7 @@ func (p *TransactionParser) Pair() (localctx IPairContext) {
 	p.EnterRule(localctx, 16, TransactionParserRULE_pair)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(94)
+		p.SetState(96)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1603,15 +1611,15 @@ func (p *TransactionParser) Pair() (localctx IPairContext) {
 		}
 	}
 	{
-		p.SetState(95)
+		p.SetState(97)
 		p.Key()
 	}
 	{
-		p.SetState(96)
+		p.SetState(98)
 		p.Value()
 	}
 	{
-		p.SetState(97)
+		p.SetState(99)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -1724,7 +1732,7 @@ func (p *TransactionParser) Key() (localctx IKeyContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(99)
+		p.SetState(101)
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserINT || _la == TransactionParserUUID) {
@@ -1840,7 +1848,7 @@ func (p *TransactionParser) Value() (localctx IValueContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(101)
+		p.SetState(103)
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserINT || _la == TransactionParserUUID) {
@@ -1956,7 +1964,7 @@ func (p *TransactionParser) ValueOrVariable() (localctx IValueOrVariableContext)
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(103)
+		p.SetState(105)
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserINT || _la == TransactionParserVARIABLE) {
@@ -2032,87 +2040,6 @@ func (s *SendTypesContext) GetRuleContext() antlr.RuleContext {
 
 func (s *SendTypesContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
-}
-
-type ShareDescWhateverContext struct {
-	SendTypesContext
-}
-
-func NewShareDescWhateverContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ShareDescWhateverContext {
-	var p = new(ShareDescWhateverContext)
-
-	InitEmptySendTypesContext(&p.SendTypesContext)
-	p.parser = parser
-	p.CopyAll(ctx.(*SendTypesContext))
-
-	return p
-}
-
-func (s *ShareDescWhateverContext) GetRuleContext() antlr.RuleContext {
-	return s
-}
-
-func (s *ShareDescWhateverContext) AllValueOrVariable() []IValueOrVariableContext {
-	children := s.GetChildren()
-	len := 0
-	for _, ctx := range children {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
-			len++
-		}
-	}
-
-	tst := make([]IValueOrVariableContext, len)
-	i := 0
-	for _, ctx := range children {
-		if t, ok := ctx.(IValueOrVariableContext); ok {
-			tst[i] = t.(IValueOrVariableContext)
-			i++
-		}
-	}
-
-	return tst
-}
-
-func (s *ShareDescWhateverContext) ValueOrVariable(i int) IValueOrVariableContext {
-	var t antlr.RuleContext
-	j := 0
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IValueOrVariableContext); ok {
-			if j == i {
-				t = ctx.(antlr.RuleContext)
-				break
-			}
-			j++
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IValueOrVariableContext)
-}
-
-func (s *ShareDescWhateverContext) EnterRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(TransactionListener); ok {
-		listenerT.EnterShareDescWhatever(s)
-	}
-}
-
-func (s *ShareDescWhateverContext) ExitRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(TransactionListener); ok {
-		listenerT.ExitShareDescWhatever(s)
-	}
-}
-
-func (s *ShareDescWhateverContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
-	switch t := visitor.(type) {
-	case TransactionVisitor:
-		return t.VisitShareDescWhatever(s)
-
-	default:
-		return t.VisitChildren(s)
-	}
 }
 
 type ShareIntContext struct {
@@ -2384,7 +2311,7 @@ func (s *RemainingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 	localctx = NewSendTypesContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 24, TransactionParserRULE_sendTypes)
-	p.SetState(125)
+	p.SetState(121)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -2395,7 +2322,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		localctx = NewAmountContext(p, localctx)
 		p.EnterOuterAlt(localctx, 1)
 		{
-			p.SetState(105)
+			p.SetState(107)
 			p.Match(TransactionParserT__12)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -2403,20 +2330,8 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 			}
 		}
 		{
-			p.SetState(106)
-			p.Match(TransactionParserUUID)
-			if p.HasError() {
-				// Recognition error - abort rule
-				goto errorExit
-			}
-		}
-		{
-			p.SetState(107)
-			p.ValueOrVariable()
-		}
-		{
 			p.SetState(108)
-			p.Match(TransactionParserT__13)
+			p.Match(TransactionParserUUID)
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
@@ -2426,25 +2341,25 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 			p.SetState(109)
 			p.ValueOrVariable()
 		}
-
-	case 2:
-		localctx = NewShareDescWhateverContext(p, localctx)
-		p.EnterOuterAlt(localctx, 2)
 		{
-			p.SetState(111)
-			p.Match(TransactionParserT__14)
+			p.SetState(110)
+			p.Match(TransactionParserT__13)
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
 		}
 		{
-			p.SetState(112)
+			p.SetState(111)
 			p.ValueOrVariable()
 		}
+
+	case 2:
+		localctx = NewShareIntOfIntContext(p, localctx)
+		p.EnterOuterAlt(localctx, 2)
 		{
 			p.SetState(113)
-			p.Match(TransactionParserT__15)
+			p.Match(TransactionParserT__14)
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
@@ -2456,30 +2371,6 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		}
 		{
 			p.SetState(115)
-			p.Match(TransactionParserT__16)
-			if p.HasError() {
-				// Recognition error - abort rule
-				goto errorExit
-			}
-		}
-
-	case 3:
-		localctx = NewShareIntOfIntContext(p, localctx)
-		p.EnterOuterAlt(localctx, 3)
-		{
-			p.SetState(117)
-			p.Match(TransactionParserT__14)
-			if p.HasError() {
-				// Recognition error - abort rule
-				goto errorExit
-			}
-		}
-		{
-			p.SetState(118)
-			p.ValueOrVariable()
-		}
-		{
-			p.SetState(119)
 			p.Match(TransactionParserT__15)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -2487,15 +2378,15 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 			}
 		}
 		{
-			p.SetState(120)
+			p.SetState(116)
 			p.ValueOrVariable()
 		}
 
-	case 4:
+	case 3:
 		localctx = NewShareIntContext(p, localctx)
-		p.EnterOuterAlt(localctx, 4)
+		p.EnterOuterAlt(localctx, 3)
 		{
-			p.SetState(122)
+			p.SetState(118)
 			p.Match(TransactionParserT__14)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -2503,15 +2394,15 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 			}
 		}
 		{
-			p.SetState(123)
+			p.SetState(119)
 			p.ValueOrVariable()
 		}
 
-	case 5:
+	case 4:
 		localctx = NewRemainingContext(p, localctx)
-		p.EnterOuterAlt(localctx, 5)
+		p.EnterOuterAlt(localctx, 4)
 		{
-			p.SetState(124)
+			p.SetState(120)
 			p.Match(TransactionParserREMAINING)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -2633,14 +2524,232 @@ func (p *TransactionParser) Account() (localctx IAccountContext) {
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(127)
+		p.SetState(123)
 		_la = p.GetTokenStream().LA(1)
 
-		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&872415232) != 0) {
+		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&1744830464) != 0) {
 			p.GetErrorHandler().RecoverInline(p)
 		} else {
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
+		}
+	}
+
+errorExit:
+	if p.HasError() {
+		v := p.GetError()
+		localctx.SetException(v)
+		p.GetErrorHandler().ReportError(p, v)
+		p.GetErrorHandler().Recover(p, v)
+		p.SetError(nil)
+	}
+	p.ExitRule()
+	return localctx
+	goto errorExit // Trick to prevent compiler error if the label is not used
+}
+
+// IRateContext is an interface to support dynamic dispatch.
+type IRateContext interface {
+	antlr.ParserRuleContext
+
+	// GetParser returns the parser.
+	GetParser() antlr.Parser
+
+	// Getter signatures
+	AllUUID() []antlr.TerminalNode
+	UUID(i int) antlr.TerminalNode
+	AllValueOrVariable() []IValueOrVariableContext
+	ValueOrVariable(i int) IValueOrVariableContext
+
+	// IsRateContext differentiates from other interfaces.
+	IsRateContext()
+}
+
+type RateContext struct {
+	antlr.BaseParserRuleContext
+	parser antlr.Parser
+}
+
+func NewEmptyRateContext() *RateContext {
+	var p = new(RateContext)
+	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+	p.RuleIndex = TransactionParserRULE_rate
+	return p
+}
+
+func InitEmptyRateContext(p *RateContext) {
+	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+	p.RuleIndex = TransactionParserRULE_rate
+}
+
+func (*RateContext) IsRateContext() {}
+
+func NewRateContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *RateContext {
+	var p = new(RateContext)
+
+	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
+
+	p.parser = parser
+	p.RuleIndex = TransactionParserRULE_rate
+
+	return p
+}
+
+func (s *RateContext) GetParser() antlr.Parser { return s.parser }
+
+func (s *RateContext) AllUUID() []antlr.TerminalNode {
+	return s.GetTokens(TransactionParserUUID)
+}
+
+func (s *RateContext) UUID(i int) antlr.TerminalNode {
+	return s.GetToken(TransactionParserUUID, i)
+}
+
+func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext {
+	children := s.GetChildren()
+	len := 0
+	for _, ctx := range children {
+		if _, ok := ctx.(IValueOrVariableContext); ok {
+			len++
+		}
+	}
+
+	tst := make([]IValueOrVariableContext, len)
+	i := 0
+	for _, ctx := range children {
+		if t, ok := ctx.(IValueOrVariableContext); ok {
+			tst[i] = t.(IValueOrVariableContext)
+			i++
+		}
+	}
+
+	return tst
+}
+
+func (s *RateContext) ValueOrVariable(i int) IValueOrVariableContext {
+	var t antlr.RuleContext
+	j := 0
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IValueOrVariableContext); ok {
+			if j == i {
+				t = ctx.(antlr.RuleContext)
+				break
+			}
+			j++
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IValueOrVariableContext)
+}
+
+func (s *RateContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *RateContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+	return antlr.TreesStringTree(s, ruleNames, recog)
+}
+
+func (s *RateContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(TransactionListener); ok {
+		listenerT.EnterRate(s)
+	}
+}
+
+func (s *RateContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(TransactionListener); ok {
+		listenerT.ExitRate(s)
+	}
+}
+
+func (s *RateContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
+	switch t := visitor.(type) {
+	case TransactionVisitor:
+		return t.VisitRate(s)
+
+	default:
+		return t.VisitChildren(s)
+	}
+}
+
+func (p *TransactionParser) Rate() (localctx IRateContext) {
+	localctx = NewRateContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 28, TransactionParserRULE_rate)
+	p.EnterOuterAlt(localctx, 1)
+	{
+		p.SetState(125)
+		p.Match(TransactionParserT__0)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(126)
+		p.Match(TransactionParserT__16)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(127)
+		p.Match(TransactionParserUUID)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(128)
+		p.Match(TransactionParserUUID)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(129)
+		p.Match(TransactionParserT__17)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(130)
+		p.Match(TransactionParserUUID)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(131)
+		p.ValueOrVariable()
+	}
+	{
+		p.SetState(132)
+		p.Match(TransactionParserT__13)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(133)
+		p.ValueOrVariable()
+	}
+	{
+		p.SetState(134)
+		p.Match(TransactionParserT__3)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
 		}
 	}
 
@@ -2667,6 +2776,7 @@ type IFromContext interface {
 	// Getter signatures
 	Account() IAccountContext
 	SendTypes() ISendTypesContext
+	Rate() IRateContext
 	Description() IDescriptionContext
 	ChartOfAccounts() IChartOfAccountsContext
 	Metadata() IMetadataContext
@@ -2737,6 +2847,22 @@ func (s *FromContext) SendTypes() ISendTypesContext {
 	}
 
 	return t.(ISendTypesContext)
+}
+
+func (s *FromContext) Rate() IRateContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IRateContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IRateContext)
 }
 
 func (s *FromContext) Description() IDescriptionContext {
@@ -2819,12 +2945,12 @@ func (s *FromContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 
 func (p *TransactionParser) From() (localctx IFromContext) {
 	localctx = NewFromContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 28, TransactionParserRULE_from)
+	p.EnterRule(localctx, 30, TransactionParserRULE_from)
 	var _la int
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(129)
+		p.SetState(136)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -2832,46 +2958,58 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 		}
 	}
 	{
-		p.SetState(130)
-		p.Match(TransactionParserT__17)
+		p.SetState(137)
+		p.Match(TransactionParserT__18)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
 	{
-		p.SetState(131)
+		p.SetState(138)
 		p.Account()
 	}
 	{
-		p.SetState(132)
+		p.SetState(139)
 		p.SendTypes()
 	}
-	p.SetState(134)
+	p.SetState(141)
 	p.GetErrorHandler().Sync(p)
 
 	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 6, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(133)
+			p.SetState(140)
+			p.Rate()
+		}
+
+	} else if p.HasError() { // JIM
+		goto errorExit
+	}
+	p.SetState(144)
+	p.GetErrorHandler().Sync(p)
+
+	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 7, p.GetParserRuleContext()) == 1 {
+		{
+			p.SetState(143)
 			p.Description()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(137)
+	p.SetState(147)
 	p.GetErrorHandler().Sync(p)
 
-	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 7, p.GetParserRuleContext()) == 1 {
+	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 8, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(136)
+			p.SetState(146)
 			p.ChartOfAccounts()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(140)
+	p.SetState(150)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -2880,13 +3018,218 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 
 	if _la == TransactionParserT__0 {
 		{
-			p.SetState(139)
+			p.SetState(149)
 			p.Metadata()
 		}
 
 	}
 	{
-		p.SetState(142)
+		p.SetState(152)
+		p.Match(TransactionParserT__3)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+
+errorExit:
+	if p.HasError() {
+		v := p.GetError()
+		localctx.SetException(v)
+		p.GetErrorHandler().ReportError(p, v)
+		p.GetErrorHandler().Recover(p, v)
+		p.SetError(nil)
+	}
+	p.ExitRule()
+	return localctx
+	goto errorExit // Trick to prevent compiler error if the label is not used
+}
+
+// ISourceContext is an interface to support dynamic dispatch.
+type ISourceContext interface {
+	antlr.ParserRuleContext
+
+	// GetParser returns the parser.
+	GetParser() antlr.Parser
+
+	// Getter signatures
+	REMAINING() antlr.TerminalNode
+	AllFrom() []IFromContext
+	From(i int) IFromContext
+
+	// IsSourceContext differentiates from other interfaces.
+	IsSourceContext()
+}
+
+type SourceContext struct {
+	antlr.BaseParserRuleContext
+	parser antlr.Parser
+}
+
+func NewEmptySourceContext() *SourceContext {
+	var p = new(SourceContext)
+	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+	p.RuleIndex = TransactionParserRULE_source
+	return p
+}
+
+func InitEmptySourceContext(p *SourceContext) {
+	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+	p.RuleIndex = TransactionParserRULE_source
+}
+
+func (*SourceContext) IsSourceContext() {}
+
+func NewSourceContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SourceContext {
+	var p = new(SourceContext)
+
+	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
+
+	p.parser = parser
+	p.RuleIndex = TransactionParserRULE_source
+
+	return p
+}
+
+func (s *SourceContext) GetParser() antlr.Parser { return s.parser }
+
+func (s *SourceContext) REMAINING() antlr.TerminalNode {
+	return s.GetToken(TransactionParserREMAINING, 0)
+}
+
+func (s *SourceContext) AllFrom() []IFromContext {
+	children := s.GetChildren()
+	len := 0
+	for _, ctx := range children {
+		if _, ok := ctx.(IFromContext); ok {
+			len++
+		}
+	}
+
+	tst := make([]IFromContext, len)
+	i := 0
+	for _, ctx := range children {
+		if t, ok := ctx.(IFromContext); ok {
+			tst[i] = t.(IFromContext)
+			i++
+		}
+	}
+
+	return tst
+}
+
+func (s *SourceContext) From(i int) IFromContext {
+	var t antlr.RuleContext
+	j := 0
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IFromContext); ok {
+			if j == i {
+				t = ctx.(antlr.RuleContext)
+				break
+			}
+			j++
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IFromContext)
+}
+
+func (s *SourceContext) GetRuleContext() antlr.RuleContext {
+	return s
+}
+
+func (s *SourceContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
+	return antlr.TreesStringTree(s, ruleNames, recog)
+}
+
+func (s *SourceContext) EnterRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(TransactionListener); ok {
+		listenerT.EnterSource(s)
+	}
+}
+
+func (s *SourceContext) ExitRule(listener antlr.ParseTreeListener) {
+	if listenerT, ok := listener.(TransactionListener); ok {
+		listenerT.ExitSource(s)
+	}
+}
+
+func (s *SourceContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
+	switch t := visitor.(type) {
+	case TransactionVisitor:
+		return t.VisitSource(s)
+
+	default:
+		return t.VisitChildren(s)
+	}
+}
+
+func (p *TransactionParser) Source() (localctx ISourceContext) {
+	localctx = NewSourceContext(p, p.GetParserRuleContext(), p.GetState())
+	p.EnterRule(localctx, 32, TransactionParserRULE_source)
+	var _la int
+
+	p.EnterOuterAlt(localctx, 1)
+	{
+		p.SetState(154)
+		p.Match(TransactionParserT__0)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	{
+		p.SetState(155)
+		p.Match(TransactionParserT__19)
+		if p.HasError() {
+			// Recognition error - abort rule
+			goto errorExit
+		}
+	}
+	p.SetState(157)
+	p.GetErrorHandler().Sync(p)
+	if p.HasError() {
+		goto errorExit
+	}
+	_la = p.GetTokenStream().LA(1)
+
+	if _la == TransactionParserREMAINING {
+		{
+			p.SetState(156)
+			p.Match(TransactionParserREMAINING)
+			if p.HasError() {
+				// Recognition error - abort rule
+				goto errorExit
+			}
+		}
+
+	}
+	p.SetState(160)
+	p.GetErrorHandler().Sync(p)
+	if p.HasError() {
+		goto errorExit
+	}
+	_la = p.GetTokenStream().LA(1)
+
+	for ok := true; ok; ok = _la == TransactionParserT__0 {
+		{
+			p.SetState(159)
+			p.From()
+		}
+
+		p.SetState(162)
+		p.GetErrorHandler().Sync(p)
+		if p.HasError() {
+			goto errorExit
+		}
+		_la = p.GetTokenStream().LA(1)
+	}
+	{
+		p.SetState(164)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3049,10 +3392,10 @@ func (s *SendContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 
 func (p *TransactionParser) Send() (localctx ISendContext) {
 	localctx = NewSendContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 30, TransactionParserRULE_send)
+	p.EnterRule(localctx, 34, TransactionParserRULE_send)
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(144)
+		p.SetState(166)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3060,15 +3403,15 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 		}
 	}
 	{
-		p.SetState(145)
-		p.Match(TransactionParserT__18)
+		p.SetState(167)
+		p.Match(TransactionParserT__20)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
 	{
-		p.SetState(146)
+		p.SetState(168)
 		p.Match(TransactionParserUUID)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3076,11 +3419,11 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 		}
 	}
 	{
-		p.SetState(147)
+		p.SetState(169)
 		p.ValueOrVariable()
 	}
 	{
-		p.SetState(148)
+		p.SetState(170)
 		p.Match(TransactionParserT__13)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3088,220 +3431,15 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 		}
 	}
 	{
-		p.SetState(149)
+		p.SetState(171)
 		p.ValueOrVariable()
 	}
 	{
-		p.SetState(150)
+		p.SetState(172)
 		p.Source()
 	}
 	{
-		p.SetState(151)
-		p.Match(TransactionParserT__3)
-		if p.HasError() {
-			// Recognition error - abort rule
-			goto errorExit
-		}
-	}
-
-errorExit:
-	if p.HasError() {
-		v := p.GetError()
-		localctx.SetException(v)
-		p.GetErrorHandler().ReportError(p, v)
-		p.GetErrorHandler().Recover(p, v)
-		p.SetError(nil)
-	}
-	p.ExitRule()
-	return localctx
-	goto errorExit // Trick to prevent compiler error if the label is not used
-}
-
-// ISourceContext is an interface to support dynamic dispatch.
-type ISourceContext interface {
-	antlr.ParserRuleContext
-
-	// GetParser returns the parser.
-	GetParser() antlr.Parser
-
-	// Getter signatures
-	REMAINING() antlr.TerminalNode
-	AllFrom() []IFromContext
-	From(i int) IFromContext
-
-	// IsSourceContext differentiates from other interfaces.
-	IsSourceContext()
-}
-
-type SourceContext struct {
-	antlr.BaseParserRuleContext
-	parser antlr.Parser
-}
-
-func NewEmptySourceContext() *SourceContext {
-	var p = new(SourceContext)
-	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
-	p.RuleIndex = TransactionParserRULE_source
-	return p
-}
-
-func InitEmptySourceContext(p *SourceContext) {
-	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
-	p.RuleIndex = TransactionParserRULE_source
-}
-
-func (*SourceContext) IsSourceContext() {}
-
-func NewSourceContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SourceContext {
-	var p = new(SourceContext)
-
-	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, parent, invokingState)
-
-	p.parser = parser
-	p.RuleIndex = TransactionParserRULE_source
-
-	return p
-}
-
-func (s *SourceContext) GetParser() antlr.Parser { return s.parser }
-
-func (s *SourceContext) REMAINING() antlr.TerminalNode {
-	return s.GetToken(TransactionParserREMAINING, 0)
-}
-
-func (s *SourceContext) AllFrom() []IFromContext {
-	children := s.GetChildren()
-	len := 0
-	for _, ctx := range children {
-		if _, ok := ctx.(IFromContext); ok {
-			len++
-		}
-	}
-
-	tst := make([]IFromContext, len)
-	i := 0
-	for _, ctx := range children {
-		if t, ok := ctx.(IFromContext); ok {
-			tst[i] = t.(IFromContext)
-			i++
-		}
-	}
-
-	return tst
-}
-
-func (s *SourceContext) From(i int) IFromContext {
-	var t antlr.RuleContext
-	j := 0
-	for _, ctx := range s.GetChildren() {
-		if _, ok := ctx.(IFromContext); ok {
-			if j == i {
-				t = ctx.(antlr.RuleContext)
-				break
-			}
-			j++
-		}
-	}
-
-	if t == nil {
-		return nil
-	}
-
-	return t.(IFromContext)
-}
-
-func (s *SourceContext) GetRuleContext() antlr.RuleContext {
-	return s
-}
-
-func (s *SourceContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
-	return antlr.TreesStringTree(s, ruleNames, recog)
-}
-
-func (s *SourceContext) EnterRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(TransactionListener); ok {
-		listenerT.EnterSource(s)
-	}
-}
-
-func (s *SourceContext) ExitRule(listener antlr.ParseTreeListener) {
-	if listenerT, ok := listener.(TransactionListener); ok {
-		listenerT.ExitSource(s)
-	}
-}
-
-func (s *SourceContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
-	switch t := visitor.(type) {
-	case TransactionVisitor:
-		return t.VisitSource(s)
-
-	default:
-		return t.VisitChildren(s)
-	}
-}
-
-func (p *TransactionParser) Source() (localctx ISourceContext) {
-	localctx = NewSourceContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 32, TransactionParserRULE_source)
-	var _la int
-
-	p.EnterOuterAlt(localctx, 1)
-	{
-		p.SetState(153)
-		p.Match(TransactionParserT__0)
-		if p.HasError() {
-			// Recognition error - abort rule
-			goto errorExit
-		}
-	}
-	{
-		p.SetState(154)
-		p.Match(TransactionParserT__19)
-		if p.HasError() {
-			// Recognition error - abort rule
-			goto errorExit
-		}
-	}
-	p.SetState(156)
-	p.GetErrorHandler().Sync(p)
-	if p.HasError() {
-		goto errorExit
-	}
-	_la = p.GetTokenStream().LA(1)
-
-	if _la == TransactionParserREMAINING {
-		{
-			p.SetState(155)
-			p.Match(TransactionParserREMAINING)
-			if p.HasError() {
-				// Recognition error - abort rule
-				goto errorExit
-			}
-		}
-
-	}
-	p.SetState(159)
-	p.GetErrorHandler().Sync(p)
-	if p.HasError() {
-		goto errorExit
-	}
-	_la = p.GetTokenStream().LA(1)
-
-	for ok := true; ok; ok = _la == TransactionParserT__0 {
-		{
-			p.SetState(158)
-			p.From()
-		}
-
-		p.SetState(161)
-		p.GetErrorHandler().Sync(p)
-		if p.HasError() {
-			goto errorExit
-		}
-		_la = p.GetTokenStream().LA(1)
-	}
-	{
-		p.SetState(163)
+		p.SetState(173)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3332,6 +3470,7 @@ type IToContext interface {
 	// Getter signatures
 	Account() IAccountContext
 	SendTypes() ISendTypesContext
+	Rate() IRateContext
 	Description() IDescriptionContext
 	ChartOfAccounts() IChartOfAccountsContext
 	Metadata() IMetadataContext
@@ -3402,6 +3541,22 @@ func (s *ToContext) SendTypes() ISendTypesContext {
 	}
 
 	return t.(ISendTypesContext)
+}
+
+func (s *ToContext) Rate() IRateContext {
+	var t antlr.RuleContext
+	for _, ctx := range s.GetChildren() {
+		if _, ok := ctx.(IRateContext); ok {
+			t = ctx.(antlr.RuleContext)
+			break
+		}
+	}
+
+	if t == nil {
+		return nil
+	}
+
+	return t.(IRateContext)
 }
 
 func (s *ToContext) Description() IDescriptionContext {
@@ -3484,12 +3639,12 @@ func (s *ToContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 
 func (p *TransactionParser) To() (localctx IToContext) {
 	localctx = NewToContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 34, TransactionParserRULE_to)
+	p.EnterRule(localctx, 36, TransactionParserRULE_to)
 	var _la int
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(165)
+		p.SetState(175)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3497,46 +3652,58 @@ func (p *TransactionParser) To() (localctx IToContext) {
 		}
 	}
 	{
-		p.SetState(166)
-		p.Match(TransactionParserT__20)
+		p.SetState(176)
+		p.Match(TransactionParserT__21)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
 	{
-		p.SetState(167)
+		p.SetState(177)
 		p.Account()
 	}
 	{
-		p.SetState(168)
+		p.SetState(178)
 		p.SendTypes()
 	}
-	p.SetState(170)
+	p.SetState(180)
 	p.GetErrorHandler().Sync(p)
 
-	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 11, p.GetParserRuleContext()) == 1 {
+	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 12, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(169)
+			p.SetState(179)
+			p.Rate()
+		}
+
+	} else if p.HasError() { // JIM
+		goto errorExit
+	}
+	p.SetState(183)
+	p.GetErrorHandler().Sync(p)
+
+	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 13, p.GetParserRuleContext()) == 1 {
+		{
+			p.SetState(182)
 			p.Description()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(173)
+	p.SetState(186)
 	p.GetErrorHandler().Sync(p)
 
-	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 12, p.GetParserRuleContext()) == 1 {
+	if p.GetInterpreter().AdaptivePredict(p.BaseParser, p.GetTokenStream(), 14, p.GetParserRuleContext()) == 1 {
 		{
-			p.SetState(172)
+			p.SetState(185)
 			p.ChartOfAccounts()
 		}
 
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
-	p.SetState(176)
+	p.SetState(189)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -3545,13 +3712,13 @@ func (p *TransactionParser) To() (localctx IToContext) {
 
 	if _la == TransactionParserT__0 {
 		{
-			p.SetState(175)
+			p.SetState(188)
 			p.Metadata()
 		}
 
 	}
 	{
-		p.SetState(178)
+		p.SetState(191)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3697,12 +3864,12 @@ func (s *DistributeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 
 func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 	localctx = NewDistributeContext(p, p.GetParserRuleContext(), p.GetState())
-	p.EnterRule(localctx, 36, TransactionParserRULE_distribute)
+	p.EnterRule(localctx, 38, TransactionParserRULE_distribute)
 	var _la int
 
 	p.EnterOuterAlt(localctx, 1)
 	{
-		p.SetState(180)
+		p.SetState(193)
 		p.Match(TransactionParserT__0)
 		if p.HasError() {
 			// Recognition error - abort rule
@@ -3710,14 +3877,14 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 		}
 	}
 	{
-		p.SetState(181)
-		p.Match(TransactionParserT__21)
+		p.SetState(194)
+		p.Match(TransactionParserT__22)
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
 	}
-	p.SetState(183)
+	p.SetState(196)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -3726,7 +3893,7 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 
 	if _la == TransactionParserREMAINING {
 		{
-			p.SetState(182)
+			p.SetState(195)
 			p.Match(TransactionParserREMAINING)
 			if p.HasError() {
 				// Recognition error - abort rule
@@ -3735,7 +3902,7 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 		}
 
 	}
-	p.SetState(186)
+	p.SetState(199)
 	p.GetErrorHandler().Sync(p)
 	if p.HasError() {
 		goto errorExit
@@ -3744,11 +3911,11 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 
 	for ok := true; ok; ok = _la == TransactionParserT__0 {
 		{
-			p.SetState(185)
+			p.SetState(198)
 			p.To()
 		}
 
-		p.SetState(188)
+		p.SetState(201)
 		p.GetErrorHandler().Sync(p)
 		if p.HasError() {
 			goto errorExit
@@ -3756,7 +3923,7 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
-		p.SetState(190)
+		p.SetState(203)
 		p.Match(TransactionParserT__3)
 		if p.HasError() {
 			// Recognition error - abort rule

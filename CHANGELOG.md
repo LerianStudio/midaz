@@ -1,3 +1,13 @@
+## [1.31.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.12...v1.31.0-beta.13) (2024-12-06)
+
+
+### Bug Fixes
+
+* adjust to return nil and not empty struct :bug: ([a2a73b8](https://github.com/LerianStudio/midaz/commit/a2a73b851e2af5f43bfc445efdb565c281aef94c))
+* go lint :bug: ([0123db1](https://github.com/LerianStudio/midaz/commit/0123db151fa218b044c189613f0b80cbc66aa105))
+* remove G :bug: ([9fe64e1](https://github.com/LerianStudio/midaz/commit/9fe64e1a38aba6e851570e44b3aac8e1b61be795))
+* update makefile to reference common to pkg :bug: ([c6963ea](https://github.com/LerianStudio/midaz/commit/c6963eae0776b3da149345e52f40649669adf02a))
+
 ## [1.31.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.11...v1.31.0-beta.12) (2024-12-06)
 
 ## [1.31.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.10...v1.31.0-beta.11) (2024-12-06)
