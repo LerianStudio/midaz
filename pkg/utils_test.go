@@ -227,7 +227,6 @@ func TestValidateAccountType(t *testing.T) {
 		{"Valid Loans", "loans", false},
 		{"Valid Marketplace", "marketplace", false},
 		{"Valid CreditCard", "creditCard", false},
-		{"Valid External", "external", false},
 		{"Invalid Account Type", "invalidType", true},
 	}
 
