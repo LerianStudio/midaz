@@ -822,7 +822,8 @@
       "actions": [
         "get",
         "post",
-        "patch"
+        "patch",
+        "put"
       ],
       "domains": [],
       "effect": "Allow",

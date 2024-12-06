@@ -130,7 +130,7 @@ up:
 	docker-compose -f $(AUTH_DIR)/docker-compose.yml up --build -d && \
 	docker-compose -f $(INFRA_DIR)/docker-compose.yml up --build -d && \
 	docker-compose -f $(LEDGER_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
+	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d 
 	@echo "$(BLUE)All services started successfully$(NC)"
 
 auth:

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"unicode"
 
-	cn "github.com/LerianStudio/midaz/pkg/constant"
-
 	"github.com/google/uuid"
+
+	cn "github.com/LerianStudio/midaz/pkg/constant"
 )
 
 // Contains checks if an item is in a slice. This function uses type parameters to work with any slice type.
@@ -181,11 +181,21 @@ func MergeMaps(source, target map[string]any) map[string]any {
 	return target
 }
 
+type SyscmdI interface {
+	ExecCmd(name string, arg ...string) ([]byte, error)
+}
+
+type Syscmd struct{}
+
+func (r *Syscmd) ExecCmd(name string, arg ...string) ([]byte, error) {
+	return exec.Command(name, arg...).Output()
+}
+
 // GetCPUUsage get the current CPU usage
-func GetCPUUsage(ctx context.Context) int64 {
+func GetCPUUsage(ctx context.Context, exc SyscmdI) int64 {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := exec.Command("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'").Output()
+	out, err := exc.ExecCmd("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
 	if err != nil {
 		fmt.Println("Error executing command:", err)
 		return 0
@@ -204,10 +214,10 @@ func GetCPUUsage(ctx context.Context) int64 {
 }
 
 // GetMemUsage get the current memory usage
-func GetMemUsage(ctx context.Context) int64 {
+func GetMemUsage(ctx context.Context, exc SyscmdI) int64 {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := exec.Command("sh", "-c", "free | grep Mem | awk '{print $3/$2 * 100.0}'").Output()
+	out, err := exc.ExecCmd("sh", "-c", "free | grep Mem | awk '{print $3/$2 * 100.0}'")
 	if err != nil {
 		return 0
 	}

@@ -11,16 +11,17 @@ package assetrate
 
 import (
 	context "context"
-	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -41,31 +42,76 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 *AssetRate) (*AssetRate, error) {
+func (m *MockRepository) Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0, arg1)
+	ret := m.ctrl.Call(m, "Create", ctx, assetRate)
 	ret0, _ := ret[0].(*AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(arg0, arg1 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(ctx, assetRate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, assetRate)
 }
 
-// Find mocks base method.
-func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*AssetRate, error) {
+// FindAllByAssetCodes mocks base method.
+func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, limit, page int) ([]*AssetRate, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "FindAllByAssetCodes", ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+	ret0, _ := ret[0].([]*AssetRate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAllByAssetCodes indicates an expected call of FindAllByAssetCodes.
+func (mr *MockRepositoryMockRecorder) FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAssetCodes", reflect.TypeOf((*MockRepository)(nil).FindAllByAssetCodes), ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+}
+
+// FindByCurrencyPair mocks base method.
+func (m *MockRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByCurrencyPair", ctx, organizationID, ledgerID, from, to)
 	ret0, _ := ret[0].(*AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Find indicates an expected call of Find.
-func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3 any) *gomock.Call {
+// FindByCurrencyPair indicates an expected call of FindByCurrencyPair.
+func (mr *MockRepositoryMockRecorder) FindByCurrencyPair(ctx, organizationID, ledgerID, from, to any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByCurrencyPair", reflect.TypeOf((*MockRepository)(nil).FindByCurrencyPair), ctx, organizationID, ledgerID, from, to)
+}
+
+// FindByExternalID mocks base method.
+func (m *MockRepository) FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindByExternalID", ctx, organizationID, ledgerID, id)
+	ret0, _ := ret[0].(*AssetRate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindByExternalID indicates an expected call of FindByExternalID.
+func (mr *MockRepositoryMockRecorder) FindByExternalID(ctx, organizationID, ledgerID, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByExternalID", reflect.TypeOf((*MockRepository)(nil).FindByExternalID), ctx, organizationID, ledgerID, id)
+}
+
+// Update mocks base method.
+func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, id, assetRate)
+	ret0, _ := ret[0].(*AssetRate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Update indicates an expected call of Update.
+func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, id, assetRate any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, id, assetRate)
 }
