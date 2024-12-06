@@ -70,14 +70,6 @@ test:
 	fi
 	go test -v ./... ./...
 
-cover:
-	@echo "$(BLUE)Generating test coverage...$(NC)"
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "$(RED)Error: go is not installed$(NC)"; \
-		exit 1; \
-	fi
-	go test -cover ./...
-
 lint:
 	@echo "$(BLUE)Running linter and performance checks...$(NC)"
 	./make.sh "lint"
@@ -161,6 +153,14 @@ goreleaser:
 tidy:
 	@echo "$(BLUE)Running go mod tidy...$(NC)"
 	go mod tidy
+
+cover: 
+	@echo -e "$(BLUE)Generating test coverage...$(NC)"
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "$(RED)Error: go is not installed$(NC)"; \
+		exit 1; \
+	fi
+	@sh ./scripts/coverage.sh
 
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"

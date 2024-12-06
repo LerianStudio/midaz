@@ -4,9 +4,10 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
+
+	"go.uber.org/zap"
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
 

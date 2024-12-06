@@ -52,10 +52,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 	balanceAfter := Balance{}
 
 	if ft.IsFrom {
-		ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, cn.DEBIT)
-		if err != nil {
-			return amount, balanceAfter, err
-		}
+		ba := OperateAmounts(validate.From[ft.Account], acc.Balance, cn.DEBIT)
 
 		if ba.Available < 0 && acc.Type != "external" {
 			return amount, balanceAfter, pkg.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
@@ -68,11 +65,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 
 		balanceAfter = ba
 	} else {
-		ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, cn.CREDIT)
-		if err != nil {
-			return amount, balanceAfter, err
-		}
-
+		ba := OperateAmounts(validate.To[ft.Account], acc.Balance, cn.CREDIT)
 		amount = Amount{
 			Value: validate.To[ft.Account].Value,
 			Scale: validate.To[ft.Account].Scale,
@@ -91,10 +84,7 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 	for _, acc := range accounts {
 		for key := range fromTo {
 			if acc.Id == key || acc.Alias == key {
-				b, err := OperateAmounts(fromTo[key], acc.Balance, operation)
-				if err != nil {
-					e <- err
-				}
+				b := OperateAmounts(fromTo[key], acc.Balance, operation)
 
 				balance := a.Balance{
 					Available: float64(b.Available),
@@ -212,10 +202,11 @@ func normalize(total, amount, remaining *Amount) {
 }
 
 // OperateAmounts Function to sum or sub two amounts and normalize the scale
-func OperateAmounts(amount Amount, balance *a.Balance, operation string) (Balance, error) {
-	var scale float64
-
-	var total float64
+func OperateAmounts(amount Amount, balance *a.Balance, operation string) Balance {
+	var (
+		scale float64
+		total float64
+	)
 
 	switch operation {
 	case cn.DEBIT:
@@ -246,7 +237,7 @@ func OperateAmounts(amount Amount, balance *a.Balance, operation string) (Balanc
 		Scale:     int(scale),
 	}
 
-	return blc, nil
+	return blc
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
@@ -324,9 +315,10 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 		Aliases:      make([]string, 0),
 	}
 
-	var sourcesTotal int
-
-	var destinationsTotal int
+	var (
+		sourcesTotal      int
+		destinationsTotal int
+	)
 
 	t := make(chan int)
 	ft := make(chan map[string]Amount)
