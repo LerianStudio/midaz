@@ -74,12 +74,13 @@ test:
 	go test -v ./... ./...
 
 cover:
-	@echo "$(BLUE)Generating test coverage...$(NC)"
+	@echo -e "$(BLUE)Generating test coverage...$(NC)"
 	@if ! command -v go >/dev/null 2>&1; then \
 		echo "$(RED)Error: go is not installed$(NC)"; \
 		exit 1; \
 	fi
-	go test -cover ./...
+	@sh ./scripts/coverage.sh
+	@go tool cover -html=coverage.out -o coverage.html
 
 lint:
 	@echo "$(BLUE)Running linter and performance checks...$(NC)"
