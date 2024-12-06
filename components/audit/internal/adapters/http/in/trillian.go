@@ -51,7 +51,7 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 	validations := make([]HashValidationResponse, 0)
 
 	for key, value := range auditInfo.Leaves {
-		expectedHash, calculatedHash, wasTempered, err := th.UseCase.ValidatedLogHash(ctx, auditInfo.TreeID, value)
+		expectedHash, calculatedHash, isTampered, err := th.UseCase.ValidatedLogHash(ctx, auditInfo.TreeID, value)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to retrieve log validation", err)
 
@@ -60,7 +60,7 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 			return http.WithError(c, err)
 		}
 
-		if wasTempered {
+		if isTampered {
 			logger.Warnf("Log for %v has been tampered! Expected: %x, Found: %x\n", key, expectedHash, calculatedHash)
 		}
 
@@ -68,7 +68,7 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 			AuditID:        key,
 			ExpectedHash:   expectedHash,
 			CalculatedHash: calculatedHash,
-			WasTempered:    wasTempered,
+			IsTampered:     isTampered,
 		}
 
 		validations = append(validations, *response)

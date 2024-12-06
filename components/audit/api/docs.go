@@ -150,7 +150,7 @@ const docTemplate = `{
                 "expectedHash": {
                     "type": "string"
                 },
-                "wasTempered": {
+                "isTampered": {
                     "type": "boolean"
                 }
             }

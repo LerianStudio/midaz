@@ -9,7 +9,7 @@ definitions:
         type: string
       expectedHash:
         type: string
-      wasTempered:
+      isTampered:
         type: boolean
     type: object
   Leaf:
