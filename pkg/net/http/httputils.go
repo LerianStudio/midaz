@@ -17,11 +17,12 @@ import (
 
 // QueryHeader entity from query parameter from get apis
 type QueryHeader struct {
-	Metadata    *bson.M
-	Limit       int
-	Page        int
-	UseMetadata bool
-	PortfolioID string
+	Metadata     *bson.M
+	Limit        int
+	Page         int
+	UseMetadata  bool
+	PortfolioID  string
+	ToAssetCodes []string
 }
 
 // ValidateParameters validate and return struct of default parameters
@@ -36,6 +37,8 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 
 	var portfolioID string
 
+	var toAssetCodes []string
+
 	for key, value := range params {
 		switch {
 		case strings.Contains(key, "metadata."):
@@ -47,15 +50,18 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 			page, _ = strconv.Atoi(value)
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
+		case strings.Contains(key, "to"):
+			toAssetCodes = strings.Split(value, ",")
 		}
 	}
 
 	query := &QueryHeader{
-		Metadata:    metadata,
-		Limit:       limit,
-		Page:        page,
-		UseMetadata: useMetadata,
-		PortfolioID: portfolioID,
+		Metadata:     metadata,
+		Limit:        limit,
+		Page:         page,
+		UseMetadata:  useMetadata,
+		PortfolioID:  portfolioID,
+		ToAssetCodes: toAssetCodes,
 	}
 
 	return query
