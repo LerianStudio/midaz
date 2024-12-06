@@ -566,6 +566,59 @@ paths:
       summary: Get an AssetRate by External ID
       tags:
       - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
+    get:
+      description: Get an AssetRate by the Asset Code with the input details
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: From Asset Code
+        in: path
+        name: asset_code
+        required: true
+        type: string
+      - collectionFormat: csv
+        description: To Asset Codes
+        example: '"BRL,USD,SGD"'
+        in: query
+        items:
+          type: string
+        name: to
+        type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/AssetRate'
+                  type: array
+              type: object
+      summary: Get an AssetRate by the Asset Code
+      tags:
+      - Asset Rates
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
     get:
       description: Get all Operations with the input ID

@@ -212,6 +212,88 @@
                 }
             }
         },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
+            "get": {
+                "description": "Get an AssetRate by the Asset Code with the input details",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset Rates"
+                ],
+                "summary": "Get an AssetRate by the Asset Code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "From Asset Code",
+                        "name": "asset_code",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "example": "\"BRL,USD,SGD\"",
+                        "description": "To Asset Codes",
+                        "name": "to",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/AssetRate"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
             "get": {
                 "description": "Get an AssetRate by External ID with the input details",

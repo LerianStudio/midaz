@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/Masterminds/squirrel"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)
 	FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error)
+	FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, limit, page int) ([]*AssetRate, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error)
 }
 
@@ -208,6 +210,85 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 	}
 
 	return record.ToEntity(), nil
+}
+
+// FindAllByAssetCodes returns all asset rates by asset codes.
+func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, limit, page int) ([]*AssetRate, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_all_asset_rates_by_asset_codes")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	var assetRates []*AssetRate
+
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr(`"from" = ?`, fromAssetCode)).
+		Where(squirrel.Eq{`"to"`: toAssetCodes}).
+		OrderBy("created_at DESC").
+		Limit(pkg.SafeIntToUint64(limit)).
+		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		PlaceholderFormat(squirrel.Dollar)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var assetRate AssetRatePostgreSQLModel
+		if err := rows.Scan(
+			&assetRate.ID,
+			&assetRate.OrganizationID,
+			&assetRate.LedgerID,
+			&assetRate.ExternalID,
+			&assetRate.From,
+			&assetRate.To,
+			&assetRate.Rate,
+			&assetRate.RateScale,
+			&assetRate.Source,
+			&assetRate.TTL,
+			&assetRate.CreatedAt,
+			&assetRate.UpdatedAt,
+		); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			return nil, err
+		}
+
+		assetRates = append(assetRates, assetRate.ToEntity())
+	}
+
+	if err := rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
+
+		return nil, err
+	}
+
+	return assetRates, nil
 }
 
 // Update an AssetRate entity into Postgresql and returns the AssetRate updated.

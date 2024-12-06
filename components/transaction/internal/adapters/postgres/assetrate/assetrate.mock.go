@@ -56,6 +56,21 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, assetRate any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, assetRate)
 }
 
+// FindAllByAssetCodes mocks base method.
+func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, limit, page int) ([]*AssetRate, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindAllByAssetCodes", ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+	ret0, _ := ret[0].([]*AssetRate)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindAllByAssetCodes indicates an expected call of FindAllByAssetCodes.
+func (mr *MockRepositoryMockRecorder) FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAssetCodes", reflect.TypeOf((*MockRepository)(nil).FindAllByAssetCodes), ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+}
+
 // FindByCurrencyPair mocks base method.
 func (m *MockRepository) FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error) {
 	m.ctrl.T.Helper()

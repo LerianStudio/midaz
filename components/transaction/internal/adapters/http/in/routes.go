@@ -52,6 +52,7 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// Asset-rate
 	f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateOrUpdateAssetRate))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAssetRateByExternalID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAllAssetRatesByAssetCode)
 
 	// Health
 	f.Get("/health", http.Ping)
