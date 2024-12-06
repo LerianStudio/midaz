@@ -22,6 +22,20 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 	logger.Infof("Trying to get asset rate by source asset code: %s and target asset codes: %v", fromAssetCode, filter.ToAssetCodes)
 
+	if err := pkg.ValidateCode(fromAssetCode); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
+
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+	}
+
+	for _, toAssetCode := range filter.ToAssetCodes {
+		if err := pkg.ValidateCode(toAssetCode); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset codes", err)
+
+			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		}
+	}
+
 	assetRates, err := uc.AssetRateRepo.FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.Limit, filter.Page)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get asset rate by asset codes on repository", err)
