@@ -79,6 +79,11 @@ type Rate struct {
 	ExternalID string `json:"externalId" validate:"uuid,required" example:"00000000-0000-0000-0000-000000000000"`
 } // @name Rate
 
+// IsEmpty method that set empty or nil in fields
+func (r Rate) IsEmpty() bool {
+	return r.ExternalID == "" && r.From == "" && r.To == "" && r.Value == 0
+}
+
 // FromTo structure for marshaling/unmarshalling JSON.
 //
 // swagger:model FromTo

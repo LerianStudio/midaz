@@ -248,9 +248,12 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
 	}
 
-	var rate model.Rate
+	var rate *model.Rate
 	if ctx.Rate() != nil {
-		rate = v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+		if !rateValue.IsEmpty() {
+			rate = &rateValue
+		}
 	}
 
 	return model.FromTo{
@@ -258,7 +261,7 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		Amount:      &amount,
 		Share:       &share,
 		Remaining:   remaining,
-		Rate:        &rate,
+		Rate:        rate,
 		Description: description,
 		Metadata:    metadata,
 		IsFrom:      true,
@@ -295,9 +298,12 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
 	}
 
-	var rate model.Rate
+	var rate *model.Rate
 	if ctx.Rate() != nil {
-		rate = v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+		if !rateValue.IsEmpty() {
+			rate = &rateValue
+		}
 	}
 
 	return model.FromTo{
@@ -305,7 +311,7 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		Amount:      &amount,
 		Share:       &share,
 		Remaining:   remaining,
-		Rate:        &rate,
+		Rate:        rate,
 		Description: description,
 		Metadata:    metadata,
 		IsFrom:      false,
