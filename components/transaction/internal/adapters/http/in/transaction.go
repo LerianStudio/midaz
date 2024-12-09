@@ -2,6 +2,8 @@ package in
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"reflect"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -491,7 +493,34 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
+	handler.logTransaction(ctx, operations, organizationID, ledgerID, transactionID)
+
 	return http.Created(c, tran)
+}
+
+// logTransaction creates a message representing a transaction log and sends to auditing exchange
+func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
+	queueData := make([]mmodel.QueueData, 0)
+	for _, o := range operations {
+		marshal, err := json.Marshal(o)
+		if err != nil {
+			// TODO: error handling
+		}
+
+		queueData = append(queueData, mmodel.QueueData{
+			ID:    uuid.MustParse(o.ID),
+			Value: marshal,
+		})
+	}
+
+	queueMessage := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AuditID:        transactionID,
+		QueueData:      queueData,
+	}
+
+	handler.Command.RabbitMQRepo.ProducerDefault(ctx, "audit_exchange", "audit_key", queueMessage)
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
