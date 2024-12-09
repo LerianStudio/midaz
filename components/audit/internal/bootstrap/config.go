@@ -45,8 +45,6 @@ type Config struct {
 	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
 	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
-	RabbitMQKey             string `env:"RABBITMQ_KEY"`
 	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
 	TrillianGRPCAddress     string `env:"TRILLIAN_GRPC_ADDRESS"`
 	TrillianHTTPAddress     string `env:"TRILLIAN_HTTP_ADDRESS"`
@@ -90,8 +88,6 @@ func InitServers() *Service {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
-		Exchange:               cfg.RabbitMQExchange,
-		Key:                    cfg.RabbitMQKey,
 		Queue:                  cfg.RabbitMQQueue,
 		Logger:                 logger,
 	}
