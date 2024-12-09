@@ -70,7 +70,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 		go func(queue string, handlerFunc QueueHandlerFunc) {
 			for msg := range messages {
-				midazID, found := msg.Headers["Midaz-Id"]
+				midazID, found := msg.Headers[http.HeaderMidazID]
 				if !found {
 					midazID = pkg.GenerateUUIDv7().String()
 				}
