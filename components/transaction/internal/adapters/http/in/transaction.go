@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"os"
 	"reflect"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -520,7 +521,10 @@ func (handler *TransactionHandler) logTransaction(ctx context.Context, operation
 		QueueData:      queueData,
 	}
 
-	handler.Command.RabbitMQRepo.ProducerDefault(ctx, "audit_exchange", "audit_key", queueMessage)
+	handler.Command.RabbitMQRepo.ProducerDefault(ctxLogTransaction,
+		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
+		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
+		queueMessage)
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
