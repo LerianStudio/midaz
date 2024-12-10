@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"os"
 	"reflect"
+	"strings"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -506,6 +507,11 @@ func (handler *TransactionHandler) logTransaction(ctx context.Context, operation
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
 	defer spanLogTransaction.End()
 
+	if !isAuditLogEnabled() {
+		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
+		return
+	}
+
 	queueData := make([]mmodel.QueueData, 0)
 
 	for _, o := range operations {
@@ -636,4 +642,9 @@ func (handler *TransactionHandler) processAccounts(ctx context.Context, logger m
 	}
 
 	return nil
+}
+
+func isAuditLogEnabled() bool {
+	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
+	return envValue != "false"
 }
