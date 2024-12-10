@@ -501,11 +501,20 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 // logTransaction creates a message representing a transaction log and sends to auditing exchange
 func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
+	defer spanLogTransaction.End()
+
 	queueData := make([]mmodel.QueueData, 0)
+
 	for _, o := range operations {
-		marshal, err := json.Marshal(o)
+		oLog := o.ToLog()
+
+		marshal, err := json.Marshal(oLog)
 		if err != nil {
-			// TODO: error handling
+			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
 		}
 
 		queueData = append(queueData, mmodel.QueueData{
