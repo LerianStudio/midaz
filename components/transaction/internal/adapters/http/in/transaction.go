@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"os"
-	"reflect"
-
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
+	"os"
+	"reflect"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -494,7 +493,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
-	handler.logTransaction(ctx, operations, organizationID, ledgerID, transactionID)
+	go handler.logTransaction(ctx, operations, organizationID, ledgerID, transactionID)
 
 	return http.Created(c, tran)
 }
@@ -530,10 +529,14 @@ func (handler *TransactionHandler) logTransaction(ctx context.Context, operation
 		QueueData:      queueData,
 	}
 
-	handler.Command.RabbitMQRepo.ProducerDefault(ctxLogTransaction,
+	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
+		ctxLogTransaction,
 		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
 		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
-		queueMessage)
+		queueMessage,
+	); err != nil {
+		logger.Fatalf("Failed to send message: %s", err.Error())
+	}
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
