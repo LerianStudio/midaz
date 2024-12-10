@@ -3,55 +3,134 @@ package query
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllAssetsError is responsible to test GetAllAssets with success and error
 func TestGetAllAssets(t *testing.T) {
-	ledgerID := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	limit := 10
-	page := 1
-
-	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockAssetRepo := asset.NewMockRepository(ctrl)
 
-	uc := UseCase{
-		AssetRepo: mockAssetRepo,
+	mockAssetRepo := asset.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AssetRepo:    mockAssetRepo,
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		assets := []*mmodel.Asset{{}}
-		mockAssetRepo.
-			EXPECT().
-			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, page, limit).
-			Return(assets, nil).
-			Times(1)
-		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, page, limit)
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+	filter := http.QueryHeader{
+		Limit: 10,
+		Page:  1,
+	}
 
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
-		mockAssetRepo.
-			EXPECT().
-			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, page, limit).
-			Return(nil, errors.New(errMsg)).
-			Times(1)
-		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, page, limit)
+	tests := []struct {
+		name           string
+		setupMocks     func()
+		expectedErr    error
+		expectedAssets []*mmodel.Asset
+	}{
+		{
+			name: "success - assets retrieved with metadata",
+			setupMocks: func() {
+				mockAssetRepo.EXPECT().
+					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.Limit, filter.Page).
+					Return([]*mmodel.Asset{
+						{ID: "asset1"},
+						{ID: "asset2"},
+					}, nil).
+					Times(1)
 
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-	})
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), "Asset", filter).
+					Return([]*mongodb.Metadata{
+						{EntityID: "asset1", Data: map[string]any{"key1": "value1"}},
+						{EntityID: "asset2", Data: map[string]any{"key2": "value2"}},
+					}, nil).
+					Times(1)
+			},
+			expectedErr: nil,
+			expectedAssets: []*mmodel.Asset{
+				{ID: "asset1", Metadata: map[string]any{"key1": "value1"}},
+				{ID: "asset2", Metadata: map[string]any{"key2": "value2"}},
+			},
+		},
+		{
+			name: "failure - assets not found",
+			setupMocks: func() {
+				mockAssetRepo.EXPECT().
+					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.Limit, filter.Page).
+					Return(nil, services.ErrDatabaseItemNotFound).
+					Times(1)
+			},
+			expectedErr:    errors.New("No assets were found in the search. Please review the search criteria and try again."),
+			expectedAssets: nil,
+		},
+		{
+			name: "failure - repository error retrieving assets",
+			setupMocks: func() {
+				mockAssetRepo.EXPECT().
+					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.Limit, filter.Page).
+					Return(nil, errors.New("failed to retrieve assets")).
+					Times(1)
+			},
+			expectedErr:    errors.New("failed to retrieve assets"),
+			expectedAssets: nil,
+		},
+		{
+			name: "failure - metadata retrieval error",
+			setupMocks: func() {
+				mockAssetRepo.EXPECT().
+					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.Limit, filter.Page).
+					Return([]*mmodel.Asset{
+						{ID: "asset1"},
+						{ID: "asset2"},
+					}, nil).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), "Asset", filter).
+					Return(nil, errors.New("failed to retrieve metadata")).
+					Times(1)
+			},
+			expectedErr:    errors.New("No assets were found in the search. Please review the search criteria and try again."),
+			expectedAssets: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			result, err := uc.GetAllAssets(ctx, organizationID, ledgerID, filter)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, len(tt.expectedAssets), len(result))
+				for i, asset := range result {
+					assert.Equal(t, tt.expectedAssets[i].ID, asset.ID)
+					assert.Equal(t, tt.expectedAssets[i].Metadata, asset.Metadata)
+				}
+			}
+		})
+	}
 }

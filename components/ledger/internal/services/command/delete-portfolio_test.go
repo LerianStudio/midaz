@@ -3,53 +3,81 @@ package command
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestDeletePortfolioByIDSuccess is responsible to test DeletePortfolioByID with success
-func TestDeletePortfolioByIDSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
+func TestDeletePortfolioByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	uc := UseCase{
-		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		PortfolioRepo: mockPortfolioRepo,
 	}
 
-	uc.PortfolioRepo.(*portfolio.MockRepository).
-		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, id).
-		Return(nil).
-		Times(1)
-	err := uc.PortfolioRepo.Delete(context.TODO(), organizationID, ledgerID, id)
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	portfolioID := uuid.New()
 
-	assert.Nil(t, err)
-}
-
-// TestDeletePortfolioByIDError is responsible to test DeletePortfolioByID with error
-func TestDeletePortfolioByIDError(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	errMSG := "errDatabaseItemNotFound"
-
-	uc := UseCase{
-		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name        string
+		setupMocks  func()
+		expectedErr error
+	}{
+		{
+			name: "success - portfolio deleted",
+			setupMocks: func() {
+				mockPortfolioRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, portfolioID).
+					Return(nil).
+					Times(1)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "failure - portfolio not found",
+			setupMocks: func() {
+				mockPortfolioRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, portfolioID).
+					Return(services.ErrDatabaseItemNotFound).
+					Times(1)
+			},
+			expectedErr: errors.New("The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again."),
+		},
+		{
+			name: "failure - repository error",
+			setupMocks: func() {
+				mockPortfolioRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, portfolioID).
+					Return(errors.New("failed to delete portfolio")).
+					Times(1)
+			},
+			expectedErr: errors.New("failed to delete portfolio"),
+		},
 	}
 
-	uc.PortfolioRepo.(*portfolio.MockRepository).
-		EXPECT().
-		Delete(gomock.Any(), organizationID, ledgerID, id).
-		Return(errors.New(errMSG)).
-		Times(1)
-	err := uc.PortfolioRepo.Delete(context.TODO(), organizationID, ledgerID, id)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+			err := uc.DeletePortfolioByID(ctx, organizationID, ledgerID, portfolioID)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

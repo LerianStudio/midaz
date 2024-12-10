@@ -2,71 +2,137 @@ package command
 
 import (
 	"context"
-	"errors"
-	"go.uber.org/mock/gomock"
+	"fmt"
 	"testing"
-	"time"
 
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
-// TestUpdatePortfolioByIDSuccess is responsible to test UpdatePortfolioByID with success
-func TestUpdatePortfolioByIDSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	p := &mmodel.Portfolio{
-		ID:             id.String(),
-		EntityID:       pkg.GenerateUUIDv7().String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		UpdatedAt:      time.Now(),
+func TestUpdatePortfolioByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		PortfolioRepo: mockPortfolioRepo,
+		MetadataRepo:  mockMetadataRepo,
 	}
 
-	uc := UseCase{
-		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		portfolioID    uuid.UUID
+		input          *mmodel.UpdatePortfolioInput
+		mockSetup      func()
+		expectErr      bool
+	}{
+		{
+			name:           "Success - Portfolio updated with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    uuid.New(),
+			input: &mmodel.UpdatePortfolioInput{
+				Name:     "Updated Portfolio",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"key": "value"},
+			},
+			mockSetup: func() {
+				mockPortfolioRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Portfolio{ID: "123", Name: "Updated Portfolio", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil)
+			},
+			expectErr: false,
+		},
+		{
+			name:           "Error - Portfolio not found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    uuid.New(),
+			input: &mmodel.UpdatePortfolioInput{
+				Name:     "Nonexistent Portfolio",
+				Status:   mmodel.Status{Code: "inactive"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockPortfolioRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr: true,
+		},
+		{
+			name:           "Error - Failed to update metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    uuid.New(),
+			input: &mmodel.UpdatePortfolioInput{
+				Name:     "Portfolio with Metadata Error",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"key": "value"},
+			},
+			mockSetup: func() {
+				mockPortfolioRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Portfolio{ID: "123", Name: "Portfolio with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("metadata update error"))
+			},
+			expectErr: true,
+		},
+		{
+			name:           "Error - Failure to update portfolio",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    uuid.New(),
+			input: &mmodel.UpdatePortfolioInput{
+				Name:     "Update Failure Portfolio",
+				Status:   mmodel.Status{Code: "inactive"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockPortfolioRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("update error"))
+			},
+			expectErr: true,
+		},
 	}
 
-	uc.PortfolioRepo.(*portfolio.MockRepository).
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, p).
-		Return(p, nil).
-		Times(1)
-	res, err := uc.PortfolioRepo.Update(context.TODO(), organizationID, ledgerID, id, p)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	assert.Equal(t, p, res)
-	assert.Nil(t, err)
-}
+			ctx := context.Background()
+			result, err := uc.UpdatePortfolioByID(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.input)
 
-// TestUpdatePortfolioByIDError is responsible to test UpdatePortfolioByID with error
-func TestUpdatePortfolioByIDError(t *testing.T) {
-	errMSG := "errDatabaseItemNotFound"
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	p := &mmodel.Portfolio{
-		ID:             id.String(),
-		OrganizationID: pkg.GenerateUUIDv7().String(),
-		EntityID:       pkg.GenerateUUIDv7().String(),
-		LedgerID:       ledgerID.String(),
-		UpdatedAt:      time.Now(),
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.input.Name, result.Name)
+				assert.Equal(t, tt.input.Status, result.Status)
+			}
+		})
 	}
-
-	uc := UseCase{
-		PortfolioRepo: portfolio.NewMockRepository(gomock.NewController(t)),
-	}
-
-	uc.PortfolioRepo.(*portfolio.MockRepository).
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, p).
-		Return(nil, errors.New(errMSG))
-	res, err := uc.PortfolioRepo.Update(context.TODO(), organizationID, ledgerID, id, p)
-
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
 }

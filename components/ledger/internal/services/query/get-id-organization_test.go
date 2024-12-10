@@ -2,54 +2,101 @@ package query
 
 import (
 	"context"
-	"errors"
-	"go.uber.org/mock/gomock"
+	"fmt"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetOrganizationByIDSuccess is responsible to test GetOrganizationByID with success
-func TestGetOrganizationByIDSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	o := &mmodel.Organization{ID: id.String()}
+func TestGetOrganizationByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	uc := UseCase{
-		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OrganizationRepo: mockOrganizationRepo,
+		MetadataRepo:     mockMetadataRepo,
 	}
 
-	uc.OrganizationRepo.(*organization.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), id).
-		Return(o, nil).
-		Times(1)
-	res, err := uc.OrganizationRepo.Find(context.TODO(), id)
-
-	assert.Equal(t, res, o)
-	assert.Nil(t, err)
-}
-
-// TestGetOrganizationByIDError is responsible to test GetOrganizationByID with error
-func TestGetOrganizationByIDError(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	errMSG := "errDatabaseItemNotFound"
-
-	uc := UseCase{
-		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		mockSetup      func()
+		expectErr      bool
+		expectedResult *mmodel.Organization
+	}{
+		{
+			name:           "Success - Retrieve organization with metadata",
+			organizationID: uuid.New(),
+			mockSetup: func() {
+				orgID := uuid.New()
+				mockOrganizationRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any()).
+					Return(&mmodel.Organization{ID: orgID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "ACTIVE"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
+			},
+			expectErr: false,
+			expectedResult: &mmodel.Organization{
+				ID:        "valid-uuid",
+				LegalName: "Test Organization",
+				Status:    mmodel.Status{Code: "ACTIVE"},
+				Metadata:  map[string]any{"key": "value"},
+			},
+		},
+		{
+			name:           "Error - Organization not found",
+			organizationID: uuid.New(),
+			mockSetup: func() {
+				mockOrganizationRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Error - Failed to retrieve metadata",
+			organizationID: uuid.New(),
+			mockSetup: func() {
+				orgID := uuid.New()
+				mockOrganizationRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any()).
+					Return(&mmodel.Organization{ID: orgID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "ACTIVE"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("metadata retrieval error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
 	}
 
-	uc.OrganizationRepo.(*organization.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), id).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
-	res, err := uc.OrganizationRepo.Find(context.TODO(), id)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
+			ctx := context.Background()
+			result, err := uc.GetOrganizationByID(ctx, tt.organizationID)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
 }

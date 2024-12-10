@@ -1,0 +1,12 @@
+github.com/LerianStudio/midaz/pkg/constant
+github.com/LerianStudio/midaz/pkg/gold
+github.com/LerianStudio/midaz/pkg/mredis
+github.com/LerianStudio/midaz/pkg/mmongo
+github.com/LerianStudio/midaz/pkg/mmongo
+github.com/LerianStudio/midaz/pkg/mgrpc/account
+github.com/LerianStudio/midaz/pkg/mopentelemetry
+github.com/LerianStudio/midaz/pkg/mpostgres
+github.com/LerianStudio/midaz/pkg/mrabbitmq
+github.com/LerianStudio/midaz/pkg/mredis
+github.com/LerianStudio/midaz/pkg/net/http
+github.com/LerianStudio/midaz/pkg/mlog

@@ -11,8 +11,9 @@ package product
 
 import (
 	context "context"
-	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
+
+	gomock "go.uber.org/mock/gomock"
 
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 

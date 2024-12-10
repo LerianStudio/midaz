@@ -1,9 +1,10 @@
 package in
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
 	"os"
 	"reflect"
+
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
