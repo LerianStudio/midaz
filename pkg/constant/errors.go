@@ -82,4 +82,6 @@ var (
 	ErrInvalidTransactionType               = errors.New("0072")
 	ErrTransactionValueMismatch             = errors.New("0073")
 	ErrForbiddenExternalAccountManipulation = errors.New("0074")
+	ErrAuditRecordNotRetrieved              = errors.New("0075")
+	ErrAuditTreeRecordNotFound              = errors.New("0076")
 )

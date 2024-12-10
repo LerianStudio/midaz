@@ -170,14 +170,25 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 
 	var invalidUUIDs []string
 
+	validPathParamsMap := make(map[string]any)
+
 	for param, value := range params {
+		if !pkg.Contains[string](cn.UUIDPathParameters, param) {
+			validPathParamsMap[param] = value
+			continue
+		}
+
 		parsedUUID, err := uuid.Parse(value)
 		if err != nil {
 			invalidUUIDs = append(invalidUUIDs, param)
 			continue
 		}
 
-		c.Locals(param, parsedUUID)
+		validPathParamsMap[param] = parsedUUID
+	}
+
+	for param, value := range validPathParamsMap {
+		c.Locals(param, value)
 	}
 
 	if len(invalidUUIDs) > 0 {

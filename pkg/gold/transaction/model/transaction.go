@@ -43,9 +43,8 @@ type Amount struct {
 // swagger:model Share
 // @Description Share is the struct designed to represent the sharing fields of an operation.
 type Share struct {
-	Percentage             int  `json:"percentage,omitempty" validate:"required"`
-	PercentageOfPercentage int  `json:"percentageOfPercentage,omitempty"`
-	DescWhatever           bool `json:"descWhatever,omitempty"`
+	Percentage             int `json:"percentage,omitempty" validate:"required"`
+	PercentageOfPercentage int `json:"percentageOfPercentage,omitempty"`
 } // @name Share
 
 // Send structure for marshaling/unmarshalling JSON.
@@ -68,6 +67,23 @@ type Source struct {
 	From      []FromTo `json:"from,omitempty" validate:"singletransactiontype,required,dive"`
 } // @name Source
 
+// Rate structure for marshaling/unmarshalling JSON.
+//
+// swagger:model Rate
+// @Description Rate is the struct designed to represent the rate fields of an operation.
+type Rate struct {
+	From       string `json:"from" validate:"required" example:"BRL"`
+	To         string `json:"to" validate:"required" example:"USDe"`
+	Value      int    `json:"value" validate:"required" example:"1000"`
+	Scale      int    `json:"scale" validate:"gte=0" example:"2"`
+	ExternalID string `json:"externalId" validate:"uuid,required" example:"00000000-0000-0000-0000-000000000000"`
+} // @name Rate
+
+// IsEmpty method that set empty or nil in fields
+func (r Rate) IsEmpty() bool {
+	return r.ExternalID == "" && r.From == "" && r.To == "" && r.Value == 0
+}
+
 // FromTo structure for marshaling/unmarshalling JSON.
 //
 // swagger:model FromTo
@@ -77,8 +93,9 @@ type FromTo struct {
 	Amount          *Amount        `json:"amount,omitempty"`
 	Share           *Share         `json:"share,omitempty"`
 	Remaining       string         `json:"remaining,omitempty" example:"remaining"`
+	Rate            *Rate          `json:"rate,omitempty"`
 	Description     string         `json:"description,omitempty" example:"description"`
-	ChartOfAccounts string         `json:"chartOfAccountsG" example:"1000"`
+	ChartOfAccounts string         `json:"chartOfAccounts" example:"1000"`
 	Metadata        map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	IsFrom          bool           `json:"isFrom,omitempty" example:"true"`
 } // @name FromTo

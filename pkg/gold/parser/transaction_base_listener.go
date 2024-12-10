@@ -101,12 +101,6 @@ func (s *BaseTransactionListener) EnterAmount(ctx *AmountContext) {}
 // ExitAmount is called when production Amount is exited.
 func (s *BaseTransactionListener) ExitAmount(ctx *AmountContext) {}
 
-// EnterShareDescWhatever is called when production ShareDescWhatever is entered.
-func (s *BaseTransactionListener) EnterShareDescWhatever(ctx *ShareDescWhateverContext) {}
-
-// ExitShareDescWhatever is called when production ShareDescWhatever is exited.
-func (s *BaseTransactionListener) ExitShareDescWhatever(ctx *ShareDescWhateverContext) {}
-
 // EnterShareIntOfInt is called when production ShareIntOfInt is entered.
 func (s *BaseTransactionListener) EnterShareIntOfInt(ctx *ShareIntOfIntContext) {}
 
@@ -131,23 +125,29 @@ func (s *BaseTransactionListener) EnterAccount(ctx *AccountContext) {}
 // ExitAccount is called when production account is exited.
 func (s *BaseTransactionListener) ExitAccount(ctx *AccountContext) {}
 
+// EnterRate is called when production rate is entered.
+func (s *BaseTransactionListener) EnterRate(ctx *RateContext) {}
+
+// ExitRate is called when production rate is exited.
+func (s *BaseTransactionListener) ExitRate(ctx *RateContext) {}
+
 // EnterFrom is called when production from is entered.
 func (s *BaseTransactionListener) EnterFrom(ctx *FromContext) {}
 
 // ExitFrom is called when production from is exited.
 func (s *BaseTransactionListener) ExitFrom(ctx *FromContext) {}
 
-// EnterSend is called when production send is entered.
-func (s *BaseTransactionListener) EnterSend(ctx *SendContext) {}
-
-// ExitSend is called when production send is exited.
-func (s *BaseTransactionListener) ExitSend(ctx *SendContext) {}
-
 // EnterSource is called when production source is entered.
 func (s *BaseTransactionListener) EnterSource(ctx *SourceContext) {}
 
 // ExitSource is called when production source is exited.
 func (s *BaseTransactionListener) ExitSource(ctx *SourceContext) {}
+
+// EnterSend is called when production send is entered.
+func (s *BaseTransactionListener) EnterSend(ctx *SendContext) {}
+
+// ExitSend is called when production send is exited.
+func (s *BaseTransactionListener) ExitSend(ctx *SendContext) {}
 
 // EnterTo is called when production to is entered.
 func (s *BaseTransactionListener) EnterTo(ctx *ToContext) {}

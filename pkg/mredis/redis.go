@@ -2,11 +2,11 @@ package mredis
 
 import (
 	"context"
+
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
-
-	"github.com/redis/go-redis/v9"
 )
 
 const RedisTTL = 300

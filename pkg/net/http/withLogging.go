@@ -67,13 +67,13 @@ func NewRequestInfo(c *fiber.Ctx) *RequestInfo {
 	}
 
 	return &RequestInfo{
-		MidazID:       c.Get(headerMidazID),
+		MidazID:       c.Get(HeaderMidazID),
 		Method:        c.Method(),
 		URI:           c.OriginalURL(),
 		Username:      username,
 		Referer:       referer,
 		UserAgent:     c.Get(headerUserAgent),
-		CorrelationID: c.Get(headerCorrelationID),
+		CorrelationID: c.Get(HeaderCorrelationID),
 		RemoteAddress: c.IP(),
 		Protocol:      c.Protocol(),
 		Date:          time.Now().UTC(),
@@ -164,12 +164,12 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 
 		info := NewRequestInfo(c)
 
-		midazID := c.Get(headerMidazID)
+		midazID := c.Get(HeaderMidazID)
 
 		mid := buildOpts(opts...)
 		logger := mid.Logger.WithFields(
-			headerMidazID, info.MidazID,
-			headerCorrelationID, info.CorrelationID,
+			HeaderMidazID, info.MidazID,
+			HeaderCorrelationID, info.CorrelationID,
 		).WithDefaultMessageTemplate(midazID + " | ")
 
 		rw := ResponseMetricsWrapper{
@@ -229,13 +229,13 @@ func WithGrpcLogging(opts ...LogMiddlewareOption) grpc.UnaryServerInterceptor {
 }
 
 func setRequestMidazID(c *fiber.Ctx) {
-	midazID := c.Get(headerMidazID)
+	midazID := c.Get(HeaderMidazID)
 
 	if pkg.IsNilOrEmpty(&midazID) {
 		midazID = gid.New().String()
-		c.Set(headerMidazID, midazID)
-		c.Request().Header.Set(headerMidazID, midazID)
-		c.Response().Header.Set(headerMidazID, midazID)
+		c.Set(HeaderMidazID, midazID)
+		c.Request().Header.Set(HeaderMidazID, midazID)
+		c.Response().Header.Set(HeaderMidazID, midazID)
 	}
 
 	ctx := pkg.ContextWithMidazID(c.UserContext(), midazID)

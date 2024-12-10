@@ -10,3 +10,12 @@ github.com/LerianStudio/midaz/pkg/mrabbitmq
 github.com/LerianStudio/midaz/pkg/mredis
 github.com/LerianStudio/midaz/pkg/net/http
 github.com/LerianStudio/midaz/pkg/mlog
+github.com/LerianStudio/midaz/components/audit/internal/bootstrap
+github.com/LerianStudio/midaz/components/ledger/internal/bootstrap
+github.com/LerianStudio/midaz/components/transaction/internal/bootstrap
+github.com/LerianStudio/midaz/components/audit/cmd
+github.com/LerianStudio/midaz/components/ledger/cmd
+github.com/LerianStudio/midaz/components/transaction/cmd
+github.com/LerianStudio/midaz/components/transaction/api
+github.com/LerianStudio/midaz/components/ledger/api
+github.com/LerianStudio/midaz/components/audit/api
