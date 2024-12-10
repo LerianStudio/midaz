@@ -75,14 +75,8 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					midazID = pkg.GenerateUUIDv7().String()
 				}
 
-				correlationID := msg.CorrelationId
-				if correlationID == "" {
-					correlationID = pkg.GenerateUUIDv7().String()
-				}
-
 				log := cr.Logger.WithFields(
 					http.HeaderMidazID, midazID.(string),
-					http.HeaderCorrelationID, correlationID,
 				).WithDefaultMessageTemplate(midazID.(string) + " | ")
 
 				ctx := pkg.ContextWithLogger(pkg.ContextWithMidazID(context.Background(), midazID.(string)), log)
