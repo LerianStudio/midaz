@@ -47,18 +47,28 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	accountID := c.Locals("account_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by account")
 
 	headerParams.Metadata = &bson.M{}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
@@ -151,18 +161,28 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by portfolio")
 
 	headerParams.Metadata = &bson.M{}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 

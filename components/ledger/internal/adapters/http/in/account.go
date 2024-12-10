@@ -100,11 +100,21 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	var portfolioID *uuid.UUID
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	if !pkg.IsNilOrEmpty(&headerParams.PortfolioID) {
@@ -366,6 +376,10 @@ func (handler *AccountHandler) CreateAccountFromPortfolio(i any, c *fiber.Ctx) e
 func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_all_accounts_from_portfolio")
+	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
@@ -373,11 +387,21 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 
 	logger.Infof("Get Accounts with Portfolio ID: %s", portfolioID.String())
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {
@@ -385,6 +409,8 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, &portfolioID, *headerParams)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
+
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
 			return http.WithError(c, err)
@@ -403,6 +429,8 @@ func (handler *AccountHandler) GetAllAccountsByIDFromPortfolio(c *fiber.Ctx) err
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, *headerParams)
 	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
+
 		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
 		return http.WithError(c, err)

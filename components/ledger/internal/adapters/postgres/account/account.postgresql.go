@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -27,7 +29,7 @@ import (
 //go:generate mockgen --destination=account.mock.go --package=account . Repository
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*mmodel.Account, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
 	Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
 	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
 	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
@@ -146,7 +148,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 }
 
 // FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
-func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, limit, page int) ([]*mmodel.Account, error) {
+func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
@@ -170,9 +172,11 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		findAll = findAll.Where(squirrel.Expr("portfolio_id = ?", portfolioID))
 	}
 
-	findAll = findAll.OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	logger.Infof("Retrieving transactions")
 
-	trans, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
+	trans, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.ToPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get transactions on repo", err)
 

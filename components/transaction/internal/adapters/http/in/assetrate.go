@@ -141,11 +141,21 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)

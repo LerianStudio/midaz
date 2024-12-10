@@ -2,15 +2,17 @@ package http
 
 import (
 	"bytes"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/midaz/pkg"
-	cn "github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/constant"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,24 +22,45 @@ type QueryHeader struct {
 	Metadata     *bson.M
 	Limit        int
 	Page         int
+	SortOrder    string
+	StartDate    time.Time
+	EndDate      time.Time
 	UseMetadata  bool
 	PortfolioID  string
 	ToAssetCodes []string
 }
 
+// Pagination entity from query parameter from get apis
+type Pagination struct {
+	Limit     int
+	Page      int
+	SortOrder string
+	StartDate time.Time
+	EndDate   time.Time
+}
+
 // ValidateParameters validate and return struct of default parameters
-func ValidateParameters(params map[string]string) *QueryHeader {
+func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	var metadata *bson.M
-
-	limit := 10
-
-	page := 1
-
-	useMetadata := false
 
 	var portfolioID string
 
 	var toAssetCodes []string
+
+	var startDate time.Time
+
+	var endDate time.Time
+
+	maxPaginationLimit := pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100)
+	maxDateRangeMonths := pkg.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1)
+
+	defaultStartDate := time.Now().AddDate(0, -int(maxDateRangeMonths), 0)
+	defaultEndDate := time.Now()
+
+	limit := 10
+	page := 1
+	sortOrder := "asc"
+	useMetadata := false
 
 	for key, value := range params {
 		switch {
@@ -48,6 +71,12 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 			limit, _ = strconv.Atoi(value)
 		case strings.Contains(key, "page"):
 			page, _ = strconv.Atoi(value)
+		case strings.Contains(key, "sort_order"):
+			sortOrder = strings.ToLower(value)
+		case strings.Contains(key, "start_date"):
+			startDate, _ = time.Parse("2006-01-02", value)
+		case strings.Contains(key, "end_date"):
+			endDate, _ = time.Parse("2006-01-02", value)
 		case strings.Contains(key, "portfolio_id"):
 			portfolioID = value
 		case strings.Contains(key, "to"):
@@ -55,16 +84,67 @@ func ValidateParameters(params map[string]string) *QueryHeader {
 		}
 	}
 
+	err := validateDates(&startDate, &endDate, defaultStartDate, defaultEndDate, int(maxDateRangeMonths))
+	if err != nil {
+		return nil, err
+	}
+
+	if limit > int(maxPaginationLimit) {
+		return nil, pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+	}
+
+	if (sortOrder != "asc") && (sortOrder != "desc") {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+	}
+
+	if !pkg.IsNilOrEmpty(&portfolioID) {
+		_, err := uuid.Parse(portfolioID)
+		if err != nil {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
+		}
+	}
+
 	query := &QueryHeader{
 		Metadata:     metadata,
 		Limit:        limit,
 		Page:         page,
+		SortOrder:    sortOrder,
+		StartDate:    startDate,
+		EndDate:      endDate,
 		UseMetadata:  useMetadata,
 		PortfolioID:  portfolioID,
 		ToAssetCodes: toAssetCodes,
 	}
 
-	return query
+	return query, nil
+}
+
+func validateDates(startDate, endDate *time.Time, defaultStartDate, defaultEndDate time.Time, maxDateRangeMonths int) error {
+	if !startDate.IsZero() && !endDate.IsZero() {
+		if !pkg.IsValidDate(pkg.NormalizeDate(*startDate, nil)) || !pkg.IsValidDate(pkg.NormalizeDate(*endDate, nil)) {
+			return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
+		}
+
+		if !pkg.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
+			return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
+		}
+
+		if !pkg.IsDateRangeWithinMonthLimit(*startDate, *endDate, maxDateRangeMonths) {
+			return pkg.ValidateBusinessError(constant.ErrDateRangeExceedsLimit, "", maxDateRangeMonths)
+		}
+	}
+
+	if startDate.IsZero() && endDate.IsZero() {
+		*startDate = defaultStartDate
+		*endDate = defaultEndDate
+	}
+
+	if (!startDate.IsZero() && endDate.IsZero()) ||
+		(startDate.IsZero() && !endDate.IsZero()) {
+		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
+	}
+
+	return nil
 }
 
 // IPAddrFromRemoteAddr removes port information from string.
@@ -103,15 +183,15 @@ func GetRemoteAddress(r *http.Request) string {
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(dsl)
 	if err != nil {
-		return "", pkg.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "")
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
 	}
 
 	if !strings.Contains(fileHeader.Filename, fileExtension) {
-		return "", pkg.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	if fileHeader.Size == 0 {
-		return "", pkg.ValidateBusinessError(cn.ErrEmptyDSLFile, "", fileHeader.Filename)
+		return "", pkg.ValidateBusinessError(constant.ErrEmptyDSLFile, "", fileHeader.Filename)
 	}
 
 	file, err := fileHeader.Open()
@@ -128,7 +208,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, file); err != nil {
-		return "", pkg.ValidateBusinessError(cn.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
+		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
 	fileString := buf.String()
@@ -144,4 +224,14 @@ func GetTokenHeader(c *fiber.Ctx) string {
 	}
 
 	return ""
+}
+
+func (qh *QueryHeader) ToPagination() Pagination {
+	return Pagination{
+		Limit:     qh.Limit,
+		Page:      qh.Page,
+		SortOrder: qh.SortOrder,
+		StartDate: qh.StartDate,
+		EndDate:   qh.EndDate,
+	}
 }

@@ -24,7 +24,7 @@ func (uc *UseCase) GetAllOperationsByPortfolio(ctx context.Context, organization
 
 	logger.Infof("Retrieving operations by portfolio")
 
-	op, err := uc.OperationRepo.FindAllByPortfolio(ctx, organizationID, ledgerID, portfolioID, filter.Limit, filter.Page)
+	op, err := uc.OperationRepo.FindAllByPortfolio(ctx, organizationID, ledgerID, portfolioID, filter.ToPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get all operations on repo by portfolio", err)
 

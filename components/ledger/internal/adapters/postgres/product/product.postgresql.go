@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -28,7 +30,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, product *mmodel.Product) (*mmodel.Product, error)
 	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Product, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Product, error)
 	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Product, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, product *mmodel.Product) (*mmodel.Product, error)
@@ -163,7 +165,7 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 }
 
 // FindAll retrieves Product entities from the database.
-func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Product, error) {
+func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Product, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_products")
@@ -183,9 +185,11 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

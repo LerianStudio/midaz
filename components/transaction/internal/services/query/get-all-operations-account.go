@@ -24,7 +24,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	logger.Infof("Retrieving operations by account")
 
-	op, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.Limit, filter.Page)
+	op, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.ToPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get operations on repo", err)
 

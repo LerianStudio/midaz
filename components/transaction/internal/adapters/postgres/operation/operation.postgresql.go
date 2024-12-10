@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,9 +26,9 @@ import (
 //go:generate mockgen --destination=operation.mock.go --package=operation . Repository
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
-	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, limit, page int) ([]*Operation, error)
-	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, limit, page int) ([]*Operation, error)
-	FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*Operation, error)
+	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, error)
+	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*Operation, error)
+	FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, error)
 	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
 	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error)
 	FindByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*Operation, error)
@@ -135,7 +137,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 }
 
 // FindAll retrieves Operations entities from the database.
-func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, limit, page int) ([]*Operation, error) {
+func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations")
@@ -156,9 +158,11 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("transaction_id = ?", transactionID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -602,7 +606,7 @@ func (r *OperationPostgreSQLRepository) Delete(ctx context.Context, organization
 }
 
 // FindAllByAccount retrieves Operations entities from the database using the provided account ID.
-func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, limit, page int) ([]*Operation, error) {
+func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*Operation, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
@@ -623,9 +627,11 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("account_id = ?", accountID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(2))}).
+		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
@@ -693,7 +699,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 }
 
 // FindAllByPortfolio retrieves Operations entities from the database using the provided portfolio ID.
-func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, limit, page int) ([]*Operation, error) {
+func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_by_portfolio")
@@ -714,9 +720,11 @@ func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, 
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr("portfolio_id = ?", portfolioID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

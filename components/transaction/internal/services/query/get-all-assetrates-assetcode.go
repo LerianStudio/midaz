@@ -36,7 +36,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 		}
 	}
 
-	assetRates, err := uc.AssetRateRepo.FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.Limit, filter.Page)
+	assetRates, err := uc.AssetRateRepo.FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get asset rate by asset codes on repository", err)
 

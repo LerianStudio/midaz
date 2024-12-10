@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -30,7 +32,7 @@ type Repository interface {
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error)
-	FindAll(ctx context.Context, limit, page int) ([]*mmodel.Organization, error)
+	FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error)
 	ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }
@@ -285,7 +287,7 @@ func (r *OrganizationPostgreSQLRepository) Find(ctx context.Context, id uuid.UUI
 }
 
 // FindAll retrieves Organizations entities from the database.
-func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, page int) ([]*mmodel.Organization, error) {
+func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_organizations")
@@ -303,9 +305,11 @@ func (r *OrganizationPostgreSQLRepository) FindAll(ctx context.Context, limit, p
 	findAll := squirrel.Select("*").
 		From(r.tableName).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

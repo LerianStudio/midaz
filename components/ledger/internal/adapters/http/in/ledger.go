@@ -134,11 +134,21 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {

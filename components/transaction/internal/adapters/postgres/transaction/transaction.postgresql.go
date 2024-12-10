@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -24,7 +26,7 @@ import (
 //go:generate mockgen --destination=transaction.mock.go --package=transaction . Repository
 type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*Transaction, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
@@ -122,7 +124,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 }
 
 // FindAll retrieves Transactions entities from the database.
-func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*Transaction, error) {
+func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
@@ -142,9 +144,11 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

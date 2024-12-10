@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 
 	logger.Infof("Retrieving ledgers")
 
-	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter.Limit, filter.Page)
+	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter.ToPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get ledgers on repo", err)
 
