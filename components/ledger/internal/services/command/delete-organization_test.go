@@ -3,49 +3,79 @@ package command
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestDeleteOrganizationByIDSuccess is responsible to test DeleteOrganizationByID with success
-func TestDeleteOrganizationByIDSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
+func TestDeleteOrganizationByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	uc := UseCase{
-		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OrganizationRepo: mockOrganizationRepo,
 	}
 
-	uc.OrganizationRepo.(*organization.MockRepository).
-		EXPECT().
-		Delete(gomock.Any(), id).
-		Return(nil).
-		Times(1)
-	err := uc.OrganizationRepo.Delete(context.TODO(), id)
+	ctx := context.Background()
+	organizationID := uuid.New()
 
-	assert.Nil(t, err)
-}
-
-// TestDeleteOrganizationByIDError is responsible to test DeleteOrganizationByID with error
-func TestDeleteOrganizationByIDError(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	errMSG := "errDatabaseItemNotFound"
-
-	uc := UseCase{
-		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name        string
+		setupMocks  func()
+		expectedErr error
+	}{
+		{
+			name: "success - organization deleted",
+			setupMocks: func() {
+				mockOrganizationRepo.EXPECT().
+					Delete(gomock.Any(), organizationID).
+					Return(nil).
+					Times(1)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "failure - organization not found",
+			setupMocks: func() {
+				mockOrganizationRepo.EXPECT().
+					Delete(gomock.Any(), organizationID).
+					Return(services.ErrDatabaseItemNotFound).
+					Times(1)
+			},
+			expectedErr: errors.New("The provided organization ID does not exist in our records. Please verify the organization ID and try again."),
+		},
+		{
+			name: "failure - repository error",
+			setupMocks: func() {
+				mockOrganizationRepo.EXPECT().
+					Delete(gomock.Any(), organizationID).
+					Return(errors.New("failed to delete organization")).
+					Times(1)
+			},
+			expectedErr: errors.New("failed to delete organization"),
+		},
 	}
 
-	uc.OrganizationRepo.(*organization.MockRepository).
-		EXPECT().
-		Delete(gomock.Any(), id).
-		Return(errors.New(errMSG)).
-		Times(1)
-	err := uc.OrganizationRepo.Delete(context.TODO(), id)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+			err := uc.DeleteOrganizationByID(ctx, organizationID)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

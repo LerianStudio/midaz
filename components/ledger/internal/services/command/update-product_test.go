@@ -2,69 +2,139 @@ package command
 
 import (
 	"context"
-	"errors"
-	"go.uber.org/mock/gomock"
+	"fmt"
 	"testing"
-	"time"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestUpdateProductByIDSuccess is responsible to test UpdateProductByID with success
-func TestUpdateProductByIDSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	p := &mmodel.Product{
-		ID:             id.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		UpdatedAt:      time.Now(),
+func TestUpdateProductByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProductRepo := product.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		ProductRepo:  mockProductRepo,
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	uc := UseCase{
-		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		productID      uuid.UUID
+		input          *mmodel.UpdateProductInput
+		mockSetup      func()
+		expectErr      bool
+	}{
+		{
+			name:           "Success - Product updated with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			input: &mmodel.UpdateProductInput{
+				Name:     "Updated Product",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"key": "value"},
+			},
+			mockSetup: func() {
+				mockProductRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Product{ID: "123", Name: "Updated Product", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil)
+			},
+			expectErr: false,
+		},
+		{
+			name:           "Error - Product not found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			input: &mmodel.UpdateProductInput{
+				Name:     "Nonexistent Product",
+				Status:   mmodel.Status{Code: "inactive"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockProductRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr: true,
+		},
+		{
+			name:           "Error - Failed to update metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			input: &mmodel.UpdateProductInput{
+				Name:     "Product with Metadata Error",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"key": "value"},
+			},
+			mockSetup: func() {
+				mockProductRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Product{ID: "123", Name: "Product with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("metadata update error"))
+			},
+			expectErr: true,
+		},
+		{
+			name:           "Error - Failure to update product",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			input: &mmodel.UpdateProductInput{
+				Name:     "Update Failure Product",
+				Status:   mmodel.Status{Code: "inactive"},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockProductRepo.EXPECT().
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("update error"))
+			},
+			expectErr: true,
+		},
 	}
 
-	uc.ProductRepo.(*product.MockRepository).
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, p).
-		Return(p, nil).
-		Times(1)
-	res, err := uc.ProductRepo.Update(context.TODO(), organizationID, ledgerID, id, p)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	assert.Equal(t, p, res)
-	assert.Nil(t, err)
-}
+			ctx := context.Background()
+			result, err := uc.UpdateProductByID(ctx, tt.organizationID, tt.ledgerID, tt.productID, tt.input)
 
-// TestUpdateProductByIDError is responsible to test UpdateProductByID with error
-func TestUpdateProductByIDError(t *testing.T) {
-	errMSG := "errDatabaseItemNotFound"
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	p := &mmodel.Product{
-		ID:             id.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		UpdatedAt:      time.Now(),
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.input.Name, result.Name)
+				assert.Equal(t, tt.input.Status, result.Status)
+			}
+		})
 	}
-
-	uc := UseCase{
-		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
-	}
-
-	uc.ProductRepo.(*product.MockRepository).
-		EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, id, p).
-		Return(nil, errors.New(errMSG))
-	res, err := uc.ProductRepo.Update(context.TODO(), organizationID, ledgerID, id, p)
-
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
 }

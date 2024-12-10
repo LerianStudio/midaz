@@ -3,53 +3,144 @@ package command
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
-	"reflect"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestMetadataUpdateSuccess is responsible to test MetadataUpdate with success
-func TestMetadataUpdateSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7().String()
-	metadata := map[string]any{}
-	collection := reflect.TypeOf(mmodel.Organization{}).Name()
-	uc := UseCase{
-		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
+func TestUpdateMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	uc.MetadataRepo.(*mongodb.MockRepository).
-		EXPECT().
-		Update(gomock.Any(), collection, id, metadata).
-		Return(nil).
-		Times(1)
+	ctx := context.Background()
+	entityName := "TestEntity"
+	entityID := "123456"
 
-	err := uc.MetadataRepo.Update(context.TODO(), collection, id, metadata)
-	assert.Nil(t, err)
-}
+	tests := []struct {
+		name             string
+		inputMetadata    map[string]any
+		setupMocks       func()
+		expectedErr      error
+		expectedMetadata map[string]any
+	}{
+		{
+			name: "success - metadata updated with new data",
+			inputMetadata: map[string]any{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			setupMocks: func() {
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), entityName, entityID).
+					Return(nil, nil).
+					Times(1)
 
-// TestMetadataUpdateError is responsible to test MetadataUpdate with error
-func TestMetadataUpdateError(t *testing.T) {
-	errMSG := "err to update metadata on mongodb"
-	id := pkg.GenerateUUIDv7().String()
-	metadata := map[string]any{}
-	collection := reflect.TypeOf(mmodel.Organization{}).Name()
-	uc := UseCase{
-		MetadataRepo: mongodb.NewMockRepository(gomock.NewController(t)),
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), entityName, entityID, gomock.Any()).
+					Return(nil).
+					Times(1)
+			},
+			expectedErr: nil,
+			expectedMetadata: map[string]any{
+				"key1": "value1",
+				"key2": "value2",
+			},
+		},
+		{
+			name: "success - metadata updated with merged data",
+			inputMetadata: map[string]any{
+				"key2": "new_value2",
+				"key3": "value3",
+			},
+			setupMocks: func() {
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), entityName, entityID).
+					Return(&mongodb.Metadata{
+						Data: map[string]any{
+							"key1": "value1",
+							"key2": "value2",
+						},
+					}, nil).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), entityName, entityID, gomock.Any()).
+					DoAndReturn(func(_ context.Context, _, _ string, updatedMetadata map[string]any) error {
+						expectedMerged := map[string]any{
+							"key1": "value1",
+							"key2": "new_value2",
+							"key3": "value3",
+						}
+						assert.Equal(t, expectedMerged, updatedMetadata)
+						return nil
+					}).
+					Times(1)
+			},
+			expectedErr: nil,
+			expectedMetadata: map[string]any{
+				"key1": "value1",
+				"key2": "new_value2",
+				"key3": "value3",
+			},
+		},
+		{
+			name:          "failure - error retrieving existing metadata",
+			inputMetadata: map[string]any{"key1": "value1"},
+			setupMocks: func() {
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), entityName, entityID).
+					Return(nil, errors.New("failed to retrieve metadata")).
+					Times(1)
+			},
+			expectedErr:      errors.New("failed to retrieve metadata"),
+			expectedMetadata: nil,
+		},
+		{
+			name: "failure - error updating metadata",
+			inputMetadata: map[string]any{
+				"key1": "value1",
+			},
+			setupMocks: func() {
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), entityName, entityID).
+					Return(nil, nil).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Update(gomock.Any(), entityName, entityID, gomock.Any()).
+					Return(errors.New("failed to update metadata")).
+					Times(1)
+			},
+			expectedErr:      errors.New("failed to update metadata"),
+			expectedMetadata: nil,
+		},
 	}
 
-	uc.MetadataRepo.(*mongodb.MockRepository).
-		EXPECT().
-		Update(gomock.Any(), collection, id, metadata).
-		Return(errors.New(errMSG)).
-		Times(1)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
 
-	err := uc.MetadataRepo.Update(context.TODO(), collection, id, metadata)
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
+			result, err := uc.UpdateMetadata(ctx, entityName, entityID, tt.inputMetadata)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expectedMetadata, result)
+			}
+		})
+	}
 }

@@ -2,53 +2,129 @@ package command
 
 import (
 	"context"
-	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
-// TestCreateOrganizationSuccess is responsible to test CreateOrganization with success
-func TestCreateOrganizationSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7().String()
-	o := &mmodel.Organization{ID: id}
+func TestCreateOrganization(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	uc := UseCase{
-		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
+	mockRepo := organization.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OrganizationRepo: mockRepo,
 	}
 
-	uc.OrganizationRepo.(*organization.MockRepository).
-		EXPECT().
-		Create(gomock.Any(), o).
-		Return(o, nil).
-		Times(1)
-	res, err := uc.OrganizationRepo.Create(context.TODO(), o)
-
-	assert.Equal(t, o, res)
-	assert.Nil(t, err)
-}
-
-// TestCreateOrganizationError is responsible to test CreateOrganization with error
-func TestCreateOrganizationError(t *testing.T) {
-	o := &mmodel.Organization{}
-	errMSG := "err to create organization on database"
-
-	uc := UseCase{
-		OrganizationRepo: organization.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name        string
+		input       *mmodel.CreateOrganizationInput
+		mockSetup   func()
+		expectErr   bool
+		expectedOrg *mmodel.Organization
+	}{
+		{
+			name: "Success with all fields provided",
+			input: &mmodel.CreateOrganizationInput{
+				LegalName:       "Test Org",
+				DoingBusinessAs: ptr.StringPtr("Test DBA"),
+				LegalDocument:   "123456789",
+				Address: mmodel.Address{
+					Country: "US",
+				},
+				Status: mmodel.Status{
+					Code: "ACTIVE",
+				},
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(&mmodel.Organization{
+						ID:                   "123",
+						LegalName:            "Test Org",
+						DoingBusinessAs:      ptr.StringPtr("Test DBA"),
+						LegalDocument:        "123456789",
+						Address:              mmodel.Address{Country: "US"},
+						Status:               mmodel.Status{Code: "ACTIVE"},
+						CreatedAt:            time.Now(),
+						UpdatedAt:            time.Now(),
+						ParentOrganizationID: nil,
+						Metadata:             nil,
+					}, nil)
+			},
+			expectErr: false,
+			expectedOrg: &mmodel.Organization{
+				LegalName:       "Test Org",
+				DoingBusinessAs: ptr.StringPtr("Test DBA"),
+				LegalDocument:   "123456789",
+				Address:         mmodel.Address{Country: "US"},
+				Status:          mmodel.Status{Code: "ACTIVE"},
+			},
+		},
+		{
+			name: "Success with default status",
+			input: &mmodel.CreateOrganizationInput{
+				LegalName:       "Default Status Org",
+				DoingBusinessAs: ptr.StringPtr("Default DBA"),
+				LegalDocument:   "555555555",
+				Address: mmodel.Address{
+					Country: "CA",
+				},
+				Status:   mmodel.Status{}, // Empty status
+				Metadata: nil,
+			},
+			mockSetup: func() {
+				mockRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Return(&mmodel.Organization{
+						ID:                   "124",
+						LegalName:            "Default Status Org",
+						DoingBusinessAs:      ptr.StringPtr("Default DBA"),
+						LegalDocument:        "555555555",
+						Address:              mmodel.Address{Country: "CA"},
+						Status:               mmodel.Status{Code: "ACTIVE"},
+						CreatedAt:            time.Now(),
+						UpdatedAt:            time.Now(),
+						ParentOrganizationID: nil,
+						Metadata:             nil,
+					}, nil)
+			},
+			expectErr: false,
+			expectedOrg: &mmodel.Organization{
+				LegalName:       "Default Status Org",
+				DoingBusinessAs: ptr.StringPtr("Default DBA"),
+				LegalDocument:   "555555555",
+				Address:         mmodel.Address{Country: "CA"},
+				Status:          mmodel.Status{Code: "ACTIVE"},
+			},
+		},
 	}
 
-	uc.OrganizationRepo.(*organization.MockRepository).
-		EXPECT().
-		Create(gomock.Any(), o).
-		Return(nil, errors.New(errMSG))
-	res, err := uc.OrganizationRepo.Create(context.TODO(), o)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
+			ctx := context.Background()
+			result, err := uc.CreateOrganization(ctx, tt.input)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expectedOrg.LegalName, result.LegalName)
+				assert.Equal(t, tt.expectedOrg.DoingBusinessAs, result.DoingBusinessAs)
+				assert.Equal(t, tt.expectedOrg.LegalDocument, result.LegalDocument)
+				assert.Equal(t, tt.expectedOrg.Status.Code, result.Status.Code)
+			}
+		})
+	}
 }

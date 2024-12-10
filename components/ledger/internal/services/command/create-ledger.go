@@ -59,7 +59,9 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), led.ID, cli.Metadata)
+	takeName := reflect.TypeOf(mmodel.Ledger{}).Name()
+
+	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
 

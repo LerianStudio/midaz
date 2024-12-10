@@ -3,59 +3,109 @@ package query
 import (
 	"context"
 	"errors"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
-	"reflect"
+	"fmt"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllMetadataProducts is responsible to test TestGetAllMetadataProducts with success and error
 func TestGetAllMetadataProducts(t *testing.T) {
-	collection := reflect.TypeOf(mmodel.Product{}).Name()
-	filter := http.QueryHeader{
-		Metadata: &bson.M{"metadata": 1},
-		Limit:    10,
-		Page:     1,
-	}
-
-	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
-	uc := UseCase{
+	mockProductRepo := product.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		ProductRepo:  mockProductRepo,
 		MetadataRepo: mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		mockMetadataRepo.
-			EXPECT().
-			FindList(gomock.Any(), collection, filter).
-			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
-			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		filter         http.QueryHeader
+		mockSetup      func()
+		expectErr      bool
+		expectedResult []*mmodel.Product
+	}{
+		{
+			name:           "Success - Retrieve products with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+				mockProductRepo.EXPECT().
+					FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					Return([]*mmodel.Product{
+						{ID: validUUID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+			},
+			expectErr: false,
+			expectedResult: []*mmodel.Product{
+				{ID: "valid-uuid", Name: "Test Product", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			},
+		},
+		{
+			name:           "Error - No metadata found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			mockSetup: func() {
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("error metadata no found"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Error - Failed to retrieve products",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+				mockProductRepo.EXPECT().
+					FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					Return(nil, fmt.Errorf("database error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+	}
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	t.Run("Error", func(t *testing.T) {
-		errMSG := "errDatabaseItemNotFound"
-		mockMetadataRepo.
-			EXPECT().
-			FindList(gomock.Any(), collection, filter).
-			Return(nil, errors.New(errMSG)).
-			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+			ctx := context.Background()
+			result, err := uc.GetAllMetadataProducts(ctx, tt.organizationID, tt.ledgerID, tt.filter)
 
-		assert.EqualError(t, err, errMSG)
-		assert.Nil(t, res)
-	})
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
 }

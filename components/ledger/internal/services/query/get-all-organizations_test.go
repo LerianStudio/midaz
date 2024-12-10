@@ -2,52 +2,114 @@ package query
 
 import (
 	"context"
-	"errors"
-	"go.uber.org/mock/gomock"
+	"fmt"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllOrganizationsError is responsible to test GetAllOrganizations with success and error
 func TestGetAllOrganizations(t *testing.T) {
-	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockOrganizationRepo := organization.NewMockRepository(ctrl)
-	limit := 10
-	page := 1
 
-	uc := UseCase{
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
 		OrganizationRepo: mockOrganizationRepo,
+		MetadataRepo:     mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		organizations := []*mmodel.Organization{{}}
-		mockOrganizationRepo.
-			EXPECT().
-			FindAll(gomock.Any(), limit, page).
-			Return(organizations, nil).
-			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO(), limit, page)
+	tests := []struct {
+		name           string
+		filter         http.QueryHeader
+		mockSetup      func()
+		expectErr      bool
+		expectedResult []*mmodel.Organization
+	}{
+		{
+			name: "Success - Retrieve organizations with metadata",
+			filter: http.QueryHeader{
+				Limit: 10,
+				Page:  1,
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), 10, 1).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+			},
+			expectErr: false,
+			expectedResult: []*mmodel.Organization{
+				{ID: "valid-uuid", LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			},
+		},
+		{
+			name: "Error - No organizations found",
+			filter: http.QueryHeader{
+				Limit: 10,
+				Page:  1,
+			},
+			mockSetup: func() {
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), 10, 1).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name: "Error - Failed to retrieve metadata",
+			filter: http.QueryHeader{
+				Limit: 10,
+				Page:  1,
+			},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockOrganizationRepo.EXPECT().
+					FindAll(gomock.Any(), 10, 1).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, fmt.Errorf("metadata retrieval error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+	}
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
-		mockOrganizationRepo.
-			EXPECT().
-			FindAll(gomock.Any(), limit, page).
-			Return(nil, errors.New(errMsg)).
-			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO(), limit, page)
+			ctx := context.Background()
+			result, err := uc.GetAllOrganizations(ctx, tt.filter)
 
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-	})
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
 }
