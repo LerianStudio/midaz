@@ -3,8 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.uber.org/mock/gomock"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -18,8 +20,14 @@ func TestGetAllOrganizations(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockOrganizationRepo := organization.NewMockRepository(ctrl)
-	limit := 10
-	page := 1
+	filter := http.QueryHeader{
+		Limit:        10,
+		Page:         1,
+		SortOrder:    "asc",
+		StartDate:    time.Now().AddDate(0, -1, 0),
+		EndDate:      time.Now(),
+		ToAssetCodes: []string{"BRL"},
+	}
 
 	uc := UseCase{
 		OrganizationRepo: mockOrganizationRepo,
@@ -29,10 +37,10 @@ func TestGetAllOrganizations(t *testing.T) {
 		organizations := []*mmodel.Organization{{}}
 		mockOrganizationRepo.
 			EXPECT().
-			FindAll(gomock.Any(), limit, page).
+			FindAll(gomock.Any(), filter.ToPagination()).
 			Return(organizations, nil).
 			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO(), limit, page)
+		res, err := uc.OrganizationRepo.FindAll(context.TODO(), filter.ToPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -42,10 +50,10 @@ func TestGetAllOrganizations(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockOrganizationRepo.
 			EXPECT().
-			FindAll(gomock.Any(), limit, page).
+			FindAll(gomock.Any(), filter.ToPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO(), limit, page)
+		res, err := uc.OrganizationRepo.FindAll(context.TODO(), filter.ToPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

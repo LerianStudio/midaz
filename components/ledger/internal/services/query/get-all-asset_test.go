@@ -3,8 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.uber.org/mock/gomock"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/pkg"
@@ -17,8 +19,14 @@ import (
 func TestGetAllAssets(t *testing.T) {
 	ledgerID := pkg.GenerateUUIDv7()
 	organizationID := pkg.GenerateUUIDv7()
-	limit := 10
-	page := 1
+	filter := http.QueryHeader{
+		Limit:        10,
+		Page:         1,
+		SortOrder:    "asc",
+		StartDate:    time.Now().AddDate(0, -1, 0),
+		EndDate:      time.Now(),
+		ToAssetCodes: []string{"BRL"},
+	}
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -33,10 +41,10 @@ func TestGetAllAssets(t *testing.T) {
 		assets := []*mmodel.Asset{{}}
 		mockAssetRepo.
 			EXPECT().
-			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, page, limit).
+			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
 			Return(assets, nil).
 			Times(1)
-		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, page, limit)
+		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, filter.ToPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -46,10 +54,10 @@ func TestGetAllAssets(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockAssetRepo.
 			EXPECT().
-			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, page, limit).
+			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, page, limit)
+		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, filter.ToPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

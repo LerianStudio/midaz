@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.uber.org/mock/gomock"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/pkg"
@@ -19,9 +21,14 @@ func GetAllAssetRatesByAssetCode(t *testing.T) {
 	orgID := pkg.GenerateUUIDv7()
 	ledgerID := pkg.GenerateUUIDv7()
 	fromAssetCode := "USD"
-	toAssetCodes := []string{"BRL"}
-	limit := 10
-	page := 1
+	filter := http.QueryHeader{
+		Limit:        10,
+		Page:         1,
+		SortOrder:    "asc",
+		StartDate:    time.Now().AddDate(0, -1, 0),
+		EndDate:      time.Now(),
+		ToAssetCodes: []string{"BRL"},
+	}
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -29,7 +36,7 @@ func GetAllAssetRatesByAssetCode(t *testing.T) {
 		LedgerID:       ledgerID.String(),
 		ExternalID:     pkg.GenerateUUIDv7().String(),
 		From:           fromAssetCode,
-		To:             toAssetCodes[0],
+		To:             filter.ToAssetCodes[0],
 		Rate:           100,
 		Scale:          mpointers.Float64(2),
 		Source:         mpointers.String("External System"),
@@ -42,10 +49,10 @@ func GetAllAssetRatesByAssetCode(t *testing.T) {
 
 	uc.AssetRateRepo.(*assetrate.MockRepository).
 		EXPECT().
-		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, toAssetCodes, limit, page).
+		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination()).
 		Return(assetRate, nil).
 		Times(1)
-	res, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+	res, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination())
 
 	assert.Equal(t, assetRate, res)
 	assert.Nil(t, err)
@@ -56,9 +63,14 @@ func GetAllAssetRatesByAssetCodeError(t *testing.T) {
 	orgID := pkg.GenerateUUIDv7()
 	ledgerID := pkg.GenerateUUIDv7()
 	fromAssetCode := "USD"
-	toAssetCodes := []string{"BRL"}
-	limit := 10
-	page := 1
+	filter := http.QueryHeader{
+		Limit:        10,
+		Page:         1,
+		SortOrder:    "asc",
+		StartDate:    time.Now().AddDate(0, -1, 0),
+		EndDate:      time.Now(),
+		ToAssetCodes: []string{"BRL"},
+	}
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
@@ -67,10 +79,10 @@ func GetAllAssetRatesByAssetCodeError(t *testing.T) {
 
 	uc.AssetRateRepo.(*assetrate.MockRepository).
 		EXPECT().
-		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, toAssetCodes, limit, page).
+		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination()).
 		Return(nil, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+	res, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination())
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)

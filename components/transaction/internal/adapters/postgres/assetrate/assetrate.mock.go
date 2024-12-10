@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	http "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -57,18 +58,18 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, assetRate any) *gomock.Call {
 }
 
 // FindAllByAssetCodes mocks base method.
-func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, limit, page int) ([]*AssetRate, error) {
+func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllByAssetCodes", ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+	ret := m.ctrl.Call(m, "FindAllByAssetCodes", ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, filter)
 	ret0, _ := ret[0].([]*AssetRate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAllByAssetCodes indicates an expected call of FindAllByAssetCodes.
-func (mr *MockRepositoryMockRecorder) FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAssetCodes", reflect.TypeOf((*MockRepository)(nil).FindAllByAssetCodes), ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, limit, page)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAssetCodes", reflect.TypeOf((*MockRepository)(nil).FindAllByAssetCodes), ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, filter)
 }
 
 // FindByCurrencyPair mocks base method.
