@@ -538,7 +538,7 @@ func (handler *TransactionHandler) logTransaction(ctx context.Context, operation
 	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
 		ctxLogTransaction,
 		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
-		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
+		os.Getenv("RABBITMQ_AUDIT_KEY"),
 		queueMessage,
 	); err != nil {
 		logger.Fatalf("Failed to send message: %s", err.Error())
