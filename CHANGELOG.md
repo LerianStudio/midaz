@@ -1,3 +1,10 @@
+## [1.31.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.16...v1.31.0-beta.17) (2024-12-11)
+
+
+### Features
+
+* added new flags to get list filters :sparkles: ([959cc9d](https://github.com/LerianStudio/midaz/commit/959cc9db71a40b963af279be17e8be48aa79b123))
+
 ## [1.31.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.15...v1.31.0-beta.16) (2024-12-11)
 
 
