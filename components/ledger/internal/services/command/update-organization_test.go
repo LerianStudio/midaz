@@ -2,7 +2,7 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -107,7 +107,7 @@ func TestUpdateOrganizationByID(t *testing.T) {
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(fmt.Errorf("metadata update error"))
+					Return(errors.New("metadata update error"))
 			},
 			expectErr: true,
 		},

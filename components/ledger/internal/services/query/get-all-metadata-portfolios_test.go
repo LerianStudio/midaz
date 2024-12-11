@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -85,7 +84,7 @@ func TestGetAllMetadataPortfolios(t *testing.T) {
 					}, nil)
 				mockPortfolioRepo.EXPECT().
 					ListByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
-					Return(nil, fmt.Errorf("database error"))
+					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
 			expectedResult: nil,

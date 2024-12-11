@@ -2,7 +2,7 @@ package query
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"go.uber.org/mock/gomock"
@@ -84,7 +84,7 @@ func TestGetProductByID(t *testing.T) {
 					Return(&mmodel.Product{ID: productID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, fmt.Errorf("metadata retrieval error"))
+					Return(nil, errors.New("metadata retrieval error"))
 			},
 			expectErr:      true,
 			expectedResult: nil,

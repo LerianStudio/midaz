@@ -2,7 +2,7 @@ package query
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
@@ -72,7 +72,7 @@ func TestListAccountsByIDs(t *testing.T) {
 			mockSetup: func() {
 				mockAccountRepo.EXPECT().
 					ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, fmt.Errorf("database error"))
+					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
 			expectedResult: nil,
