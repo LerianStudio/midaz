@@ -50,11 +50,16 @@ func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*m
 	return &ledResp, nil
 }
 
-func (r *ledger) Get(organizationID string, limit, page int) (*mmodel.Ledgers, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d",
-		r.Factory.Env.URLAPILedger, organizationID, limit, page)
+func (r *ledger) Get(organizationID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Ledgers, error) {
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers",
+		r.Factory.Env.URLAPILedger, organizationID)
 
-	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}

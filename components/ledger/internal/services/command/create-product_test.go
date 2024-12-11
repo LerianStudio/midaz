@@ -2,7 +2,7 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -82,7 +82,7 @@ func TestCreateProduct(t *testing.T) {
 			mockSetup: func() {
 				mockRepo.EXPECT().
 					FindByName(gomock.Any(), gomock.Any(), gomock.Any(), "Failing Product").
-					Return(false, fmt.Errorf("repository error"))
+					Return(false, errors.New("repository error"))
 			},
 			expectErr:    true,
 			expectedProd: nil,

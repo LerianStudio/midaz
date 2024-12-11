@@ -2,7 +2,7 @@ package query
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
@@ -67,7 +67,7 @@ func TestGetAllMetadataLedgers(t *testing.T) {
 					}, nil)
 				mockLedgerRepo.EXPECT().
 					ListByIDs(gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
-					Return(nil, fmt.Errorf("database error"))
+					Return(nil, errors.New("database error"))
 			},
 			expectErr:      true,
 			expectedResult: nil,

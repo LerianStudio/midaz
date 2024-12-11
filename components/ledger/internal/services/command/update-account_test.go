@@ -2,7 +2,7 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
@@ -116,7 +116,7 @@ func TestUpdateAccount(t *testing.T) {
 					Return(nil, nil)
 				mockMetadataRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(fmt.Errorf("metadata update error"))
+					Return(errors.New("metadata update error"))
 			},
 			expectErr: true,
 		},
