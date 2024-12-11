@@ -22,6 +22,7 @@ type QueryHeader struct {
 	Metadata     *bson.M
 	Limit        int
 	Page         int
+	Cursor       string
 	SortOrder    string
 	StartDate    time.Time
 	EndDate      time.Time
@@ -34,6 +35,7 @@ type QueryHeader struct {
 type Pagination struct {
 	Limit     int
 	Page      int
+	Cursor    string
 	SortOrder string
 	StartDate time.Time
 	EndDate   time.Time
@@ -51,15 +53,11 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 
 	var endDate time.Time
 
-	maxPaginationLimit := pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100)
-	maxDateRangeMonths := pkg.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1)
-
-	defaultStartDate := time.Now().AddDate(0, -int(maxDateRangeMonths), 0)
-	defaultEndDate := time.Now()
+	var cursor string
 
 	limit := 10
 	page := 1
-	sortOrder := "asc"
+	sortOrder := "desc"
 	useMetadata := false
 
 	for key, value := range params {
@@ -71,6 +69,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			limit, _ = strconv.Atoi(value)
 		case strings.Contains(key, "page"):
 			page, _ = strconv.Atoi(value)
+		case strings.Contains(key, "cursor"):
+			cursor = value
 		case strings.Contains(key, "sort_order"):
 			sortOrder = strings.ToLower(value)
 		case strings.Contains(key, "start_date"):
@@ -84,17 +84,14 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		}
 	}
 
-	err := validateDates(&startDate, &endDate, defaultStartDate, defaultEndDate, int(maxDateRangeMonths))
+	err := validateDates(&startDate, &endDate)
 	if err != nil {
 		return nil, err
 	}
 
-	if limit > int(maxPaginationLimit) {
-		return nil, pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
-	}
-
-	if (sortOrder != "asc") && (sortOrder != "desc") {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+	err = validatePagination(sortOrder, limit)
+	if err != nil {
+		return nil, err
 	}
 
 	if !pkg.IsNilOrEmpty(&portfolioID) {
@@ -108,6 +105,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		Metadata:     metadata,
 		Limit:        limit,
 		Page:         page,
+		Cursor:       cursor,
 		SortOrder:    sortOrder,
 		StartDate:    startDate,
 		EndDate:      endDate,
@@ -119,7 +117,12 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
-func validateDates(startDate, endDate *time.Time, defaultStartDate, defaultEndDate time.Time, maxDateRangeMonths int) error {
+func validateDates(startDate, endDate *time.Time) error {
+	maxDateRangeMonths := pkg.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1)
+
+	defaultStartDate := time.Now().AddDate(0, -int(maxDateRangeMonths), 0)
+	defaultEndDate := time.Now()
+
 	if !startDate.IsZero() && !endDate.IsZero() {
 		if !pkg.IsValidDate(pkg.NormalizeDate(*startDate, nil)) || !pkg.IsValidDate(pkg.NormalizeDate(*endDate, nil)) {
 			return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
@@ -129,7 +132,7 @@ func validateDates(startDate, endDate *time.Time, defaultStartDate, defaultEndDa
 			return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
 		}
 
-		if !pkg.IsDateRangeWithinMonthLimit(*startDate, *endDate, maxDateRangeMonths) {
+		if !pkg.IsDateRangeWithinMonthLimit(*startDate, *endDate, int(maxDateRangeMonths)) {
 			return pkg.ValidateBusinessError(constant.ErrDateRangeExceedsLimit, "", maxDateRangeMonths)
 		}
 	}
@@ -142,6 +145,20 @@ func validateDates(startDate, endDate *time.Time, defaultStartDate, defaultEndDa
 	if (!startDate.IsZero() && endDate.IsZero()) ||
 		(startDate.IsZero() && !endDate.IsZero()) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidDateRange, "")
+	}
+
+	return nil
+}
+
+func validatePagination(sortOrder string, limit int) error {
+	maxPaginationLimit := pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100)
+
+	if limit > int(maxPaginationLimit) {
+		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
+	}
+
+	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
+		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 
 	return nil
@@ -226,10 +243,20 @@ func GetTokenHeader(c *fiber.Ctx) string {
 	return ""
 }
 
-func (qh *QueryHeader) ToPagination() Pagination {
+func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
 		Page:      qh.Page,
+		SortOrder: qh.SortOrder,
+		StartDate: qh.StartDate,
+		EndDate:   qh.EndDate,
+	}
+}
+
+func (qh *QueryHeader) ToCursorPagination() Pagination {
+	return Pagination{
+		Limit:     qh.Limit,
+		Cursor:    qh.Cursor,
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,

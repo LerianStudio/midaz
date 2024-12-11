@@ -58,12 +58,13 @@ func (mr *MockRepositoryMockRecorder) Create(ctx, assetRate any) *gomock.Call {
 }
 
 // FindAllByAssetCodes mocks base method.
-func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, error) {
+func (m *MockRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAllByAssetCodes", ctx, organizationID, ledgerID, fromAssetCode, toAssetCodes, filter)
 	ret0, _ := ret[0].([]*AssetRate)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FindAllByAssetCodes indicates an expected call of FindAllByAssetCodes.

@@ -27,7 +27,7 @@ type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)
 	FindByExternalID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*AssetRate, error)
-	FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, error)
+	FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, http.CursorPagination, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, assetRate *AssetRate) (*AssetRate, error)
 }
 
@@ -215,7 +215,7 @@ func (r *AssetRatePostgreSQLRepository) FindByCurrencyPair(ctx context.Context, 
 }
 
 // FindAllByAssetCodes returns all asset rates by asset codes.
-func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, error) {
+func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, toAssetCodes []string, filter http.Pagination) ([]*AssetRate, http.CursorPagination, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_asset_rates_by_asset_codes")
@@ -225,29 +225,45 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	var assetRates []*AssetRate
+
+	decodedCursor := http.Cursor{}
+	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = http.DecodeCursor(filter.Cursor)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+	}
 
 	findAll := squirrel.Select("*").
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Expr(`"from" = ?`, fromAssetCode)).
-		Where(squirrel.Eq{`"to"`: toAssetCodes}).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
-		Limit(pkg.SafeIntToUint64(filter.Limit)).
-		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		Limit(pkg.SafeIntToUint64(filter.Limit + 1)).
 		PlaceholderFormat(squirrel.Dollar)
+
+	if toAssetCodes != nil {
+		findAll.Where(squirrel.Eq{`"to"`: toAssetCodes})
+	}
+
+	findAll = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -256,7 +272,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
+		return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(AssetRate{}).Name())
 	}
 	defer rows.Close()
 
@@ -280,7 +296,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		assetRates = append(assetRates, assetRate.ToEntity())
@@ -289,10 +305,21 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 	if err := rows.Err(); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
-	return assetRates, nil
+	hasPagination := len(assetRates) > filter.Limit
+
+	assetRates = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates, filter.Limit)
+
+	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates[0].ID, assetRates[len(assetRates)-1].ID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	return assetRates, cur, nil
 }
 
 // Update an AssetRate entity into Postgresql and returns the AssetRate updated.

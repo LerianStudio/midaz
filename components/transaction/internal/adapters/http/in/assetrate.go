@@ -151,11 +151,11 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	}
 
 	pagination := mpostgres.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -167,7 +167,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	headerParams.Metadata = &bson.M{}
 
-	assetRates, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
+	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
 
@@ -179,6 +179,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	logger.Infof("Successfully get AssetRate")
 
 	pagination.SetItems(assetRates)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }

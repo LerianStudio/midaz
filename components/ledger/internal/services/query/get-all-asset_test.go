@@ -41,10 +41,10 @@ func TestGetAllAssets(t *testing.T) {
 		assets := []*mmodel.Asset{{}}
 		mockAssetRepo.
 			EXPECT().
-			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
+			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 			Return(assets, nil).
 			Times(1)
-		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, filter.ToPagination())
+		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -54,10 +54,10 @@ func TestGetAllAssets(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockAssetRepo.
 			EXPECT().
-			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
+			FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, filter.ToPagination())
+		res, err := uc.AssetRepo.FindAllWithDeleted(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

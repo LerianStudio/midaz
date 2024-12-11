@@ -29,6 +29,10 @@ func GetAllAssetRatesByAssetCode(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
+	mockCur := http.CursorPagination{
+		Next: "next",
+		Prev: "prev",
+	}
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -49,12 +53,13 @@ func GetAllAssetRatesByAssetCode(t *testing.T) {
 
 	uc.AssetRateRepo.(*assetrate.MockRepository).
 		EXPECT().
-		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination()).
-		Return(assetRate, nil).
+		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination()).
+		Return(assetRate, mockCur, nil).
 		Times(1)
-	res, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination())
+	res, cur, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination())
 
 	assert.Equal(t, assetRate, res)
+	assert.NotNil(t, cur)
 	assert.Nil(t, err)
 }
 
@@ -79,12 +84,13 @@ func GetAllAssetRatesByAssetCodeError(t *testing.T) {
 
 	uc.AssetRateRepo.(*assetrate.MockRepository).
 		EXPECT().
-		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination()).
-		Return(nil, errors.New(errMSG)).
+		FindAllByAssetCodes(gomock.Any(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination()).
+		Return(nil, http.CursorPagination{}, errors.New(errMSG)).
 		Times(1)
-	res, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToPagination())
+	res, cur, err := uc.AssetRateRepo.FindAllByAssetCodes(context.TODO(), orgID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination())
 
 	assert.NotEmpty(t, err)
 	assert.Equal(t, err.Error(), errMSG)
 	assert.Nil(t, res)
+	assert.Equal(t, cur, http.CursorPagination{})
 }
