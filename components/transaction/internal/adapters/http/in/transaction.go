@@ -289,7 +289,12 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()

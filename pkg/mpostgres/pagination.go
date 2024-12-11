@@ -9,8 +9,8 @@ import "time"
 type Pagination struct {
 	Items      any       `json:"items"`
 	Page       int       `json:"page,omitempty" example:"1"`
-	PrevCursor string    `json:"prev_cursor,omitempty" example:"MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="`
-	NextCursor string    `json:"next_cursor,omitempty" example:"MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="`
+	PrevCursor string    `json:"prev_cursor,omitempty" example:"MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==" extensions:"x-omitempty"`
+	NextCursor string    `json:"next_cursor,omitempty" example:"MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==" extensions:"x-omitempty"`
 	Limit      int       `json:"limit" example:"10"`
 	SortOrder  string    `json:"-" example:"asc"`
 	StartDate  time.Time `json:"-" example:"2021-01-01"`

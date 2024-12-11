@@ -348,9 +348,17 @@ definitions:
       limit:
         example: 10
         type: integer
+      next_cursor:
+        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        type: string
+        x-omitempty: true
       page:
         example: 1
         type: integer
+      prev_cursor:
+        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        type: string
+        x-omitempty: true
     type: object
   Portfolio:
     description: Portfolio is a struct designed to store portfolio data.
@@ -559,6 +567,33 @@ paths:
         in: query
         name: metadata
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
       produces:
       - application/json
       responses:
@@ -572,6 +607,10 @@ paths:
                   items:
                     $ref: '#/definitions/Organization'
                   type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
               type: object
       summary: Get all Organizations
       tags:
@@ -715,6 +754,33 @@ paths:
         name: id
         required: true
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
       produces:
       - application/json
       responses:
@@ -728,6 +794,10 @@ paths:
                   items:
                     $ref: '#/definitions/Ledger'
                   type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
               type: object
       summary: Get all Ledgers
       tags:
@@ -895,6 +965,33 @@ paths:
         in: query
         name: metadata
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
       produces:
       - application/json
       responses:
@@ -908,6 +1005,10 @@ paths:
                   items:
                     $ref: '#/definitions/Account'
                   type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
               type: object
       summary: Get all Accounts
       tags:
@@ -1095,6 +1196,33 @@ paths:
         in: query
         name: metadata
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
       produces:
       - application/json
       responses:
@@ -1108,6 +1236,10 @@ paths:
                   items:
                     $ref: '#/definitions/Asset'
                   type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
               type: object
       summary: Get all Assets
       tags:
@@ -1295,6 +1427,33 @@ paths:
         in: query
         name: metadata
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
       produces:
       - application/json
       responses:
@@ -1308,6 +1467,10 @@ paths:
                   items:
                     $ref: '#/definitions/Portfolio'
                   type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
               type: object
       summary: Get all Portfolios
       tags:
@@ -1735,6 +1898,33 @@ paths:
         in: query
         name: metadata
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
       produces:
       - application/json
       responses:
@@ -1748,6 +1938,10 @@ paths:
                   items:
                     $ref: '#/definitions/Product'
                   type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
               type: object
       summary: Get all Products
       tags:

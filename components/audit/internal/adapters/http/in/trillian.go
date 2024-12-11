@@ -15,9 +15,9 @@ type TrillianHandler struct {
 
 // AuditLogs compares leaf hash with a hash generated from the leaf value
 //
-//	@Summary 		Audit logs by reference ID
-//	@Description 	Audit logs to check if any was tampered
-//	@Tags 			Audit
+//	@Summary		Audit logs by reference ID
+//	@Description	Audit logs to check if any was tampered
+//	@Tags			Audit
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			Midaz-Id		header		string	false	"Request ID"
@@ -79,9 +79,9 @@ func (th *TrillianHandler) AuditLogs(c *fiber.Ctx) error {
 
 // ReadLogs retrieves log values by the audit id
 //
-//	@Summary Get 	logs by reference ID
-//	@Description 	Get log values from Trillian by reference ID
-//	@Tags 			Audit
+//	@Summary		Get 	logs by reference ID
+//	@Description	Get log values from Trillian by reference ID
+//	@Tags			Audit
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
 //	@Param			Midaz-Id		header		string	false	"Request ID"

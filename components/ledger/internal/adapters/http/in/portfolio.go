@@ -83,7 +83,12 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata query"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Portfolio}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			page			query		int		false	"Page"			default(1)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [get]
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()

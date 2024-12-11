@@ -122,7 +122,12 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			id				path		string	true	"Ledger ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Ledger}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			page			query		int		false	"Page"			default(1)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Ledger,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers [get]
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()

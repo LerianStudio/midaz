@@ -67,6 +67,39 @@ const docTemplate = `{
                         "name": "account_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -80,11 +113,20 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
+                                        " next_cursor": {
+                                            "type": "string"
+                                        },
+                                        " prev_cursor": {
+                                            "type": "string"
+                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
                                                 "$ref": "#/definitions/Operation"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -273,6 +315,43 @@ const docTemplate = `{
                         "description": "To Asset Codes",
                         "name": "to",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -291,6 +370,15 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/AssetRate"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -400,6 +488,43 @@ const docTemplate = `{
                         "name": "portfolio_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -418,6 +543,15 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Operation"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -527,6 +661,43 @@ const docTemplate = `{
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -545,6 +716,18 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Transaction"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "page": {
+                                            "type": "object"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -1080,7 +1263,7 @@ const docTemplate = `{
                 "amount": {
                     "$ref": "#/definitions/Amount"
                 },
-                "chartOfAccountsG": {
+                "chartOfAccounts": {
                     "type": "string",
                     "example": "1000"
                 },
@@ -1095,6 +1278,9 @@ const docTemplate = `{
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "rate": {
+                    "$ref": "#/definitions/Rate"
                 },
                 "remaining": {
                     "type": "string",
@@ -1192,9 +1378,52 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 10
                 },
+                "next_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                },
                 "page": {
                     "type": "integer",
                     "example": 1
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                }
+            }
+        },
+        "Rate": {
+            "description": "Rate is the struct designed to represent the rate fields of an operation.",
+            "type": "object",
+            "required": [
+                "externalId",
+                "from",
+                "to",
+                "value"
+            ],
+            "properties": {
+                "externalId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "from": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "scale": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "to": {
+                    "type": "string",
+                    "example": "USDe"
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
@@ -1232,9 +1461,6 @@ const docTemplate = `{
                 "percentage"
             ],
             "properties": {
-                "descWhatever": {
-                    "type": "boolean"
-                },
                 "percentage": {
                     "type": "integer"
                 },
