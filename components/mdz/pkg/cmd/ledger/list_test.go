@@ -2,9 +2,10 @@ package ledger
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -105,7 +106,8 @@ func Test_newCmdLedgerList(t *testing.T) {
 		},
 	}
 
-	mockRepo.EXPECT().Get(organizationID, gomock.Any(), gomock.Any()).
+	mockRepo.EXPECT().Get(organizationID, gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(&list, nil)
 
 	err := cmd.Execute()
