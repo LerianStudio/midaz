@@ -1,3 +1,5 @@
+## [1.31.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.14...v1.31.0-beta.15) (2024-12-10)
+
 ## [1.31.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.13...v1.31.0-beta.14) (2024-12-06)
 
 
