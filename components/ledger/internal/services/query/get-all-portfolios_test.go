@@ -41,10 +41,10 @@ func TestGetAllPortfolios(t *testing.T) {
 		portfolios := []*mmodel.Portfolio{{}}
 		mockPortfolioRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 			Return(portfolios, nil).
 			Times(1)
-		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToPagination())
+		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -54,10 +54,10 @@ func TestGetAllPortfolios(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockPortfolioRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToPagination())
+		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

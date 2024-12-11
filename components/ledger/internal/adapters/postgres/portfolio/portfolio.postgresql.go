@@ -196,7 +196,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
+		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
 		Limit(pkg.SafeIntToUint64(filter.Limit)).
 		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)

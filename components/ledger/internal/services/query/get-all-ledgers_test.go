@@ -39,10 +39,10 @@ func TestGetAllLedgers(t *testing.T) {
 		ledgers := []*mmodel.Ledger{{}}
 		mockLedgerRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
 			Return(ledgers, nil).
 			Times(1)
-		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID, filter.ToPagination())
+		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID, filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -52,10 +52,10 @@ func TestGetAllLedgers(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockLedgerRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID, filter.ToPagination())
+		res, err := uc.LedgerRepo.FindAll(context.TODO(), organizationID, filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

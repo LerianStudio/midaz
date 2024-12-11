@@ -42,10 +42,10 @@ func TestGetAllAccounts(t *testing.T) {
 		accounts := []*mmodel.Account{{}}
 		mockAccountRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 			Return(accounts, nil).
 			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, &portfolioID, filter.ToPagination())
+		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -55,10 +55,10 @@ func TestGetAllAccounts(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockAccountRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, &portfolioID, filter.ToPagination())
+		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
@@ -91,10 +91,10 @@ func TestGetAllAccountsWithoutPortfolio(t *testing.T) {
 		accounts := []*mmodel.Account{{}}
 		mockAccountRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, nil, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, nil, filter.ToOffsetPagination()).
 			Return(accounts, nil).
 			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, nil, filter.ToPagination())
+		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, nil, filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -104,10 +104,10 @@ func TestGetAllAccountsWithoutPortfolio(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockAccountRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, nil, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, nil, filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, nil, filter.ToPagination())
+		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, nil, filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

@@ -41,10 +41,10 @@ func TestGetAllProducts(t *testing.T) {
 		products := []*mmodel.Product{{}}
 		mockProductRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 			Return(products, nil).
 			Times(1)
-		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToPagination())
+		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -54,10 +54,10 @@ func TestGetAllProducts(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockProductRepo.
 			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToPagination()).
+			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToPagination())
+		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)

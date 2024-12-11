@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllProducts(ctx context.Context, organizationID, ledgerID 
 
 	logger.Infof("Retrieving products")
 
-	products, err := uc.ProductRepo.FindAll(ctx, organizationID, ledgerID, filter.ToPagination())
+	products, err := uc.ProductRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get products on repo", err)
 

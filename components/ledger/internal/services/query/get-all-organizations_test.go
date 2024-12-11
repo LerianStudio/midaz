@@ -37,10 +37,10 @@ func TestGetAllOrganizations(t *testing.T) {
 		organizations := []*mmodel.Organization{{}}
 		mockOrganizationRepo.
 			EXPECT().
-			FindAll(gomock.Any(), filter.ToPagination()).
+			FindAll(gomock.Any(), filter.ToOffsetPagination()).
 			Return(organizations, nil).
 			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO(), filter.ToPagination())
+		res, err := uc.OrganizationRepo.FindAll(context.TODO(), filter.ToOffsetPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
@@ -50,10 +50,10 @@ func TestGetAllOrganizations(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockOrganizationRepo.
 			EXPECT().
-			FindAll(gomock.Any(), filter.ToPagination()).
+			FindAll(gomock.Any(), filter.ToOffsetPagination()).
 			Return(nil, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.OrganizationRepo.FindAll(context.TODO(), filter.ToPagination())
+		res, err := uc.OrganizationRepo.FindAll(context.TODO(), filter.ToOffsetPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
