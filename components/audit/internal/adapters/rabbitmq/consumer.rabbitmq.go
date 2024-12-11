@@ -70,19 +70,13 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 		go func(queue string, handlerFunc QueueHandlerFunc) {
 			for msg := range messages {
-				midazID, found := msg.Headers["Midaz-Id"]
+				midazID, found := msg.Headers[http.HeaderMidazID]
 				if !found {
 					midazID = pkg.GenerateUUIDv7().String()
 				}
 
-				correlationID := msg.CorrelationId
-				if correlationID == "" {
-					correlationID = pkg.GenerateUUIDv7().String()
-				}
-
 				log := cr.Logger.WithFields(
 					http.HeaderMidazID, midazID.(string),
-					http.HeaderCorrelationID, correlationID,
 				).WithDefaultMessageTemplate(midazID.(string) + " | ")
 
 				ctx := pkg.ContextWithLogger(pkg.ContextWithMidazID(context.Background(), midazID.(string)), log)

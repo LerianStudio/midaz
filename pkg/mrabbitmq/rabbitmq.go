@@ -17,8 +17,6 @@ import (
 type RabbitMQConnection struct {
 	ConnectionStringSource string
 	Queue                  string
-	Exchange               string
-	Key                    string
 	Host                   string
 	Port                   string
 	User                   string

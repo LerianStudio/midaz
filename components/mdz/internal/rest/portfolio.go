@@ -51,11 +51,16 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 	return &portfolioResp, nil
 }
 
-func (r *portfolio) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Portfolios, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios?limit=%d&page=%d",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, limit, page)
+func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Portfolios, error) {
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
-	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}

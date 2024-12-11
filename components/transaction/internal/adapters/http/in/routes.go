@@ -22,7 +22,6 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(http.WithCorrelationID())
 	f.Use(http.WithHTTPLogging(http.WithCustomLogger(lg)))
 	jwt := http.NewJWTMiddleware(cc)
 

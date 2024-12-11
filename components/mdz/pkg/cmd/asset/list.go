@@ -22,6 +22,9 @@ type factoryAssetList struct {
 	LedgerID       string
 	Limit          int
 	Page           int
+	SortOrder      string
+	StartDate      string
+	EndDate        string
 	JSON           bool
 }
 
@@ -44,7 +47,22 @@ func (f *factoryAssetList) runE(cmd *cobra.Command, _ []string) error {
 		f.LedgerID = id
 	}
 
-	leds, err := f.repoAsset.Get(f.OrganizationID, f.LedgerID, f.Limit, f.Page)
+	if len(f.StartDate) > 0 {
+		if err := utils.ValidateDate(f.StartDate); err != nil {
+			return err
+		}
+	}
+
+	if len(f.EndDate) > 0 {
+		if err := utils.ValidateDate(f.EndDate); err != nil {
+			return err
+		}
+	}
+
+	leds, err := f.repoAsset.Get(
+		f.OrganizationID, f.LedgerID, f.Limit, f.Page,
+		f.SortOrder, f.StartDate, f.EndDate,
+	)
 	if err != nil {
 		return err
 	}
@@ -103,6 +121,12 @@ func (f *factoryAssetList) setFlags(cmd *cobra.Command) {
 		"Specifies the number of ledgers to retrieve per page")
 	cmd.Flags().IntVar(&f.Page, "page", 1,
 		"Specifies the page number for paginated results")
+	cmd.Flags().StringVar(&f.SortOrder, "sort-order", "",
+		"Specifies the sort order for results (e.g., 'asc' for ascending, 'desc' for descending)")
+	cmd.Flags().StringVar(&f.StartDate, "start-date", "",
+		"Specifies the start date for filtering results (format: YYYY-MM-DD)")
+	cmd.Flags().StringVar(&f.EndDate, "end-date", "",
+		"Specifies the end date for filtering results (format: YYYY-MM-DD)")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 

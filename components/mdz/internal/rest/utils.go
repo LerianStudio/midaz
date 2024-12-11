@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 )
 
 // APIError struct to represent the error received
@@ -56,4 +58,32 @@ func checkResponse(resp *http.Response, statusCode int) error {
 	}
 
 	return nil
+}
+
+// BuildPaginatedURL builds a URL with pagination parameters and common filters
+func BuildPaginatedURL(baseURL string, limit, page int, sortOrder, startDate, endDate string) (string, error) {
+	reqURL, err := url.Parse(baseURL)
+	if err != nil {
+		return "", errors.New("parsing base URL: " + err.Error())
+	}
+
+	query := reqURL.Query()
+	query.Set("limit", strconv.Itoa(limit))
+	query.Set("page", strconv.Itoa(page))
+
+	if sortOrder != "" {
+		query.Set("sort_order", sortOrder)
+	}
+
+	if startDate != "" {
+		query.Set("start_date", startDate)
+	}
+
+	if endDate != "" {
+		query.Set("end_date", endDate)
+	}
+
+	reqURL.RawQuery = query.Encode()
+
+	return reqURL.String(), nil
 }

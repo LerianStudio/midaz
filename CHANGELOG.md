@@ -1,3 +1,34 @@
+## [1.31.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.16...v1.31.0-beta.17) (2024-12-11)
+
+
+### Features
+
+* added new flags to get list filters :sparkles: ([959cc9d](https://github.com/LerianStudio/midaz/commit/959cc9db71a40b963af279be17e8be48aa79b123))
+
+## [1.31.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.15...v1.31.0-beta.16) (2024-12-11)
+
+
+### Features
+
+* async log transaction call :sparkles: ([35816e4](https://github.com/LerianStudio/midaz/commit/35816e444d153a4e555ab5708a20d3635ffe69da))
+* create operation log struct to specify fields that should be immutable :sparkles: ([b5438c1](https://github.com/LerianStudio/midaz/commit/b5438c15eba68b1e35683a41507eb5105cafa140))
+* disable audit logging thought env :sparkles: ([8fa77c8](https://github.com/LerianStudio/midaz/commit/8fa77c8871073c613c55f695722ffcf15240a17a))
+* get audit exchange and routing key names from envs :sparkles: ([ce70e91](https://github.com/LerianStudio/midaz/commit/ce70e9106c715a18225c4cf50f234b891de46dc0))
+* remove correlation-id after midaz-id implemented :sparkles: ([63e8016](https://github.com/LerianStudio/midaz/commit/63e80169edfabba82848b61d56486866b8763c1f))
+* **ledger:** remove exchange and key from connection :sparkles: ([621cbf9](https://github.com/LerianStudio/midaz/commit/621cbf949446f216aae08f5b9bead44afb90c01e))
+* remove exchange and key from rabbitmq connection config :sparkles: ([aa086a1](https://github.com/LerianStudio/midaz/commit/aa086a160badcb6f57f589ffc2a5315db2a35e13))
+* send log message after transaction created :sparkles: ([66f3f64](https://github.com/LerianStudio/midaz/commit/66f3f64065654f1bcc292e458edb667a2296b5e5))
+* update producer to receive Queue message, exchange and key through parameters :sparkles: ([8dc41f3](https://github.com/LerianStudio/midaz/commit/8dc41f3f94935297506ff12507626329ea52d669))
+* **ledger:** update rabbitmq producer :sparkles: ([47e3eef](https://github.com/LerianStudio/midaz/commit/47e3eef87a62b87fdc61e9564e6e5bc5c7f9da2a))
+
+
+### Bug Fixes
+
+* audit routing key env name :bug: ([45482e9](https://github.com/LerianStudio/midaz/commit/45482e934fd55610e61a7e437741d7fd01ef3f9b))
+* midaz-id header name :bug: ([ec79675](https://github.com/LerianStudio/midaz/commit/ec7967535065d79c8a7ef8d67497ef1d9a8bde09))
+
+## [1.31.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.14...v1.31.0-beta.15) (2024-12-10)
+
 ## [1.31.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.13...v1.31.0-beta.14) (2024-12-06)
 
 

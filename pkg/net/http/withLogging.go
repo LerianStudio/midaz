@@ -28,7 +28,6 @@ type RequestInfo struct {
 	Date          time.Time
 	Duration      time.Duration
 	UserAgent     string
-	CorrelationID string
 	MidazID       string
 	Protocol      string
 	Size          int
@@ -73,7 +72,6 @@ func NewRequestInfo(c *fiber.Ctx) *RequestInfo {
 		Username:      username,
 		Referer:       referer,
 		UserAgent:     c.Get(headerUserAgent),
-		CorrelationID: c.Get(HeaderCorrelationID),
 		RemoteAddress: c.IP(),
 		Protocol:      c.Protocol(),
 		Date:          time.Now().UTC(),
@@ -107,7 +105,6 @@ func (r *RequestInfo) debugRequestString() string {
 		r.CLFString(),
 		r.Referer,
 		r.UserAgent,
-		r.CorrelationID,
 		r.Body,
 	}, " ")
 }
@@ -169,7 +166,6 @@ func WithHTTPLogging(opts ...LogMiddlewareOption) fiber.Handler {
 		mid := buildOpts(opts...)
 		logger := mid.Logger.WithFields(
 			HeaderMidazID, info.MidazID,
-			HeaderCorrelationID, info.CorrelationID,
 		).WithDefaultMessageTemplate(midazID + " | ")
 
 		rw := ResponseMetricsWrapper{

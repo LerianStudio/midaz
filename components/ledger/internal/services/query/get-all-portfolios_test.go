@@ -3,63 +3,117 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/net/http"
-	"go.uber.org/mock/gomock"
 	"testing"
-	"time"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllPortfoliosError is responsible to test GetAllPortfolios with success and error
-func TestGetAllPortfolios(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	filter := http.QueryHeader{
-		Limit:        10,
-		Page:         1,
-		SortOrder:    "asc",
-		StartDate:    time.Now().AddDate(0, -1, 0),
-		EndDate:      time.Now(),
-		ToAssetCodes: []string{"BRL"},
-	}
-
-	t.Parallel()
+func TestGetAllPortfolio(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 
-	uc := UseCase{
+	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
 		PortfolioRepo: mockPortfolioRepo,
+		MetadataRepo:  mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		portfolios := []*mmodel.Portfolio{{}}
-		mockPortfolioRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
-			Return(portfolios, nil).
-			Times(1)
-		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
+	filter := http.QueryHeader{
+		Limit: 10,
+		Page:  1,
+	}
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		filter         http.QueryHeader
+		mockSetup      func()
+		expectErr      bool
+		expectedResult []*mmodel.Portfolio
+	}{
+		{
+			name:           "Success - Retrieve portfolios with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			filter:         filter,
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockPortfolioRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return([]*mmodel.Portfolio{
+						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+			},
+			expectErr: false,
+			expectedResult: []*mmodel.Portfolio{
+				{ID: "valid-uuid", Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			},
+		},
+		{
+			name:           "Error - No portfolios found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
+			mockSetup: func() {
+				mockPortfolioRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Error - Failed to retrieve metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockPortfolioRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return([]*mmodel.Portfolio{
+						{ID: validUUID.String(), Name: "Test Portfolio", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("metadata retrieval error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+	}
 
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
-		mockPortfolioRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
-			Return(nil, errors.New(errMsg)).
-			Times(1)
-		res, err := uc.PortfolioRepo.FindAll(context.TODO(), organizationID, ledgerID, filter.ToOffsetPagination())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-	})
+			ctx := context.Background()
+			result, err := uc.GetAllPortfolio(ctx, tt.organizationID, tt.ledgerID, tt.filter)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
 }

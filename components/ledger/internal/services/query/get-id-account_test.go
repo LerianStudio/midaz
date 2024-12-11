@@ -3,95 +3,112 @@ package query
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAccountByIDSuccess is responsible to test GetAccountByID with success
-func TestGetAccountByIDSuccess(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	portfolioID := pkg.GenerateUUIDv7()
-	id := pkg.GenerateUUIDv7()
+func TestGetAccountByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	a := &mmodel.Account{
-		ID:             id.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		PortfolioID:    mpointers.String(portfolioID.String()),
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo:  mockAccountRepo,
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	uc := UseCase{
-		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		portfolioID    *uuid.UUID
+		accountID      uuid.UUID
+		mockSetup      func()
+		expectErr      bool
+		expectedResult *mmodel.Account
+	}{
+		{
+			name:           "Success - Retrieve account with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    nil,
+			accountID:      uuid.New(),
+			mockSetup: func() {
+				accountID := uuid.New()
+				mockAccountRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
+			},
+			expectErr: false,
+			expectedResult: &mmodel.Account{
+				ID:       "valid-uuid",
+				Name:     "Test Account",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"key": "value"},
+			},
+		},
+		{
+			name:           "Error - Account not found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    nil,
+			accountID:      uuid.New(),
+			mockSetup: func() {
+				mockAccountRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Error - Failed to retrieve metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			portfolioID:    nil,
+			accountID:      uuid.New(),
+			mockSetup: func() {
+				accountID := uuid.New()
+				mockAccountRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Account{ID: accountID.String(), Name: "Test Account", Status: mmodel.Status{Code: "active"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("metadata retrieval error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
 	}
 
-	uc.AccountRepo.(*account.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
-		Return(a, nil).
-		Times(1)
-	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, &portfolioID, id)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	assert.Equal(t, res, a)
-	assert.Nil(t, err)
-}
+			ctx := context.Background()
+			result, err := uc.GetAccountByID(ctx, tt.organizationID, tt.ledgerID, tt.portfolioID, tt.accountID)
 
-// TestGetAccountByIDWithoutPortfolioSuccess is responsible to test GetAccountByID without portfolio with success
-func TestGetAccountByIDWithoutPortfolioSuccess(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	id := pkg.GenerateUUIDv7()
-
-	a := &mmodel.Account{
-		ID:             id.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		PortfolioID:    nil,
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
 	}
-
-	uc := UseCase{
-		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
-	}
-
-	uc.AccountRepo.(*account.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, nil, id).
-		Return(a, nil).
-		Times(1)
-	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, nil, id)
-
-	assert.Equal(t, res, a)
-	assert.Nil(t, err)
-}
-
-// TestGetAccountByIDError is responsible to test GetAccountByID with error
-func TestGetAccountByIDError(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	portfolioID := pkg.GenerateUUIDv7()
-	id := pkg.GenerateUUIDv7()
-
-	errMSG := "errDatabaseItemNotFound"
-
-	uc := UseCase{
-		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
-	}
-
-	uc.AccountRepo.(*account.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, &portfolioID, id).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
-	res, err := uc.AccountRepo.Find(context.TODO(), organizationID, ledgerID, &portfolioID, id)
-
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
 }
