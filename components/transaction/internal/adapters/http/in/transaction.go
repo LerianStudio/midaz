@@ -2,10 +2,13 @@ package in
 
 import (
 	"context"
-	"reflect"
-
+	"encoding/json"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
+	"os"
+	"reflect"
+	"strings"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -491,7 +494,55 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
+	go handler.logTransaction(ctx, operations, organizationID, ledgerID, transactionID)
+
 	return http.Created(c, tran)
+}
+
+// logTransaction creates a message representing a transaction log and sends to auditing exchange
+func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
+	defer spanLogTransaction.End()
+
+	if !isAuditLogEnabled() {
+		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
+		return
+	}
+
+	queueData := make([]mmodel.QueueData, 0)
+
+	for _, o := range operations {
+		oLog := o.ToLog()
+
+		marshal, err := json.Marshal(oLog)
+		if err != nil {
+			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
+		}
+
+		queueData = append(queueData, mmodel.QueueData{
+			ID:    uuid.MustParse(o.ID),
+			Value: marshal,
+		})
+	}
+
+	queueMessage := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AuditID:        transactionID,
+		QueueData:      queueData,
+	}
+
+	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
+		ctxLogTransaction,
+		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
+		os.Getenv("RABBITMQ_AUDIT_KEY"),
+		queueMessage,
+	); err != nil {
+		logger.Fatalf("Failed to send message: %s", err.Error())
+	}
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
@@ -591,4 +642,9 @@ func (handler *TransactionHandler) processAccounts(ctx context.Context, logger m
 	}
 
 	return nil
+}
+
+func isAuditLogEnabled() bool {
+	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
+	return envValue != "false"
 }
