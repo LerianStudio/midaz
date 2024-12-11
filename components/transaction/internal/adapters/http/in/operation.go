@@ -57,11 +57,12 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	}
 
 	pagination := mpostgres.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		Page:       headerParams.Page,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by account")
@@ -75,7 +76,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	operations, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
+	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account", err)
 
@@ -87,6 +88,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved all Operations by account")
 
 	pagination.SetItems(operations)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }
@@ -171,11 +173,12 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	}
 
 	pagination := mpostgres.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		Page:       headerParams.Page,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by portfolio")
@@ -189,7 +192,7 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 		return http.WithError(c, err)
 	}
 
-	operations, err := handler.Query.GetAllOperationsByPortfolio(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+	operations, cur, err := handler.Query.GetAllOperationsByPortfolio(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by portfolio", err)
 
@@ -201,6 +204,7 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	logger.Infof("Successfully retrieved all Operations by portfolio")
 
 	pagination.SetItems(operations)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }

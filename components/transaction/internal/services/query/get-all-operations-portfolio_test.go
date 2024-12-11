@@ -27,6 +27,10 @@ func TestGetAllOperationsByPortfolio(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
+	mockCur := http.CursorPagination{
+		Next: "next",
+		Prev: "prev",
+	}
 
 	t.Parallel()
 	ctrl := gomock.NewController(t)
@@ -41,25 +45,27 @@ func TestGetAllOperationsByPortfolio(t *testing.T) {
 		trans := []*operation.Operation{{}}
 		mockOperationRepo.
 			EXPECT().
-			FindAllByPortfolio(gomock.Any(), organizationID, ledgerID, portfolioID, filter.ToPagination()).
-			Return(trans, nil).
+			FindAllByPortfolio(gomock.Any(), organizationID, ledgerID, portfolioID, filter.ToCursorPagination()).
+			Return(trans, mockCur, nil).
 			Times(1)
-		res, err := uc.OperationRepo.FindAllByPortfolio(context.TODO(), organizationID, ledgerID, portfolioID, filter.ToPagination())
+		res, cur, err := uc.OperationRepo.FindAllByPortfolio(context.TODO(), organizationID, ledgerID, portfolioID, filter.ToCursorPagination())
 
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
+		assert.NotNil(t, cur)
 	})
 
 	t.Run("Error", func(t *testing.T) {
 		errMsg := "errDatabaseItemNotFound"
 		mockOperationRepo.
 			EXPECT().
-			FindAllByPortfolio(gomock.Any(), organizationID, ledgerID, portfolioID, filter.ToPagination()).
-			Return(nil, errors.New(errMsg)).
+			FindAllByPortfolio(gomock.Any(), organizationID, ledgerID, portfolioID, filter.ToCursorPagination()).
+			Return(nil, http.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
-		res, err := uc.OperationRepo.FindAllByPortfolio(context.TODO(), organizationID, ledgerID, portfolioID, filter.ToPagination())
+		res, cur, err := uc.OperationRepo.FindAllByPortfolio(context.TODO(), organizationID, ledgerID, portfolioID, filter.ToCursorPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
+		assert.Equal(t, cur, http.CursorPagination{})
 	})
 }

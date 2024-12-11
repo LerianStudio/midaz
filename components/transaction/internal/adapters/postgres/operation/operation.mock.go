@@ -87,12 +87,13 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, transa
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, transactionID, filter)
 	ret0, _ := ret[0].([]*Operation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FindAll indicates an expected call of FindAll.
@@ -102,12 +103,13 @@ func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, tra
 }
 
 // FindAllByAccount mocks base method.
-func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*Operation, error) {
+func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAllByAccount", ctx, organizationID, ledgerID, accountID, filter)
 	ret0, _ := ret[0].([]*Operation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FindAllByAccount indicates an expected call of FindAllByAccount.
@@ -117,12 +119,13 @@ func (mr *MockRepositoryMockRecorder) FindAllByAccount(ctx, organizationID, ledg
 }
 
 // FindAllByPortfolio mocks base method.
-func (m *MockRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, error) {
+func (m *MockRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAllByPortfolio", ctx, organizationID, ledgerID, portfolioID, filter)
 	ret0, _ := ret[0].([]*Operation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(http.CursorPagination)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // FindAllByPortfolio indicates an expected call of FindAllByPortfolio.
