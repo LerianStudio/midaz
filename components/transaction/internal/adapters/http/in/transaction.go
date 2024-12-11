@@ -310,11 +310,12 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	}
 
 	pagination := mpostgres.Pagination{
-		Limit:     headerParams.Limit,
-		Page:      headerParams.Page,
-		SortOrder: headerParams.SortOrder,
-		StartDate: headerParams.StartDate,
-		EndDate:   headerParams.EndDate,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		Page:       headerParams.Page,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {
@@ -354,7 +355,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	trans, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
+	trans, cur, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Transactions", err)
 
@@ -366,6 +367,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved all Transactions")
 
 	pagination.SetItems(trans)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }

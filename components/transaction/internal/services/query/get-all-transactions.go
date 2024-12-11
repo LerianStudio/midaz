@@ -16,7 +16,7 @@ import (
 )
 
 // GetAllTransactions fetch all Transactions from the repository
-func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, error) {
+func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, http.CursorPagination, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -25,17 +25,17 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	logger.Infof("Retrieving transactions")
 
-	trans, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.ToPagination())
+	trans, cur, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get transactions on repo", err)
 
 		logger.Errorf("Error getting transactions on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if trans != nil {
@@ -43,7 +43,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb transaction", err)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))
@@ -59,5 +59,5 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		}
 	}
 
-	return trans, nil
+	return trans, cur, nil
 }

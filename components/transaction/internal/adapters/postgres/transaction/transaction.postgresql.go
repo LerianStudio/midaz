@@ -26,7 +26,7 @@ import (
 //go:generate mockgen --destination=transaction.mock.go --package=transaction . Repository
 type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, http.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
@@ -124,7 +124,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 }
 
 // FindAll retrieves Transactions entities from the database.
-func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, error) {
+func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, http.CursorPagination, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
@@ -134,10 +134,23 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	var transactions []*Transaction
+
+	decodedCursor := http.Cursor{}
+	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = http.DecodeCursor(filter.Cursor)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+	}
 
 	findAll := squirrel.Select("*").
 		From(r.tableName).
@@ -146,16 +159,16 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
 		Limit(pkg.SafeIntToUint64(filter.Limit)).
-		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
+
+	findAll = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
@@ -164,7 +177,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 	defer rows.Close()
 
@@ -191,7 +204,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
-			return nil, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		transactions = append(transactions, transaction.ToEntity())
@@ -200,10 +213,21 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	if err := rows.Err(); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
-	return transactions, nil
+	hasPagination := len(transactions) > filter.Limit
+
+	transactions = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions, filter.Limit)
+
+	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions[0].ID, transactions[len(transactions)-1].ID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	return transactions, cur, nil
 }
 
 // ListByIDs retrieves Transaction entities from the database using the provided IDs.
