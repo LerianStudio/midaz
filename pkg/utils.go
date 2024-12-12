@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -147,10 +148,10 @@ func SafeIntToUint64(val int) uint64 {
 
 // SafeInt64ToInt safely converts int64 to int
 func SafeInt64ToInt(val int64) int {
-	if val > int64(int(^uint(0)>>1)) {
-		return int(^uint(0) >> 1)
-	} else if val < int64(-int(^uint(0)>>1)-1) {
-		return -int(^uint(0)>>1) - 1
+	if val > math.MaxInt64 {
+		return math.MaxInt64
+	} else if val < math.MinInt64 {
+		return math.MinInt64
 	}
 
 	return int(val)

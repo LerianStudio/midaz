@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"reflect"
 	"strconv"
@@ -49,7 +50,7 @@ func GetenvIntOrDefault(key string, defaultValue int64) int64 {
 		return defaultValue
 	}
 
-	if val > int64(^uint(0)>>1) || val < int64(^uint(0)>>1+1) {
+	if val > math.MaxInt64 || val < math.MinInt64 {
 		return defaultValue
 	}
 
