@@ -18,6 +18,7 @@ import (
 type factoryAccountList struct {
 	factory        *factory.Factory
 	repoAccount    repository.Account
+	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
 	PortfolioID    string
@@ -31,7 +32,7 @@ type factoryAccountList struct {
 
 func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}
@@ -40,7 +41,7 @@ func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
-		id, err := tui.Input("Enter your ledger-id")
+		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
 			return err
 		}
@@ -49,7 +50,7 @@ func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := tui.Input("Enter your portfolio-id")
+		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
 			return err
 		}
@@ -151,6 +152,7 @@ func newInjectFacList(f *factory.Factory) *factoryAccountList {
 	return &factoryAccountList{
 		factory:     f,
 		repoAccount: rest.NewAccount(f),
+		tuiInput:    tui.Input,
 	}
 }
 

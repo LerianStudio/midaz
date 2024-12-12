@@ -18,6 +18,7 @@ import (
 type factoryPortfolioList struct {
 	factory        *factory.Factory
 	repoPortfolio  repository.Portfolio
+	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
 	Limit          int
@@ -30,7 +31,7 @@ type factoryPortfolioList struct {
 
 func (f *factoryPortfolioList) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}
@@ -39,7 +40,7 @@ func (f *factoryPortfolioList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
-		id, err := tui.Input("Enter your ledger-id")
+		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
 			return err
 		}
@@ -130,6 +131,7 @@ func newInjectFacList(f *factory.Factory) *factoryPortfolioList {
 	return &factoryPortfolioList{
 		factory:       f,
 		repoPortfolio: rest.NewPortfolio(f),
+		tuiInput:      tui.Input,
 	}
 }
 
