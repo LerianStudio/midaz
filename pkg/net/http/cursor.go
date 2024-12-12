@@ -47,7 +47,7 @@ func DecodeCursor(cursor string) (Cursor, error) {
 }
 
 // ApplyCursorPagination applies cursor-based pagination to a query.
-func ApplyCursorPagination(findAll squirrel.SelectBuilder, decodedCursor Cursor, orderDirection string) squirrel.SelectBuilder {
+func ApplyCursorPagination(findAll squirrel.SelectBuilder, decodedCursor Cursor, orderDirection string, limit int) (squirrel.SelectBuilder, string) {
 	var operator string
 
 	var sortOrder string
@@ -59,13 +59,13 @@ func ApplyCursorPagination(findAll squirrel.SelectBuilder, decodedCursor Cursor,
 		pointsNext := decodedCursor.PointsNext
 
 		if pointsNext && orderDirection == ascOrder {
-			operator = ">="
-			sortOrder = descOrder
+			operator = ">"
+			sortOrder = ascOrder
 		}
 
 		if pointsNext && orderDirection == descOrder {
-			operator = "<="
-			sortOrder = ascOrder
+			operator = "<"
+			sortOrder = descOrder
 		}
 
 		if !pointsNext && orderDirection == ascOrder {
@@ -84,40 +84,40 @@ func ApplyCursorPagination(findAll squirrel.SelectBuilder, decodedCursor Cursor,
 		findAll = findAll.Where(whereClause).
 			OrderBy("id " + sortOrder)
 
-		return findAll
+		return findAll.Limit(pkg.SafeIntToUint64(limit + 1)), orderDirection
 	}
 
 	// No cursor means this is the first page; use the order as normal
 	findAll = findAll.OrderBy("id " + orderDirection)
 
-	return findAll
+	return findAll.Limit(pkg.SafeIntToUint64(limit + 1)), orderDirection
 }
 
 // PaginateRecords paginates records based on the cursor.
-func PaginateRecords[T any](isFirstPage bool, hasPagination bool, pointsNext bool, items []T, limit int) []T {
+func PaginateRecords[T any](isFirstPage bool, hasPagination bool, pointsNext bool, items []T, limit int, orderDirection string) []T {
 	paginatedItems := items
 
 	if isFirstPage {
-		paginatedItems = paginatedItems[:limit]
-	} else {
-		if hasPagination && pointsNext {
-			paginatedItems = pkg.Reverse(paginatedItems)[:limit]
+		if hasPagination {
+			return paginatedItems[:limit]
 		}
 
-		if !hasPagination && pointsNext {
-			paginatedItems = paginatedItems[:limit-1]
-		}
-
-		if !pointsNext {
-			if hasPagination {
-				paginatedItems = paginatedItems[:limit]
-			}
-
-			paginatedItems = pkg.Reverse(paginatedItems)
-		}
+		return paginatedItems
 	}
 
-	return paginatedItems
+	if pointsNext {
+		if hasPagination {
+			return paginatedItems[:limit]
+		}
+
+		return paginatedItems
+	}
+
+	if hasPagination {
+		paginatedItems = paginatedItems[:limit]
+	}
+
+	return pkg.Reverse(paginatedItems)
 }
 
 // CalculateCursor calculates the cursor pagination.

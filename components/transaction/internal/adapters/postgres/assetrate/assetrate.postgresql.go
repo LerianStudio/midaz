@@ -250,14 +250,13 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		Where(squirrel.Expr(`"from" = ?`, fromAssetCode)).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		Limit(pkg.SafeIntToUint64(filter.Limit + 1)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	if toAssetCodes != nil {
 		findAll.Where(squirrel.Eq{`"to"`: toAssetCodes})
 	}
 
-	findAll = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection)
+	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -310,7 +309,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 	hasPagination := len(assetRates) > filter.Limit
 
-	assetRates = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates, filter.Limit)
+	assetRates = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates, filter.Limit, orderDirection)
 
 	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates[0].ID, assetRates[len(assetRates)-1].ID)
 	if err != nil {

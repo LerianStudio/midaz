@@ -159,10 +159,9 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		Limit(pkg.SafeIntToUint64(filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
-	findAll = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection)
+	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
@@ -218,7 +217,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	hasPagination := len(transactions) > filter.Limit
 
-	transactions = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions, filter.Limit)
+	transactions = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions, filter.Limit, orderDirection)
 
 	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions[0].ID, transactions[len(transactions)-1].ID)
 	if err != nil {

@@ -320,7 +320,6 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	pagination := mpostgres.Pagination{
 		Limit:      headerParams.Limit,
 		NextCursor: headerParams.Cursor,
-		Page:       headerParams.Page,
 		SortOrder:  headerParams.SortOrder,
 		StartDate:  headerParams.StartDate,
 		EndDate:    headerParams.EndDate,

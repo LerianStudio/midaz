@@ -89,7 +89,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
-	err = validatePagination(sortOrder, limit)
+	err = validatePagination(cursor, sortOrder, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +150,7 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
-func validatePagination(sortOrder string, limit int) error {
+func validatePagination(cursor, sortOrder string, limit int) error {
 	maxPaginationLimit := pkg.SafeInt64ToInt(pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
 	if limit > maxPaginationLimit {
@@ -159,6 +159,13 @@ func validatePagination(sortOrder string, limit int) error {
 
 	if (sortOrder != string(constant.Asc)) && (sortOrder != string(constant.Desc)) {
 		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
+	}
+
+	if !pkg.IsNilOrEmpty(&cursor) {
+		_, err := DecodeCursor(cursor)
+		if err != nil {
+			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
+		}
 	}
 
 	return nil
