@@ -118,9 +118,9 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 }
 
 func validateDates(startDate, endDate *time.Time) error {
-	maxDateRangeMonths := pkg.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1)
+	maxDateRangeMonths := pkg.SafeInt64ToInt(pkg.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
-	defaultStartDate := time.Now().AddDate(0, -int(maxDateRangeMonths), 0)
+	defaultStartDate := time.Now().AddDate(0, -maxDateRangeMonths, 0)
 	defaultEndDate := time.Now()
 
 	if !startDate.IsZero() && !endDate.IsZero() {
@@ -132,7 +132,7 @@ func validateDates(startDate, endDate *time.Time) error {
 			return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
 		}
 
-		if !pkg.IsDateRangeWithinMonthLimit(*startDate, *endDate, int(maxDateRangeMonths)) {
+		if !pkg.IsDateRangeWithinMonthLimit(*startDate, *endDate, maxDateRangeMonths) {
 			return pkg.ValidateBusinessError(constant.ErrDateRangeExceedsLimit, "", maxDateRangeMonths)
 		}
 	}
@@ -151,9 +151,9 @@ func validateDates(startDate, endDate *time.Time) error {
 }
 
 func validatePagination(sortOrder string, limit int) error {
-	maxPaginationLimit := pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100)
+	maxPaginationLimit := pkg.SafeInt64ToInt(pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
-	if limit > int(maxPaginationLimit) {
+	if limit > maxPaginationLimit {
 		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
 	}
 

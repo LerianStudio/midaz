@@ -145,6 +145,17 @@ func SafeIntToUint64(val int) uint64 {
 	return uint64(val)
 }
 
+// SafeInt64ToInt safely converts int64 to int
+func SafeInt64ToInt(val int64) int {
+	if val > int64(^uint(0)>>1) {
+		return int(^uint(0) >> 1)
+	} else if val < -int64(^uint(0)>>1)-1 {
+		return -int(^uint(0)>>1) - 1
+	}
+
+	return int(val)
+}
+
 // IsUUID Validate if the string pass through is an uuid
 func IsUUID(s string) bool {
 	r := regexp.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-5][a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$")
