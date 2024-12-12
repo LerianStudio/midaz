@@ -1,3 +1,25 @@
+## [1.31.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.18...v1.31.0-beta.19) (2024-12-12)
+
+
+### Features
+
+* **asset-rate:** add cursor pagination to get all entities endpoint :sparkles: ([441c51c](https://github.com/LerianStudio/midaz/commit/441c51c5e5d27672f2c87cfbf3b512b85bf38798))
+* **transaction:** add cursor pagination to get all entities endpoint :sparkles: ([9b1cb94](https://github.com/LerianStudio/midaz/commit/9b1cb9405e6dc86a27aeb1b8980d9a68ce430734))
+* **operation:** add cursor pagination to get all entities endpoints :sparkles: ([21315a3](https://github.com/LerianStudio/midaz/commit/21315a317cf0ed329900769980fa5fc3fb7f17ce))
+* **postman:** add pagination fields to postman for get all endpoints :sparkles: ([63e3e56](https://github.com/LerianStudio/midaz/commit/63e3e56b033cbddc8edb01d986c5e37c6d060834))
+* **pagination:** add sort order filter and date ranges to the midaz pagination filtering :sparkles: ([4cc01d3](https://github.com/LerianStudio/midaz/commit/4cc01d311f51c16b759d7e8e1e287193eafab0d8))
+* **pagination:** improve pagination validations and tests :sparkles: ([8226e87](https://github.com/LerianStudio/midaz/commit/8226e87338c1a847c85301cd3752420e2b8cb1a7))
+* **tests:** update tests with to pagination filter struct :sparkles: ([793b685](https://github.com/LerianStudio/midaz/commit/793b685541ebcb5c3897d585380f16d2f9705d37))
+
+
+### Bug Fixes
+
+* **lint:** create and use func to safely converts int64 to int :bug: ([e9dc804](https://github.com/LerianStudio/midaz/commit/e9dc804e9163bdbeb5bfaabf75ed90d11c4addcc))
+* **lint:** fix lint SA4003 :bug: ([5ac015d](https://github.com/LerianStudio/midaz/commit/5ac015de8ee747f9efe5cdd73990fa3c63ae6f6e))
+* **lint:** fix lint SA4003 in os :bug: :bug: ([4b42f6a](https://github.com/LerianStudio/midaz/commit/4b42f6a52bdfa54f0b92e38ce4dff0db2d2d63fb))
+* **lint:** update incorrect conversion of a signed 64-bit integer to a lower bit size type int :bug: ([e0d8962](https://github.com/LerianStudio/midaz/commit/e0d896200f09c91041054019cf3f7546b5456443))
+* **lint:** update incorrect conversion of int to use math min and math int constants :bug: ([02905b5](https://github.com/LerianStudio/midaz/commit/02905b51126e75fc68ccd11ce0ff3109740ed99f))
+
 ## [1.31.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.17...v1.31.0-beta.18) (2024-12-12)
 
 ## [1.31.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.16...v1.31.0-beta.17) (2024-12-11)
