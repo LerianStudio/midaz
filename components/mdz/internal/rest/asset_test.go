@@ -178,7 +178,7 @@ func Test_asset_Get(t *testing.T) {
 
 	asset := NewAsset(factory)
 
-	result, err := asset.Get(organizationID, ledgerID, limit, page)
+	result, err := asset.Get(organizationID, ledgerID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

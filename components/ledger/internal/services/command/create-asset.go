@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"reflect"
 	"time"
 
@@ -94,7 +95,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	inst.Metadata = metadata
 
-	aAlias := "@external/" + cii.Code
+	aAlias := constant.DefaultExternalAccountAliasPrefix + cii.Code
 	aStatusDescription := "Account external created by asset: " + cii.Code
 
 	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})

@@ -137,8 +137,6 @@ func InitServers() *Service {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
-		Exchange:               cfg.RabbitMQExchange,
-		Key:                    cfg.RabbitMQKey,
 		Queue:                  cfg.RabbitMQQueue,
 		Logger:                 logger,
 	}

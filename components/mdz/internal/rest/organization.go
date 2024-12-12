@@ -37,13 +37,8 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusCreated {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, errors.New("unauthorized invalid credentials")
-		}
-
-		return nil, fmt.Errorf("failed to create organization, status code: %d",
-			resp.StatusCode)
+	if err := checkResponse(resp, http.StatusCreated); err != nil {
+		return nil, err
 	}
 
 	var org mmodel.Organization
@@ -54,11 +49,15 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 	return &org, nil
 }
 
-func (r *organization) Get(limit, page int) (*mmodel.Organizations, error) {
-	uri := fmt.Sprintf("%s/v1/organizations?limit=%d&page=%d",
-		r.Factory.Env.URLAPILedger, limit, page)
+func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string) (*mmodel.Organizations, error) {
+	baseURL := r.Factory.Env.URLAPILedger + "/v1/organizations"
 
-	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -72,13 +71,8 @@ func (r *organization) Get(limit, page int) (*mmodel.Organizations, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, errors.New("unauthorized invalid credentials")
-		}
-
-		return nil, fmt.Errorf("failed to list organization, status code: %d",
-			resp.StatusCode)
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
 	}
 
 	var orgs mmodel.Organizations

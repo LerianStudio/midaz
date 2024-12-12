@@ -2,11 +2,12 @@ package mgrpc
 
 import (
 	"context"
+	"log"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	gmtdt "google.golang.org/grpc/metadata"
-	"log"
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"

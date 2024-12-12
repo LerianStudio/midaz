@@ -22,7 +22,6 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(http.WithCorrelationID())
 	f.Use(http.WithHTTPLogging(http.WithCustomLogger(lg)))
 	jwt := http.NewJWTMiddleware(cc)
 
@@ -50,8 +49,9 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))
 
 	// Asset-rate
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateAssetRate))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:asset_rate_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAssetRate)
+	f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateOrUpdateAssetRate))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAssetRateByExternalID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAllAssetRatesByAssetCode)
 
 	// Health
 	f.Get("/health", http.Ping)

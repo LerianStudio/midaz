@@ -26,13 +26,17 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	if pkg.IsNilOrEmpty(uai.Alias) {
 		uai.Alias = nil
-	} else {
-		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *uai.Alias)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+	}
 
-			return nil, err
-		}
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+
+		return nil, err
+	}
+
+	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
+		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	account := &mmodel.Account{

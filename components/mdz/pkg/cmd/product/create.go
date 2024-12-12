@@ -36,7 +36,7 @@ func (f *factoryProductCreate) runE(cmd *cobra.Command, _ []string) error {
 	product := mmodel.CreateProductInput{}
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}
@@ -45,7 +45,7 @@ func (f *factoryProductCreate) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
-		id, err := tui.Input("Enter your ledger-id")
+		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
 			return err
 		}

@@ -170,14 +170,25 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 
 	var invalidUUIDs []string
 
+	validPathParamsMap := make(map[string]any)
+
 	for param, value := range params {
+		if !pkg.Contains[string](cn.UUIDPathParameters, param) {
+			validPathParamsMap[param] = value
+			continue
+		}
+
 		parsedUUID, err := uuid.Parse(value)
 		if err != nil {
 			invalidUUIDs = append(invalidUUIDs, param)
 			continue
 		}
 
-		c.Locals(param, parsedUUID)
+		validPathParamsMap[param] = parsedUUID
+	}
+
+	for param, value := range validPathParamsMap {
+		c.Locals(param, value)
 	}
 
 	if len(invalidUUIDs) > 0 {
@@ -214,6 +225,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 	_ = v.RegisterValidation("nonested", validateMetadataNestedValues)
 	_ = v.RegisterValidation("valuemax", validateMetadataValueMaxLength)
 	_ = v.RegisterValidation("singletransactiontype", validateSingleTransactionType)
+	_ = v.RegisterValidation("prohibitedexternalaccountprefix", validateProhibitedExternalAccountPrefix)
 
 	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
 		return ut.Add("required", "{0} is a required field", true)
@@ -267,6 +279,15 @@ func newValidator() (*validator.Validate, ut.Translator) {
 		return ut.Add("singletransactiontype", "{0}", true)
 	}, func(ut ut.Translator, fe validator.FieldError) string {
 		t, _ := ut.T("singletransactiontype", formatErrorFieldName(fe.Namespace()))
+
+		return t
+	})
+
+	_ = v.RegisterTranslation("prohibitedexternalaccountprefix", trans, func(ut ut.Translator) error {
+		prefix := cn.DefaultExternalAccountAliasPrefix
+		return ut.Add("prohibitedexternalaccountprefix", "{0} cannot contain the text '"+prefix+"'", true)
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("prohibitedexternalaccountprefix", formatErrorFieldName(fe.Namespace()))
 
 		return t
 	})
@@ -347,6 +368,13 @@ func validateSingleTransactionType(fl validator.FieldLevel) bool {
 	}
 
 	return true
+}
+
+// validateProhibitedExternalAccountPrefix
+func validateProhibitedExternalAccountPrefix(fl validator.FieldLevel) bool {
+	f := fl.Field().Interface().(string)
+
+	return !strings.Contains(f, cn.DefaultExternalAccountAliasPrefix)
 }
 
 // formatErrorFieldName formats metadata field error names for error messages
@@ -480,15 +508,16 @@ func compareSlices(original, marshaled []any) []any {
 			// If marshaled slice is shorter, the original item is missing
 			diff = append(diff, item)
 		} else {
+			tmpMarshaled := marshaled[i]
 			// Compare individual items at the same index
 			if originalMap, ok := item.(map[string]any); ok {
-				if marshaledMap, ok := marshaled[i].(map[string]any); ok {
+				if marshaledMap, ok := tmpMarshaled.(map[string]any); ok {
 					nestedDiff := findUnknownFields(originalMap, marshaledMap)
 					if len(nestedDiff) > 0 {
 						diff = append(diff, nestedDiff)
 					}
 				}
-			} else if !reflect.DeepEqual(item, marshaled[i]) {
+			} else if !reflect.DeepEqual(item, tmpMarshaled) {
 				diff = append(diff, item)
 			}
 		}

@@ -176,7 +176,7 @@ func Test_account_Get(t *testing.T) {
 
 	asset := NewAccount(factory)
 
-	result, err := asset.Get(organizationID, ledgerID, portfolioID, limit, page)
+	result, err := asset.Get(organizationID, ledgerID, portfolioID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

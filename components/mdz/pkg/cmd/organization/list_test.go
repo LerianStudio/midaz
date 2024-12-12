@@ -56,7 +56,8 @@ func Test_newCmdOrganizationList(t *testing.T) {
 		Page:  1,
 	}
 
-	mockRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return(&gotOrgs, nil)
+	mockRepo.EXPECT().Get(gomock.Any(), gomock.Any(), gomock.Any(),
+		gomock.Any(), gomock.Any()).Return(&gotOrgs, nil)
 
 	err := cmd.Execute()
 	assert.NoError(t, err)

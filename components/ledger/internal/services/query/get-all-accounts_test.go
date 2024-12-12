@@ -3,99 +3,135 @@ package query
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllAccounts is responsible to test GetAllAccounts with success and error
-func TestGetAllAccounts(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	portfolioID := pkg.GenerateUUIDv7()
-	limit := 10
-	page := 1
-
-	t.Parallel()
+func TestGetAllAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockAccountRepo := account.NewMockRepository(ctrl)
 
-	uc := UseCase{
-		AccountRepo: mockAccountRepo,
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		AccountRepo:  mockAccountRepo,
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		accounts := []*mmodel.Account{{}}
-		mockAccountRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, limit, page).
-			Return(accounts, nil).
-			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, &portfolioID, limit, page)
+	ctx := context.Background()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	portfolioID := uuid.New()
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
-
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
-		mockAccountRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, limit, page).
-			Return(nil, errors.New(errMsg)).
-			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, &portfolioID, limit, page)
-
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-	})
-}
-
-// TestGetAllAccountsWithoutPortfolio is responsible to test GetAllAccounts without portfolio with success and error
-func TestGetAllAccountsWithoutPortfolio(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	limit := 10
-	page := 1
-
-	t.Parallel()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockAccountRepo := account.NewMockRepository(ctrl)
-
-	uc := UseCase{
-		AccountRepo: mockAccountRepo,
+	filter := http.QueryHeader{
+		Limit: 10,
+		Page:  1,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		accounts := []*mmodel.Account{{}}
-		mockAccountRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, nil, limit, page).
-			Return(accounts, nil).
-			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, nil, limit, page)
+	tests := []struct {
+		name             string
+		setupMocks       func()
+		expectedErr      error
+		expectedAccounts []*mmodel.Account
+	}{
+		{
+			name: "success - accounts retrieved with metadata",
+			setupMocks: func() {
+				mockAccountRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					Return([]*mmodel.Account{
+						{ID: "acc1"},
+						{ID: "acc2"},
+					}, nil).
+					Times(1)
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), "Account", filter).
+					Return([]*mongodb.Metadata{
+						{EntityID: "acc1", Data: map[string]any{"key1": "value1"}},
+						{EntityID: "acc2", Data: map[string]any{"key2": "value2"}},
+					}, nil).
+					Times(1)
+			},
+			expectedErr: nil,
+			expectedAccounts: []*mmodel.Account{
+				{ID: "acc1", Metadata: map[string]any{"key1": "value1"}},
+				{ID: "acc2", Metadata: map[string]any{"key2": "value2"}},
+			},
+		},
+		{
+			name: "failure - accounts not found",
+			setupMocks: func() {
+				mockAccountRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					Return(nil, services.ErrDatabaseItemNotFound).
+					Times(1)
+			},
+			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
+			expectedAccounts: nil,
+		},
+		{
+			name: "failure - error retrieving accounts",
+			setupMocks: func() {
+				mockAccountRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					Return(nil, errors.New("failed to retrieve accounts")).
+					Times(1)
+			},
+			expectedErr:      errors.New("failed to retrieve accounts"),
+			expectedAccounts: nil,
+		},
+		{
+			name: "failure - metadata retrieval error",
+			setupMocks: func() {
+				mockAccountRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
+					Return([]*mmodel.Account{
+						{ID: "acc1"},
+						{ID: "acc2"},
+					}, nil).
+					Times(1)
 
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
-		mockAccountRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, nil, limit, page).
-			Return(nil, errors.New(errMsg)).
-			Times(1)
-		res, err := uc.AccountRepo.FindAll(context.TODO(), organizationID, ledgerID, nil, limit, page)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), "Account", filter).
+					Return(nil, errors.New("failed to retrieve metadata")).
+					Times(1)
+			},
+			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
+			expectedAccounts: nil,
+		},
+	}
 
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, &portfolioID, filter)
+
+			if tt.expectedErr != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedErr.Error(), err.Error())
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, len(tt.expectedAccounts), len(result))
+				for i, account := range result {
+					assert.Equal(t, tt.expectedAccounts[i].ID, account.ID)
+					assert.Equal(t, tt.expectedAccounts[i].Metadata, account.Metadata)
+				}
+			}
+		})
+	}
 }

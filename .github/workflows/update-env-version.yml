@@ -17,7 +17,8 @@ permissions:
 
 jobs:
   update-env-release:
-    runs-on: ubuntu-latest
+    name: Run update VERSION in every ENV on components
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
@@ -65,6 +66,11 @@ jobs:
           echo "LEDGER version: $VERSION"
           echo "::set-output name=version::$VERSION"
 
+      - name: Update AUDIT Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/audit/.env.example
+
       - name: Update LEDGER Env
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |
@@ -74,6 +80,11 @@ jobs:
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/transaction/.env.example
+
+      - name: Update MDZ Env
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        run: |
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/mdz/.env.example
 
       - name: Git Diff
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version

@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, error) {
+func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, http.CursorPagination, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -24,17 +24,17 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 
 	logger.Infof("Retrieving operations by account")
 
-	op, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.Limit, filter.Page)
+	op, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get operations on repo", err)
 
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if op != nil {
@@ -42,7 +42,7 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))
@@ -58,5 +58,5 @@ func (uc *UseCase) GetAllOperationsByAccount(ctx context.Context, organizationID
 		}
 	}
 
-	return op, nil
+	return op, cur, nil
 }

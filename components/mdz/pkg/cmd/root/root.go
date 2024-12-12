@@ -5,6 +5,7 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/account"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/configure"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
@@ -32,6 +33,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
 	cmd.AddCommand(product.NewCmdProduct(f.factory))
 	cmd.AddCommand(account.NewCmdAccount(f.factory))
+	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }
 
 func (f *factoryRoot) setFlags(cmd *cobra.Command) {
@@ -40,14 +42,39 @@ func (f *factoryRoot) setFlags(cmd *cobra.Command) {
 }
 
 func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
-	if cmd.Name() != "login" &&
-		cmd.Name() != "completion" &&
-		cmd.Name() != "version" {
-		sett, err := setting.Read()
-		if err != nil {
-			return errors.New("Try the login command first " + err.Error())
-		}
+	name := cmd.Name()
 
+	if name == "completion" ||
+		name == "bash" ||
+		name == "fish" ||
+		name == "powershell" ||
+		name == "zsh" ||
+		name == "version" {
+		return nil
+	}
+
+	sett, err := setting.Read()
+	if err != nil {
+		return errors.New("Try the login command first 'mdz login -h' " + err.Error())
+	}
+
+	if len(sett.Env.ClientID) > 0 {
+		f.factory.Env.ClientID = sett.ClientID
+	}
+
+	if len(sett.Env.ClientSecret) > 0 {
+		f.factory.Env.ClientSecret = sett.ClientSecret
+	}
+
+	if len(sett.Env.URLAPIAuth) > 0 {
+		f.factory.Env.URLAPIAuth = sett.URLAPIAuth
+	}
+
+	if len(sett.Env.URLAPILedger) > 0 {
+		f.factory.Env.URLAPILedger = sett.URLAPILedger
+	}
+
+	if len(sett.Token) > 0 {
 		f.factory.Token = sett.Token
 	}
 
@@ -66,7 +93,7 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 			"Midaz is an open-source ledger designed to offer multi-asset and multi-currency",
 			"transaction capabilities within a single, natively immutable and fully auditable platform.",
 		),
-		Version: fRoot.factory.CLIVersion,
+		Version: fRoot.factory.Env.Version,
 		Example: utils.Format(
 			"$ mdz",
 			"$ mdz -h",
@@ -85,7 +112,7 @@ func NewCmdRoot(f *factory.Factory) *cobra.Command {
 		fRoot.help(cmd, args)
 	})
 
-	cmd.SetVersionTemplate(color.New(color.Bold).Sprint(fRoot.factory.CLIVersion))
+	cmd.SetVersionTemplate(color.New(color.Bold).Sprint(fRoot.factory.Env.Version))
 	fRoot.setCmds(cmd)
 	fRoot.setFlags(cmd)
 

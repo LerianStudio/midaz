@@ -35,7 +35,7 @@ func (f *factoryLedgerCreate) runE(cmd *cobra.Command, _ []string) error {
 	led := mmodel.CreateLedgerInput{}
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}

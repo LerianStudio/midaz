@@ -1,3 +1,291 @@
+## [1.31.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.18...v1.31.0-beta.19) (2024-12-12)
+
+
+### Features
+
+* **asset-rate:** add cursor pagination to get all entities endpoint :sparkles: ([441c51c](https://github.com/LerianStudio/midaz/commit/441c51c5e5d27672f2c87cfbf3b512b85bf38798))
+* **transaction:** add cursor pagination to get all entities endpoint :sparkles: ([9b1cb94](https://github.com/LerianStudio/midaz/commit/9b1cb9405e6dc86a27aeb1b8980d9a68ce430734))
+* **operation:** add cursor pagination to get all entities endpoints :sparkles: ([21315a3](https://github.com/LerianStudio/midaz/commit/21315a317cf0ed329900769980fa5fc3fb7f17ce))
+* **postman:** add pagination fields to postman for get all endpoints :sparkles: ([63e3e56](https://github.com/LerianStudio/midaz/commit/63e3e56b033cbddc8edb01d986c5e37c6d060834))
+* **pagination:** add sort order filter and date ranges to the midaz pagination filtering :sparkles: ([4cc01d3](https://github.com/LerianStudio/midaz/commit/4cc01d311f51c16b759d7e8e1e287193eafab0d8))
+* **pagination:** improve pagination validations and tests :sparkles: ([8226e87](https://github.com/LerianStudio/midaz/commit/8226e87338c1a847c85301cd3752420e2b8cb1a7))
+* **tests:** update tests with to pagination filter struct :sparkles: ([793b685](https://github.com/LerianStudio/midaz/commit/793b685541ebcb5c3897d585380f16d2f9705d37))
+
+
+### Bug Fixes
+
+* **lint:** create and use func to safely converts int64 to int :bug: ([e9dc804](https://github.com/LerianStudio/midaz/commit/e9dc804e9163bdbeb5bfaabf75ed90d11c4addcc))
+* **lint:** fix lint SA4003 :bug: ([5ac015d](https://github.com/LerianStudio/midaz/commit/5ac015de8ee747f9efe5cdd73990fa3c63ae6f6e))
+* **lint:** fix lint SA4003 in os :bug: :bug: ([4b42f6a](https://github.com/LerianStudio/midaz/commit/4b42f6a52bdfa54f0b92e38ce4dff0db2d2d63fb))
+* **lint:** update incorrect conversion of a signed 64-bit integer to a lower bit size type int :bug: ([e0d8962](https://github.com/LerianStudio/midaz/commit/e0d896200f09c91041054019cf3f7546b5456443))
+* **lint:** update incorrect conversion of int to use math min and math int constants :bug: ([02905b5](https://github.com/LerianStudio/midaz/commit/02905b51126e75fc68ccd11ce0ff3109740ed99f))
+
+## [1.31.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.17...v1.31.0-beta.18) (2024-12-12)
+
+## [1.31.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.16...v1.31.0-beta.17) (2024-12-11)
+
+
+### Features
+
+* added new flags to get list filters :sparkles: ([959cc9d](https://github.com/LerianStudio/midaz/commit/959cc9db71a40b963af279be17e8be48aa79b123))
+
+## [1.31.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.15...v1.31.0-beta.16) (2024-12-11)
+
+
+### Features
+
+* async log transaction call :sparkles: ([35816e4](https://github.com/LerianStudio/midaz/commit/35816e444d153a4e555ab5708a20d3635ffe69da))
+* create operation log struct to specify fields that should be immutable :sparkles: ([b5438c1](https://github.com/LerianStudio/midaz/commit/b5438c15eba68b1e35683a41507eb5105cafa140))
+* disable audit logging thought env :sparkles: ([8fa77c8](https://github.com/LerianStudio/midaz/commit/8fa77c8871073c613c55f695722ffcf15240a17a))
+* get audit exchange and routing key names from envs :sparkles: ([ce70e91](https://github.com/LerianStudio/midaz/commit/ce70e9106c715a18225c4cf50f234b891de46dc0))
+* remove correlation-id after midaz-id implemented :sparkles: ([63e8016](https://github.com/LerianStudio/midaz/commit/63e80169edfabba82848b61d56486866b8763c1f))
+* **ledger:** remove exchange and key from connection :sparkles: ([621cbf9](https://github.com/LerianStudio/midaz/commit/621cbf949446f216aae08f5b9bead44afb90c01e))
+* remove exchange and key from rabbitmq connection config :sparkles: ([aa086a1](https://github.com/LerianStudio/midaz/commit/aa086a160badcb6f57f589ffc2a5315db2a35e13))
+* send log message after transaction created :sparkles: ([66f3f64](https://github.com/LerianStudio/midaz/commit/66f3f64065654f1bcc292e458edb667a2296b5e5))
+* update producer to receive Queue message, exchange and key through parameters :sparkles: ([8dc41f3](https://github.com/LerianStudio/midaz/commit/8dc41f3f94935297506ff12507626329ea52d669))
+* **ledger:** update rabbitmq producer :sparkles: ([47e3eef](https://github.com/LerianStudio/midaz/commit/47e3eef87a62b87fdc61e9564e6e5bc5c7f9da2a))
+
+
+### Bug Fixes
+
+* audit routing key env name :bug: ([45482e9](https://github.com/LerianStudio/midaz/commit/45482e934fd55610e61a7e437741d7fd01ef3f9b))
+* midaz-id header name :bug: ([ec79675](https://github.com/LerianStudio/midaz/commit/ec7967535065d79c8a7ef8d67497ef1d9a8bde09))
+
+## [1.31.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.14...v1.31.0-beta.15) (2024-12-10)
+
+## [1.31.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.13...v1.31.0-beta.14) (2024-12-06)
+
+
+### Features
+
+* **audit:** add audit logs handler :sparkles: ([4a5fe36](https://github.com/LerianStudio/midaz/commit/4a5fe36a69fb9342d962c07a5fafdb64bbdfcfa4))
+* **audit:** add authorization for routes :sparkles: ([2700d50](https://github.com/LerianStudio/midaz/commit/2700d50d93fbdb2203dc8ef19335d26f86737e45))
+* **audit:** add custom error messages :sparkles: ([db9bc72](https://github.com/LerianStudio/midaz/commit/db9bc72195faa6bbb6d143260baa34e0db7d032c))
+* **audit:** add get audit info use case :sparkles: ([9cc6503](https://github.com/LerianStudio/midaz/commit/9cc65035dd99edb6a1626acc67efec0d1fad108d))
+* **audit:** add get log by hash use case :sparkles: ([66d3b93](https://github.com/LerianStudio/midaz/commit/66d3b9379ac47475f9f32f9fe70e1c52ce9d46b7))
+* **audit:** add methods for retrieving trillian inclusion proof and leaf by index :sparkles: ([03b12bd](https://github.com/LerianStudio/midaz/commit/03b12bdd406cab91295d0bd21de96574f8c09e53))
+* **audit:** add trace spans :sparkles: ([1ea30fa](https://github.com/LerianStudio/midaz/commit/1ea30fab9d2c75bebd51309d709a9b833d0b66d4))
+* **audit:** add trillian health check before connecting :sparkles: ([9295cec](https://github.com/LerianStudio/midaz/commit/9295cec1036dd77da7d843c38603247be2d46ed5))
+* add update swagger audit on git pages ([137824a](https://github.com/LerianStudio/midaz/commit/137824a9f721e140a4ecb7ec08cca07c99762b59))
+* **audit:** add validate log use case :sparkles: ([7216c5e](https://github.com/LerianStudio/midaz/commit/7216c5e744d0246961db040f6c045c60452b1dc1))
+* audit component :sparkles: ([084603f](https://github.com/LerianStudio/midaz/commit/084603f08386b7ebcfa67eaac7b094ddf676976f))
+* **audit:** audit structs to aux mongo database ([4b80b75](https://github.com/LerianStudio/midaz/commit/4b80b75a16cefb77a4908e04b7ac522e347fb8eb))
+* create audit app ([f3f8cd5](https://github.com/LerianStudio/midaz/commit/f3f8cd5f3e7e8023e17e1f17111e9e221ec62227))
+* **auth:** create auditor user :sparkles: ([5953ad9](https://github.com/LerianStudio/midaz/commit/5953ad9ac44faa3c8c9014eb47d480176f6d49ca))
+* create route consumer for many queues ([8004063](https://github.com/LerianStudio/midaz/commit/8004063186d6c85bd0ed99e5d081acdc9ecdfb8f))
+* **audit:** create struct for queue messages :sparkles: ([646bd38](https://github.com/LerianStudio/midaz/commit/646bd38cced4fc57f51fb2e5bd3d3137ba2a83bc))
+* **audit:** create structs for audit transaction message ([fa6b568](https://github.com/LerianStudio/midaz/commit/fa6b568d83b165d59540ee7878e550f81ddc3789))
+* **audit:** create transaction logs from rabbitmq message ([d54e4d3](https://github.com/LerianStudio/midaz/commit/d54e4d387e08ea5d9a47898bd0e94df7ab5c2f5d))
+* **audit:** create trillian log leaf ([d18c0c2](https://github.com/LerianStudio/midaz/commit/d18c0c22f540196e575bfc1f0656da1fb5747a54))
+* **audit:** errors return from log creation :sparkles: ([69594e4](https://github.com/LerianStudio/midaz/commit/69594e4e24eb6d107b2d8fa27f83d0e76e058405))
+* **audit:** find audit info by ID :sparkles: ([ea91e97](https://github.com/LerianStudio/midaz/commit/ea91e971ac2db8cd8a7befe2e42d994e6987902f))
+* **audit:** ignore updatable fields for operation :sparkles: ([28db38d](https://github.com/LerianStudio/midaz/commit/28db38d0e391904458fd8234303f6f56b412e6c3))
+* **audit:** implement get trillian log by hash :sparkles: ([44d103b](https://github.com/LerianStudio/midaz/commit/44d103bbef1e80acd37ecd5c5e3d4ce238ea8530))
+* **audit:** implement rabbitmq consumer :sparkles: ([9874dc4](https://github.com/LerianStudio/midaz/commit/9874dc453cfcbb94379c9e256c6aeeacef136bc9))
+* implement trillian connection :sparkles: ([c4b8877](https://github.com/LerianStudio/midaz/commit/c4b887706dd4ce4ea8c7f7358ff40854f60bc2a6))
+* **audit:** implements read logs by transaction handler :sparkles: ([d134b07](https://github.com/LerianStudio/midaz/commit/d134b07e7715f05b9e32817a47fe95ded1721c7b))
+* **audit:** receiving audit parameter to create tree ([be43f32](https://github.com/LerianStudio/midaz/commit/be43f324ac21354c60a65ce2beda5f1c4f78871f))
+* **audit:** returning log leaf instead of the value :sparkles: ([9b40d88](https://github.com/LerianStudio/midaz/commit/9b40d88189c3021e637cc3ce52686895b5b83130))
+* right way of starter audit with only one queue consumer ([15a0a8c](https://github.com/LerianStudio/midaz/commit/15a0a8c9438d31597d749d3180adcd4a9eb994bc))
+* **audit:** starting implementation of server :sparkles: ([edbce7b](https://github.com/LerianStudio/midaz/commit/edbce7bc2281c7d1273215dc372573e58680119c))
+* **audit:** update audit info collection name :sparkles: ([7cd39fa](https://github.com/LerianStudio/midaz/commit/7cd39fa0861b06c7a728f9c25e44f656d2be7b50))
+* **audit:** update audit route paths :sparkles: ([0f12899](https://github.com/LerianStudio/midaz/commit/0f128998b6525c4419e3e4acd388aac97e92cb48))
+* **audit:** using generic queue struct instead of transaction to write logs :sparkles: ([4c1b86f](https://github.com/LerianStudio/midaz/commit/4c1b86f0f374d182ee39b430ea19b641bad4eca0))
+* **audit:** work with generic audit log values :sparkles: ([9beb218](https://github.com/LerianStudio/midaz/commit/9beb21876f2cc57aacaabee502c45712e68102db))
+
+
+### Bug Fixes
+
+* **audit:** add audit_id parameter to uuid path parameters constant :bug: ([dcbcb05](https://github.com/LerianStudio/midaz/commit/dcbcb05de4d2f1cfb9340a807f299af6bb302c5f))
+* **audit:** add tree size validation to fix vulnerability :bug: ([313dbf4](https://github.com/LerianStudio/midaz/commit/313dbf40f06d088e2d36282f57a7585db3e5ab7a))
+* adjust to change run :bug: ([bad23fe](https://github.com/LerianStudio/midaz/commit/bad23fedda288507b87ae68dcfbe35b6a66285cf))
+* adjust to run rabbit and fiber at same time :bug: ([4ec503f](https://github.com/LerianStudio/midaz/commit/4ec503fa0fa2a457b2c055d7585d80edba46cd48))
+* adjust to test rabbit receiving data :bug: ([38d3ec9](https://github.com/LerianStudio/midaz/commit/38d3ec9908429171c9de4a772cb082dbdfdb17a8))
+* **audit:** change log level for mtrillian :bug: ([06bd3f8](https://github.com/LerianStudio/midaz/commit/06bd3f8d55a84f3509bdcd5fa60ac7726d83cf5c))
+* **audit:** change otel exporter service name :bug: ([85c15b4](https://github.com/LerianStudio/midaz/commit/85c15b45010d43c9bdd702b9d55e42186eb2b6d2))
+* change rabbit and mongo envs for audit component :bug: ([2854909](https://github.com/LerianStudio/midaz/commit/2854909dcb3a2f902fec9bdec923ad3d41d4ac9e))
+* **audit:** fix field name :bug: ([eb8f647](https://github.com/LerianStudio/midaz/commit/eb8f647c45bcdf00776b4f57487d0ba7d0575cc2))
+* **audit:** handle audit not found error only :bug: ([212ebac](https://github.com/LerianStudio/midaz/commit/212ebaca6c85dd12b150e273754648a805359710))
+* **audit:** make constants public :bug: ([baaee67](https://github.com/LerianStudio/midaz/commit/baaee675eaae47695a7dd00df93677bb5e60b0ff))
+* merge git :bug: ([65a985a](https://github.com/LerianStudio/midaz/commit/65a985ac9c3758aaeca4fd861bb141fc095472f3))
+* **audit:** nack message when an error occurs :bug: ([88090b0](https://github.com/LerianStudio/midaz/commit/88090b09b9377172ad77f4378139fae7441e0d04))
+* **audit:** otel envs :bug: ([6328d90](https://github.com/LerianStudio/midaz/commit/6328d905a1f5f7e9dba5201ccd16fce3d884909a))
+* rabbit init on server before fiber :bug: ([51c1b53](https://github.com/LerianStudio/midaz/commit/51c1b53eada3fd2cfbcc18557c101554607c74a1))
+* **ledger:** remove create audit tree from ledger creation :bug: ([8783145](https://github.com/LerianStudio/midaz/commit/878314570180bd8f1855572d435b37210e711218))
+* remove second queue consumer after tests :bug: ([8df4703](https://github.com/LerianStudio/midaz/commit/8df470377954add22e5ebb2422c69ee68931746c))
+* **audit:** shutdown when consumer error :bug: ([22b24c9](https://github.com/LerianStudio/midaz/commit/22b24c90c67492d58ba4aa043f3a9d3513280777))
+* **audit:** trillian server host name :bug: ([84b73ff](https://github.com/LerianStudio/midaz/commit/84b73ffdbae04d3c207155b976bab60d59e285ab))
+* update audit env version :bug: ([79475b2](https://github.com/LerianStudio/midaz/commit/79475b268aaac99b30f381a60cff4d41b5bfeffb))
+* **audit:** update components/audit/internal/adapters/http/in/response.go ([3d8d8cd](https://github.com/LerianStudio/midaz/commit/3d8d8cd6ca41444132ef6682dede5e6f54859bc5))
+
+## [1.31.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.12...v1.31.0-beta.13) (2024-12-06)
+
+
+### Bug Fixes
+
+* adjust to return nil and not empty struct :bug: ([a2a73b8](https://github.com/LerianStudio/midaz/commit/a2a73b851e2af5f43bfc445efdb565c281aef94c))
+* go lint :bug: ([0123db1](https://github.com/LerianStudio/midaz/commit/0123db151fa218b044c189613f0b80cbc66aa105))
+* remove G :bug: ([9fe64e1](https://github.com/LerianStudio/midaz/commit/9fe64e1a38aba6e851570e44b3aac8e1b61be795))
+* update makefile to reference common to pkg :bug: ([c6963ea](https://github.com/LerianStudio/midaz/commit/c6963eae0776b3da149345e52f40649669adf02a))
+
+## [1.31.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.11...v1.31.0-beta.12) (2024-12-06)
+
+## [1.31.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.10...v1.31.0-beta.11) (2024-12-06)
+
+
+### Bug Fixes
+
+* **account:** omit optional fields in update request payload :bug: ([33f3e7d](https://github.com/LerianStudio/midaz/commit/33f3e7dac14088b8a6ff293ed4625eeef62a9448))
+
+## [1.31.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.9...v1.31.0-beta.10) (2024-12-06)
+
+## [1.31.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.8...v1.31.0-beta.9) (2024-12-04)
+
+
+### Bug Fixes
+
+* add more actions with same background :bug: ([cdd8164](https://github.com/LerianStudio/midaz/commit/cdd8164c08f51e1d421eb00f67f46077ffcd35e4))
+* add more rules and shrink actions :bug: ([ce2b916](https://github.com/LerianStudio/midaz/commit/ce2b916599073f9baea9c11d2860b2c77c712523))
+* adjust unit test :bug: ([da988f0](https://github.com/LerianStudio/midaz/commit/da988f0d3ee1937c680c197c8b29138281c306c2))
+* change place order :bug: ([96f416d](https://github.com/LerianStudio/midaz/commit/96f416d4feae874a976d2473771776a429655e02))
+* codeql :bug: ([1edae06](https://github.com/LerianStudio/midaz/commit/1edae06355e9c54c3687b0c460c8e2eebdb47ee7))
+* final version :bug: ([65d2656](https://github.com/LerianStudio/midaz/commit/65d26569969efabbc588c2e7c281e3ed85f96cfa))
+* more adjusts :bug: ([dfc3513](https://github.com/LerianStudio/midaz/commit/dfc351324a2fd6f6aebc4c72aab415dd1815a084))
+* more adjusts and replace wrong calls :bug: ([ed7c57d](https://github.com/LerianStudio/midaz/commit/ed7c57d3af59154dffbcc95a84bb2ee355b94271))
+* more shrink actions :bug: ([efa9e96](https://github.com/LerianStudio/midaz/commit/efa9e9694578d9a6fd00cf513d3e3fb0c7b88943))
+* new adjust :bug: ([2259b11](https://github.com/LerianStudio/midaz/commit/2259b1190024ae87911044bb4c5093b7ef81b319))
+* reorganize code :bug: ([54debfc](https://github.com/LerianStudio/midaz/commit/54debfc25a106e263962c94970fd8d21fa757d5a))
+* review dog fail_error to any :bug: ([f7a00f9](https://github.com/LerianStudio/midaz/commit/f7a00f98d557f517ac6295865ed439a8f6755c29))
+* some redefinitions :bug: ([5eae327](https://github.com/LerianStudio/midaz/commit/5eae3274dfefbd0b1d0a01c7d89acaa38146ab8c))
+* ubuntu version :bug: ([64748c7](https://github.com/LerianStudio/midaz/commit/64748c7e6b7e2f30577b550792f6a19b0861ad8d))
+* unify codeql/lint/sec/unit :bug: ([53de44c](https://github.com/LerianStudio/midaz/commit/53de44c785ddb2c990735ec00036b5ad8eed94f5))
+* update check :bug: ([2c98e13](https://github.com/LerianStudio/midaz/commit/2c98e134acb3c80734f635eb667d5fdb985e7349))
+* update check and name :bug: ([7533a52](https://github.com/LerianStudio/midaz/commit/7533a52d75c21fcd6c8888d9e1462db4537e4ddb))
+* update checks :bug: ([7cf15ad](https://github.com/LerianStudio/midaz/commit/7cf15ad57a97460d0c0f0ff94d1aac81bcedec58))
+* update error in yaml syntax :bug: ([322f2c9](https://github.com/LerianStudio/midaz/commit/322f2c9dcad4a98184a7dcd35614bbc5a79f9c4b))
+* update image to ubuntu-24.04 :bug: ([b91d104](https://github.com/LerianStudio/midaz/commit/b91d10489deabb188beb37d583fc1976e970be96))
+* update reference :bug: ([3d2f96f](https://github.com/LerianStudio/midaz/commit/3d2f96f91a663153b156283907aeb69f6196ebc8))
+* update some checks :bug: ([f551b35](https://github.com/LerianStudio/midaz/commit/f551b35126688fbdcb0d9446f24e32ae818cf9b4))
+
+## [1.31.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.7...v1.31.0-beta.8) (2024-12-03)
+
+
+### Features
+
+* check diff before commit changes ([4e5d2d3](https://github.com/LerianStudio/midaz/commit/4e5d2d3e3ac09cbd7819fdba7ba2eed24ff975ff))
+* copy swagger.josn and check diff ([1cd0658](https://github.com/LerianStudio/midaz/commit/1cd0658dacd9747d4bd08b6d3f5b1e742791d115))
+* generate swagger on midaz ([3678070](https://github.com/LerianStudio/midaz/commit/3678070fbf0f105359ec0206aed8cbacd26f5e06))
+* test by specific branch ([a0f7af3](https://github.com/LerianStudio/midaz/commit/a0f7af3613d42ef23bf9f5f250a1fe7e58c7155a))
+* update git pages ([1c6f8cc](https://github.com/LerianStudio/midaz/commit/1c6f8ccb098563a8ad2940a192cdcc6903ed686a))
+* update pages with each json swagger ([b4d8563](https://github.com/LerianStudio/midaz/commit/b4d856369d400a829a0510ae02801c8f69d62b4b))
+* update swagger to teste commit ([b6aa4bf](https://github.com/LerianStudio/midaz/commit/b6aa4bfcd42a06cac72ccb7f3ab766024ea23315))
+* valida if has changes ([ac7cbdb](https://github.com/LerianStudio/midaz/commit/ac7cbdbc2bb621c9ff8c38bb4f407a86279c0f96))
+
+
+### Bug Fixes
+
+* adjust path :bug: ([41ec839](https://github.com/LerianStudio/midaz/commit/41ec839fc9a792229503f036b4e6e267cb8010cd))
+* adjust to remove .git :bug: ([02e65af](https://github.com/LerianStudio/midaz/commit/02e65afb450b5b369a27fd285a25b33e63f4a974))
+* change env local :bug: ([e07b26e](https://github.com/LerianStudio/midaz/commit/e07b26e3a733a3fe75082f2ff79caa352248e1eb))
+* change to gh again :bug: ([4a3449b](https://github.com/LerianStudio/midaz/commit/4a3449b6f87b13359d8ac159eb4e11d6e481589d))
+* check my place :bug: ([4b963bd](https://github.com/LerianStudio/midaz/commit/4b963bd722470e578c492e38d7485dcd2d1b0389))
+* final adjusts :bug: ([fafa647](https://github.com/LerianStudio/midaz/commit/fafa6479916648aec7ea7c8ad13276250a0b0516))
+* git actions swaggo :bug: ([246dd51](https://github.com/LerianStudio/midaz/commit/246dd51de7df189a422d2e27124de38287f95020))
+* git clone :bug: ([7cc209a](https://github.com/LerianStudio/midaz/commit/7cc209a0f07f7c46f42469443fd79356409f7c43))
+* remove workoing-directory :bug: ([b03b547](https://github.com/LerianStudio/midaz/commit/b03b547e7b1e48a9e0014c40b8350031c479f2d7))
+* return to root :bug: ([50b03d0](https://github.com/LerianStudio/midaz/commit/50b03d03f01dfaa87713dc4c75d5685a7c7e3e87))
+* set token url remote :bug: ([acf4227](https://github.com/LerianStudio/midaz/commit/acf422701670f7688732b5b01d81bdab234194b5))
+* swag --version :bug: ([bd0ab17](https://github.com/LerianStudio/midaz/commit/bd0ab17e47bdd569cafbbd5f1af48842803de099))
+* swaggo install :bug: ([718c42e](https://github.com/LerianStudio/midaz/commit/718c42e52d7a585b7cbf8434f80dd2ab192f15ab))
+* test :bug: ([7bf82f7](https://github.com/LerianStudio/midaz/commit/7bf82f76ba7a592837795786b8750d90ffbec98a))
+* test :bug: ([b2e88f8](https://github.com/LerianStudio/midaz/commit/b2e88f8fedbd24dfddb42f478c6bae6b6c3e2c6a))
+* test :bug: ([ca48838](https://github.com/LerianStudio/midaz/commit/ca48838e7f6786509292e0936bb8bacd8d824cfc))
+* test :bug: ([481f4a8](https://github.com/LerianStudio/midaz/commit/481f4a89082b6471bcf4248f57f737d5bed3d3db))
+* test :bug: ([f2889a2](https://github.com/LerianStudio/midaz/commit/f2889a2db28ead77d43874673376ab47cb104ba1))
+* test :bug: ([c3b3313](https://github.com/LerianStudio/midaz/commit/c3b3313149a3bba19e3b4e2723dfacc533087785))
+* test :bug: ([e51d1fd](https://github.com/LerianStudio/midaz/commit/e51d1fda2d264c22595d4306d179c65bce31325e))
+* test :bug: ([cee71cb](https://github.com/LerianStudio/midaz/commit/cee71cb73d9ccffbde2263754110cd13e276812d))
+* test :bug: ([dc865b1](https://github.com/LerianStudio/midaz/commit/dc865b11d8757a3937f4bf7c81fee69dfa5c201e))
+* test :bug: ([a3fb8f0](https://github.com/LerianStudio/midaz/commit/a3fb8f01270799890df2a7614cf02e35a9ec8bec))
+* test if make is installed :bug: ([81f3a1c](https://github.com/LerianStudio/midaz/commit/81f3a1caa34121649755558bedd0ea3697187ed0))
+* update :bug: ([7e88db0](https://github.com/LerianStudio/midaz/commit/7e88db020132d0616380ba5bd433e93fecf317af))
+* update :bug: ([ff843ac](https://github.com/LerianStudio/midaz/commit/ff843ac9570ce5aa9e7082857db1cf905d99b795))
+* update :bug: ([a98be20](https://github.com/LerianStudio/midaz/commit/a98be2043979854d07750a49fedc684daadf5458))
+* update :bug: ([1012a51](https://github.com/LerianStudio/midaz/commit/1012a51d18becf236b7333cb0b65c90ca03e905a))
+* update :bug: ([8886a73](https://github.com/LerianStudio/midaz/commit/8886a73f7713db07e102adcaa8199535a6cdd972))
+* update :bug: ([033a237](https://github.com/LerianStudio/midaz/commit/033a2371c105bb1db20a26020a3731bd9cd1a302))
+* update :bug: ([b446031](https://github.com/LerianStudio/midaz/commit/b4460317a73f37e66b9d234db23fd9b4ab1dbf4d))
+* update :bug: ([b320e46](https://github.com/LerianStudio/midaz/commit/b320e4629ad909b72fff63aea99cff066b33b5f1))
+* update :bug: ([848cc1b](https://github.com/LerianStudio/midaz/commit/848cc1bf7af2008487135d065f9101a8cbb07ec1))
+* update folders paths :bug: ([18f872b](https://github.com/LerianStudio/midaz/commit/18f872b7eddd6e259a28e788ae9657c03caa1060))
+* update make :bug: ([78effdc](https://github.com/LerianStudio/midaz/commit/78effdc4dbc58836d311eb671078626d05a08c61))
+* update place :bug: ([8d5501a](https://github.com/LerianStudio/midaz/commit/8d5501a2d39f6a8c3eef9592b6dc0e17be016781))
+* update to new approach :bug: ([bf6303d](https://github.com/LerianStudio/midaz/commit/bf6303d960c15a4f54c8cfcb0d6116236b1db2f1))
+* using make file to generate swagger file :bug: ([9c9d545](https://github.com/LerianStudio/midaz/commit/9c9d5455f9eead5e95c91e722e6b02fef9f7530c))
+
+## [1.31.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.6...v1.31.0-beta.7) (2024-12-03)
+
+
+### Features
+
+* soft delete asset and its external account :sparkles: ([7b090ba](https://github.com/LerianStudio/midaz/commit/7b090baf368be777a23c26e09e2ee33a0bbc4e91))
+
+
+### Bug Fixes
+
+* **account:** add error message translation for prohibited external account creation and adjust validation assertion :bug: ([fdd5971](https://github.com/LerianStudio/midaz/commit/fdd59717c8cc8e419817ddea145a91ef7601d35a))
+* **lint:** improve boolean tag validation return :bug: ([fef2192](https://github.com/LerianStudio/midaz/commit/fef219229eb167edaeba8c11ce0a8504ffff07b0))
+
+## [1.31.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.5...v1.31.0-beta.6) (2024-12-02)
+
+
+### Bug Fixes
+
+* adjust filter by metadata on get all transactions endpoint :bug: ([18c93a7](https://github.com/LerianStudio/midaz/commit/18c93a77b59d4e5d34d50d293534eebae3e22f60))
+
+## [1.31.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.4...v1.31.0-beta.5) (2024-12-02)
+
+
+### Bug Fixes
+
+* add slash to the forbidden account external aliases :bug: ([5e28fd5](https://github.com/LerianStudio/midaz/commit/5e28fd56fa2a61a2566a07690db97c01163561f3))
+* add validation to patch and delete methods for external accounts on ledger :bug: ([96ba359](https://github.com/LerianStudio/midaz/commit/96ba359993badc9456ea9d9de9286e33a9b051aa))
+* update error message when patching and deleting external accounts on ledger :bug: ([e0c8614](https://github.com/LerianStudio/midaz/commit/e0c8614d476475e6bc05806c27c84ad62bcac578))
+
+## [1.31.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.3...v1.31.0-beta.4) (2024-11-29)
+
+
+### Bug Fixes
+
+* exclude external from allowed account types for account creation :bug: ([18ec6ba](https://github.com/LerianStudio/midaz/commit/18ec6bab807943c03722a191229f609fbefb02c9))
+
+## [1.31.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.2...v1.31.0-beta.3) (2024-11-29)
+
+
+### Features
+
+* added command configure :sparkles: ([f269cf3](https://github.com/LerianStudio/midaz/commit/f269cf3c6a9f3badd2cea2bf93982433ff72e4af))
+* configure command created defines the envs variables used in ldflags via command with the unit test of the ending with print command and print fields :sparkles: ([f407ab8](https://github.com/LerianStudio/midaz/commit/f407ab85224d30aa9f923dd27f9f49e76669e3d4))
+
+## [1.31.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.1...v1.31.0-beta.2) (2024-11-28)
+
+
+### Bug Fixes
+
+* add get git token to get tag version :bug: ([92b91e6](https://github.com/LerianStudio/midaz/commit/92b91e6c9306568e7a48a95311e82ef8a2ce2463))
+
+## [1.31.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.30.0...v1.31.0-beta.1) (2024-11-28)
+
+
+### Features
+
+* steps to send slack message with release ([8957369](https://github.com/LerianStudio/midaz/commit/89573696f68c0a0ab20013cd265ea09874f02da5))
+
+
+### Bug Fixes
+
+* adjust to new code place :bug: ([23ddb23](https://github.com/LerianStudio/midaz/commit/23ddb23d090ded59b060e546e067f85bfd7bf43f))
+
 ## [1.30.0](https://github.com/LerianStudio/midaz/compare/v1.29.0...v1.30.0) (2024-11-28)
 
 

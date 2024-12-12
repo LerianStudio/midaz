@@ -181,7 +181,7 @@ func Test_ledger_List(t *testing.T) {
 
 	ledServ := NewLedger(factory)
 
-	result, err := ledServ.Get(organizationID, limit, page)
+	result, err := ledServ.Get(organizationID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

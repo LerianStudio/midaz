@@ -3,61 +3,108 @@ package query
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetProductByIDSuccess is responsible to test GetProductByID with success
-func TestGetProductByIDSuccess(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	p := &mmodel.Product{
-		ID:             id.String(),
-		LedgerID:       ledgerID.String(),
-		OrganizationID: organizationID.String(),
+func TestGetProductByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockProductRepo := product.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		ProductRepo:  mockProductRepo,
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	uc := UseCase{
-		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		productID      uuid.UUID
+		mockSetup      func()
+		expectErr      bool
+		expectedResult *mmodel.Product
+	}{
+		{
+			name:           "Success - Retrieve product with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			mockSetup: func() {
+				productID := uuid.New()
+				mockProductRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Product{ID: productID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
+			},
+			expectErr: false,
+			expectedResult: &mmodel.Product{
+				ID:       "valid-uuid",
+				Name:     "Test Product",
+				Status:   mmodel.Status{Code: "active"},
+				Metadata: map[string]any{"key": "value"},
+			},
+		},
+		{
+			name:           "Error - Product not found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			mockSetup: func() {
+				mockProductRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Error - Failed to retrieve metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			productID:      uuid.New(),
+			mockSetup: func() {
+				productID := uuid.New()
+				mockProductRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Product{ID: productID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("metadata retrieval error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
 	}
 
-	uc.ProductRepo.(*product.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, id).
-		Return(p, nil).
-		Times(1)
-	res, err := uc.ProductRepo.Find(context.TODO(), organizationID, ledgerID, id)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	assert.Equal(t, res, p)
-	assert.Nil(t, err)
-}
+			ctx := context.Background()
+			result, err := uc.GetProductByID(ctx, tt.organizationID, tt.ledgerID, tt.productID)
 
-// TestGetProductByIDError is responsible to test GetProductByID with error
-func TestGetProductByIDError(t *testing.T) {
-	id := pkg.GenerateUUIDv7()
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	errMSG := "errDatabaseItemNotFound"
-
-	uc := UseCase{
-		ProductRepo: product.NewMockRepository(gomock.NewController(t)),
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
 	}
-
-	uc.ProductRepo.(*product.MockRepository).
-		EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, id).
-		Return(nil, errors.New(errMSG)).
-		Times(1)
-	res, err := uc.ProductRepo.Find(context.TODO(), organizationID, ledgerID, id)
-
-	assert.NotEmpty(t, err)
-	assert.Equal(t, err.Error(), errMSG)
-	assert.Nil(t, res)
 }

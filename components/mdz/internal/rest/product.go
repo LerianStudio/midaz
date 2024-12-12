@@ -51,11 +51,16 @@ func (r *product) Create(organizationID, ledgerID string, inp mmodel.CreateProdu
 	return &productResp, nil
 }
 
-func (r *product) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Products, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products?limit=%d&page=%d",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, limit, page)
+func (r *product) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Products, error) {
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
-	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}

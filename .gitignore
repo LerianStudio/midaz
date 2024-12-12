@@ -6,3 +6,4 @@ components/mdz/bin/mdz
 .idea
 *.iml
 components/ledger/_docker-compose.yml
+coverage.out
