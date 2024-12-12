@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"reflect"
 	"strconv"
@@ -47,10 +46,6 @@ func GetenvIntOrDefault(key string, defaultValue int64) int64 {
 
 	val, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		return defaultValue
-	}
-
-	if val > math.MaxInt64 || val < math.MinInt64 {
 		return defaultValue
 	}
 
