@@ -147,9 +147,9 @@ func SafeIntToUint64(val int) uint64 {
 
 // SafeInt64ToInt safely converts int64 to int
 func SafeInt64ToInt(val int64) int {
-	if val > int64(^uint(0)>>1) {
+	if val > int64(int(^uint(0)>>1)) {
 		return int(^uint(0) >> 1)
-	} else if val < -int64(^uint(0)>>1)-1 {
+	} else if val < int64(-int(^uint(0)>>1)-1) {
 		return -int(^uint(0)>>1) - 1
 	}
 
