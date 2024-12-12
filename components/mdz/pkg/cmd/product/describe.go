@@ -20,6 +20,7 @@ import (
 type factoryProductDescribe struct {
 	factory        *factory.Factory
 	repoProduct    repository.Product
+	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
 	ProductID      string
@@ -29,7 +30,7 @@ type factoryProductDescribe struct {
 
 func (f *factoryProductDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}
@@ -38,7 +39,7 @@ func (f *factoryProductDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
-		id, err := tui.Input("Enter your ledger-id")
+		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
 			return err
 		}
@@ -47,7 +48,7 @@ func (f *factoryProductDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("product-id") && len(f.ProductID) < 1 {
-		id, err := tui.Input("Enter your product-id")
+		id, err := f.tuiInput("Enter your product-id")
 		if err != nil {
 			return err
 		}
@@ -149,6 +150,7 @@ func newInjectFacDescribe(f *factory.Factory) *factoryProductDescribe {
 	return &factoryProductDescribe{
 		factory:     f,
 		repoProduct: rest.NewProduct(f),
+		tuiInput:    tui.Input,
 	}
 }
 

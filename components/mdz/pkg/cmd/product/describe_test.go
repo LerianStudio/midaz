@@ -1,4 +1,4 @@
-package portfolio
+package product
 
 import (
 	"bytes"
@@ -17,23 +17,23 @@ import (
 	"gotest.tools/golden"
 )
 
-func Test_newCmdPortfolioDescribe(t *testing.T) {
+func Test_newCmdProductDescribe(t *testing.T) {
 	t.Run("happy path informing all the necessary flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockPortfolio(ctrl)
+		mockRepo := repository.NewMockProduct(ctrl)
 
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		portfolioID := "01931b44-6e33-791a-bfad-27992fa15984"
 
-		ledFactory := factoryPortfolioDescribe{
+		ledFactory := factoryProductDescribe{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoPortfolio:  mockRepo,
+			repoProduct:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Out:            "",
@@ -46,14 +46,14 @@ func Test_newCmdPortfolioDescribe(t *testing.T) {
 			"chave3": true,
 		}
 
-		cmd := newCmdPortfolioDescribe(&ledFactory)
+		cmd := newCmdProductDescribe(&ledFactory)
 		cmd.SetArgs([]string{
 			"--ledger-id", ledgerID,
 			"--organization-id", organizationID,
-			"--portfolio-id", portfolioID,
+			"--product-id", portfolioID,
 		})
 
-		item := mmodel.Portfolio{
+		item := mmodel.Product{
 			ID:             portfolioID,
 			Name:           "2Real",
 			OrganizationID: organizationID,
@@ -81,18 +81,18 @@ func Test_newCmdPortfolioDescribe(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockPortfolio(ctrl)
+		mockRepo := repository.NewMockProduct(ctrl)
 
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		portfolioID := "01931b44-6e33-791a-bfad-27992fa15984"
 
-		ledFactory := factoryPortfolioDescribe{
+		ledFactory := factoryProductDescribe{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoPortfolio:  mockRepo,
+			repoProduct:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Out:            "",
@@ -109,10 +109,10 @@ func Test_newCmdPortfolioDescribe(t *testing.T) {
 			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
 		}
 
-		cmd := newCmdPortfolioDescribe(&ledFactory)
+		cmd := newCmdProductDescribe(&ledFactory)
 		cmd.SetArgs([]string{})
 
-		item := mmodel.Portfolio{
+		item := mmodel.Product{
 			ID:             portfolioID,
 			Name:           "2Real",
 			OrganizationID: organizationID,
