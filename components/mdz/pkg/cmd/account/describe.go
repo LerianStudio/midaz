@@ -20,6 +20,7 @@ import (
 type factoryAccountDescribe struct {
 	factory        *factory.Factory
 	repoAccount    repository.Account
+	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
 	PortfolioID    string
@@ -30,7 +31,7 @@ type factoryAccountDescribe struct {
 
 func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}
@@ -39,7 +40,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
-		id, err := tui.Input("Enter your ledger-id")
+		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
 			return err
 		}
@@ -48,7 +49,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := tui.Input("Enter your portfolio-id")
+		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
 			return err
 		}
@@ -57,7 +58,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	}
 
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
-		id, err := tui.Input("Enter your account-id")
+		id, err := f.tuiInput("Enter your account-id")
 		if err != nil {
 			return err
 		}
@@ -179,6 +180,7 @@ func newInjectFacDescribe(f *factory.Factory) *factoryAccountDescribe {
 	return &factoryAccountDescribe{
 		factory:     f,
 		repoAccount: rest.NewAccount(f),
+		tuiInput:    tui.Input,
 	}
 }
 

@@ -14,34 +14,69 @@ import (
 )
 
 func Test_newCmdProductDelete(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Run("with flags", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockProduct(ctrl)
 
-	factory := factoryProductDelete{
-		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-			Out: &bytes.Buffer{},
-			Err: &bytes.Buffer{},
-		}},
-		repoProduct:    mockRepo,
-		OrganizationID: "321",
-		LedgerID:       "123",
-		ProductID:      "444",
-	}
+		factory := factoryProductDelete{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoProduct:    mockRepo,
+			OrganizationID: "321",
+			LedgerID:       "123",
+			ProductID:      "444",
+		}
 
-	cmd := newCmdProductDelete(&factory)
-	cmd.SetArgs([]string{
-		"--organization-id", "321",
-		"--ledger-id", "123",
-		"--product-id", "444",
+		cmd := newCmdProductDelete(&factory)
+		cmd.SetArgs([]string{
+			"--organization-id", "321",
+			"--ledger-id", "123",
+			"--product-id", "444",
+		})
+
+		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		output := factory.factory.IOStreams.Out.(*bytes.Buffer).String()
+		assert.Contains(t, output, "The Product 444 has been successfully deleted.")
 	})
 
-	mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	t.Run("no flags", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	err := cmd.Execute()
-	assert.NoError(t, err)
+		mockRepo := repository.NewMockProduct(ctrl)
 
-	output := factory.factory.IOStreams.Out.(*bytes.Buffer).String()
-	assert.Contains(t, output, "The Product 444 has been successfully deleted.")
+		factory := factoryProductDelete{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoProduct:    mockRepo,
+			OrganizationID: "321",
+			LedgerID:       "123",
+			ProductID:      "444",
+		}
+
+		factory.tuiInput = func(message string) (string, error) {
+			return "444", nil
+		}
+
+		cmd := newCmdProductDelete(&factory)
+		cmd.SetArgs([]string{})
+
+		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		output := factory.factory.IOStreams.Out.(*bytes.Buffer).String()
+		assert.Contains(t, output, "The Product 444 has been successfully deleted.")
+	})
 }
