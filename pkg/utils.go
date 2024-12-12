@@ -148,10 +148,10 @@ func SafeIntToUint64(val int) uint64 {
 
 // SafeInt64ToInt safely converts int64 to int
 func SafeInt64ToInt(val int64) int {
-	if val > math.MaxInt64 {
-		return math.MaxInt64
-	} else if val < math.MinInt64 {
-		return math.MinInt64
+	if val > math.MaxInt {
+		return math.MaxInt
+	} else if val < math.MinInt {
+		return math.MinInt
 	}
 
 	return int(val)
