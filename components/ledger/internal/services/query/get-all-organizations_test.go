@@ -29,6 +29,11 @@ func TestGetAllOrganizations(t *testing.T) {
 		MetadataRepo:     mockMetadataRepo,
 	}
 
+	filter := http.QueryHeader{
+		Limit: 10,
+		Page:  1,
+	}
+
 	tests := []struct {
 		name           string
 		filter         http.QueryHeader
@@ -37,15 +42,12 @@ func TestGetAllOrganizations(t *testing.T) {
 		expectedResult []*mmodel.Organization
 	}{
 		{
-			name: "Success - Retrieve organizations with metadata",
-			filter: http.QueryHeader{
-				Limit: 10,
-				Page:  1,
-			},
+			name:   "Success - Retrieve organizations with metadata",
+			filter: filter,
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), 10, 1).
+					FindAll(gomock.Any(), filter.ToOffsetPagination()).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -68,7 +70,7 @@ func TestGetAllOrganizations(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), 10, 1).
+					FindAll(gomock.Any(), filter.ToOffsetPagination()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
@@ -83,7 +85,7 @@ func TestGetAllOrganizations(t *testing.T) {
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockOrganizationRepo.EXPECT().
-					FindAll(gomock.Any(), 10, 1).
+					FindAll(gomock.Any(), filter.ToOffsetPagination()).
 					Return([]*mmodel.Organization{
 						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
 					}, nil)

@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "59eec27f-6d4f-4d1d-9beb-bf423dc59e7d",
+		"_postman_id": "ccd5450e-2711-4910-bf48-f7146fb23876",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "39008098"
+		"_exporter_id": "38928920"
 	},
 	"item": [
 		{
@@ -640,6 +640,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -890,6 +908,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1128,6 +1164,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1357,6 +1411,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1593,6 +1665,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1973,6 +2063,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -2055,6 +2163,24 @@
 									"key": "portfolio_id",
 									"value": "{{portfolio_id}}",
 									"description": "Retrives only accounts from the specified portfolio",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
 									"disabled": true
 								}
 							]
@@ -2593,6 +2719,38 @@
 								"ledgers",
 								"{{ledger_id}}",
 								"transactions"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						}
 					},
@@ -2683,6 +2841,38 @@
 								"accounts",
 								"{{account_id}}",
 								"operations"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						}
 					},
@@ -2746,6 +2936,38 @@
 								"portfolios",
 								"{{portfolio_id}}",
 								"operations"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						}
 					},
@@ -3078,6 +3300,36 @@
 								{
 									"key": "to",
 									"value": "BRL,USD,SGD",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
 									"disabled": true
 								}
 							]

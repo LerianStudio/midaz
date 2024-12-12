@@ -85,7 +85,12 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Asset}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			page			query		int		false	"Page"			default(1)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -102,11 +107,21 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:     headerParams.Limit,
+		Page:      headerParams.Page,
+		SortOrder: headerParams.SortOrder,
+		StartDate: headerParams.StartDate,
+		EndDate:   headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {

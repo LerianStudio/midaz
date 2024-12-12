@@ -508,15 +508,16 @@ func compareSlices(original, marshaled []any) []any {
 			// If marshaled slice is shorter, the original item is missing
 			diff = append(diff, item)
 		} else {
+			tmpMarshaled := marshaled[i]
 			// Compare individual items at the same index
 			if originalMap, ok := item.(map[string]any); ok {
-				if marshaledMap, ok := marshaled[i].(map[string]any); ok {
+				if marshaledMap, ok := tmpMarshaled.(map[string]any); ok {
 					nestedDiff := findUnknownFields(originalMap, marshaledMap)
 					if len(nestedDiff) > 0 {
 						diff = append(diff, nestedDiff)
 					}
 				}
-			} else if !reflect.DeepEqual(item, marshaled[i]) {
+			} else if !reflect.DeepEqual(item, tmpMarshaled) {
 				diff = append(diff, item)
 			}
 		}

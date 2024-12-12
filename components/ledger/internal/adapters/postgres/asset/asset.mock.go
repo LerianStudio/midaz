@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
+	http "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -87,18 +88,18 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, id any
 }
 
 // FindAllWithDeleted mocks base method.
-func (m *MockRepository) FindAllWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, limit, page int) ([]*mmodel.Asset, error) {
+func (m *MockRepository) FindAllWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllWithDeleted", ctx, organizationID, ledgerID, limit, page)
+	ret := m.ctrl.Call(m, "FindAllWithDeleted", ctx, organizationID, ledgerID, filter)
 	ret0, _ := ret[0].([]*mmodel.Asset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindAllWithDeleted indicates an expected call of FindAllWithDeleted.
-func (mr *MockRepositoryMockRecorder) FindAllWithDeleted(ctx, organizationID, ledgerID, limit, page any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAllWithDeleted(ctx, organizationID, ledgerID, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllWithDeleted", reflect.TypeOf((*MockRepository)(nil).FindAllWithDeleted), ctx, organizationID, ledgerID, limit, page)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllWithDeleted", reflect.TypeOf((*MockRepository)(nil).FindAllWithDeleted), ctx, organizationID, ledgerID, filter)
 }
 
 // FindByNameOrCode mocks base method.

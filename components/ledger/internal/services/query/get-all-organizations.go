@@ -23,7 +23,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 	logger.Infof("Retrieving organizations")
 
-	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.Limit, filter.Page)
+	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.ToOffsetPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get organizations on repo", err)
 

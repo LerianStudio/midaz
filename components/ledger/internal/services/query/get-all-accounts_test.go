@@ -49,7 +49,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "success - accounts retrieved with metadata",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.Limit, filter.Page).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 						{ID: "acc2"},
@@ -74,7 +74,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "failure - accounts not found",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.Limit, filter.Page).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -85,7 +85,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "failure - error retrieving accounts",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.Limit, filter.Page).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 					Return(nil, errors.New("failed to retrieve accounts")).
 					Times(1)
 			},
@@ -96,7 +96,7 @@ func TestGetAllAccount(t *testing.T) {
 			name: "failure - metadata retrieval error",
 			setupMocks: func() {
 				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.Limit, filter.Page).
+					FindAll(gomock.Any(), organizationID, ledgerID, &portfolioID, filter.ToOffsetPagination()).
 					Return([]*mmodel.Account{
 						{ID: "acc1"},
 						{ID: "acc2"},

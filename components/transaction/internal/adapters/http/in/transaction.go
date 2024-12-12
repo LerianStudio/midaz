@@ -93,7 +93,14 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	c.SetUserContext(ctx)
 
-	_ = http.ValidateParameters(c.Queries())
+	_, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Error("Failed to validate query parameters: ", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	dsl, err := http.GetFileFromHeader(c)
 	if err != nil {
@@ -282,7 +289,12 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -296,11 +308,21 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {
@@ -333,14 +355,14 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
-	trans, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
+	trans, cur, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Transactions", err)
 
@@ -352,6 +374,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved all Transactions")
 
 	pagination.SetItems(trans)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }

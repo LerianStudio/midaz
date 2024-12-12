@@ -32,7 +32,12 @@ type OperationHandler struct {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Ledger ID"		enum(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations [get]
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -47,25 +52,35 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	accountID := c.Locals("account_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by account")
 
 	headerParams.Metadata = &bson.M{}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
-	operations, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
+	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account", err)
 
@@ -77,6 +92,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved all Operations by account")
 
 	pagination.SetItems(operations)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }
@@ -136,7 +152,12 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			portfolio_id	path		string	true	"Portfolio ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation,next_cursor=string,prev_cursor=string,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations [get]
 func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -151,25 +172,35 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	logger.Infof("Initiating retrieval of all Operations by portfolio")
 
 	headerParams.Metadata = &bson.M{}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
-	operations, err := handler.Query.GetAllOperationsByPortfolio(ctx, organizationID, ledgerID, portfolioID, *headerParams)
+	operations, cur, err := handler.Query.GetAllOperationsByPortfolio(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by portfolio", err)
 
@@ -181,6 +212,7 @@ func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error
 	logger.Infof("Successfully retrieved all Operations by portfolio")
 
 	pagination.SetItems(operations)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }

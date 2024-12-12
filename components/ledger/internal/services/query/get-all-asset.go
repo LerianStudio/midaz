@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 
 	logger.Infof("Retrieving assets")
 
-	assets, err := uc.AssetRepo.FindAllWithDeleted(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
+	assets, err := uc.AssetRepo.FindAllWithDeleted(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get assets on repo", err)
 

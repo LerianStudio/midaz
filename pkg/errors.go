@@ -735,6 +735,48 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Audit Tree Record Not Found",
 			Message:    fmt.Sprintf("The record %v does not exist in the audit tree. Please ensure the audit tree is available and try again.", args...),
 		},
+		constant.ErrInvalidDateFormat: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDateFormat.Error(),
+			Title:      "Invalid Date Format Error",
+			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' format and try again.",
+		},
+		constant.ErrInvalidFinalDate: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidFinalDate.Error(),
+			Title:      "Invalid Final Date Error",
+			Message:    "The 'finalDate' cannot be earlier than the 'initialDate'. Please verify the dates and try again.",
+		},
+		constant.ErrDateRangeExceedsLimit: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrDateRangeExceedsLimit.Error(),
+			Title:      "Date Range Exceeds Limit Error",
+			Message:    fmt.Sprintf("The range between 'initialDate' and 'finalDate' exceeds the permitted limit of %v months. Please adjust the dates and try again.", args...),
+		},
+		constant.ErrPaginationLimitExceeded: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrPaginationLimitExceeded.Error(),
+			Title:      "Pagination Limit Exceeded",
+			Message:    fmt.Sprintf("The pagination limit exceeds the maximum allowed of %v items per page. Please verify the limit and try again.", args...),
+		},
+		constant.ErrInvalidSortOrder: EntityNotFoundError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidSortOrder.Error(),
+			Title:      "Invalid Sort Order",
+			Message:    "The 'sort_order' field must be 'asc' or 'desc'. Please provide a valid sort order and try again.",
+		},
+		constant.ErrInvalidQueryParameter: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidQueryParameter.Error(),
+			Title:      "Invalid Query Parameter",
+			Message:    fmt.Sprintf("One or more query parameters are in an incorrect format. Please check the following parameters '%v' and ensure they meet the required format before trying again.", args),
+		},
+		constant.ErrInvalidDateRange: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrInvalidDateRange.Error(),
+			Title:      "Invalid Date Range Error",
+			Message:    "Both 'initialDate' and 'finalDate' fields are required and must be in the 'yyyy-mm-dd' format. Please provide valid dates and try again.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -129,8 +129,12 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Param			asset_code		path		string		true	"From Asset Code"
 //
 //	@Param			to				query		[]string	false	"To Asset Codes"	example("BRL,USD,SGD")
-//
-//	@Success		200				{object}	mpostgres.Pagination{items=[]assetrate.AssetRate}
+//	@Param			limit			query		int			false	"Limit"				default(10)
+//	@Param			start_date		query		string		false	"Start Date"		example(2021-01-01)
+//	@Param			end_date		query		string		false	"End Date"			example(2021-01-01)
+//	@Param			sort_order		query		string		false	"Sort Order"		Enums(asc,desc)
+//	@Param			cursor			query		string		false	"Cursor"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]assetrate.AssetRate,next_cursor=string,prev_cursor=string,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code} [get]
 func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -141,11 +145,21 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	ctx, span := tracer.Start(ctx, "handler.get_asset_rate_by_asset_code")
 	defer span.End()
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -157,7 +171,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 
 	headerParams.Metadata = &bson.M{}
 
-	assetRates, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
+	assetRates, cur, err := handler.Query.GetAllAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get AssetRate on query", err)
 
@@ -169,6 +183,7 @@ func (handler *AssetRateHandler) GetAllAssetRatesByAssetCode(c *fiber.Ctx) error
 	logger.Infof("Successfully get AssetRate")
 
 	pagination.SetItems(assetRates)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }

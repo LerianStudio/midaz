@@ -28,5 +28,5 @@ type HashValidationResponse struct {
 	AuditID        string `json:"auditId"`
 	ExpectedHash   string `json:"expectedHash"`
 	CalculatedHash string `json:"calculatedHash"`
-	IsTampered    bool   `json:"isTampered"`
+	IsTampered     bool   `json:"isTampered"`
 } // @Name HashValidationResponse

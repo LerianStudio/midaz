@@ -13,7 +13,7 @@ import (
 )
 
 // GetAllAssetRatesByAssetCode returns all asset rates by asset codes.
-func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, filter http.QueryHeader) ([]*assetrate.AssetRate, error) {
+func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, filter http.QueryHeader) ([]*assetrate.AssetRate, http.CursorPagination, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -25,24 +25,24 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 	if err := pkg.ValidateCode(fromAssetCode); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+		return nil, http.CursorPagination{}, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	for _, toAssetCode := range filter.ToAssetCodes {
 		if err := pkg.ValidateCode(toAssetCode); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset codes", err)
 
-			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
+			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		}
 	}
 
-	assetRates, err := uc.AssetRateRepo.FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.Limit, filter.Page)
+	assetRates, cur, err := uc.AssetRateRepo.FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get asset rate by asset codes on repository", err)
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
 	if assetRates != nil {
@@ -52,7 +52,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 			logger.Errorf("Error get metadata on mongodb asset rate: %v", err)
 
-			return nil, err
+			return nil, http.CursorPagination{}, err
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))
@@ -68,5 +68,5 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 		}
 	}
 
-	return assetRates, nil
+	return assetRates, cur, nil
 }

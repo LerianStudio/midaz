@@ -153,7 +153,7 @@ definitions:
         type: string
       amount:
         $ref: '#/definitions/Amount'
-      chartOfAccountsG:
+      chartOfAccounts:
         example: "1000"
         type: string
       description:
@@ -165,6 +165,8 @@ definitions:
       metadata:
         additionalProperties: {}
         type: object
+      rate:
+        $ref: '#/definitions/Rate'
       remaining:
         example: remaining
         type: string
@@ -236,9 +238,42 @@ definitions:
       limit:
         example: 10
         type: integer
+      next_cursor:
+        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        type: string
+        x-omitempty: true
       page:
         example: 1
         type: integer
+      prev_cursor:
+        example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        type: string
+        x-omitempty: true
+    type: object
+  Rate:
+    description: Rate is the struct designed to represent the rate fields of an operation.
+    properties:
+      externalId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      from:
+        example: BRL
+        type: string
+      scale:
+        example: 2
+        minimum: 0
+        type: integer
+      to:
+        example: USDe
+        type: string
+      value:
+        example: 1000
+        type: integer
+    required:
+    - externalId
+    - from
+    - to
+    - value
     type: object
   Send:
     description: Send is the struct designed to represent the sending fields of an
@@ -265,8 +300,6 @@ definitions:
     description: Share is the struct designed to represent the sharing fields of an
       operation.
     properties:
-      descWhatever:
-        type: boolean
       percentage:
         type: integer
       percentageOfPercentage:
@@ -427,6 +460,29 @@ paths:
         name: account_id
         required: true
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Ledger ID
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
@@ -436,10 +492,16 @@ paths:
             allOf:
             - $ref: '#/definitions/Pagination'
             - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
                 items:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
+                limit:
+                  type: integer
               type: object
       summary: Get all Operations by account
       tags:
@@ -602,6 +664,32 @@ paths:
           type: string
         name: to
         type: array
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
@@ -615,6 +703,12 @@ paths:
                   items:
                     $ref: '#/definitions/AssetRate'
                   type: array
+                limit:
+                  type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
       summary: Get an AssetRate by the Asset Code
       tags:
@@ -647,6 +741,32 @@ paths:
         name: portfolio_id
         required: true
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
@@ -660,6 +780,12 @@ paths:
                   items:
                     $ref: '#/definitions/Operation'
                   type: array
+                limit:
+                  type: integer
+                next_cursor:
+                  type: string
+                prev_cursor:
+                  type: string
               type: object
       summary: Get all Operations by portfolio
       tags:
@@ -730,6 +856,32 @@ paths:
         name: ledger_id
         required: true
         type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        example: "2021-01-01"
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        example: "2021-01-01"
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
       produces:
       - application/json
       responses:
@@ -743,6 +895,14 @@ paths:
                   items:
                     $ref: '#/definitions/Transaction'
                   type: array
+                limit:
+                  type: integer
+                next_cursor:
+                  type: string
+                page:
+                  type: object
+                prev_cursor:
+                  type: string
               type: object
       summary: Get all Transactions
       tags:
