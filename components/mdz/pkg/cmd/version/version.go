@@ -14,7 +14,7 @@ type factoryVersion struct {
 }
 
 func (f *factoryVersion) runE(_ *cobra.Command, _ []string) error {
-	output.Printf(f.factory.IOStreams.Out, color.New(color.Bold).Sprint(f.factory.CLIVersion))
+	output.Printf(f.factory.IOStreams.Out, color.New(color.Bold).Sprint(f.factory.Env.Version))
 	return nil
 }
 

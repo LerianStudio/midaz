@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Retrieving accounts")
 
-	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, filter.Limit, filter.Page)
+	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, filter.ToOffsetPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get accounts on repo", err)
 

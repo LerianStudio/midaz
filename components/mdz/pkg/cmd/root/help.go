@@ -78,7 +78,7 @@ func (f *factoryRoot) buildHelpEntries(command *cobra.Command, baseCommands, sub
 		longText = command.Short
 	}
 
-	helpEntries = append(helpEntries, helpEntry{"", color.New(color.Bold).Sprint(f.factory.CLIVersion)})
+	helpEntries = append(helpEntries, helpEntry{"", color.New(color.Bold).Sprint(f.factory.Env.Version)})
 	if longText != "" {
 		helpEntries = append(helpEntries, helpEntry{
 			Title: color.New(color.Bold).Sprint("DESCRIPTION"),

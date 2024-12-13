@@ -47,9 +47,6 @@ type TransactionListener interface {
 	// EnterAmount is called when entering the Amount production.
 	EnterAmount(c *AmountContext)
 
-	// EnterShareDescWhatever is called when entering the ShareDescWhatever production.
-	EnterShareDescWhatever(c *ShareDescWhateverContext)
-
 	// EnterShareIntOfInt is called when entering the ShareIntOfInt production.
 	EnterShareIntOfInt(c *ShareIntOfIntContext)
 
@@ -62,14 +59,17 @@ type TransactionListener interface {
 	// EnterAccount is called when entering the account production.
 	EnterAccount(c *AccountContext)
 
+	// EnterRate is called when entering the rate production.
+	EnterRate(c *RateContext)
+
 	// EnterFrom is called when entering the from production.
 	EnterFrom(c *FromContext)
 
-	// EnterSend is called when entering the send production.
-	EnterSend(c *SendContext)
-
 	// EnterSource is called when entering the source production.
 	EnterSource(c *SourceContext)
+
+	// EnterSend is called when entering the send production.
+	EnterSend(c *SendContext)
 
 	// EnterTo is called when entering the to production.
 	EnterTo(c *ToContext)
@@ -116,9 +116,6 @@ type TransactionListener interface {
 	// ExitAmount is called when exiting the Amount production.
 	ExitAmount(c *AmountContext)
 
-	// ExitShareDescWhatever is called when exiting the ShareDescWhatever production.
-	ExitShareDescWhatever(c *ShareDescWhateverContext)
-
 	// ExitShareIntOfInt is called when exiting the ShareIntOfInt production.
 	ExitShareIntOfInt(c *ShareIntOfIntContext)
 
@@ -131,14 +128,17 @@ type TransactionListener interface {
 	// ExitAccount is called when exiting the account production.
 	ExitAccount(c *AccountContext)
 
+	// ExitRate is called when exiting the rate production.
+	ExitRate(c *RateContext)
+
 	// ExitFrom is called when exiting the from production.
 	ExitFrom(c *FromContext)
 
-	// ExitSend is called when exiting the send production.
-	ExitSend(c *SendContext)
-
 	// ExitSource is called when exiting the source production.
 	ExitSource(c *SourceContext)
+
+	// ExitSend is called when exiting the send production.
+	ExitSend(c *SendContext)
 
 	// ExitTo is called when exiting the to production.
 	ExitTo(c *ToContext)

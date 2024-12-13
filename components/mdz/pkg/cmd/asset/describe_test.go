@@ -2,9 +2,10 @@ package asset
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -17,63 +18,124 @@ import (
 )
 
 func Test_newCmdAssetDescribe(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Run("happy path informing all the necessary flags", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockRepo := repository.NewMockAsset(ctrl)
+		mockRepo := repository.NewMockAsset(ctrl)
 
-	ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
-	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
-	assetID := "01930365-4d46-7a09-a503-b932714f85af"
+		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
+		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
+		assetID := "01930365-4d46-7a09-a503-b932714f85af"
 
-	ledFactory := factoryAssetDescribe{
-		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-			Out: &bytes.Buffer{},
-			Err: &bytes.Buffer{},
-		}},
-		repoAsset:      mockRepo,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AssetID:        assetID,
-		Out:            "",
-		JSON:           false,
-	}
+		ledFactory := factoryAssetDescribe{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoAsset:      mockRepo,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			AssetID:        assetID,
+			Out:            "",
+			JSON:           false,
+		}
 
-	metadata := map[string]any{
-		"chave1": "valor1",
-		"chave2": 2,
-		"chave3": true,
-	}
+		metadata := map[string]any{
+			"chave1": "valor1",
+			"chave2": 2,
+			"chave3": true,
+		}
 
-	cmd := newCmdAssetDescribe(&ledFactory)
-	cmd.SetArgs([]string{
-		"--ledger-id", ledgerID,
-		"--organization-id", organizationID,
-		"--asset-id", assetID,
+		cmd := newCmdAssetDescribe(&ledFactory)
+		cmd.SetArgs([]string{
+			"--ledger-id", ledgerID,
+			"--organization-id", organizationID,
+			"--asset-id", assetID,
+		})
+
+		item := mmodel.Asset{
+			ID:             assetID,
+			Name:           "2Real",
+			Type:           "commodity",
+			Code:           "DOP",
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			Status: mmodel.Status{
+				Code:        "ACTIVE",
+				Description: ptr.StringPtr("Teste Ledger"),
+			},
+			CreatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
+			UpdatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
+			DeletedAt: nil,
+			Metadata:  metadata,
+		}
+
+		mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&item, nil)
+
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+		golden.AssertBytes(t, output, "output_describe.golden")
 	})
 
-	item := mmodel.Asset{
-		ID:             assetID,
-		Name:           "2Real",
-		Type:           "commodity",
-		Code:           "DOP",
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Status: mmodel.Status{
-			Code:        "ACTIVE",
-			Description: ptr.StringPtr("Teste Ledger"),
-		},
-		CreatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
-		UpdatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
-		DeletedAt: nil,
-		Metadata:  metadata,
-	}
+	t.Run("happy path no informing flags", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&item, nil)
+		mockRepo := repository.NewMockAsset(ctrl)
 
-	err := cmd.Execute()
-	assert.NoError(t, err)
+		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
+		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
+		assetID := "01930365-4d46-7a09-a503-b932714f85af"
 
-	output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
-	golden.AssertBytes(t, output, "output_describe.golden")
+		ledFactory := factoryAssetDescribe{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoAsset: mockRepo,
+			Out:       "",
+			JSON:      false,
+		}
+
+		ledFactory.tuiInput = func(message string) (string, error) {
+			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
+		}
+
+		metadata := map[string]any{
+			"chave1": "valor1",
+			"chave2": 2,
+			"chave3": true,
+		}
+
+		cmd := newCmdAssetDescribe(&ledFactory)
+		cmd.SetArgs([]string{})
+
+		item := mmodel.Asset{
+			ID:             assetID,
+			Name:           "2Real",
+			Type:           "commodity",
+			Code:           "DOP",
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			Status: mmodel.Status{
+				Code:        "ACTIVE",
+				Description: ptr.StringPtr("Teste Ledger"),
+			},
+			CreatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
+			UpdatedAt: time.Date(2024, 10, 31, 11, 23, 45, 165229000, time.UTC),
+			DeletedAt: nil,
+			Metadata:  metadata,
+		}
+
+		mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&item, nil)
+
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+		golden.AssertBytes(t, output, "output_describe.golden")
+	})
 }

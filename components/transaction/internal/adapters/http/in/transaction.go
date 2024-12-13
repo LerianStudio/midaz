@@ -2,9 +2,13 @@ package in
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.opentelemetry.io/otel/trace"
+	"os"
 	"reflect"
+	"strings"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -89,7 +93,14 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	c.SetUserContext(ctx)
 
-	_ = http.ValidateParameters(c.Queries())
+	_, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Error("Failed to validate query parameters: ", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	dsl, err := http.GetFileFromHeader(c)
 	if err != nil {
@@ -278,7 +289,12 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			Midaz-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction}
+//	@Param			limit			query		int		false	"Limit"			default(10)
+//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
+//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
+//	@Param			cursor			query		string	false	"Cursor"
+//	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -292,11 +308,21 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
-	headerParams := http.ValidateParameters(c.Queries())
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
 
 	pagination := mpostgres.Pagination{
-		Limit: headerParams.Limit,
-		Page:  headerParams.Page,
+		Limit:      headerParams.Limit,
+		NextCursor: headerParams.Cursor,
+		SortOrder:  headerParams.SortOrder,
+		StartDate:  headerParams.StartDate,
+		EndDate:    headerParams.EndDate,
 	}
 
 	if headerParams.Metadata != nil {
@@ -329,14 +355,14 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 
 	headerParams.Metadata = &bson.M{}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
-	trans, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
+	trans, cur, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Transactions", err)
 
@@ -348,6 +374,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	logger.Infof("Successfully retrieved all Transactions")
 
 	pagination.SetItems(trans)
+	pagination.SetCursor(cur.Next, cur.Prev)
 
 	return http.OK(c, pagination)
 }
@@ -490,7 +517,55 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
+	go handler.logTransaction(ctx, operations, organizationID, ledgerID, transactionID)
+
 	return http.Created(c, tran)
+}
+
+// logTransaction creates a message representing a transaction log and sends to auditing exchange
+func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
+	defer spanLogTransaction.End()
+
+	if !isAuditLogEnabled() {
+		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
+		return
+	}
+
+	queueData := make([]mmodel.QueueData, 0)
+
+	for _, o := range operations {
+		oLog := o.ToLog()
+
+		marshal, err := json.Marshal(oLog)
+		if err != nil {
+			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
+		}
+
+		queueData = append(queueData, mmodel.QueueData{
+			ID:    uuid.MustParse(o.ID),
+			Value: marshal,
+		})
+	}
+
+	queueMessage := mmodel.Queue{
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
+		AuditID:        transactionID,
+		QueueData:      queueData,
+	}
+
+	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
+		ctxLogTransaction,
+		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
+		os.Getenv("RABBITMQ_AUDIT_KEY"),
+		queueMessage,
+	); err != nil {
+		logger.Fatalf("Failed to send message: %s", err.Error())
+	}
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
@@ -590,4 +665,9 @@ func (handler *TransactionHandler) processAccounts(ctx context.Context, logger m
 	}
 
 	return nil
+}
+
+func isAuditLogEnabled() bool {
+	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
+	return envValue != "false"
 }

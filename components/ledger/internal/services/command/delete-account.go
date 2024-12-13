@@ -24,6 +24,17 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Remove account for id: %s", id.String())
 
+	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+
+		return err
+	}
+
+	if accFound != nil && accFound.ID == id.String() && accFound.Type == "external" {
+		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
+	}
+
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to delete account on repo by id", err)
 

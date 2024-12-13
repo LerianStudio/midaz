@@ -10,10 +10,10 @@
 package repository
 
 import (
-	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockAsset is a mock of Asset interface.
@@ -70,18 +70,18 @@ func (mr *MockAssetMockRecorder) Delete(organizationID, ledgerID, assetID any) *
 }
 
 // Get mocks base method.
-func (m *MockAsset) Get(organizationID, ledgerID string, limit, page int) (*mmodel.Assets, error) {
+func (m *MockAsset) Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Assets, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", organizationID, ledgerID, limit, page)
+	ret := m.ctrl.Call(m, "Get", organizationID, ledgerID, limit, page, SortOrder, StartDate, EndDate)
 	ret0, _ := ret[0].(*mmodel.Assets)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockAssetMockRecorder) Get(organizationID, ledgerID, limit, page any) *gomock.Call {
+func (mr *MockAssetMockRecorder) Get(organizationID, ledgerID, limit, page, SortOrder, StartDate, EndDate any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockAsset)(nil).Get), organizationID, ledgerID, limit, page)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockAsset)(nil).Get), organizationID, ledgerID, limit, page, SortOrder, StartDate, EndDate)
 }
 
 // GetByID mocks base method.

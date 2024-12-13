@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
-
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -33,10 +33,10 @@ func TestFactoryVersionRunE(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &factory.Factory{
-				CLIVersion: tt.version,
 				IOStreams: &iostreams.IOStreams{
 					Out: new(bytes.Buffer),
 				},
+				Env: &environment.Env{Version: tt.version},
 			}
 
 			fVersion := &factoryVersion{
@@ -53,4 +53,18 @@ func TestFactoryVersionRunE(t *testing.T) {
 			assert.Equal(t, tt.expected, output)
 		})
 	}
+}
+
+func TestNewCmdVersion(t *testing.T) {
+	f := factory.Factory{
+		IOStreams: &iostreams.IOStreams{
+			Out: iostreams.System().Out,
+		},
+		Env: &environment.Env{
+			Version: "v1.29.0",
+		},
+	}
+	cmd := NewCmdVersion(&f)
+	err := cmd.Execute()
+	assert.NoError(t, err)
 }

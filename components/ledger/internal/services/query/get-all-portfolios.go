@@ -25,7 +25,7 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 	logger.Infof("Retrieving portfolios")
 
-	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter.Limit, filter.Page)
+	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get portfolios on repo", err)
 

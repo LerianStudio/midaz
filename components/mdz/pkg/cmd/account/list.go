@@ -18,17 +18,21 @@ import (
 type factoryAccountList struct {
 	factory        *factory.Factory
 	repoAccount    repository.Account
+	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
 	PortfolioID    string
 	Limit          int
 	Page           int
+	SortOrder      string
+	StartDate      string
+	EndDate        string
 	JSON           bool
 }
 
-func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
+func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
-		id, err := tui.Input("Enter your organization-id")
+		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
 			return err
 		}
@@ -37,7 +41,7 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
-		id, err := tui.Input("Enter your ledger-id")
+		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
 			return err
 		}
@@ -46,7 +50,7 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := tui.Input("Enter your portfolio-id")
+		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
 			return err
 		}
@@ -54,7 +58,30 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 		f.PortfolioID = id
 	}
 
-	accounts, err := f.repoAccount.Get(f.OrganizationID, f.LedgerID, f.PortfolioID, f.Limit, f.Page)
+	if len(f.StartDate) > 0 {
+		if err := utils.ValidateDate(f.StartDate); err != nil {
+			return err
+		}
+	}
+
+	if len(f.EndDate) > 0 {
+		if err := utils.ValidateDate(f.EndDate); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
+	if err := f.ensureFlagInput(cmd); err != nil {
+		return err
+	}
+
+	accounts, err := f.repoAccount.Get(
+		f.OrganizationID, f.LedgerID, f.PortfolioID,
+		f.Limit, f.Page, f.SortOrder, f.StartDate, f.EndDate,
+	)
 	if err != nil {
 		return err
 	}
@@ -112,6 +139,12 @@ func (f *factoryAccountList) setFlags(cmd *cobra.Command) {
 		"Specifies the number of ledgers to retrieve per page")
 	cmd.Flags().IntVar(&f.Page, "page", 1,
 		"Specifies the page number for paginated results")
+	cmd.Flags().StringVar(&f.SortOrder, "sort-order", "",
+		"Specifies the sort order for results (e.g., 'asc' for ascending, 'desc' for descending)")
+	cmd.Flags().StringVar(&f.StartDate, "start-date", "",
+		"Specifies the start date for filtering results (format: YYYY-MM-DD)")
+	cmd.Flags().StringVar(&f.EndDate, "end-date", "",
+		"Specifies the end date for filtering results (format: YYYY-MM-DD)")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
@@ -119,6 +152,7 @@ func newInjectFacList(f *factory.Factory) *factoryAccountList {
 	return &factoryAccountList{
 		factory:     f,
 		repoAccount: rest.NewAccount(f),
+		tuiInput:    tui.Input,
 	}
 }
 

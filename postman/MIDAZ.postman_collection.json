@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "ad9e2c69-4c89-4027-a957-da5cfb58b0a4",
+		"_postman_id": "ccd5450e-2711-4910-bf48-f7146fb23876",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -640,6 +640,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -890,6 +908,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1128,6 +1164,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1357,6 +1411,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1593,6 +1665,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -1973,6 +2063,24 @@
 									"key": "page",
 									"value": "1",
 									"description": "Default 1"
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
 								}
 							]
 						}
@@ -2055,6 +2163,24 @@
 									"key": "portfolio_id",
 									"value": "{{portfolio_id}}",
 									"description": "Retrives only accounts from the specified portfolio",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
 									"disabled": true
 								}
 							]
@@ -2593,6 +2719,38 @@
 								"ledgers",
 								"{{ledger_id}}",
 								"transactions"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						}
 					},
@@ -2683,6 +2841,38 @@
 								"accounts",
 								"{{account_id}}",
 								"operations"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						}
 					},
@@ -2746,6 +2936,38 @@
 								"portfolios",
 								"{{portfolio_id}}",
 								"operations"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						}
 					},
@@ -2797,9 +3019,21 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);\r",
 									"if (jsonData.hasOwnProperty('id')) {\r",
-									"    console.log(\"asset_rate_id before: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
-									"    pm.collectionVariables.set(\"asset_rate_id\", jsonData.id);\r",
-									"    console.log(\"asset_rate_id after: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
+									"    console.log(\"external_id before: \" + pm.collectionVariables.get(\"external_id\"));\r",
+									"    pm.collectionVariables.set(\"external_id\", jsonData.id);\r",
+									"    console.log(\"external_id after: \" + pm.collectionVariables.get(\"external_id\"));\r",
+									"}\r",
+									"\r",
+									"if (jsonData.hasOwnProperty('from')) {\r",
+									"    console.log(\"asset_rate_from_asset_code before: \" + pm.collectionVariables.get(\"asset_rate_from_asset_code\"));\r",
+									"    pm.collectionVariables.set(\"asset_rate_from_asset_code\", jsonData.from);\r",
+									"    console.log(\"asset_rate_from_asset_code after: \" + pm.collectionVariables.get(\"asset_rate_from_asset_code\"));\r",
+									"}\r",
+									"\r",
+									"if (jsonData.hasOwnProperty('to')) {\r",
+									"    console.log(\"asset_rate_to_asset_code before: \" + pm.collectionVariables.get(\"asset_rate_to_asset_code\"));\r",
+									"    pm.collectionVariables.set(\"asset_rate_to_asset_code\", jsonData.from);\r",
+									"    console.log(\"asset_rate_to_asset_code after: \" + pm.collectionVariables.get(\"asset_rate_to_asset_code\"));\r",
 									"}"
 								],
 								"type": "text/javascript",
@@ -2808,7 +3042,7 @@
 						}
 					],
 					"request": {
-						"method": "POST",
+						"method": "PUT",
 						"header": [
 							{
 								"key": "Midaz-ID",
@@ -2819,7 +3053,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"baseAssetCode\": \"BRL\",\n    \"counterAssetCode\": \"BTC\",\n    \"amount\": 35000000,\n    \"scale\": 2,\n    \"source\": \"Chainlink database\",\n    \"metadata\": {\n        \"updateCycle\": 300,\n        \"urgent\": true\n    }\n}",
+							"raw": "{\n    \"from\": \"USD\",\n    \"to\": \"BRL\",\n    \"rate\": 1000,\n    \"scale\": 2,\n    \"source\": \"External System 2\",\n    \"ttl\": 3600,\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"metadata\": {\n        \"string\": \"string\",\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2842,10 +3076,172 @@
 						},
 						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
 					},
-					"response": []
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Midaz-ID",
+										"value": "{{$randomUUID}}",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"from\": \"USD\",\n    \"to\": \"BRL\",\n    \"rate\": 1000,\n    \"scale\": 2,\n    \"source\": \"External System 2\",\n    \"ttl\": 3600,\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"metadata\": {\n        \"string\": \"string\",\n        \"int\": 1\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates",
+									"host": [
+										"{{url_transaction}}"
+									],
+									"path": [
+										"v1",
+										"organizations",
+										"{{organization_id}}",
+										"ledgers",
+										"{{ledger_id}}",
+										"asset-rates"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Date",
+									"value": "Thu, 05 Dec 2024 19:42:41 GMT",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "Content-Type",
+									"value": "application/json",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "Content-Length",
+									"value": "425",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "X-Correlation-Id",
+									"value": "3e97d0ff-6d14-42f4-8b60-b2248441d8a3",
+									"description": "",
+									"type": "text"
+								},
+								{
+									"key": "Midaz-Id",
+									"value": "b125a033-f4d8-4309-bfdf-1300b051915b",
+									"description": "",
+									"type": "text"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": \"01939858-92fc-78b0-8ad5-acd0e81f3216\",\n    \"organizationId\": \"01939842-ce59-720a-beac-ba57a4db8622\",\n    \"ledgerId\": \"01939842-dc08-78ec-b03e-8b6200f11314\",\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"from\": \"USD\",\n    \"to\": \"BRL\",\n    \"rate\": 1000,\n    \"scale\": 2,\n    \"source\": \"External System 2\",\n    \"ttl\": 3600,\n    \"createdAt\": \"2024-12-05T16:16:14.617577-03:00\",\n    \"updatedAt\": \"2024-12-05T16:42:41.916575251-03:00\",\n    \"metadata\": {\n        \"int\": 1,\n        \"string\": \"string\"\n    }\n}"
+						}
+					]
 				},
 				{
-					"name": "Asset rates",
+					"name": "Asset Rates by External ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Midaz-ID",
+								"value": "{{$randomUUID}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/{{external_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"asset-rates",
+								"{{external_id}}"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Midaz-ID",
+										"value": "{{$randomUUID}}",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"url": {
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/{{external_id}}",
+									"host": [
+										"{{url_transaction}}"
+									],
+									"path": [
+										"v1",
+										"organizations",
+										"{{organization_id}}",
+										"ledgers",
+										"{{ledger_id}}",
+										"asset-rates",
+										"{{external_id}}"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json",
+									"name": "Content-Type",
+									"description": "",
+									"type": "text"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"id\": \"01939984-0ad7-7b34-aecd-2fc17b7bf9f5\",\n    \"organizationId\": \"01939983-8fa8-7b57-bc3e-1f24d0675781\",\n    \"ledgerId\": \"01939983-b0dd-7053-a0ba-6a31df62f7c0\",\n    \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n    \"from\": \"BRL\",\n    \"to\": \"USD\",\n    \"rate\": 600,\n    \"scale\": 2,\n    \"source\": \"External System\",\n    \"ttl\": 3600,\n    \"createdAt\": \"2024-12-05T22:09:47.863527-03:00\",\n    \"updatedAt\": \"2024-12-05T22:09:47.863527-03:00\",\n    \"metadata\": {\n        \"int\": 1,\n        \"string\": \"string\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Asset Rates by Asset Codes",
 					"event": [
 						{
 							"listen": "test",
@@ -2856,6 +3252,18 @@
 									"    console.log(\"asset_rate_id before: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
 									"    pm.collectionVariables.set(\"ledger_id\", jsonData.id);\r",
 									"    console.log(\"asset_rate_id after: \" + pm.collectionVariables.get(\"asset_rate_id\"));\r",
+									"}\r",
+									"\r",
+									"if (jsonData.hasOwnProperty('from')) {\r",
+									"    console.log(\"asset_rate_from_asset_code before: \" + pm.collectionVariables.get(\"asset_rate_from_asset_code\"));\r",
+									"    pm.collectionVariables.set(\"asset_rate_from_asset_code\", jsonData.from);\r",
+									"    console.log(\"asset_rate_from_asset_code after: \" + pm.collectionVariables.get(\"asset_rate_from_asset_code\"));\r",
+									"}\r",
+									"\r",
+									"if (jsonData.hasOwnProperty('to')) {\r",
+									"    console.log(\"asset_rate_to_asset_code before: \" + pm.collectionVariables.get(\"asset_rate_to_asset_code\"));\r",
+									"    pm.collectionVariables.set(\"asset_rate_to_asset_code\", jsonData.from);\r",
+									"    console.log(\"asset_rate_to_asset_code after: \" + pm.collectionVariables.get(\"asset_rate_to_asset_code\"));\r",
 									"}"
 								],
 								"type": "text/javascript",
@@ -2874,7 +3282,7 @@
 							}
 						],
 						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/{{asset_rate_id}}",
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/from/{{asset_rate_from_asset_code}}",
 							"host": [
 								"{{url_transaction}}"
 							],
@@ -2885,10 +3293,160 @@
 								"ledgers",
 								"{{ledger_id}}",
 								"asset-rates",
-								"{{asset_rate_id}}"
+								"from",
+								"{{asset_rate_from_asset_code}}"
+							],
+							"query": [
+								{
+									"key": "to",
+									"value": "BRL,USD,SGD",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
 							]
 						},
 						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Midaz-ID",
+										"value": "{{$randomUUID}}",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"url": {
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/from/{{asset_rate_from_asset_code}}?to=USD,BRL,EUR&limit=10&page=1",
+									"host": [
+										"{{url_transaction}}"
+									],
+									"path": [
+										"v1",
+										"organizations",
+										"{{organization_id}}",
+										"ledgers",
+										"{{ledger_id}}",
+										"asset-rates",
+										"from",
+										"{{asset_rate_from_asset_code}}"
+									],
+									"query": [
+										{
+											"key": "to",
+											"value": "USD,BRL,EUR"
+										},
+										{
+											"key": "limit",
+											"value": "10"
+										},
+										{
+											"key": "page",
+											"value": "1"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json",
+									"name": "Content-Type",
+									"description": "",
+									"type": "text"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"items\": [\n        {\n            \"id\": \"01939984-0ad7-7b34-aecd-2fc17b7bf9f5\",\n            \"organizationId\": \"01939983-8fa8-7b57-bc3e-1f24d0675781\",\n            \"ledgerId\": \"01939983-b0dd-7053-a0ba-6a31df62f7c0\",\n            \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n            \"from\": \"BRL\",\n            \"to\": \"USD\",\n            \"rate\": 600,\n            \"scale\": 2,\n            \"source\": \"External System\",\n            \"ttl\": 3600,\n            \"createdAt\": \"2024-12-05T22:09:47.863527-03:00\",\n            \"updatedAt\": \"2024-12-05T22:09:47.863527-03:00\",\n            \"metadata\": {\n                \"int\": 1,\n                \"string\": \"string\"\n            }\n        },\n        {\n            \"id\": \"01939983-f365-77c1-8223-732f60763a77\",\n            \"organizationId\": \"01939983-8fa8-7b57-bc3e-1f24d0675781\",\n            \"ledgerId\": \"01939983-b0dd-7053-a0ba-6a31df62f7c0\",\n            \"externalId\": \"04089c2e-75d3-4672-add3-daa73388af84\",\n            \"from\": \"BRL\",\n            \"to\": \"EUR\",\n            \"rate\": 600,\n            \"scale\": 2,\n            \"source\": \"External System\",\n            \"ttl\": 3600,\n            \"createdAt\": \"2024-12-05T22:09:41.861465-03:00\",\n            \"updatedAt\": \"2024-12-05T22:09:41.861465-03:00\",\n            \"metadata\": {\n                \"int\": 1,\n                \"string\": \"string\"\n            }\n        }\n    ],\n    \"page\": 1,\n    \"limit\": 10\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Audit",
+			"item": [
+				{
+					"name": "Read audit logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_audit}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/audit/{{audit_id}}/read-logs",
+							"host": [
+								"{{url_audit}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"audit",
+								"{{audit_id}}",
+								"read-logs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Validate log values",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{url_audit}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/audit/{{audit_id}}/audit-logs",
+							"host": [
+								"{{url_audit}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"audit",
+								"{{audit_id}}",
+								"audit-logs"
+							]
+						}
 					},
 					"response": []
 				}

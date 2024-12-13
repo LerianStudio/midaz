@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func Format(commands ...string) string {
@@ -119,4 +120,15 @@ func SafeString(value *string) string {
 	}
 
 	return ""
+}
+
+func ValidateDate(date string) error {
+	const layout = "2006-01-02"
+
+	_, err := time.Parse(layout, date)
+	if err != nil {
+		return errors.New("invalid date format: expected YYYY-MM-DD")
+	}
+
+	return nil
 }

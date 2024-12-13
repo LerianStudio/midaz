@@ -3,55 +3,117 @@ package query
 import (
 	"context"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
 
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
-	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllProductsError is responsible to test GetAllProducts with success and error
 func TestGetAllProducts(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	limit := 10
-	page := 1
-
-	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockProductRepo := product.NewMockRepository(ctrl)
 
-	uc := UseCase{
-		ProductRepo: mockProductRepo,
+	mockProductRepo := product.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		ProductRepo:  mockProductRepo,
+		MetadataRepo: mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		products := []*mmodel.Product{{}}
-		mockProductRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).
-			Return(products, nil).
-			Times(1)
-		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, limit, page)
+	filter := http.QueryHeader{
+		Limit: 10,
+		Page:  1,
+	}
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+	tests := []struct {
+		name           string
+		organizationID uuid.UUID
+		ledgerID       uuid.UUID
+		filter         http.QueryHeader
+		mockSetup      func()
+		expectErr      bool
+		expectedResult []*mmodel.Product
+	}{
+		{
+			name:           "Success - Retrieve products with metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			filter:         filter,
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockProductRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return([]*mmodel.Product{
+						{ID: validUUID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+			},
+			expectErr: false,
+			expectedResult: []*mmodel.Product{
+				{ID: "valid-uuid", Name: "Test Product", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			},
+		},
+		{
+			name:           "Error - No products found",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
+			mockSetup: func() {
+				mockProductRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return(nil, services.ErrDatabaseItemNotFound)
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+		{
+			name:           "Error - Failed to retrieve metadata",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			filter:         http.QueryHeader{Limit: 10, Page: 1},
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockProductRepo.EXPECT().
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					Return([]*mmodel.Product{
+						{ID: validUUID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, errors.New("metadata retrieval error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+	}
 
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
-		mockProductRepo.
-			EXPECT().
-			FindAll(gomock.Any(), organizationID, ledgerID, limit, page).
-			Return(nil, errors.New(errMsg)).
-			Times(1)
-		res, err := uc.ProductRepo.FindAll(context.TODO(), organizationID, ledgerID, limit, page)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-	})
+			ctx := context.Background()
+			result, err := uc.GetAllProducts(ctx, tt.organizationID, tt.ledgerID, tt.filter)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
 }

@@ -3,59 +3,88 @@ package query
 import (
 	"context"
 	"errors"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.uber.org/mock/gomock"
-	"reflect"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
-// TestGetAllMetadataOrganizations is responsible to test TestGetAllMetadataOrganizations with success and error
 func TestGetAllMetadataOrganizations(t *testing.T) {
-	collection := reflect.TypeOf(mmodel.Organization{}).Name()
-	filter := http.QueryHeader{
-		Metadata: &bson.M{"metadata": 1},
-		Limit:    10,
-		Page:     1,
-	}
-
-	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockMetadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
-	uc := UseCase{
-		MetadataRepo: mockMetadataRepo,
+	mockOrganizationRepo := organization.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		OrganizationRepo: mockOrganizationRepo,
+		MetadataRepo:     mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		mockMetadataRepo.
-			EXPECT().
-			FindList(gomock.Any(), collection, filter).
-			Return([]*mongodb.Metadata{{ID: primitive.NewObjectID()}}, nil).
-			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+	tests := []struct {
+		name           string
+		filter         http.QueryHeader
+		mockSetup      func()
+		expectErr      bool
+		expectedResult []*mmodel.Organization
+	}{
+		{
+			name: "Success - Retrieve organizations with metadata",
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+				mockOrganizationRepo.EXPECT().
+					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					Return([]*mmodel.Organization{
+						{ID: validUUID.String(), LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}},
+					}, nil)
+			},
+			expectErr: false,
+			expectedResult: []*mmodel.Organization{
+				{ID: "valid-uuid", LegalName: "Test Organization", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			},
+		},
+		{
+			name: "Error - Failed to retrieve organizations",
+			mockSetup: func() {
+				validUUID := uuid.New()
+				mockMetadataRepo.EXPECT().
+					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return([]*mongodb.Metadata{
+						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
+					}, nil)
+				mockOrganizationRepo.EXPECT().
+					ListByIDs(gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+					Return(nil, errors.New("database error"))
+			},
+			expectErr:      true,
+			expectedResult: nil,
+		},
+	}
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockSetup()
 
-	t.Run("Error", func(t *testing.T) {
-		errMSG := "errDatabaseItemNotFound"
-		mockMetadataRepo.
-			EXPECT().
-			FindList(gomock.Any(), collection, filter).
-			Return(nil, errors.New(errMSG)).
-			Times(1)
-		res, err := uc.MetadataRepo.FindList(context.TODO(), collection, filter)
+			ctx := context.Background()
+			result, err := uc.GetAllMetadataOrganizations(ctx, tt.filter)
 
-		assert.EqualError(t, err, errMSG)
-		assert.Nil(t, res)
-	})
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+			}
+		})
+	}
 }
