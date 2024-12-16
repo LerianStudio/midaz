@@ -12,6 +12,7 @@ type Balance struct {
 
 type Responses struct {
 	Total        int
+	Asset        string
 	From         map[string]Amount
 	To           map[string]Amount
 	Sources      []string
