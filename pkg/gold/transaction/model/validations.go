@@ -6,38 +6,62 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/pkg"
-	cn "github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	a "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 )
 
 // ValidateAccounts function with some validates in accounts and DSL operations
 func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 	if len(accounts) != (len(validate.From) + len(validate.To)) {
-		return pkg.ValidateBusinessError(cn.ErrAccountIneligibility, "ValidateAccounts")
+		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 	}
 
 	for _, acc := range accounts {
-		for key := range validate.From {
-			// TODO: Temporary validation to be removed when multi-asset transaction is implemented.
-			if (acc.Id == key || acc.Alias == key) && acc.AssetCode != cn.DefaultAssetCode {
-				return pkg.ValidateBusinessError(cn.ErrAssetCodeNotFound, "ValidateAccounts")
-			}
-
-			err := validateAccountsFrom(key, acc)
-			if err != nil {
-				return err
-			}
+		if err := validateFromAccounts(acc, validate.From, validate.Asset); err != nil {
+			return err
 		}
 
-		for key := range validate.To {
-			// TODO: Temporary validation to be removed when multi-asset transaction is implemented.
-			if (acc.Id == key || acc.Alias == key) && acc.AssetCode != cn.DefaultAssetCode {
-				return pkg.ValidateBusinessError(cn.ErrAssetCodeNotFound, "ValidateAccounts")
+		if err := validateToAccounts(acc, validate.To, validate.Asset); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateFromAccounts(acc *a.Account, from map[string]Amount, asset string) error {
+	for key := range from {
+		if acc.Id == key || acc.Alias == key {
+			if acc.AssetCode != asset {
+				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "ValidateAccounts")
 			}
 
-			err := validateAccountsTo(key, acc)
-			if err != nil {
-				return err
+			if !acc.AllowSending {
+				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+			}
+
+			if acc.Balance.Available <= 0 && acc.Type != constant.ExternalAccountType {
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateToAccounts(acc *a.Account, to map[string]Amount, asset string) error {
+	for key := range to {
+		if acc.Id == key || acc.Alias == key {
+			if acc.AssetCode != asset {
+				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "ValidateAccounts")
+			}
+
+			if !acc.AllowReceiving {
+				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+			}
+
+			if acc.Balance.Available > 0 && acc.Type == constant.ExternalAccountType {
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
 			}
 		}
 	}
@@ -52,13 +76,10 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 	balanceAfter := Balance{}
 
 	if ft.IsFrom {
-		ba, err := OperateAmounts(validate.From[ft.Account], acc.Balance, cn.DEBIT)
-		if err != nil {
-			return amount, balanceAfter, err
-		}
+		ba := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
 
-		if ba.Available < 0 && !strings.Contains(acc.Alias, "@external") {
-			return amount, balanceAfter, pkg.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
+		if ba.Available < 0 && acc.Type != "external" {
+			return amount, balanceAfter, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
 		}
 
 		amount = Amount{
@@ -68,11 +89,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 
 		balanceAfter = ba
 	} else {
-		ba, err := OperateAmounts(validate.To[ft.Account], acc.Balance, cn.CREDIT)
-		if err != nil {
-			return amount, balanceAfter, err
-		}
-
+		ba := OperateAmounts(validate.To[ft.Account], acc.Balance, constant.CREDIT)
 		amount = Amount{
 			Value: validate.To[ft.Account].Value,
 			Scale: validate.To[ft.Account].Scale,
@@ -91,10 +108,7 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 	for _, acc := range accounts {
 		for key := range fromTo {
 			if acc.Id == key || acc.Alias == key {
-				b, err := OperateAmounts(fromTo[key], acc.Balance, operation)
-				if err != nil {
-					e <- err
-				}
+				b := OperateAmounts(fromTo[key], acc.Balance, operation)
 
 				balance := a.Balance{
 					Available: float64(b.Available),
@@ -212,13 +226,14 @@ func normalize(total, amount, remaining *Amount) {
 }
 
 // OperateAmounts Function to sum or sub two amounts and normalize the scale
-func OperateAmounts(amount Amount, balance *a.Balance, operation string) (Balance, error) {
-	var scale float64
-
-	var total float64
+func OperateAmounts(amount Amount, balance *a.Balance, operation string) Balance {
+	var (
+		scale float64
+		total float64
+	)
 
 	switch operation {
-	case cn.DEBIT:
+	case constant.DEBIT:
 		if int(balance.Scale) < amount.Scale {
 			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
 			total = v0 - float64(amount.Value)
@@ -246,7 +261,7 @@ func OperateAmounts(amount Amount, balance *a.Balance, operation string) (Balanc
 		Scale:     int(scale),
 	}
 
-	return blc, nil
+	return blc
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
@@ -317,6 +332,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error) {
 	response := &Responses{
 		Total:        transaction.Send.Value,
+		Asset:        transaction.Send.Asset,
 		From:         make(map[string]Amount),
 		To:           make(map[string]Amount),
 		Sources:      make([]string, 0),
@@ -324,9 +340,10 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 		Aliases:      make([]string, 0),
 	}
 
-	var sourcesTotal int
-
-	var destinationsTotal int
+	var (
+		sourcesTotal      int
+		destinationsTotal int
+	)
 
 	t := make(chan int)
 	ft := make(chan map[string]Amount)
@@ -345,34 +362,12 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	response.Aliases = append(response.Aliases, response.Destinations...)
 
 	if math.Abs(float64(response.Total)-float64(sourcesTotal)) != 0 {
-		return nil, pkg.ValidateBusinessError(cn.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+		return nil, pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 
 	if math.Abs(float64(sourcesTotal)-float64(destinationsTotal)) != 0 {
-		return nil, pkg.ValidateBusinessError(cn.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+		return nil, pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
 	}
 
 	return response, nil
-}
-
-func validateAccountsFrom(key string, acc *a.Account) error {
-	if acc.Id == key || acc.Alias == key && !acc.AllowSending {
-		return pkg.ValidateBusinessError(cn.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
-	}
-
-	if acc.Id == key || acc.Alias == key && acc.AllowSending {
-		if acc.Balance.Available <= 0 && !strings.Contains(acc.Alias, "@external") {
-			return pkg.ValidateBusinessError(cn.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
-		}
-	}
-
-	return nil
-}
-
-func validateAccountsTo(key string, acc *a.Account) error {
-	if acc.Id == key || acc.Alias == key && !acc.AllowReceiving {
-		return pkg.ValidateBusinessError(cn.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
-	}
-
-	return nil
 }

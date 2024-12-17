@@ -52,6 +52,44 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -70,6 +108,12 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Organization"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -289,6 +333,44 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -307,6 +389,12 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Ledger"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -560,6 +648,44 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -578,6 +704,12 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Account"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -859,6 +991,44 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -877,6 +1047,12 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Asset"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -1158,6 +1334,44 @@ const docTemplate = `{
                         "description": "Metadata query",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1176,6 +1390,12 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Portfolio"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -1791,6 +2011,44 @@ const docTemplate = `{
                         "description": "Metadata",
                         "name": "metadata",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1809,6 +2067,12 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Product"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "page": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -2520,9 +2784,19 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 10
                 },
+                "next_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                },
                 "page": {
                     "type": "integer",
                     "example": 1
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
                 }
             }
         },
@@ -2773,7 +3047,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1.0.0",
 	Host:             "localhost:3000",
 	BasePath:         "/",
 	Schemes:          []string{},

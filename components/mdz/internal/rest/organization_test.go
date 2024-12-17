@@ -289,7 +289,7 @@ func Test_organization_Get(t *testing.T) {
 
 	org := NewOrganization(factory)
 
-	result, err := org.Get(limit, page)
+	result, err := org.Get(limit, page, "", "", "")
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 

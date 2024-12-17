@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
@@ -28,7 +30,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)
-	FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*mmodel.Ledger, error)
+	FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error)
 	FindByName(ctx context.Context, organizationID uuid.UUID, name string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Ledger, error)
 	Update(ctx context.Context, organizationID, id uuid.UUID, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
@@ -160,7 +162,7 @@ func (r *LedgerPostgreSQLRepository) Find(ctx context.Context, organizationID, i
 }
 
 // FindAll retrieves Ledgers entities from the database.
-func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, limit, page int) ([]*mmodel.Ledger, error) {
+func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID uuid.UUID, filter http.Pagination) ([]*mmodel.Ledger, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_ledgers")
@@ -179,9 +181,11 @@ func (r *LedgerPostgreSQLRepository) FindAll(ctx context.Context, organizationID
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		Limit(pkg.SafeIntToUint64(limit)).
-		Offset(pkg.SafeIntToUint64((page - 1) * limit)).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()

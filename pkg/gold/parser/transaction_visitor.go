@@ -47,9 +47,6 @@ type TransactionVisitor interface {
 	// Visit a parse tree produced by TransactionParser#Amount.
 	VisitAmount(ctx *AmountContext) interface{}
 
-	// Visit a parse tree produced by TransactionParser#ShareDescWhatever.
-	VisitShareDescWhatever(ctx *ShareDescWhateverContext) interface{}
-
 	// Visit a parse tree produced by TransactionParser#ShareIntOfInt.
 	VisitShareIntOfInt(ctx *ShareIntOfIntContext) interface{}
 
@@ -62,14 +59,17 @@ type TransactionVisitor interface {
 	// Visit a parse tree produced by TransactionParser#account.
 	VisitAccount(ctx *AccountContext) interface{}
 
+	// Visit a parse tree produced by TransactionParser#rate.
+	VisitRate(ctx *RateContext) interface{}
+
 	// Visit a parse tree produced by TransactionParser#from.
 	VisitFrom(ctx *FromContext) interface{}
 
-	// Visit a parse tree produced by TransactionParser#send.
-	VisitSend(ctx *SendContext) interface{}
-
 	// Visit a parse tree produced by TransactionParser#source.
 	VisitSource(ctx *SourceContext) interface{}
+
+	// Visit a parse tree produced by TransactionParser#send.
+	VisitSend(ctx *SendContext) interface{}
 
 	// Visit a parse tree produced by TransactionParser#to.
 	VisitTo(ctx *ToContext) interface{}

@@ -155,7 +155,7 @@ func Test_product_Get(t *testing.T) {
 
 	product := NewProduct(factory)
 
-	result, err := product.Get(organizationID, ledgerID, limit, page)
+	result, err := product.Get(organizationID, ledgerID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

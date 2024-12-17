@@ -204,3 +204,39 @@ type UpdateOperationInput struct {
 	Description string         `json:"description" validate:"max=256" example:"Credit card operation"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 } // @name UpdateOperationInput
+
+// OperationLog is a struct designed to represent the operation data that should be stored in the audit log
+type OperationLog struct {
+	ID              string    `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	TransactionID   string    `json:"transactionId" example:"00000000-0000-0000-0000-000000000000"`
+	Type            string    `json:"type" example:"creditCard"`
+	AssetCode       string    `json:"assetCode" example:"BRL"`
+	ChartOfAccounts string    `json:"chartOfAccounts" example:"1000"`
+	Amount          Amount    `json:"amount"`
+	Balance         Balance   `json:"balance"`
+	BalanceAfter    Balance   `json:"balanceAfter"`
+	Status          Status    `json:"status"`
+	AccountID       string    `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
+	AccountAlias    string    `json:"accountAlias" example:"@person1"`
+	PortfolioID     *string   `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
+	CreatedAt       time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+}
+
+// ToLog converts an Operation excluding the fields that are not immutable
+func (o *Operation) ToLog() *OperationLog {
+	return &OperationLog{
+		ID:              o.ID,
+		TransactionID:   o.TransactionID,
+		Type:            o.Type,
+		AssetCode:       o.AssetCode,
+		ChartOfAccounts: o.ChartOfAccounts,
+		Amount:          o.Amount,
+		Balance:         o.Balance,
+		BalanceAfter:    o.BalanceAfter,
+		Status:          o.Status,
+		AccountID:       o.AccountID,
+		AccountAlias:    o.AccountAlias,
+		PortfolioID:     o.PortfolioID,
+		CreatedAt:       o.CreatedAt,
+	}
+}

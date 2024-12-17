@@ -6,11 +6,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/pelletier/go-toml/v2"
 )
 
 type Setting struct {
 	Token string
+	environment.Env
 }
 
 // getPathSetting returns the path of the configuration directory of ~/.config/mdz/.
@@ -60,11 +62,28 @@ func Read() (*Setting, error) {
 		return nil, err
 	}
 
+	dir = filepath.Clean(dir)
+
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("file %s not found", dir)
+		err := os.MkdirAll(dir, 0750)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create directory %s: %v", dir, err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed check dir %s ", dir)
 	}
 
-	dir = filepath.Join(filepath.Clean(dir), "mdz.toml")
+	dir = filepath.Join(dir, "mdz.toml")
+	dir = filepath.Clean(dir)
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err := os.WriteFile(dir, []byte(""), 0600)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create file %s: %v", dir, err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed check dir %s ", dir)
+	}
 
 	fileContent, err := os.ReadFile(dir)
 	if err != nil {
@@ -72,7 +91,6 @@ func Read() (*Setting, error) {
 	}
 
 	var sett Setting
-
 	if err := toml.Unmarshal(fileContent, &sett); err != nil {
 		return nil, errors.New("decoding the TOML file: " + err.Error())
 	}

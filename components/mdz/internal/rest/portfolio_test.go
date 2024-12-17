@@ -157,7 +157,7 @@ func Test_portfolio_Get(t *testing.T) {
 
 	asset := NewPortfolio(factory)
 
-	result, err := asset.Get(organizationID, ledgerID, limit, page)
+	result, err := asset.Get(organizationID, ledgerID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)

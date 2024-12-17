@@ -2,9 +2,10 @@ package account
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -17,84 +18,255 @@ import (
 )
 
 func Test_newCmdAssetList(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	t.Run("happy path informing all the necessary flags", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 
-	mockRepo := repository.NewMockAccount(ctrl)
+		mockRepo := repository.NewMockAccount(ctrl)
 
-	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
-	ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
-	portfolioID := "01933f94-d329-76fe-8de0-40559c7b282d"
+		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
+		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
+		portfolioID := "01933f94-d329-76fe-8de0-40559c7b282d"
 
-	ledFactory := factoryAccountList{
-		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
-			Out: &bytes.Buffer{},
-			Err: &bytes.Buffer{},
-		}},
-		repoAccount:    mockRepo,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-	}
+		ledFactory := factoryAccountList{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoAccount:    mockRepo,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+		}
 
-	cmd := newCmdAccountList(&ledFactory)
-	cmd.SetArgs([]string{
-		"--organization-id", organizationID,
-		"--ledger-id", ledgerID,
-		"--portfolio-id", portfolioID,
+		cmd := newCmdAccountList(&ledFactory)
+		cmd.SetArgs([]string{
+			"--organization-id", organizationID,
+			"--ledger-id", ledgerID,
+			"--portfolio-id", portfolioID,
+		})
+
+		list := &mmodel.Accounts{
+			Page:  1,
+			Limit: 2,
+			Items: []mmodel.Account{
+				{
+					ID:   "01930365-4d46-7a09-a503-b932714f85af",
+					Name: "2Real",
+					Type: "commodity",
+					Status: mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Teste asset 1"),
+					},
+					OrganizationID: organizationID,
+					LedgerID:       ledgerID,
+					CreatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+					UpdatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+					DeletedAt:      nil,
+					Metadata: map[string]any{
+						"bitcoin": "1RuuEjC8CziKy6XbYU6uwsNSYjU7H2Mft",
+						"chave":   "metadata_chave",
+						"boolean": false,
+					},
+				},
+				{
+					ID:   "01930219-2c25-7a37-a5b9-610d44ae0a27",
+					Name: "Brazilian Real",
+					Type: "currency",
+					Status: mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Teste asset 1"),
+					},
+					OrganizationID: organizationID,
+					LedgerID:       ledgerID,
+					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+					UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+					DeletedAt:      nil,
+					Metadata: map[string]any{
+						"bitcoin": "3oDTprwNG37nASsyLzQGLuUBzNac",
+						"chave":   "metadata_chave",
+						"boolean": false,
+					},
+				},
+			},
+		}
+
+		mockRepo.EXPECT().Get(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(list, nil)
+
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+		golden.AssertBytes(t, output, "output_list.golden")
 	})
 
-	list := &mmodel.Accounts{
-		Page:  1,
-		Limit: 2,
-		Items: []mmodel.Account{
-			{
-				ID:   "01930365-4d46-7a09-a503-b932714f85af",
-				Name: "2Real",
-				Type: "commodity",
-				Status: mmodel.Status{
-					Code:        "ACTIVE",
-					Description: ptr.StringPtr("Teste asset 1"),
+	t.Run("happy path no informing flags", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRepo := repository.NewMockAccount(ctrl)
+
+		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
+		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
+
+		ledFactory := factoryAccountList{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoAccount:    mockRepo,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+		}
+
+		ledFactory.tuiInput = func(message string) (string, error) {
+			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
+		}
+
+		cmd := newCmdAccountList(&ledFactory)
+		cmd.SetArgs([]string{})
+
+		list := &mmodel.Accounts{
+			Page:  1,
+			Limit: 2,
+			Items: []mmodel.Account{
+				{
+					ID:   "01930365-4d46-7a09-a503-b932714f85af",
+					Name: "2Real",
+					Type: "commodity",
+					Status: mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Teste asset 1"),
+					},
+					OrganizationID: organizationID,
+					LedgerID:       ledgerID,
+					CreatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+					UpdatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+					DeletedAt:      nil,
+					Metadata: map[string]any{
+						"bitcoin": "1RuuEjC8CziKy6XbYU6uwsNSYjU7H2Mft",
+						"chave":   "metadata_chave",
+						"boolean": false,
+					},
 				},
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				CreatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
-				UpdatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
-				DeletedAt:      nil,
-				Metadata: map[string]any{
-					"bitcoin": "1RuuEjC8CziKy6XbYU6uwsNSYjU7H2Mft",
-					"chave":   "metadata_chave",
-					"boolean": false,
+				{
+					ID:   "01930219-2c25-7a37-a5b9-610d44ae0a27",
+					Name: "Brazilian Real",
+					Type: "currency",
+					Status: mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Teste asset 1"),
+					},
+					OrganizationID: organizationID,
+					LedgerID:       ledgerID,
+					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+					UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+					DeletedAt:      nil,
+					Metadata: map[string]any{
+						"bitcoin": "3oDTprwNG37nASsyLzQGLuUBzNac",
+						"chave":   "metadata_chave",
+						"boolean": false,
+					},
 				},
 			},
-			{
-				ID:   "01930219-2c25-7a37-a5b9-610d44ae0a27",
-				Name: "Brazilian Real",
-				Type: "currency",
-				Status: mmodel.Status{
-					Code:        "ACTIVE",
-					Description: ptr.StringPtr("Teste asset 1"),
+		}
+
+		mockRepo.EXPECT().Get(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(list, nil)
+
+		err := cmd.Execute()
+		assert.NoError(t, err)
+
+		output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+		golden.AssertBytes(t, output, "output_list.golden")
+	})
+
+	t.Run("date valid", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockRepo := repository.NewMockAccount(ctrl)
+
+		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
+		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
+
+		ledFactory := factoryAccountList{
+			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
+				Out: &bytes.Buffer{},
+				Err: &bytes.Buffer{},
+			}},
+			repoAccount:    mockRepo,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			StartDate:      "2023-11-01",
+			EndDate:        "2023-11-10",
+		}
+
+		ledFactory.tuiInput = func(message string) (string, error) {
+			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
+		}
+
+		cmd := newCmdAccountList(&ledFactory)
+		cmd.SetArgs([]string{"--start-date", "2023-11-01", "--end-date", "2023-11-10"})
+
+		list := &mmodel.Accounts{
+			Page:  1,
+			Limit: 2,
+			Items: []mmodel.Account{
+				{
+					ID:   "01930365-4d46-7a09-a503-b932714f85af",
+					Name: "2Real",
+					Type: "commodity",
+					Status: mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Teste asset 1"),
+					},
+					OrganizationID: organizationID,
+					LedgerID:       ledgerID,
+					CreatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+					UpdatedAt:      time.Date(2024, 11, 06, 21, 33, 10, 854653000, time.UTC),
+					DeletedAt:      nil,
+					Metadata: map[string]any{
+						"bitcoin": "1RuuEjC8CziKy6XbYU6uwsNSYjU7H2Mft",
+						"chave":   "metadata_chave",
+						"boolean": false,
+					},
 				},
-				OrganizationID: organizationID,
-				LedgerID:       ledgerID,
-				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-				DeletedAt:      nil,
-				Metadata: map[string]any{
-					"bitcoin": "3oDTprwNG37nASsyLzQGLuUBzNac",
-					"chave":   "metadata_chave",
-					"boolean": false,
+				{
+					ID:   "01930219-2c25-7a37-a5b9-610d44ae0a27",
+					Name: "Brazilian Real",
+					Type: "currency",
+					Status: mmodel.Status{
+						Code:        "ACTIVE",
+						Description: ptr.StringPtr("Teste asset 1"),
+					},
+					OrganizationID: organizationID,
+					LedgerID:       ledgerID,
+					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+					UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+					DeletedAt:      nil,
+					Metadata: map[string]any{
+						"bitcoin": "3oDTprwNG37nASsyLzQGLuUBzNac",
+						"chave":   "metadata_chave",
+						"boolean": false,
+					},
 				},
 			},
-		},
-	}
+		}
 
-	mockRepo.EXPECT().Get(
-		gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(list, nil)
+		mockRepo.EXPECT().Get(
+			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(list, nil)
 
-	err := cmd.Execute()
-	assert.NoError(t, err)
+		err := cmd.Execute()
+		assert.NoError(t, err)
 
-	output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
-	golden.AssertBytes(t, output, "output_list.golden")
+		output := ledFactory.factory.IOStreams.Out.(*bytes.Buffer).Bytes()
+		golden.AssertBytes(t, output, "output_list.golden")
+	})
 }

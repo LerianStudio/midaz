@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetAllOperationsByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, error) {
+func (uc *UseCase) GetAllOperationsByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, http.CursorPagination, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -24,18 +24,18 @@ func (uc *UseCase) GetAllOperationsByPortfolio(ctx context.Context, organization
 
 	logger.Infof("Retrieving operations by portfolio")
 
-	op, err := uc.OperationRepo.FindAllByPortfolio(ctx, organizationID, ledgerID, portfolioID, filter.Limit, filter.Page)
+	op, cur, err := uc.OperationRepo.FindAllByPortfolio(ctx, organizationID, ledgerID, portfolioID, filter.ToOffsetPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get all operations on repo by portfolio", err)
 
 		logger.Errorf("Error getting operations on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
-		return nil, err
+		return nil, http.CursorPagination{}, err
 	}
 
-	return op, nil
+	return op, cur, nil
 }

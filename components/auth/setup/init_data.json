@@ -592,7 +592,7 @@
       "tag": "",
       "score": 2000,
       "ranking": 1,
-      "isAdmin": true,
+      "isAdmin": false,
       "isForbidden": false,
       "isDeleted": false,
       "signupApplication": "app-midaz",
@@ -616,7 +616,7 @@
       "tag": "",
       "score": 2000,
       "ranking": 1,
-      "isAdmin": true,
+      "isAdmin": false,
       "isForbidden": false,
       "isDeleted": false,
       "signupApplication": "app-midaz",
@@ -671,6 +671,30 @@
       "createdIp": "",
       "groups": [
         "lerian/group_user"
+      ]
+    },
+    {
+      "owner": "lerian",
+      "name": "user_jane",
+      "type": "normal-user",
+      "password": "Lerian@123",
+      "displayName": "Jane",
+      "avatar": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcToK_-LT9HmxfBNTsC0A8wfvjtfxKh3GjexbQ&s",
+      "email": "jane@example.com",
+      "phone": "32276407020",
+      "countryCode": "US",
+      "address": [],
+      "affiliation": "",
+      "tag": "",
+      "score": 2000,
+      "ranking": 1,
+      "isAdmin": false,
+      "isForbidden": false,
+      "isDeleted": false,
+      "signupApplication": "app-midaz",
+      "createdIp": "",
+      "groups": [
+        "lerian/group_auditor"
       ]
     }
   ],
@@ -798,7 +822,8 @@
       "actions": [
         "get",
         "post",
-        "patch"
+        "patch",
+        "put"
       ],
       "domains": [],
       "effect": "Allow",
@@ -868,6 +893,32 @@
       "approver": "admin",
       "approveTime": "2024-01-01T22:51:35+08:00",
       "state": "Approved"
+    },
+    {
+      "owner": "lerian",
+      "name": "audit-api-permission",
+      "displayName": "Audit API Permission",
+      "isEnabled": true,
+      "model": "api-model",
+      "roles": [
+        "lerian/auditor_role"
+      ],
+      "users": [
+        "lerian/user_jane"
+      ],
+      "resourceType": "Custom",
+      "resources": [
+        "audit"
+      ],
+      "actions": [
+        "get"
+      ],
+      "domains": [],
+      "effect": "Allow",
+      "submitter": "admin",
+      "approver": "admin",
+      "approveTime": "2024-01-01T22:51:35+08:00",
+      "state": "Approved"
     }
   ],
   "resources": [],
@@ -913,6 +964,16 @@
         "lerian/user_mike",
         "lerian/user_kate"
       ]
+    },
+    {
+      "displayName": "Auditor Role",
+      "isEnabled": true,
+      "name": "auditor_role",
+      "owner": "lerian",
+      "roles": [],
+      "users": [
+        "lerian/user_jane"
+      ]
     }
   ],
   "syncers": [],
@@ -950,6 +1011,20 @@
       "owner": "lerian",
       "name": "group_user",
       "displayName": "User",
+      "manager": "",
+      "contactEmail": "",
+      "type": "",
+      "parent_id": "",
+      "isTopGroup": false,
+      "title": "",
+      "key": "",
+      "children": [],
+      "isEnabled": true
+    },
+    {
+      "owner": "lerian",
+      "name": "group_auditor",
+      "displayName": "Auditor",
       "manager": "",
       "contactEmail": "",
       "type": "",

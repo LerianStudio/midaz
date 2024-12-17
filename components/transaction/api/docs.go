@@ -67,6 +67,39 @@ const docTemplate = `{
                         "name": "account_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -80,11 +113,20 @@ const docTemplate = `{
                                 {
                                     "type": "object",
                                     "properties": {
+                                        " next_cursor": {
+                                            "type": "string"
+                                        },
+                                        " prev_cursor": {
+                                            "type": "string"
+                                        },
                                         "items": {
                                             "type": "array",
                                             "items": {
                                                 "$ref": "#/definitions/Operation"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
                                         }
                                     }
                                 }
@@ -159,7 +201,7 @@ const docTemplate = `{
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates": {
             "post": {
-                "description": "Create an AssetRate with the input payload",
+                "description": "Create or Update an AssetRate with the input details",
                 "consumes": [
                     "application/json"
                 ],
@@ -169,7 +211,7 @@ const docTemplate = `{
                 "tags": [
                     "Asset Rates"
                 ],
-                "summary": "Create an AssetRate",
+                "summary": "Create or Update an AssetRate",
                 "parameters": [
                     {
                         "type": "string",
@@ -218,16 +260,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{asset_rate_id}": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}": {
             "get": {
-                "description": "Get an AssetRate with the input ID",
+                "description": "Get an AssetRate by the Asset Code with the input details",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Asset Rates"
                 ],
-                "summary": "Get an AssetRate by ID",
+                "summary": "Get an AssetRate by the Asset Code",
                 "parameters": [
                     {
                         "type": "string",
@@ -258,19 +300,138 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "AssetRate ID",
-                        "name": "asset_rate_id",
+                        "description": "From Asset Code",
+                        "name": "asset_code",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "AssetRate Input",
-                        "name": "asset-rate",
-                        "in": "body",
-                        "required": true,
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "example": "\"BRL,USD,SGD\"",
+                        "description": "To Asset Codes",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/CreateAssetRateInput"
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/AssetRate"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
                         }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}": {
+            "get": {
+                "description": "Get an AssetRate by External ID with the input details",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Asset Rates"
+                ],
+                "summary": "Get an AssetRate by External ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "External ID",
+                        "name": "external_id",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -327,6 +488,43 @@ const docTemplate = `{
                         "name": "portfolio_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -345,6 +543,15 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Operation"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -454,6 +661,43 @@ const docTemplate = `{
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "2021-01-01",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -472,6 +716,18 @@ const docTemplate = `{
                                             "items": {
                                                 "$ref": "#/definitions/Transaction"
                                             }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        },
+                                        "next_cursor": {
+                                            "type": "string"
+                                        },
+                                        "page": {
+                                            "type": "object"
+                                        },
+                                        "prev_cursor": {
+                                            "type": "string"
                                         }
                                     }
                                 }
@@ -827,21 +1083,17 @@ const docTemplate = `{
             "description": "AssetRate is a struct designed to store asset rate data.",
             "type": "object",
             "properties": {
-                "amount": {
-                    "type": "number",
-                    "example": 5000
-                },
-                "baseAssetCode": {
-                    "type": "string",
-                    "example": "BRL"
-                },
-                "counterAssetCode": {
-                    "type": "string",
-                    "example": "USD"
-                },
                 "createdAt": {
                     "type": "string",
                     "example": "2021-01-01T00:00:00Z"
+                },
+                "externalId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "from": {
+                    "type": "string",
+                    "example": "USD"
                 },
                 "id": {
                     "type": "string",
@@ -859,13 +1111,29 @@ const docTemplate = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
+                "rate": {
+                    "type": "number",
+                    "example": 100
+                },
                 "scale": {
                     "type": "number",
                     "example": 2
                 },
                 "source": {
                     "type": "string",
-                    "example": "@person1"
+                    "example": "External System"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "ttl": {
+                    "type": "integer",
+                    "example": 3600
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
@@ -890,16 +1158,17 @@ const docTemplate = `{
         "CreateAssetRateInput": {
             "description": "CreateAssetRateInput is the input payload to create an asset rate.",
             "type": "object",
+            "required": [
+                "from",
+                "rate",
+                "to"
+            ],
             "properties": {
-                "amount": {
-                    "type": "number",
-                    "example": 5000
-                },
-                "baseAssetCode": {
+                "externalId": {
                     "type": "string",
-                    "example": "BRL"
+                    "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "counterAssetCode": {
+                "from": {
                     "type": "string",
                     "example": "USD"
                 },
@@ -907,13 +1176,26 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {}
                 },
+                "rate": {
+                    "type": "integer",
+                    "example": 100
+                },
                 "scale": {
-                    "type": "number",
+                    "type": "integer",
+                    "minimum": 0,
                     "example": 2
                 },
                 "source": {
                     "type": "string",
-                    "example": "@person1"
+                    "example": "External System"
+                },
+                "to": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "ttl": {
+                    "type": "integer",
+                    "example": 3600
                 }
             }
         },
@@ -981,7 +1263,7 @@ const docTemplate = `{
                 "amount": {
                     "$ref": "#/definitions/Amount"
                 },
-                "chartOfAccountsG": {
+                "chartOfAccounts": {
                     "type": "string",
                     "example": "1000"
                 },
@@ -996,6 +1278,9 @@ const docTemplate = `{
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}
+                },
+                "rate": {
+                    "$ref": "#/definitions/Rate"
                 },
                 "remaining": {
                     "type": "string",
@@ -1093,9 +1378,52 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 10
                 },
+                "next_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                },
                 "page": {
                     "type": "integer",
                     "example": 1
+                },
+                "prev_cursor": {
+                    "type": "string",
+                    "x-omitempty": true,
+                    "example": "MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA=="
+                }
+            }
+        },
+        "Rate": {
+            "description": "Rate is the struct designed to represent the rate fields of an operation.",
+            "type": "object",
+            "required": [
+                "externalId",
+                "from",
+                "to",
+                "value"
+            ],
+            "properties": {
+                "externalId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "from": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "scale": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "example": 2
+                },
+                "to": {
+                    "type": "string",
+                    "example": "USDe"
+                },
+                "value": {
+                    "type": "integer",
+                    "example": 1000
                 }
             }
         },
@@ -1133,9 +1461,6 @@ const docTemplate = `{
                 "percentage"
             ],
             "properties": {
-                "descWhatever": {
-                    "type": "boolean"
-                },
                 "percentage": {
                     "type": "integer"
                 },
@@ -1303,7 +1628,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1.0.0",
 	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{},
