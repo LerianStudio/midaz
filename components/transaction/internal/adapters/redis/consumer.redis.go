@@ -66,9 +66,53 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return err
+	}
+
+	stringCMD := rds.Get(ctx, key)
+	if stringCMD.Err() != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get on redis", stringCMD.Err())
+
+		return stringCMD.Err()
+	}
+
+	logger.Infof("get cmd: %v", stringCMD.String())
+
 	return nil
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.del")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to del redis", err)
+
+		return err
+	}
+
+	intCMD := rds.Del(ctx, key)
+	if intCMD.Err() != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to del on redis", intCMD.Err())
+
+		return intCMD.Err()
+	}
+
+	logger.Infof("del cmd: %v", intCMD.String())
+
 	return nil
 }
