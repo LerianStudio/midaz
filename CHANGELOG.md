@@ -1,3 +1,10 @@
+## [1.31.0-beta.21](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.20...v1.31.0-beta.21) (2024-12-17)
+
+
+### Bug Fixes
+
+* remove is admin true from non admin users :bug: ([b02232f](https://github.com/LerianStudio/midaz/commit/b02232f5acf2fe3e5a80b70e06d7f22e44396be5))
+
 ## [1.31.0-beta.20](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.19...v1.31.0-beta.20) (2024-12-12)
 
 ## [1.31.0-beta.19](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.18...v1.31.0-beta.19) (2024-12-12)
