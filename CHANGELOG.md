@@ -1,3 +1,19 @@
+## [1.31.0-beta.22](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.21...v1.31.0-beta.22) (2024-12-17)
+
+
+### Features
+
+*  finish redis verbs :sparkles: ([5ae2ddc](https://github.com/LerianStudio/midaz/commit/5ae2ddc8437b9be4fdaf7f8113cf4bb082aa16df))
+* utils to convert string into hash to use on redis using idempotency :sparkles: ([9a64020](https://github.com/LerianStudio/midaz/commit/9a64020ea3da73eec9d7b7773cf12a7f2ea2e1ce))
+
+
+### Bug Fixes
+
+* always set true in isfrom json :bug: ([a497ed0](https://github.com/LerianStudio/midaz/commit/a497ed0b31c62798cd6b123b51be0c0c3c6ab581))
+* remove BRL default :bug: ([912dce2](https://github.com/LerianStudio/midaz/commit/912dce2161ed9a78ef3faaf9bd48aa7f670a15e4))
+* remove md5 and sha-256 generate string at this moment :bug: ([8d1adbd](https://github.com/LerianStudio/midaz/commit/8d1adbd91aa02068ce92d256e433327a097a775a))
+* update lint :bug: ([6494a72](https://github.com/LerianStudio/midaz/commit/6494a72def85575d860f611f9f5005021a57f76e))
+
 ## [1.31.0-beta.21](https://github.com/LerianStudio/midaz/compare/v1.31.0-beta.20...v1.31.0-beta.21) (2024-12-17)
 
 
