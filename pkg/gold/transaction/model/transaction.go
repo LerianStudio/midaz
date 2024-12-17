@@ -34,7 +34,7 @@ type Metadata struct {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Asset string `json:"asset,omitempty" validate:"required,eq=BRL" example:"BRL"`
+	Asset string `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value int    `json:"value,omitempty" validate:"required" example:"1000"`
 	Scale int    `json:"scale,omitempty" validate:"gte=0" example:"2"`
 } // @name Amount
@@ -53,7 +53,7 @@ type Share struct {
 // swagger:model Send
 // @Description Send is the struct designed to represent the sending fields of an operation.
 type Send struct {
-	Asset  string `json:"asset,omitempty" validate:"required,eq=BRL" example:"BRL"`
+	Asset  string `json:"asset,omitempty" validate:"required" example:"BRL"`
 	Value  int    `json:"value,omitempty" validate:"required" example:"1000"`
 	Scale  int    `json:"scale,omitempty" validate:"gte=0" example:"2"`
 	Source Source `json:"source,omitempty" validate:"required"`
