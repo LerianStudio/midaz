@@ -20,6 +20,7 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -40,45 +41,45 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 string, arg2 *Audit) error {
+func (m *MockRepository) Create(ctx context.Context, collection string, audit *Audit) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "Create", ctx, collection, audit)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(ctx, collection, audit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, collection, audit)
 }
 
 // FindByID mocks base method.
-func (m *MockRepository) FindByID(arg0 context.Context, arg1 string, arg2 AuditID) (*Audit, error) {
+func (m *MockRepository) FindByID(ctx context.Context, collection string, auditID AuditID) (*Audit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByID", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "FindByID", ctx, collection, auditID)
 	ret0, _ := ret[0].(*Audit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByID indicates an expected call of FindByID.
-func (mr *MockRepositoryMockRecorder) FindByID(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByID(ctx, collection, auditID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByID", reflect.TypeOf((*MockRepository)(nil).FindByID), ctx, collection, auditID)
 }
 
 // FindOne mocks base method.
-func (m *MockRepository) FindOne(arg0 context.Context, arg1 string, arg2 AuditID) (*Audit, error) {
+func (m *MockRepository) FindOne(ctx context.Context, collection string, auditID AuditID) (*Audit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindOne", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "FindOne", ctx, collection, auditID)
 	ret0, _ := ret[0].(*Audit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindOne indicates an expected call of FindOne.
-func (mr *MockRepositoryMockRecorder) FindOne(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindOne(ctx, collection, auditID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOne", reflect.TypeOf((*MockRepository)(nil).FindOne), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindOne", reflect.TypeOf((*MockRepository)(nil).FindOne), ctx, collection, auditID)
 }

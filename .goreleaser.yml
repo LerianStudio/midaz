@@ -1,19 +1,39 @@
-project_name: mdz
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
 
 builds:
   - id: "mdz"
+    env:
+      - CGO_ENABLED=0
     main: ./components/mdz/main.go
     binary: mdz
+
     goos:
       - linux
-      - darwin
       - windows
+      - darwin
+      - freebsd
+
     goarch:
+      - "386"
       - amd64
+      - arm
+      - arm64
+      - ppc64
+
     goarm:
-      - "6"
+      - "7"
+
     ldflags:
-      - -s -w # Flags to reduce binary size
+      - -X 'github.com/maxwelbm/mdz/pkg/environment.ClientID=$(cat .components/mdz/.env | grep CLIENT_ID | cut -d "=" -f2)'
+        -X 'github.com/maxwelbm/mdz/pkg/environment.ClientSecret=$(cat .components/mdz/.env | grep CLIENT_SECRET | cut -d "=" -f2)'
+        -X 'github.com/maxwelbm/mdz/pkg/environment.URLAPIAuth=$(cat .components/mdz/.env | grep URL_API_AUTH | cut -d "=" -f2)'
+        -X 'github.com/maxwelbm/mdz/pkg/environment.URLAPILedger=$(cat .components/mdz/.env | grep URL_API_LEDGER | cut -d "=" -f2)'
+        -X 'github.com/maxwelbm/mdz/pkg/environment.Version=$(cat .components/mdz/.env | grep VERSION | cut -d "=" -f2)'
 
 archives:
   - id: "mdz"
@@ -23,24 +43,49 @@ archives:
     name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: true
 
-snapshot:
-  name_template: "{{ .Tag }}-next"
+nfpms:
+  - id: packages
+    license: Apache-2.0 license
+    maintainer: Lerian Studio Technologies <https://github.com/LerianStudio/>
+    package_name: azion
+    homepage: https://github.com/maxwelbm/mdz
+    bindir: /usr/local/bin
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
 
 changelog:
-  skip: false
-
-git:
-  prerelease_suffix: "-"
-
-release:
-  prerelease: auto
-
-# brews:
-#   - name: mdz
-#     description: "Midaz CLI"
-#     homepage: "https://github.com/LerianStudio/midaz/components/mdz"
-#     tap:
-#       owner: LerianStudio
-#       name: homebrew-tap
-#     url_template: "https://github.com/LerianStudio/midaz/components/mdz/releases/download/{{ .Tag }}/{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.tar.gz"
-#     caveats: "Thanks for installing mdz!"
+  sort: asc
+  filters:
+    exclude:
+      - "merge conflict"
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+      - go mod tidy
+  groups:
+    - title: "Breaking Changes"
+      regexp: "^.*breaking[(\\w)]*:+.*$"
+      order: 0
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 10
+    - title: "Improvements"
+      regexp: "^.*chore[(\\w)]*:+.*$"
+      order: 20
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 30
+    - title: "Security Updates"
+      regexp: '^.*?sec(\([[:word:]]+\))??!?:.+$'
+      order: 40
+    - title: "Documentation Updates"
+      regexp: ^.*?docs(\([[:word:]]+\))??!?:.+$
+      order: 50
+    - title: "Tests"
+      regexp: ^.*?(test(s)?(\([[:word:]]+\))?)!?:.+$
+      order: 60
+    - title: Other Work
+      order: 999

@@ -19,6 +19,7 @@ import (
 type MockConsumerRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockConsumerRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockConsumerRepositoryMockRecorder is the mock recorder for MockConsumerRepository.
@@ -39,13 +40,13 @@ func (m *MockConsumerRepository) EXPECT() *MockConsumerRepositoryMockRecorder {
 }
 
 // ConsumerDefault mocks base method.
-func (m *MockConsumerRepository) ConsumerDefault(arg0 chan string) {
+func (m *MockConsumerRepository) ConsumerDefault(message chan string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ConsumerDefault", arg0)
+	m.ctrl.Call(m, "ConsumerDefault", message)
 }
 
 // ConsumerDefault indicates an expected call of ConsumerDefault.
-func (mr *MockConsumerRepositoryMockRecorder) ConsumerDefault(arg0 any) *gomock.Call {
+func (mr *MockConsumerRepositoryMockRecorder) ConsumerDefault(message any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumerDefault", reflect.TypeOf((*MockConsumerRepository)(nil).ConsumerDefault), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumerDefault", reflect.TypeOf((*MockConsumerRepository)(nil).ConsumerDefault), message)
 }

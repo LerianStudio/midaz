@@ -148,3 +148,14 @@ jobs:
             echo "No changes detected."
             exit 0
           fi
+
+  bump_formula:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Update Homebrew Formula
+        uses: dawidd6/action-homebrew-bump-formula@v3
+        with:
+          token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          formula: mdz
+          tag: ${{ needs.build.outputs.binver }}

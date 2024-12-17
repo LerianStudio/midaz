@@ -21,6 +21,7 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -41,46 +42,46 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // CreateLog mocks base method.
-func (m *MockRepository) CreateLog(arg0 context.Context, arg1 int64, arg2 []byte) (string, error) {
+func (m *MockRepository) CreateLog(ctx context.Context, treeID int64, logValue []byte) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateLog", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "CreateLog", ctx, treeID, logValue)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateLog indicates an expected call of CreateLog.
-func (mr *MockRepositoryMockRecorder) CreateLog(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateLog(ctx, treeID, logValue any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLog", reflect.TypeOf((*MockRepository)(nil).CreateLog), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateLog", reflect.TypeOf((*MockRepository)(nil).CreateLog), ctx, treeID, logValue)
 }
 
 // CreateTree mocks base method.
-func (m *MockRepository) CreateTree(arg0 context.Context, arg1, arg2 string) (int64, error) {
+func (m *MockRepository) CreateTree(ctx context.Context, name, description string) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateTree", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "CreateTree", ctx, name, description)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateTree indicates an expected call of CreateTree.
-func (mr *MockRepositoryMockRecorder) CreateTree(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) CreateTree(ctx, name, description any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTree", reflect.TypeOf((*MockRepository)(nil).CreateTree), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTree", reflect.TypeOf((*MockRepository)(nil).CreateTree), ctx, name, description)
 }
 
 // GetLogByHash mocks base method.
-func (m *MockRepository) GetLogByHash(arg0 context.Context, arg1 int64, arg2 string) (*trillian.LogLeaf, error) {
+func (m *MockRepository) GetLogByHash(ctx context.Context, treeID int64, hash string) (*trillian.LogLeaf, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetLogByHash", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetLogByHash", ctx, treeID, hash)
 	ret0, _ := ret[0].(*trillian.LogLeaf)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetLogByHash indicates an expected call of GetLogByHash.
-func (mr *MockRepositoryMockRecorder) GetLogByHash(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) GetLogByHash(ctx, treeID, hash any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogByHash", reflect.TypeOf((*MockRepository)(nil).GetLogByHash), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogByHash", reflect.TypeOf((*MockRepository)(nil).GetLogByHash), ctx, treeID, hash)
 }
