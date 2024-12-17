@@ -10,8 +10,12 @@ builds:
       - windows
     goarch:
       - amd64
+      - arm64
     goarm:
       - "6"
+    ignore:
+      - goos: windows
+        goarch: arm64
     ldflags:
       - -s -w -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.Version={{.Version}}
 
