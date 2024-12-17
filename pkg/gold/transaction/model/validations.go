@@ -45,7 +45,7 @@ func validateFromAccounts(acc *a.Account, from map[string]Amount, asset string) 
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -332,6 +332,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error) {
 	response := &Responses{
 		Total:        transaction.Send.Value,
+		Asset:        transaction.Send.Asset,
 		From:         make(map[string]Amount),
 		To:           make(map[string]Amount),
 		Sources:      make([]string, 0),
