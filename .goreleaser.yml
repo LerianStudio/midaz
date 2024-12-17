@@ -13,7 +13,7 @@ builds:
     goarm:
       - "6"
     ldflags:
-      - -s -w # Flags to reduce binary size
+      - -s -w -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.Version={{.Version}}
 
 archives:
   - id: "mdz"
