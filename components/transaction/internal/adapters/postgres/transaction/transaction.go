@@ -170,6 +170,7 @@ func (cti *CreateTransactionInput) FromDSl() *goldModel.Transaction {
 		for i := range cti.Send.Source.From {
 			cti.Send.Source.From[i].IsFrom = true
 		}
+		
 		dsl.Send = *cti.Send
 	}
 
