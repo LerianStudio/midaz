@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build_and_publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       APP_NAME: midaz-ledger
       WORKING_DIR: components/ledger
