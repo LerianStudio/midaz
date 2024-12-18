@@ -8,7 +8,7 @@ jobs:
   bump_formula:
     runs-on: ubuntu-24.04
     steps:
-      - if: github.event.pull_request.head.ref != 'develop' && github.event.pull_request.head.ref != 'hotfix'
+      - if: github.event.pull_request.head.ref == 'main'
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
         with:
