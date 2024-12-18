@@ -89,14 +89,6 @@ jobs:
         go-version: '1.23'
         cache: false
 
-    - name: Load Environment Variables
-      run: |
-        cd  ./components/mdz/
-        set -a
-        [ -f .env.example ] && source .env.example
-        set +a
-        cd -
-
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v6
       with:
