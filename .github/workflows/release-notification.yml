@@ -4,7 +4,7 @@ on:
 
 jobs:
   github-releases-to-discord:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
