@@ -1,3 +1,11 @@
+## [1.33.0](https://github.com/LerianStudio/midaz/compare/v1.32.0...v1.33.0) (2024-12-18)
+
+
+### Bug Fixes
+
+* if only in main base :bug: ([4cc3bbb](https://github.com/LerianStudio/midaz/commit/4cc3bbb97f2bf7c3c3c81ad43f91d871fdfd08b9))
+* separated github actions from a different one file apart :bug: ([c72c00f](https://github.com/LerianStudio/midaz/commit/c72c00f2dbfd87286717438e6bb026a5bd3bb82b))
+
 ## [1.32.0](https://github.com/LerianStudio/midaz/compare/v1.31.0...v1.32.0) (2024-12-18)
 
 
