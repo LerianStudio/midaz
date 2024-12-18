@@ -42,8 +42,8 @@ nfpms:
   - id: packages
     license: Apache-2.0 license
     maintainer: Lerian Studio Technologies <https://github.com/LerianStudio/>
-    package_name: azion
-    homepage: https://github.com/maxwelbm/mdz
+    package_name: mdz
+    homepage: https://github.com/LerianStudio/midaz
     bindir: /usr/local/bin
     formats:
       - apk
