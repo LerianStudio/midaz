@@ -7,3 +7,4 @@ components/mdz/bin/mdz
 *.iml
 components/ledger/_docker-compose.yml
 coverage.out
+dist/
