@@ -17,7 +17,6 @@ jobs:
 
       - name: Github Releases To Discord
         uses: SethCohen/github-releases-to-discord@v1.13.1
-        if: '!github.event.prerelease'
         with:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           color: "2105893"
