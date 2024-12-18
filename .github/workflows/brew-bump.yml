@@ -8,8 +8,8 @@ jobs:
   bump_formula:
     runs-on: ubuntu-24.04
     steps:
-      - if: github.event.pull_request.head.ref == 'main'
       - name: Update Homebrew Formula
+        if: ${{ !github.event.release.prerelease }}
         uses: dawidd6/action-homebrew-bump-formula@v4
         with:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}

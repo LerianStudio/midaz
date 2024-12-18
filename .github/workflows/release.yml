@@ -24,7 +24,7 @@ permissions:
 jobs:
   integration_tests:
     name: Integration test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       WORKING_DIR: components/ledger
     steps:
@@ -37,7 +37,7 @@ jobs:
         run: make test
 
   publish_release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: integration_tests
     environment:
       name: create_release
