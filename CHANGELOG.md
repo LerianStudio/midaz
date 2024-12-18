@@ -1,3 +1,10 @@
+## [1.32.0](https://github.com/LerianStudio/midaz/compare/v1.31.0...v1.32.0) (2024-12-18)
+
+
+### Bug Fixes
+
+* Add 'workflow_run' for bump_formula and update dependencies ([7e67ac0](https://github.com/LerianStudio/midaz/commit/7e67ac0bfa4c39850c4b211ae9b6ed4adf7aba7b))
+
 ## [1.32.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.31.1-beta.2...v1.32.0-beta.1) (2024-12-18)
 
 
