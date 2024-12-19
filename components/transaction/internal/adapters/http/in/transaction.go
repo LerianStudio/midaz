@@ -289,8 +289,8 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
-//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
