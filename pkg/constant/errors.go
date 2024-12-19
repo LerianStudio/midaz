@@ -91,4 +91,5 @@ var (
 	ErrInvalidSortOrder                     = errors.New("0081")
 	ErrInvalidQueryParameter                = errors.New("0082")
 	ErrInvalidDateRange                     = errors.New("0083")
+	ErrIdempotencyKey                       = errors.New("0084")
 )

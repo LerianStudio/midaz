@@ -777,6 +777,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Invalid Date Range Error",
 			Message:    "Both 'initialDate' and 'finalDate' fields are required and must be in the 'yyyy-mm-dd' format. Please provide valid dates and try again.",
 		},
+		constant.ErrIdempotencyKey: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrIdempotencyKey.Error(),
+			Title:      "Invalid Transaction Idempotency",
+			Message:    fmt.Sprintf("There is already a value in Redis with this idempotency key: %v.", args[0]),
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
