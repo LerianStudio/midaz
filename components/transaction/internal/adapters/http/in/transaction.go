@@ -416,9 +416,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateDSL.End()
 
-	token := http.GetTokenHeader(c)
-
 	ctxGetAccounts, spanGetAccounts := tracer.Start(ctx, "handler.create_transaction.get_accounts")
+	
+	token := http.GetTokenHeader(c)
 
 	accounts, err := handler.getAccounts(ctxGetAccounts, logger, token, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
