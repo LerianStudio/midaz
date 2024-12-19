@@ -8,7 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mlog"
 )
 
-const RedisTTL = 5
+const RedisTTL = 300
 
 // RedisConnection is a hub which deal with redis connections.
 type RedisConnection struct {

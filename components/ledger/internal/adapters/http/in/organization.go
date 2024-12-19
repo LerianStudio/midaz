@@ -173,8 +173,8 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			metadata		query		string	false	"Metadata"
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			page			query		int		false	"Page"			default(1)
-//	@Param			start_date		query		string	false	"Start Date"	example(2021-01-01)
-//	@Param			end_date		query		string	false	"End Date"		example(2021-01-01)
+//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
+//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}
 //	@Router			/v1/organizations [get]

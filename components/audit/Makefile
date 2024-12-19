@@ -18,7 +18,7 @@ info:
 	@echo "                                                                                                                         "
 	@echo "## App commands:"
 	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation using swag."
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -67,3 +67,6 @@ ps:
 
 generate-docs:
 	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
+	@docker run --rm -v ./:/audit --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./audit/api/swagger.json -g openapi-yaml -o ./audit/api
+	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
+	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
