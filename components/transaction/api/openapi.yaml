@@ -1,0 +1,2023 @@
+openapi: 3.0.1
+info:
+  contact:
+    name: Discord community
+    url: https://discord.gg/DnhqKwkGv3
+  description: This is a swagger documentation for the Midaz Transaction API
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Midaz Transaction API
+  version: 1.0.0
+servers:
+- url: //localhost:3002/
+paths:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Ledger ID
+        in: query
+        name: sort_order
+        schema:
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+          description: OK
+      summary: Get all Operations by account
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}:
+    get:
+      description: Get an Operation with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        schema:
+          type: string
+      - description: Operation ID
+        in: path
+        name: operation_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+          description: OK
+      summary: Get an Operation by account
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
+    post:
+      description: Create or Update an AssetRate with the input details
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssetRateInput'
+        description: AssetRate Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetRate'
+          description: OK
+      summary: Create or Update an AssetRate
+      tags:
+      - Asset Rates
+      x-codegen-request-body-name: asset-rate
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}:
+    get:
+      description: Get an AssetRate by the Asset Code with the input details
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: From Asset Code
+        in: path
+        name: asset_code
+        required: true
+        schema:
+          type: string
+      - description: To Asset Codes
+        explode: false
+        in: query
+        name: to
+        schema:
+          items:
+            type: string
+          type: array
+        style: form
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_1'
+          description: OK
+      summary: Get an AssetRate by the Asset Code
+      tags:
+      - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}:
+    get:
+      description: Get an AssetRate by External ID with the input details
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: External ID
+        in: path
+        name: external_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetRate'
+          description: OK
+      summary: Get an AssetRate by External ID
+      tags:
+      - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Portfolio ID
+        in: path
+        name: portfolio_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_2'
+          description: OK
+      summary: Get all Operations by portfolio
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}:
+    get:
+      description: Get an Operation with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Portfolio ID
+        in: path
+        name: portfolio_id
+        required: true
+        schema:
+          type: string
+      - description: Operation ID
+        in: path
+        name: operation_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+          description: OK
+      summary: Get an Operation by portfolio
+      tags:
+      - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
+    get:
+      description: Get all Transactions with the input metadata or without metadata
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_3'
+          description: OK
+      summary: Get all Transactions
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
+    post:
+      description: Create a Transaction with the input DSL file
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                transaction:
+                  description: Transaction DSL file
+                  format: binary
+                  type: string
+              required:
+              - transaction
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+      summary: Create a Transaction using DSL
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json:
+    post:
+      description: Create a Transaction with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionInput'
+        description: Transaction Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+      summary: Create a Transaction using JSON
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}:
+    get:
+      description: Get a Transaction with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+      summary: Get a Transaction by ID
+      tags:
+      - Transactions
+    patch:
+      description: Update a Transaction with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTransactionInput'
+        description: Transaction Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+      summary: Update a Transaction
+      tags:
+      - Transactions
+      x-codegen-request-body-name: transaction
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
+    patch:
+      description: Update an Operation with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          type: string
+      - description: Operation ID
+        in: path
+        name: operation_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOperationInput'
+        description: Operation Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Operation'
+          description: OK
+      summary: Update an Operation
+      tags:
+      - Operations
+      x-codegen-request-body-name: operation
+components:
+  schemas:
+    Amount:
+      description: Amount is the struct designed to represent the amount of an operation.
+      example:
+        scale: 2
+        asset: BRL
+        value: 1000
+      properties:
+        asset:
+          example: BRL
+          type: string
+        scale:
+          example: 2
+          minimum: 0
+          type: integer
+        value:
+          example: 1000
+          type: integer
+      required:
+      - asset
+      - value
+      type: object
+    AssetRate:
+      description: AssetRate is a struct designed to store asset rate data.
+      example:
+        metadata:
+          key: '{}'
+        externalId: 00000000-0000-0000-0000-000000000000
+        scale: 2.0
+        source: External System
+        ttl: 3600
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        rate: 100.0
+        from: USD
+        id: 00000000-0000-0000-0000-000000000000
+        to: BRL
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        externalId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        from:
+          example: USD
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        rate:
+          example: 100.0
+          type: number
+        scale:
+          example: 2.0
+          type: number
+        source:
+          example: External System
+          type: string
+        to:
+          example: BRL
+          type: string
+        ttl:
+          example: 3600
+          type: integer
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      type: object
+    Balance:
+      description: Balance is the struct designed to represent the account balance.
+      example:
+        onHold: 500.0
+        available: 1500.0
+        scale: 2.0
+      properties:
+        available:
+          example: 1500.0
+          type: number
+        onHold:
+          example: 500.0
+          type: number
+        scale:
+          example: 2.0
+          type: number
+      type: object
+    CreateAssetRateInput:
+      description: CreateAssetRateInput is the input payload to create an asset rate.
+      example:
+        metadata:
+          key: '{}'
+        rate: 100
+        externalId: 00000000-0000-0000-0000-000000000000
+        scale: 2
+        from: USD
+        source: External System
+        to: BRL
+        ttl: 3600
+      properties:
+        externalId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        from:
+          example: USD
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        rate:
+          example: 100
+          type: integer
+        scale:
+          example: 2
+          minimum: 0
+          type: integer
+        source:
+          example: External System
+          type: string
+        to:
+          example: BRL
+          type: string
+        ttl:
+          example: 3600
+          type: integer
+      required:
+      - from
+      - rate
+      - to
+      type: object
+    CreateTransactionInput:
+      description: CreateTransactionInput is the input payload to create a transaction.
+      example:
+        metadata:
+          key: '{}'
+        code: code
+        pending: true
+        description: description
+        distribute:
+          to:
+          - amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              scale: 2
+              from: BRL
+              to: USDe
+              value: 1000
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            account: '@person1'
+            remaining: remaining
+          - amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              scale: 2
+              from: BRL
+              to: USDe
+              value: 1000
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            account: '@person1'
+            remaining: remaining
+          remaining: remaining
+        chartOfAccountsGroupName: chartOfAccountsGroupName
+        send:
+          scale: 2
+          source:
+            from:
+            - amount:
+                scale: 2
+                asset: BRL
+                value: 1000
+              metadata:
+                key: '{}'
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                scale: 2
+                from: BRL
+                to: USDe
+                value: 1000
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              account: '@person1'
+              remaining: remaining
+            - amount:
+                scale: 2
+                asset: BRL
+                value: 1000
+              metadata:
+                key: '{}'
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                scale: 2
+                from: BRL
+                to: USDe
+                value: 1000
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              account: '@person1'
+              remaining: remaining
+            remaining: remaining
+          asset: BRL
+          value: 1000
+      properties:
+        chartOfAccountsGroupName:
+          maxLength: 256
+          type: string
+        code:
+          maxLength: 100
+          type: string
+        description:
+          maxLength: 256
+          type: string
+        distribute:
+          $ref: '#/components/schemas/Distribute'
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        pending:
+          type: boolean
+        send:
+          $ref: '#/components/schemas/Send'
+      required:
+      - distribute
+      - send
+      type: object
+    Distribute:
+      description: Distribute is the struct designed to represent the distribution
+        fields of an operation.
+      example:
+        to:
+        - amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            scale: 2
+            from: BRL
+            to: USDe
+            value: 1000
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          account: '@person1'
+          remaining: remaining
+        - amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            scale: 2
+            from: BRL
+            to: USDe
+            value: 1000
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          account: '@person1'
+          remaining: remaining
+        remaining: remaining
+      properties:
+        remaining:
+          type: string
+        to:
+          items:
+            $ref: '#/components/schemas/FromTo'
+          type: array
+      required:
+      - to
+      type: object
+    FromTo:
+      description: FromTo is the struct designed to represent the from/to fields of
+        an operation.
+      example:
+        amount:
+          scale: 2
+          asset: BRL
+          value: 1000
+        metadata:
+          key: '{}'
+        rate:
+          externalId: 00000000-0000-0000-0000-000000000000
+          scale: 2
+          from: BRL
+          to: USDe
+          value: 1000
+        isFrom: true
+        chartOfAccounts: "1000"
+        description: description
+        share:
+          percentage: 0
+          percentageOfPercentage: 6
+        account: '@person1'
+        remaining: remaining
+      properties:
+        account:
+          example: '@person1'
+          type: string
+        amount:
+          $ref: '#/components/schemas/Amount'
+        chartOfAccounts:
+          example: "1000"
+          type: string
+        description:
+          example: description
+          type: string
+        isFrom:
+          example: true
+          type: boolean
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        rate:
+          $ref: '#/components/schemas/Rate'
+        remaining:
+          example: remaining
+          type: string
+        share:
+          $ref: '#/components/schemas/Share'
+      type: object
+    Operation:
+      description: Operation is a struct designed to store operation data.
+      example:
+        accountAlias: '@person1'
+        amount:
+          scale: 2
+          asset: BRL
+          value: 1000
+        metadata:
+          key: '{}'
+        assetCode: BRL
+        chartOfAccounts: "1000"
+        description: Credit card operation
+        type: creditCard
+        transactionId: 00000000-0000-0000-0000-000000000000
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        portfolioId: 00000000-0000-0000-0000-000000000000
+        balance:
+          onHold: 500.0
+          available: 1500.0
+          scale: 2.0
+        balanceAfter:
+          onHold: 500.0
+          available: 1500.0
+          scale: 2.0
+        id: 00000000-0000-0000-0000-000000000000
+        status:
+          code: ACTIVE
+          description: Active status
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        accountAlias:
+          example: '@person1'
+          type: string
+        accountId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        amount:
+          $ref: '#/components/schemas/Amount'
+        assetCode:
+          example: BRL
+          type: string
+        balance:
+          $ref: '#/components/schemas/Balance'
+        balanceAfter:
+          $ref: '#/components/schemas/Balance'
+        chartOfAccounts:
+          example: "1000"
+          type: string
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        description:
+          example: Credit card operation
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        portfolioId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        transactionId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        type:
+          example: creditCard
+          type: string
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      type: object
+    Pagination:
+      description: Pagination is the struct designed to store the pagination data
+        of an entity list.
+      example:
+        prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+        limit: 10
+        page: 1
+        items: '{}'
+      properties:
+        items:
+          type: object
+        limit:
+          example: 10
+          type: integer
+        next_cursor:
+          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          type: string
+          x-omitempty: true
+        page:
+          example: 1
+          type: integer
+        prev_cursor:
+          example: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          type: string
+          x-omitempty: true
+      type: object
+    Rate:
+      description: Rate is the struct designed to represent the rate fields of an
+        operation.
+      example:
+        externalId: 00000000-0000-0000-0000-000000000000
+        scale: 2
+        from: BRL
+        to: USDe
+        value: 1000
+      properties:
+        externalId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        from:
+          example: BRL
+          type: string
+        scale:
+          example: 2
+          minimum: 0
+          type: integer
+        to:
+          example: USDe
+          type: string
+        value:
+          example: 1000
+          type: integer
+      required:
+      - externalId
+      - from
+      - to
+      - value
+      type: object
+    Send:
+      description: Send is the struct designed to represent the sending fields of
+        an operation.
+      example:
+        scale: 2
+        source:
+          from:
+          - amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              scale: 2
+              from: BRL
+              to: USDe
+              value: 1000
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            account: '@person1'
+            remaining: remaining
+          - amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              scale: 2
+              from: BRL
+              to: USDe
+              value: 1000
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            account: '@person1'
+            remaining: remaining
+          remaining: remaining
+        asset: BRL
+        value: 1000
+      properties:
+        asset:
+          example: BRL
+          type: string
+        scale:
+          example: 2
+          minimum: 0
+          type: integer
+        source:
+          $ref: '#/components/schemas/Source'
+        value:
+          example: 1000
+          type: integer
+      required:
+      - asset
+      - source
+      - value
+      type: object
+    Share:
+      description: Share is the struct designed to represent the sharing fields of
+        an operation.
+      example:
+        percentage: 0
+        percentageOfPercentage: 6
+      properties:
+        percentage:
+          type: integer
+        percentageOfPercentage:
+          type: integer
+      required:
+      - percentage
+      type: object
+    Source:
+      description: Source is the struct designed to represent the source fields of
+        an operation.
+      example:
+        from:
+        - amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            scale: 2
+            from: BRL
+            to: USDe
+            value: 1000
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          account: '@person1'
+          remaining: remaining
+        - amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          rate:
+            externalId: 00000000-0000-0000-0000-000000000000
+            scale: 2
+            from: BRL
+            to: USDe
+            value: 1000
+          isFrom: true
+          chartOfAccounts: "1000"
+          description: description
+          share:
+            percentage: 0
+            percentageOfPercentage: 6
+          account: '@person1'
+          remaining: remaining
+        remaining: remaining
+      properties:
+        from:
+          items:
+            $ref: '#/components/schemas/FromTo'
+          type: array
+        remaining:
+          example: remaining
+          type: string
+      required:
+      - from
+      type: object
+    Status:
+      description: Status is the struct designed to represent the status of a transaction.
+      example:
+        code: ACTIVE
+        description: Active status
+      properties:
+        code:
+          example: ACTIVE
+          maxLength: 100
+          type: string
+        description:
+          example: Active status
+          maxLength: 256
+          type: string
+      type: object
+    Transaction:
+      description: Transaction is a struct designed to store transaction data.
+      example:
+        template: Transaction template
+        amount: 1500.0
+        metadata:
+          key: '{}'
+        assetCode: BRL
+        destination:
+        - '@person2'
+        description: Transaction description
+        source:
+        - '@person1'
+        chartOfAccountsGroupName: Chart of accounts group name
+        parentTransactionId: 00000000-0000-0000-0000-000000000000
+        amountScale: 2.0
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        operations:
+        - accountAlias: '@person1'
+          amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          description: Credit card operation
+          type: creditCard
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          balance:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          balanceAfter:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+        - accountAlias: '@person1'
+          amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          description: Credit card operation
+          type: creditCard
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          balance:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          balanceAfter:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+        id: 00000000-0000-0000-0000-000000000000
+        status:
+          code: ACTIVE
+          description: Active status
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        amount:
+          example: 1500.0
+          type: number
+        amountScale:
+          example: 2.0
+          type: number
+        assetCode:
+          example: BRL
+          type: string
+        chartOfAccountsGroupName:
+          example: Chart of accounts group name
+          type: string
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        description:
+          example: Transaction description
+          type: string
+        destination:
+          example:
+          - '@person2'
+          items:
+            type: string
+          type: array
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        operations:
+          items:
+            $ref: '#/components/schemas/Operation'
+          type: array
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        parentTransactionId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        source:
+          example:
+          - '@person1'
+          items:
+            type: string
+          type: array
+        status:
+          $ref: '#/components/schemas/Status'
+        template:
+          example: Transaction template
+          type: string
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      type: object
+    UpdateOperationInput:
+      description: UpdateOperationInput is the input payload to update an operation.
+      example:
+        metadata:
+          key: '{}'
+        description: Credit card operation
+      properties:
+        description:
+          example: Credit card operation
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+      type: object
+    UpdateTransactionInput:
+      description: UpdateTransactionInput is the input payload to update a transaction.
+      example:
+        metadata:
+          key: '{}'
+        description: Transaction description
+      properties:
+        description:
+          example: Transaction description
+          maxLength: 256
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+      type: object
+    inline_response_200:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        ' prev_cursor': ' prev_cursor'
+        ' next_cursor': ' next_cursor'
+        limit: 0
+        items:
+        - accountAlias: '@person1'
+          amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          description: Credit card operation
+          type: creditCard
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          balance:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          balanceAfter:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+        - accountAlias: '@person1'
+          amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          description: Credit card operation
+          type: creditCard
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          balance:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          balanceAfter:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        ' next_cursor':
+          type: string
+        ' prev_cursor':
+          type: string
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Operation'
+          type: array
+        limit:
+          type: integer
+      type: object
+    inline_response_200_1:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        items:
+        - metadata:
+            key: '{}'
+          externalId: 00000000-0000-0000-0000-000000000000
+          scale: 2.0
+          source: External System
+          ttl: 3600
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          rate: 100.0
+          from: USD
+          id: 00000000-0000-0000-0000-000000000000
+          to: BRL
+          updatedAt: 2021-01-01T00:00:00Z
+        - metadata:
+            key: '{}'
+          externalId: 00000000-0000-0000-0000-000000000000
+          scale: 2.0
+          source: External System
+          ttl: 3600
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          rate: 100.0
+          from: USD
+          id: 00000000-0000-0000-0000-000000000000
+          to: BRL
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/AssetRate'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        prev_cursor:
+          type: string
+      type: object
+    inline_response_200_2:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        items:
+        - accountAlias: '@person1'
+          amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          description: Credit card operation
+          type: creditCard
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          balance:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          balanceAfter:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+        - accountAlias: '@person1'
+          amount:
+            scale: 2
+            asset: BRL
+            value: 1000
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          chartOfAccounts: "1000"
+          description: Credit card operation
+          type: creditCard
+          transactionId: 00000000-0000-0000-0000-000000000000
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          portfolioId: 00000000-0000-0000-0000-000000000000
+          balance:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          balanceAfter:
+            onHold: 500.0
+            available: 1500.0
+            scale: 2.0
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Operation'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        prev_cursor:
+          type: string
+      type: object
+    inline_response_200_3:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        prev_cursor: prev_cursor
+        next_cursor: next_cursor
+        limit: 0
+        page: '{}'
+        items:
+        - template: Transaction template
+          amount: 1500.0
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          destination:
+          - '@person2'
+          description: Transaction description
+          source:
+          - '@person1'
+          chartOfAccountsGroupName: Chart of accounts group name
+          parentTransactionId: 00000000-0000-0000-0000-000000000000
+          amountScale: 2.0
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          operations:
+          - accountAlias: '@person1'
+            amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            description: Credit card operation
+            type: creditCard
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            portfolioId: 00000000-0000-0000-0000-000000000000
+            balance:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            balanceAfter:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            id: 00000000-0000-0000-0000-000000000000
+            status:
+              code: ACTIVE
+              description: Active status
+            updatedAt: 2021-01-01T00:00:00Z
+          - accountAlias: '@person1'
+            amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            description: Credit card operation
+            type: creditCard
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            portfolioId: 00000000-0000-0000-0000-000000000000
+            balance:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            balanceAfter:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            id: 00000000-0000-0000-0000-000000000000
+            status:
+              code: ACTIVE
+              description: Active status
+            updatedAt: 2021-01-01T00:00:00Z
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+        - template: Transaction template
+          amount: 1500.0
+          metadata:
+            key: '{}'
+          assetCode: BRL
+          destination:
+          - '@person2'
+          description: Transaction description
+          source:
+          - '@person1'
+          chartOfAccountsGroupName: Chart of accounts group name
+          parentTransactionId: 00000000-0000-0000-0000-000000000000
+          amountScale: 2.0
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          operations:
+          - accountAlias: '@person1'
+            amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            description: Credit card operation
+            type: creditCard
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            portfolioId: 00000000-0000-0000-0000-000000000000
+            balance:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            balanceAfter:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            id: 00000000-0000-0000-0000-000000000000
+            status:
+              code: ACTIVE
+              description: Active status
+            updatedAt: 2021-01-01T00:00:00Z
+          - accountAlias: '@person1'
+            amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            assetCode: BRL
+            chartOfAccounts: "1000"
+            description: Credit card operation
+            type: creditCard
+            transactionId: 00000000-0000-0000-0000-000000000000
+            ledgerId: 00000000-0000-0000-0000-000000000000
+            organizationId: 00000000-0000-0000-0000-000000000000
+            accountId: 00000000-0000-0000-0000-000000000000
+            createdAt: 2021-01-01T00:00:00Z
+            deletedAt: 2021-01-01T00:00:00Z
+            portfolioId: 00000000-0000-0000-0000-000000000000
+            balance:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            balanceAfter:
+              onHold: 500.0
+              available: 1500.0
+              scale: 2.0
+            id: 00000000-0000-0000-0000-000000000000
+            status:
+              code: ACTIVE
+              description: Active status
+            updatedAt: 2021-01-01T00:00:00Z
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Transaction'
+          type: array
+        limit:
+          type: integer
+        next_cursor:
+          type: string
+        page:
+          properties: {}
+          type: object
+        prev_cursor:
+          type: string
+      type: object
+x-original-swagger-version: "2.0"

@@ -69,14 +69,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "Start Date",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "End Date",
                         "name": "end_date",
                         "in": "query"
@@ -350,14 +348,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "Start Date",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "End Date",
                         "name": "end_date",
                         "in": "query"
@@ -665,14 +661,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "Start Date",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "End Date",
                         "name": "end_date",
                         "in": "query"
@@ -1008,14 +1002,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "Start Date",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "End Date",
                         "name": "end_date",
                         "in": "query"
@@ -1351,14 +1343,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "Start Date",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "End Date",
                         "name": "end_date",
                         "in": "query"
@@ -2028,14 +2018,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "Start Date",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "example": "2021-01-01",
                         "description": "End Date",
                         "name": "end_date",
                         "in": "query"

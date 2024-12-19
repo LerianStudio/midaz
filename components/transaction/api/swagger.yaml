@@ -466,12 +466,10 @@ paths:
         name: limit
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -658,7 +656,6 @@ paths:
         type: string
       - collectionFormat: csv
         description: To Asset Codes
-        example: '"BRL,USD,SGD"'
         in: query
         items:
           type: string
@@ -670,12 +667,10 @@ paths:
         name: limit
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -747,12 +742,10 @@ paths:
         name: limit
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -862,12 +855,10 @@ paths:
         name: limit
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string

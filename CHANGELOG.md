@@ -1,3 +1,16 @@
+## [1.36.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.35.0...v1.36.0-beta.1) (2024-12-19)
+
+
+### Features
+
+* add new oas 3.0 yaml ([d34059d](https://github.com/LerianStudio/midaz/commit/d34059d2e205f1a7c45ae55e2dc2bf56d6cba056))
+
+
+### Bug Fixes
+
+* remane to correct spelling name :bug: ([79da5bc](https://github.com/LerianStudio/midaz/commit/79da5bc9118edf793ae1c179d0dde8a04fe3e2e8))
+* remove docker compose swag generate :bug: ([a65b347](https://github.com/LerianStudio/midaz/commit/a65b34773772b55ecfc19607570548f1182d1acd))
+
 ## [1.35.0](https://github.com/LerianStudio/midaz/compare/v1.34.0...v1.35.0) (2024-12-19)
 
 

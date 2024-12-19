@@ -578,12 +578,10 @@ paths:
         name: page
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -765,12 +763,10 @@ paths:
         name: page
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -976,12 +972,10 @@ paths:
         name: page
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -1207,12 +1201,10 @@ paths:
         name: page
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -1438,12 +1430,10 @@ paths:
         name: page
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string
@@ -1909,12 +1899,10 @@ paths:
         name: page
         type: integer
       - description: Start Date
-        example: "2021-01-01"
         in: query
         name: start_date
         type: string
       - description: End Date
-        example: "2021-01-01"
         in: query
         name: end_date
         type: string

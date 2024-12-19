@@ -113,10 +113,13 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           cp midaz/components/audit/api/swagger.json LerianStudio.github.io/audit/
+          cp midaz/components/audit/api/openapi.yaml LerianStudio.github.io/audit/
 
           cp midaz/components/ledger/api/swagger.json LerianStudio.github.io/ledger/ 
+          cp midaz/components/ledger/api/openapi.yaml LerianStudio.github.io/ledger/ 
           
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
+          cp midaz/components/transaction/api/openapi.yaml LerianStudio.github.io/transaction/
 
       - name: Commit and Push Swagger to Git Page
         env:

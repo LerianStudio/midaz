@@ -49,9 +49,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	logger.Infof("value of ttl: %v", ttl*time.Minute)
+	logger.Infof("value of ttl: %v", ttl*time.Second)
 
-	err = rds.Set(ctx, key, value, ttl*time.Minute).Err()
+	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
