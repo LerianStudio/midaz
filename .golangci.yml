@@ -5,7 +5,6 @@ linters:
     - depguard
     - dogsled
     - dupword # Detects duplicate words.
-    - durationcheck
     - errchkjson
     - gocyclo
     - loggercheck

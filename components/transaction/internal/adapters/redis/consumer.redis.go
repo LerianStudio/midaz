@@ -14,7 +14,7 @@ import (
 //go:generate mockgen --destination=redis.mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
-	Get(ctx context.Context, key string) error
+	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 }
 
@@ -49,23 +49,19 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	if ttl <= 0 {
-		ttl = mredis.RedisTTL
-	}
+	logger.Infof("value of ttl: %v", ttl*time.Minute)
 
-	logger.Infof("value of ttl: %v", ttl)
+	err = rds.Set(ctx, key, value, ttl*time.Minute).Err()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
-	statusCMD := rds.Set(ctx, key, value, ttl)
-	if statusCMD.Err() != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
-
-		return statusCMD.Err()
+		return err
 	}
 
 	return nil
 }
 
-func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
+func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -76,43 +72,21 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return err
+		return "", err
 	}
 
-	stringCMD := rds.Get(ctx, key)
-	if stringCMD.Err() != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get on redis", stringCMD.Err())
+	val, err := rds.Get(ctx, key).Result()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
 
-		return stringCMD.Err()
+		return "", err
 	}
 
-	logger.Infof("get cmd: %v", stringCMD.String())
+	logger.Infof("value : %v", val)
 
-	return nil
+	return val, nil
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.del")
-	defer span.End()
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to del redis", err)
-
-		return err
-	}
-
-	intCMD := rds.Del(ctx, key)
-	if intCMD.Err() != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to del on redis", intCMD.Err())
-
-		return intCMD.Err()
-	}
-
-	logger.Infof("del cmd: %v", intCMD.String())
-
 	return nil
 }

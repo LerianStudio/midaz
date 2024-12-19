@@ -100,6 +100,11 @@ type Transaction struct {
 	Operations               []*operation.Operation `json:"operations"`
 } // @name Transaction
 
+// IDtoUUID is a func that convert UUID string to uuid.UUID
+func (t Transaction) IDtoUUID() uuid.UUID {
+	return uuid.MustParse(t.ID)
+}
+
 // ToEntity converts an TransactionPostgreSQLModel to entity Transaction
 func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 	status := Status{
