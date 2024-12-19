@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"github.com/LerianStudio/midaz/pkg/mredis"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"io"
@@ -201,6 +202,21 @@ func GetRemoteAddress(r *http.Request) string {
 	}
 
 	return realIP
+}
+
+// GetIdempotencyKeyAndTtl returns idempotency key and ttl if pass through.
+func GetIdempotencyKeyAndTtl(c *fiber.Ctx) (string, time.Duration) {
+	ikey := c.Get(idempotencyKey)
+	iTtl := c.Get(idempotencyTTL)
+
+	t, err := strconv.Atoi(iTtl)
+	if err != nil {
+		t = mredis.RedisTTL
+	}
+
+	ttl := time.Duration(t)
+
+	return ikey, ttl
 }
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
