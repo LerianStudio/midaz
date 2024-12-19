@@ -5,11 +5,11 @@ on:
     types: [released]
 
 jobs:
-  bump_formula:
+  brew_release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - name: Update Homebrew Formula
-        if: ${{ !github.event.release.prerelease }}
         uses: dawidd6/action-homebrew-bump-formula@v4
         with:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}

@@ -3,13 +3,6 @@ package in
 import (
 	"context"
 	"encoding/json"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/trace"
-	"os"
-	"reflect"
-	"strings"
-
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -20,9 +13,15 @@ import (
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
+	"os"
+	"reflect"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -387,6 +386,23 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
+	_, spanRedis := tracer.Start(ctx, "handler.create_transaction_idempotency")
+
+	ts, _ := pkg.StructToJSONString(parserDSL)
+	hash := pkg.HashSHA256(ts)
+	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+
+	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanRedis, "Redis idempotency key", err)
+
+		logger.Error("Redis idempotency key:", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	spanRedis.End()
+
 	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
 
 	validate, err := goldModel.ValidateSendSourceAndDistribute(parserDSL)
@@ -400,9 +416,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateDSL.End()
 
-	token := http.GetTokenHeader(c)
-
 	ctxGetAccounts, spanGetAccounts := tracer.Start(ctx, "handler.create_transaction.get_accounts")
+
+	token := http.GetTokenHeader(c)
 
 	accounts, err := handler.getAccounts(ctxGetAccounts, logger, token, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
@@ -444,10 +460,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanCreateTransaction.End()
 
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
-	transactionID := uuid.MustParse(tran.ID)
-
 	e := make(chan error)
 	result := make(chan []*operation.Operation)
 
@@ -488,7 +500,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
 
 	//TODO: use event driven and broken and parts
-	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, transactionID, constant.APPROVED)
+	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
@@ -502,7 +514,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.create_transaction.get_transaction")
 
 	//TODO: use event driven and broken and parts
-	tran, err = handler.Query.GetTransactionByID(ctxGetTransaction, organizationID, ledgerID, transactionID)
+	tran, err = handler.Query.GetTransactionByID(ctxGetTransaction, organizationID, ledgerID, tran.IDtoUUID())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetTransaction, "Failed to retrieve transaction", err)
 
@@ -513,11 +525,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanGetTransaction.End()
 
+	tran.Source = validate.Sources
+	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
-	go handler.logTransaction(ctx, operations, organizationID, ledgerID, transactionID)
+	go handler.logTransaction(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
 }

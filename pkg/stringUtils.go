@@ -2,6 +2,8 @@ package pkg
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"regexp"
 	"strings"
 	"unicode"
@@ -177,4 +179,10 @@ func ValidateServerAddress(value string) string {
 	}
 
 	return value
+}
+
+// HashSHA256 generate a hash sha-256 to create idempotency on redis
+func HashSHA256(input string) string {
+	hash := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(hash[:])
 }
