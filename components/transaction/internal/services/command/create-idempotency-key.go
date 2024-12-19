@@ -25,6 +25,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, key, hash st
 	if err != nil {
 		logger.Error("Error to get idempotency key on redis failed:", err.Error())
 	}
+
 	if value == "" {
 		err = uc.RedisRepo.Set(ctx, key, hash, ttl)
 		if err != nil {

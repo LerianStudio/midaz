@@ -204,12 +204,12 @@ func GetRemoteAddress(r *http.Request) string {
 	return realIP
 }
 
-// GetIdempotencyKeyAndTtl returns idempotency key and ttl if pass through.
-func GetIdempotencyKeyAndTtl(c *fiber.Ctx) (string, time.Duration) {
+// GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
+func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	ikey := c.Get(idempotencyKey)
-	iTtl := c.Get(idempotencyTTL)
+	iTTL := c.Get(idempotencyTTL)
 
-	t, err := strconv.Atoi(iTtl)
+	t, err := strconv.Atoi(iTTL)
 	if err != nil {
 		t = mredis.RedisTTL
 	}

@@ -390,7 +390,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	ts, _ := pkg.StructToJSONString(parserDSL)
 	hash := pkg.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTtl(c)
+	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
 	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, key, hash, ttl)
 	if err != nil {
@@ -417,7 +417,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	spanValidateDSL.End()
 
 	ctxGetAccounts, spanGetAccounts := tracer.Start(ctx, "handler.create_transaction.get_accounts")
-	
+
 	token := http.GetTokenHeader(c)
 
 	accounts, err := handler.getAccounts(ctxGetAccounts, logger, token, organizationID, ledgerID, validate.Aliases)
