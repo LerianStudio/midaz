@@ -1,3 +1,27 @@
+## [1.34.0](https://github.com/LerianStudio/midaz/compare/v1.33.0...v1.34.0) (2024-12-19)
+
+
+### Features
+
+* add http utils func that help to get idempotency key and ttl ([cce1bcf](https://github.com/LerianStudio/midaz/commit/cce1bcfc8add465849cb1d36caad7a29ba883648))
+* create a func that convert uuid.string to uuid :sparkles: ([f535250](https://github.com/LerianStudio/midaz/commit/f53525007586cb61bcee7a21406fca2036d062f2))
+* create a string to sha-256 convert func :sparkles: ([c675219](https://github.com/LerianStudio/midaz/commit/c675219aeba97b08151e10c2f4e3a228cbed4094))
+* create header key to Idempotency and ttl :sparkles: ([b9124ed](https://github.com/LerianStudio/midaz/commit/b9124ed2991f2caae8c04880bbcdfc7151f30e63))
+* create Idempotency business error ([4c18470](https://github.com/LerianStudio/midaz/commit/4c18470c9ce56ae1e5d59f8ea1af55627539d1d8))
+
+
+### Bug Fixes
+
+* added if pre release bump formule brew ([0c576cc](https://github.com/LerianStudio/midaz/commit/0c576cc4bddbcafe3b5a3277e19a284e36ff4672))
+* adjust redis consumer :bug: ([f7edc63](https://github.com/LerianStudio/midaz/commit/f7edc63b4a775bcc5fdb32ac57f5557dc973bad9))
+* change ubuntu-release to ubuntu-24.04 :bug: ([8044333](https://github.com/LerianStudio/midaz/commit/804433391ea027c4275ce75ba967b473e151b5f7))
+* go test :bug: ([ab60f3b](https://github.com/LerianStudio/midaz/commit/ab60f3bf4dc6ff58ad9ce4f2ceb417aa0e049512))
+* golint :bug: ([32083c3](https://github.com/LerianStudio/midaz/commit/32083c3deb72794b43cb3928e03a5fe1a1ad8c19))
+* remove if :bug: ([d6e370a](https://github.com/LerianStudio/midaz/commit/d6e370ad97473314e07f70f091401ffdcfd2f666))
+* this is the correct pattern to match all branches that start with hotfix/ followed by any text. :bug: ([0ff571c](https://github.com/LerianStudio/midaz/commit/0ff571cdbe4a16dc8eaed805f27f1fee529a09fb))
+* update git action :bug: ([7acb849](https://github.com/LerianStudio/midaz/commit/7acb8494480685e708d808fafe179b8b110ade6e))
+* update go mod :bug: ([5ead58a](https://github.com/LerianStudio/midaz/commit/5ead58af6b04569123c6d9ef52128e1b962b3c05))
+
 ## [1.34.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.34.0-beta.1...v1.34.0-beta.2) (2024-12-19)
 
 
