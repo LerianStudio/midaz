@@ -275,3 +275,22 @@ func TestValidateServerAddress(t *testing.T) {
 		})
 	}
 }
+
+func TestHashSHA256(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"request:12345", "3a62c85b9e86b04facacd89dfa9229dc96a412e120f0a3a83ba909cbdd98ffa6"},
+		{"hello world", "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"},
+		{"", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+		{"GoLangTest", "c355fe1825ef2e7f14d216741e2c8c18c9bbafd95cdfa4987f957402c56fd4be"},
+	}
+
+	for _, tt := range tests {
+		result := HashSHA256(tt.input)
+		if result != tt.expected {
+			t.Errorf("HashSHA256(%q) = %q; esperado %q", tt.input, result, tt.expected)
+		}
+	}
+}

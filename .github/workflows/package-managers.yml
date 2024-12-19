@@ -5,7 +5,8 @@ on:
     types: [released]
 
 jobs:
-  bump_formula:
+  brew_release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - name: Update Homebrew Formula
