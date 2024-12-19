@@ -1,3 +1,14 @@
+## [1.34.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.33.0...v1.34.0-beta.1) (2024-12-19)
+
+
+### Bug Fixes
+
+* added if pre release bump formule brew ([0c576cc](https://github.com/LerianStudio/midaz/commit/0c576cc4bddbcafe3b5a3277e19a284e36ff4672))
+* change ubuntu-release to ubuntu-24.04 :bug: ([8044333](https://github.com/LerianStudio/midaz/commit/804433391ea027c4275ce75ba967b473e151b5f7))
+* remove if :bug: ([d6e370a](https://github.com/LerianStudio/midaz/commit/d6e370ad97473314e07f70f091401ffdcfd2f666))
+* this is the correct pattern to match all branches that start with hotfix/ followed by any text. :bug: ([0ff571c](https://github.com/LerianStudio/midaz/commit/0ff571cdbe4a16dc8eaed805f27f1fee529a09fb))
+* update git action :bug: ([7acb849](https://github.com/LerianStudio/midaz/commit/7acb8494480685e708d808fafe179b8b110ade6e))
+
 ## [1.33.0](https://github.com/LerianStudio/midaz/compare/v1.32.0...v1.33.0) (2024-12-18)
 
 
