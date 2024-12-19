@@ -27,7 +27,7 @@ info:
 	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
 	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
 	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
-	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation using swag."
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -68,6 +68,9 @@ tidy:
 
 generate-docs:
 	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
+	@docker run --rm -v ./:/transaction --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./transaction/api/swagger.json -g openapi-yaml -o ./transaction/api
+	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
+	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
 
 # Docker Compose Commands
 build:

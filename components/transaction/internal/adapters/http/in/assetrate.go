@@ -128,7 +128,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string		true	"Ledger ID"
 //	@Param			asset_code		path		string		true	"From Asset Code"
 //
-//	@Param			to				query		[]string	false	"To Asset Codes"	example("BRL,USD,SGD")
+//	@Param			to				query		[]string	false	"To Asset Codes"	example "BRL,USD,SGD"
 //	@Param			limit			query		int			false	"Limit"				default(10)
 //	@Param			start_date		query		string		false	"Start Date"		example "2021-01-01"
 //	@Param			end_date		query		string		false	"End Date"			example "2021-01-01"
