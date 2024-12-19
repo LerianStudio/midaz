@@ -1,3 +1,10 @@
+## [1.35.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.34.0...v1.35.0-beta.1) (2024-12-19)
+
+
+### Bug Fixes
+
+* publish pr homebrew after release publish ([ff10d3a](https://github.com/LerianStudio/midaz/commit/ff10d3ae5feba75149bbdcbe882048a3e248e44d))
+
 ## [1.34.0](https://github.com/LerianStudio/midaz/compare/v1.33.0...v1.34.0) (2024-12-19)
 
 
