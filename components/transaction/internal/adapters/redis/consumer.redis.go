@@ -48,7 +48,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 
 		return err
 	}
-	
+
 	logger.Infof("value of ttl: %v", ttl*time.Minute)
 
 	err = rds.Set(ctx, key, value, ttl*time.Minute).Err()

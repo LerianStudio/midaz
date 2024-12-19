@@ -32,7 +32,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, key, hash st
 			logger.Error("Error to set idempotency key on redis failed:", err.Error())
 		}
 	} else {
-		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "createTransaction", key)
+		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
 
 		mopentelemetry.HandleSpanError(&span, "Failed exists value on redis with this key", err)
 
