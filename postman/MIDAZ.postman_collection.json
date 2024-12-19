@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "ccd5450e-2711-4910-bf48-f7146fb23876",
+		"_postman_id": "04ac9f89-2f0e-4aa7-80db-92644332f965",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "38928920"
+		"_exporter_id": "32592108"
 	},
 	"item": [
 		{
@@ -2291,8 +2291,19 @@
 									{
 										"key": "Midaz-ID",
 										"value": "{{$randomUUID}}",
-										"type": "text",
-										"disabled": true
+										"type": "text"
+									},
+									{
+										"key": "Idempotency-Key",
+										"value": "key-teste",
+										"description": "Idempotency Key, if not pass through we create base on body sha-256",
+										"type": "text"
+									},
+									{
+										"key": "TTL",
+										"value": "5",
+										"description": "Idempotency ttl, if not pass through we use 5 minuts default",
+										"type": "text"
 									}
 								],
 								"body": {
@@ -2351,21 +2362,21 @@
 								"method": "POST",
 								"header": [
 									{
-										"key": "idempotencyKey",
-										"value": "{{$randomUUID}}",
-										"type": "text"
-									},
-									{
-										"key": "tolerance",
-										"value": "300",
-										"description": "seconds",
-										"type": "text"
-									},
-									{
 										"key": "Midaz-ID",
 										"value": "{{$randomUUID}}",
-										"type": "text",
-										"disabled": true
+										"type": "text"
+									},
+									{
+										"key": "Idempotency-Key",
+										"value": "key-test",
+										"description": "Idempotency Key, if not pass through we create base on body sha-256",
+										"type": "text"
+									},
+									{
+										"key": "TTL",
+										"value": "5",
+										"description": "Idempotency ttl, if not pass through we use 5 minuts default",
+										"type": "text"
 									}
 								],
 								"body": {
@@ -2424,7 +2435,25 @@
 							],
 							"request": {
 								"method": "POST",
-								"header": [],
+								"header": [
+									{
+										"key": "Midaz-ID",
+										"value": "{{$randomUUID}}",
+										"type": "text"
+									},
+									{
+										"key": "Idempotency-Key",
+										"value": "key-test",
+										"description": "Idempotency Key, if not pass through we create base on body sha-256",
+										"type": "text"
+									},
+									{
+										"key": "TTL",
+										"value": "5",
+										"description": "Idempotency ttl, if not pass through we use 5 minuts default",
+										"type": "text"
+									}
+								],
 								"body": {
 									"mode": "raw",
 									"raw": "{\n    \"transactionType\": \"{{$randomUUID}}\",\n    \"transactionTypeCode\": \"P2P_TRANSFER\",\n    \"variables\": {\n        \"amount\": 100,\n        \"destination\": \"@Wallet_16750673\",\n        \"sourceAccount\": \"@person1\",\n        \"scale\": 0\n    }\n}",
