@@ -780,8 +780,8 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 		constant.ErrIdempotencyKey: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrIdempotencyKey.Error(),
-			Title:      "Invalid Transaction Idempotency",
-			Message:    fmt.Sprintf("There is already a value in Redis with this idempotency key: %v.", args),
+			Title:      "Duplicate Idempotency Key",
+			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
 		},
 	}
 
