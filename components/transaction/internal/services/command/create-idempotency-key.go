@@ -5,10 +5,11 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/google/uuid"
 	"time"
 )
 
-func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, key, hash string, ttl time.Duration) error {
+func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -21,13 +22,14 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, key, hash st
 		key = hash
 	}
 
-	value, err := uc.RedisRepo.Get(ctx, key)
+	internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+	value, err := uc.RedisRepo.Get(ctx, internalKey)
 	if err != nil {
 		logger.Error("Error to get idempotency key on redis failed:", err.Error())
 	}
 
 	if value == "" {
-		err = uc.RedisRepo.Set(ctx, key, hash, ttl)
+		err = uc.RedisRepo.Set(ctx, internalKey, hash, ttl)
 		if err != nil {
 			logger.Error("Error to set idempotency key on redis failed:", err.Error())
 		}

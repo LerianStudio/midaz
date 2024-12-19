@@ -392,7 +392,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	hash := pkg.HashSHA256(ts)
 	key, ttl := http.GetIdempotencyKeyAndTTL(c)
 
-	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, key, hash, ttl)
+	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanRedis, "Redis idempotency key", err)
 
