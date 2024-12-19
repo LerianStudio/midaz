@@ -2,7 +2,8 @@ name: "homebrew formula bump"
 
 on:
   release:
-    types: [released]
+    types:
+      - published
 
 jobs:
   brew_release:
