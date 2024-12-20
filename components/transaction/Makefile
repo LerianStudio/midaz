@@ -45,7 +45,6 @@ info:
 	@echo "                                                                                                                                       "
 	@echo "## App commands:"
 	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"wire\"                                 Generates all project code to connect components using Wire."
 	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
 	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
 	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
