@@ -1,3 +1,10 @@
+## [1.37.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.37.0-beta.1...v1.37.0-beta.2) (2024-12-20)
+
+
+### Features
+
+* publish cli midaz in the choco ([fac503f](https://github.com/LerianStudio/midaz/commit/fac503f593fe344ba47e3aebc9a4e880c5661d68))
+
 ## [1.37.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.36.0...v1.37.0-beta.1) (2024-12-20)
 
 
