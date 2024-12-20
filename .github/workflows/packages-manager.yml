@@ -17,6 +17,7 @@ jobs:
           formula: mdz
   
   choco_release:
+    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     steps:
       - name: Checkout code
