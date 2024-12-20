@@ -4,9 +4,19 @@ artifacts_dir := ./artifacts
 
 $(shell mkdir -p $(artifacts_dir))
 
-.PHONY: help build up start down destroy stop restart logs logs-api ps login-timescale login-api db-shell
+DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
+DOCKER_MIN_VERSION := 20.10.13
+
+DOCKER_CMD := $(shell \
+	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
+		echo "docker compose"; \
+	else \
+		echo "docker-compose"; \
+	fi \
+)
 
 # Display available commands
+.PHONY: info
 info:
 	@echo "                                                                                                                                       "
 	@echo "                                                                                                                                       "
@@ -27,45 +37,44 @@ info:
 	@echo "  COMMAND=\"destroy\"                              Stops and removes containers, networks, and volumes (including named volumes) defined in docker-compose.yml."
 	@echo "  COMMAND=\"restart\"                              Stops and removes containers, networks, and volumes, then starts all services in detached mode."
 	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
-	@echo "  COMMAND=\"infra-api\"                             Shows the last 100 lines of logs and follows live log output for the infra service defined in docker-compose.yml."
 	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the infra container, logging in as the postgres user."
-
+	@echo "                                                                                                                                       "
+	@echo "                                                                                                                                       "
 
 # Docker Compose Commands
+.PHONY: build
 build:
-	@docker-compose -f docker-compose.yml build
+	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
+.PHONY: up
 up:
-	@docker-compose -f docker-compose.yml up -d
+	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 
+.PHONY: start
 start:
-	@docker-compose -f docker-compose.yml start
+	@docker compose -f docker-compose.yml start $(c)
 
+.PHONY: down
 down:
-	@docker-compose -f docker-compose.yml down
+	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
 
+.PHONY: destroy
 destroy:
-	@docker-compose -f docker-compose.yml down -v
+	@$(DOCKER_CMD) -f docker-compose.yml down -v $(c)
 
+.PHONY: stop
 stop:
-	@docker-compose -f docker-compose.yml stop
+	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
 
+.PHONY: restart
 restart:
-	docker-compose -f docker-compose.yml down && \
-    docker-compose -f docker-compose.yml up -d
+	make stop && \
+    make up
 
+.PHONY: logs
 logs:
-	@docker-compose -f docker-compose.yml logs --tail=100 -f
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
 
-logs-api:
-	@docker-compose -f docker-compose.yml logs --tail=100 -f infra
-
+.PHONY: ps
 ps:
-	@docker-compose -f docker-compose.yml ps
-
-infra-api:
-	@docker-compose -f docker-compose.yml exec infra /bin/bash
-
-db-shell:
-	@docker-compose -f docker-compose.yml exec infra psql -Upostgres
+	@$(DOCKER_CMD) -f docker-compose.yml ps
