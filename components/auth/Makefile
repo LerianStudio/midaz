@@ -4,9 +4,19 @@ artifacts_dir := ./artifacts
 
 $(shell mkdir -p $(artifacts_dir))
 
-.PHONY: info gen run test cover-html tidy help build up start down destroy stop restart logs logs-api ps login-timescale login-api db-shell
+DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
+DOCKER_MIN_VERSION := 20.10.13
+
+DOCKER_CMD := $(shell \
+	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
+		echo "docker compose"; \
+	else \
+		echo "docker-compose"; \
+	fi \
+)
 
 # Display available commands
+.PHONY: info
 info:
 	@echo "                                                                                                                                       "
 	@echo "                                                                                                                                       "
@@ -28,43 +38,47 @@ info:
 	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
 	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the auth service defined in docker-compose.yml."
 	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "  COMMAND=\"auth-api\"                             Starts an interactive Bash shell session inside the running auth container defined in docker-compose.yml."
-	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the auth container, logging in as the postgres user."
+	@echo "                                                                                                                                       "
+	@echo "                                                                                                                                       "
 
 # Docker Compose Commands
+.PHONY: build
 build:
-	@docker-compose -f docker-compose.yml build $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
+.PHONY: up
 up:
-	@docker-compose -f docker-compose.yml up $(c) -d
+	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 
+.PHONY: start
 start:
-	@docker-compose -f docker-compose.yml start $(c)
+	@docker compose -f docker-compose.yml start $(c)
 
+.PHONY: down
 down:
-	@docker-compose -f docker-compose.yml down $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
 
+.PHONY: destroy
 destroy:
-	@docker-compose -f docker-compose.yml down -v $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml down -v $(c)
 
+.PHONY: stop
 stop:
-	@docker-compose -f docker-compose.yml stop $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
 
+.PHONY: restart
 restart:
-	docker-compose -f docker-compose.yml down $(c) && \
-	docker-compose -f docker-compose.yml up -d $(c)
+	make stop && \
+    make up
 
+.PHONY: logs
 logs:
-	@docker-compose -f docker-compose.yml logs --tail=100 -f $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
 
+.PHONY: logs-api
 logs-api:
-	@docker-compose -f docker-compose.yml logs --tail=100 -f auth
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f midaz-casdoor
 
+.PHONY: ps
 ps:
-	@docker-compose -f docker-compose.yml ps
-
-auth-api:
-	@docker-compose -f docker-compose.yml exec auth /bin/bash
-
-db-shell:
-	@docker-compose -f docker-compose.yml exec auth psql -Upostgres
+	@$(DOCKER_CMD) -f docker-compose.yml ps

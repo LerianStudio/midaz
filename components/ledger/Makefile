@@ -4,9 +4,19 @@ artifacts_dir := ./artifacts
 
 $(shell mkdir -p $(artifacts_dir))
 
-.PHONY: info gen run test cover-html tidy help build up start down destroy stop restart logs logs-api ps login-timescale login-api db-shell
+DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
+DOCKER_MIN_VERSION := 20.10.13
+
+DOCKER_CMD := $(shell \
+	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
+		echo "docker compose"; \
+	else \
+		echo "docker-compose"; \
+	fi \
+)
 
 # Display available commands
+.PHONY: info
 info:
 	@echo "                                                                                                                                       "
 	@echo "                                                                                                                                       "
@@ -15,16 +25,6 @@ info:
 	@echo "make ledger COMMAND=\"any\"                                                                                                            "
 	@echo "                                                                                                                                       "
 	@echo "This command will run the specified command inside the ledger container. Replace \"any\" with the desired command you want to execute. "
-	@echo "                                                                                                                                       "
-	@echo "## App commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"grpc-ledger-gen\"                      Generate proto files for ledger service."
-	@echo "  COMMAND=\"wire\"                                 Generates all project code to connect components using Wire."
-	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
-	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
-	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
-	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
-	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
 	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
@@ -38,65 +38,84 @@ info:
 	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
 	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the ledger service defined in docker-compose.yml."
 	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "  COMMAND=\"ledger-api\"                           Starts an interactive Bash shell session inside the running ledger container defined in docker-compose.yml."
-	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the ledger container, logging in as the postgres user."
+	@echo "                                                                                                                                       "
+	@echo "## App commands:"
+	@echo "                                                                                                                         "
+	@echo "  COMMAND=\"grpc-ledger-gen\"                      Generate proto files for ledger service."
+	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
+	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
+	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
+	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
+	@echo "                                                                                                                                       "
+	@echo "                                                                                                                                       "
 
+# Docker Compose Commands
+.PHONY: build
+build:
+	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
+.PHONY: up
+up:
+	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
+
+.PHONY: start
+start:
+	@docker compose -f docker-compose.yml start $(c)
+
+.PHONY: down
+down:
+	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
+
+.PHONY: destroy
+destroy:
+	@$(DOCKER_CMD) -f docker-compose.yml down -v $(c)
+
+.PHONY: stop
+stop:
+	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
+
+.PHONY: restart
+restart:
+	make stop && \
+    make up
+
+.PHONY: logs
+logs:
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
+
+.PHONY: logs-api
+logs-api:
+	@docker compose -f docker-compose.yml logs --tail=100 -f ledger
+
+.PHONY: ps
+ps:
+	@$(DOCKER_CMD) -f docker-compose.yml ps
+
+# App Commands
+.PHONY: grpc-ledger-gen
 grpc-ledger-gen:
 	@protoc --proto_path=../../common/mgrpc --go-grpc_out=../../common/mgrpc --go_out=../../common/mgrpc ../../common/mgrpc/account/account.proto
 
+.PHONY: run
 run:
 	@go run cmd/app/main.go .env
 
+.PHONY: test
 test:
 	@go test -v ./...
 
+.PHONY: cover-html
 cover-html:
 	@go tool cover -html=$(artifacts_dir)/coverage.out -o $(artifacts_dir)/coverage.html
 
+.PHONY: tidy
 tidy:
 	@go mod tidy
 
+.PHONY: generate-docs
 generate-docs:
 	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
 	@docker run --rm -v ./:/ledger --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./ledger/api/swagger.json -g openapi-yaml -o ./ledger/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
-
-# Docker Compose Commands
-build:
-	@docker-compose -f docker-compose.yml build
-
-up:
-	@docker-compose -f docker-compose.yml up -d
-
-start:
-	@docker-compose -f docker-compose.yml start
-
-down:
-	@docker-compose -f docker-compose.yml down
-
-destroy:
-	@docker-compose -f docker-compose.yml down -v
-
-stop:
-	@docker-compose -f docker-compose.yml stop
-
-restart:
-	docker-compose -f docker-compose.yml down && \
-    docker-compose -f docker-compose.yml up -d
-
-logs:
-	@docker-compose -f docker-compose.yml logs --tail=100 -f
-
-logs-api:
-	@docker-compose -f docker-compose.yml logs --tail=100 -f ledger
-
-ps:
-	@docker-compose -f docker-compose.yml ps
-
-ledger-api:
-	@docker-compose -f docker-compose.yml exec ledger /bin/bash
-
-db-shell:
-	@docker-compose -f docker-compose.yml exec ledger psql -Upostgres
