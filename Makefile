@@ -1,13 +1,9 @@
+AUDIT_DIR := ./components/audit
 AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
+MDZ_DIR := ./components/mdz
 LEDGER_DIR := ./components/ledger
 TRANSACTION_DIR := ./components/transaction
-MDZ_DIR := ./components/mdz
-AUDIT_DIR := ./components/audit
-
-.PHONY: help test cover lint format check-logs check-tests \
-        setup-git-hooks check-hooks goreleaser tidy sec set-env up auth infra ledger \
-        transaction audit all-services
 
 BLUE := \033[36m
 NC := \033[0m
@@ -15,12 +11,28 @@ BOLD := \033[1m
 RED := \033[31m
 MAGENTA := \033[35m
 
+DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
+DOCKER_MIN_VERSION := 20.10.13
+
+DOCKER_CMD := $(shell \
+	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
+		echo "docker compose"; \
+	else \
+		echo "docker-compose"; \
+	fi \
+)
+
+.PHONY: help
 help:
+	@echo ""
+	@echo ""
 	@echo "$(BOLD)Midaz Project Management Commands$(NC)"
+	@echo ""
 	@echo ""
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make test               - Run tests on all projects"
 	@echo "  make cover              - Run test coverage"
+	@echo ""
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint               - Run golangci-lint and performance checks"
@@ -29,9 +41,11 @@ help:
 	@echo "  make check-tests        - Verify test coverage for components"
 	@echo "  make sec                - Run security checks using gosec"
 	@echo ""
+	@echo ""
 	@echo "$(BOLD)Git Hook Commands:$(NC)"
 	@echo "  make setup-git-hooks    - Install and configure git hooks"
 	@echo "  make check-hooks        - Verify git hooks installation status"
+	@echo ""
 	@echo ""
 	@echo "$(BOLD)Setup Commands:$(NC)"
 	@echo "  make set-env            - Copy .env.example to .env for all components"
@@ -52,6 +66,7 @@ help:
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo "    make generate-docs-all                   Run a command to inside the ledger and transaction app to generate swagger docs."
 	@echo ""
+	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
 	@echo "  make up                 - Start all services with Docker Compose"
 	@echo "  make auth COMMAND=<cmd> - Run command in auth service"
@@ -60,11 +75,16 @@ help:
 	@echo "  make transaction COMMAND=<cmd> - Run command in transaction service"
 	@echo "  make audit COMMAND=<cmd> - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd> - Run command across all services"
+	@echo "  make clean-docker - Run command to clean docker"
+	@echo ""
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
 	@echo "  make tidy               - Run go mod tidy"
 	@echo "  make goreleaser         - Create a release snapshot"
+	@echo ""
+	@echo ""
 
+.PHONY: test
 test:
 	@echo "$(BLUE)Running tests...$(NC)"
 		@if ! command -v go >/dev/null 2>&1; then \
@@ -73,6 +93,7 @@ test:
 	fi
 	go test -v ./... ./...
 
+.PHONY: cover
 cover:
 	@echo -e "$(BLUE)Generating test coverage...$(NC)"
 	@if ! command -v go >/dev/null 2>&1; then \
@@ -82,22 +103,27 @@ cover:
 	@sh ./scripts/coverage.sh
 	@go tool cover -html=coverage.out -o coverage.html
 
+.PHONY: lint
 lint:
 	@echo "$(BLUE)Running linter and performance checks...$(NC)"
 	./make.sh "lint"
 
+.PHONY: format
 format:
 	@echo "$(BLUE)Formatting Go code...$(NC)"
 	./make.sh "format"
 
+.PHONY: check-logs
 check-logs:
 	@echo "$(BLUE)Checking error logging in usecases...$(NC)"
 	./make.sh "checkLogs"
 
+.PHONY: check-tests
 check-tests:
 	@echo "$(BLUE)Verifying test coverage...$(NC)"
 	./make.sh "checkTests"
 
+.PHONY: sec
 sec:
 	@echo "$(BLUE)Running security checks...$(NC)"
 	@if ! command -v gosec >/dev/null 2>&1; then \
@@ -107,14 +133,17 @@ sec:
 	fi
 	gosec ./...
 
+.PHONY: setup-git-hooks
 setup-git-hooks:
 	@echo "$(BLUE)Setting up git hooks...$(NC)"
 	./make.sh "setupGitHooks"
 
+.PHONY: check-hooks
 check-hooks:
 	@echo "$(BLUE)Checking git hooks status...$(NC)"
 	./make.sh "checkHooks"
 
+.PHONY: set-env
 set-env:
 	@echo "$(BLUE)Setting up environment files...$(NC)"
 	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
@@ -125,34 +154,41 @@ set-env:
 	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
+.PHONY: up
 up: 
 	@echo "$(BLUE)Starting all services...$(NC)"
-	docker-compose -f $(AUTH_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(INFRA_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(LEDGER_DIR)/docker-compose.yml up --build -d && \
-	docker-compose -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d 
+	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
 	@echo "$(BLUE)All services started successfully$(NC)"
 
+.PHONY: auth
 auth:
 	@echo "$(BLUE)Executing command in auth service...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
 
+.PHONY: infra
 infra:
 	@echo "$(BLUE)Executing command in infra service...$(NC)"
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND)
 
+.PHONY: ledger
 ledger:
 	@echo "$(BLUE)Executing command in ledger service...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
 
+.PHONY: transaction
 transaction:
 	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
+.PHONY: audit
 audit:
 	@echo "$(BLUE)Executing command in audit service...$(NC)"
 	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
 
+.PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
@@ -161,17 +197,25 @@ all-services:
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
 	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
 
+.PHONY: clean-docker
+clean-docker:
+	docker system prune -a -f && docker volume prune -a -f
+
+.PHONY: test_integration_cli
 test_integration_cli:
 	go test -v -tags=integration ./components/mdz/test/integration/...
 
+.PHONY: goreleaser
 goreleaser:
 	@echo "$(BLUE)Creating release snapshot...$(NC)"
 	goreleaser release --snapshot --skip-publish --rm-dist
 
+.PHONY: tidy
 tidy:
 	@echo "$(BLUE)Running go mod tidy...$(NC)"
 	go mod tidy
 
+.PHONY: generate-docs-all
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
