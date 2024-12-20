@@ -26,10 +26,6 @@ info:
 	@echo "                                                                                                                                       "
 	@echo "This command will run the specified command inside the auth container. Replace \"any\" with the desired command you want to execute. "
 	@echo "                                                                                                                         "
-	@echo "## App commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
-	@echo "                                                                                                                         "
 	@echo "## Docker commands:"
 	@echo "                                                                                                                         "
 	@echo "  COMMAND=\"build\"                                Builds all Docker images defined in docker-compose.yml."
@@ -42,6 +38,12 @@ info:
 	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
 	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the auth service defined in docker-compose.yml."
 	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
+	@echo "                                                                                                                         "
+	@echo "## App commands:"
+	@echo "                                                                                                                         "
+	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
+	@echo "                                                                                                                                       "
+	@echo "                                                                                                                                       "
 
 # Docker Compose Commands
 .PHONY: build

@@ -38,9 +38,8 @@ info:
 	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
 	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the auth service defined in docker-compose.yml."
 	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "  COMMAND=\"auth-api\"                             Starts an interactive Bash shell session inside the running auth container defined in docker-compose.yml."
-	@echo "  COMMAND=\"db-shell\"                             Starts a PostgreSQL interactive terminal inside the auth container, logging in as the postgres user."
-
+	@echo "                                                                                                                                       "
+	@echo "                                                                                                                                       "
 
 # Docker Compose Commands
 .PHONY: build
