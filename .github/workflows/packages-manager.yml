@@ -21,12 +21,14 @@ jobs:
           # Check if the release is beta
           if [[ "$TAG_NAME" == *"-beta"* ]]; then
             echo "This is a beta release. Skipping."
+            echo "::set-output name=skip::true"
             exit 0
           fi
 
           # Check if the release is hotfix
           if [[ "$TAG_NAME" == *"-hf"* ]]; then
             echo "This is a hotfix release. Skipping."
+            echo "::set-output name=skip::true"
             exit 0
           fi
 
@@ -34,14 +36,17 @@ jobs:
           BRANCH=$(git name-rev --name-only $GITHUB_SHA)
           if [[ "$BRANCH" != "main" ]]; then
             echo "Tag was not created from the main branch. Skipping."
+            echo "::set-output name=skip::true"
             exit 1
           fi
 
+          echo "::set-output name=skip::false"
           echo "Release is final and from main branch."
 
   brew_release:
     runs-on: ubuntu-24.04
     needs: verify_release
+    if: steps.check_release.outputs.skip == 'false'
     steps:
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
@@ -52,6 +57,7 @@ jobs:
   choco_release:
     runs-on: windows-latest
     needs: verify_release
+    if: steps.check_release.outputs.skip == 'false'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3 
