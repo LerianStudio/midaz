@@ -1,3 +1,5 @@
+## [1.38.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.4...v1.38.0-beta.5) (2024-12-23)
+
 ## [1.38.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.3...v1.38.0-beta.4) (2024-12-23)
 
 ## [1.38.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.2...v1.38.0-beta.3) (2024-12-23)
