@@ -1,3 +1,23 @@
+## [1.38.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.4...v1.38.0-beta.5) (2024-12-23)
+
+## [1.38.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.3...v1.38.0-beta.4) (2024-12-23)
+
+## [1.38.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.2...v1.38.0-beta.3) (2024-12-23)
+
+## [1.38.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.1...v1.38.0-beta.2) (2024-12-23)
+
+
+### Bug Fixes
+
+* syntax error in release script (missing 'fi') ([da2c053](https://github.com/LerianStudio/midaz/commit/da2c0532b1d9fbb1fcbcf57b5953f98981adcb7f))
+
+## [1.38.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.37.0...v1.38.0-beta.1) (2024-12-23)
+
+
+### Bug Fixes
+
+* add release verification to ensure valid conditions for brew and choco jobs ([3e2f473](https://github.com/LerianStudio/midaz/commit/3e2f473baf9e9f7df6ae5a38c55b9cd2d0dd8e6c))
+
 ## [1.37.0](https://github.com/LerianStudio/midaz/compare/v1.36.0...v1.37.0) (2024-12-23)
 
 

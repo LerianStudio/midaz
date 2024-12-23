@@ -1,4 +1,4 @@
-name: "homebrew formula bump"
+name: "packages manager"
 
 on:
   release:
@@ -6,29 +6,67 @@ on:
       - published
 
 jobs:
-  brew_release:
-    if: github.ref == 'refs/heads/main'
+  verify_release:
     runs-on: ubuntu-24.04
+    outputs:
+      skip: ${{ steps.check_release.outputs.skip }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Release Source
+        id: check_release
+        run: |
+          # Extract the tag name
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+
+          # Check if the release is beta
+          if [[ "$TAG_NAME" == *"-beta"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check if the release is hotfix
+          if [[ "$TAG_NAME" == *"-hf"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Determine the branch where the tag was created
+          BRANCH=$(git name-rev --name-only $GITHUB_SHA)
+          if [[ "$BRANCH" != "main" ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "skip=false" >> $GITHUB_OUTPUT
+          echo "Release is final and from main branch."
+
+  brew_release:
+    runs-on: ubuntu-24.04
+    needs: verify_release
+    if: ${{ needs.verify_release.outputs.skip == 'false' }}
     steps:
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
         with:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
           formula: mdz
-  
+
   choco_release:
-    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
+    needs: verify_release
+    if: ${{ needs.verify_release.outputs.skip == 'false' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3 
-  
+        uses: actions/checkout@v3
+
       - uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-      
+
       - name: Fetch Latest Tag
         id: latest_tag
         env:
@@ -37,7 +75,8 @@ jobs:
           $RawRelease = gh release list --repo $env:GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName'
           $FormattedRelease = $RawRelease -replace '^v', ''
           Write-Host "Formatted release: $FormattedRelease"
-          echo "tag=$FormattedRelease" >> $env:GITHUB_ENV
+
+          echo "version=$FormattedRelease" >> $env:GITHUB_ENV
         shell: pwsh
 
       - name: Set up Chocolatey
@@ -56,7 +95,7 @@ jobs:
             exit 1
           }
       
-          $version = '${{ env.tag }}'
+          $version = $env:version
           Write-Host "Updating nuspec version to $version"
           (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>$version</version>" | Set-Content $nuspecPath
         shell: pwsh
@@ -67,13 +106,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
-          $url = 'https://github.com/LerianStudio/midaz/releases/download/v${{ env.version }}/mdz_{{ env.version }}_windows_amd64.zip'
-
-          # Download the ZIP file
+          
+          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/mdz_$($env:version)_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
 
-          # Extract the ZIP file
           Write-Host "Extracting $zipFile to $toolsDir"
           Expand-Archive -Path $zipFile -DestinationPath $toolsDir -Force
         shell: pwsh
@@ -83,18 +120,22 @@ jobs:
         run: |
           $outputFile = "$(Resolve-Path .\chocolatey\tools\mdz.exe)"
           $checksum = (Get-FileHash -Path $outputFile -Algorithm SHA256).Hash
-          echo "::set-output name=checksum::$checksum"
+
+          echo "checksum=$checksum" >> $GITHUB_OUTPUT
         shell: pwsh
 
       - name: Replace checksum in chocolateyinstall.ps1
         run: |
-          (Get-Content .\chocolatey\tools\chocolateyinstall.ps1) -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
+          (Get-Content .\chocolatey\tools\chocolateyinstall.ps1) `
+            -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
+          | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
         shell: pwsh
 
       - name: Publish Chocolatey package
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
         run: |
+          $version = $env:version
           choco pack chocolatey/mdz.nuspec
-          choco push mdz.${{ env.version }}.nupkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          choco push "mdz.$version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
         shell: pwsh
