@@ -68,14 +68,14 @@ type TransactionListener interface {
 	// EnterSource is called when entering the source production.
 	EnterSource(c *SourceContext)
 
-	// EnterSend is called when entering the send production.
-	EnterSend(c *SendContext)
-
 	// EnterTo is called when entering the to production.
 	EnterTo(c *ToContext)
 
 	// EnterDistribute is called when entering the distribute production.
 	EnterDistribute(c *DistributeContext)
+
+	// EnterSend is called when entering the send production.
+	EnterSend(c *SendContext)
 
 	// ExitTransaction is called when exiting the transaction production.
 	ExitTransaction(c *TransactionContext)
@@ -137,12 +137,12 @@ type TransactionListener interface {
 	// ExitSource is called when exiting the source production.
 	ExitSource(c *SourceContext)
 
-	// ExitSend is called when exiting the send production.
-	ExitSend(c *SendContext)
-
 	// ExitTo is called when exiting the to production.
 	ExitTo(c *ToContext)
 
 	// ExitDistribute is called when exiting the distribute production.
 	ExitDistribute(c *DistributeContext)
+
+	// ExitSend is called when exiting the send production.
+	ExitSend(c *SendContext)
 }

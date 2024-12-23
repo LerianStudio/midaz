@@ -68,12 +68,12 @@ type TransactionVisitor interface {
 	// Visit a parse tree produced by TransactionParser#source.
 	VisitSource(ctx *SourceContext) interface{}
 
-	// Visit a parse tree produced by TransactionParser#send.
-	VisitSend(ctx *SendContext) interface{}
-
 	// Visit a parse tree produced by TransactionParser#to.
 	VisitTo(ctx *ToContext) interface{}
 
 	// Visit a parse tree produced by TransactionParser#distribute.
 	VisitDistribute(ctx *DistributeContext) interface{}
+
+	// Visit a parse tree produced by TransactionParser#send.
+	VisitSend(ctx *SendContext) interface{}
 }
