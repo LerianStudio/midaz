@@ -53,10 +53,11 @@ type Share struct {
 // swagger:model Send
 // @Description Send is the struct designed to represent the sending fields of an operation.
 type Send struct {
-	Asset  string `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value  int    `json:"value,omitempty" validate:"required" example:"1000"`
-	Scale  int    `json:"scale,omitempty" validate:"gte=0" example:"2"`
-	Source Source `json:"source,omitempty" validate:"required"`
+	Asset      string     `json:"asset,omitempty" validate:"required" example:"BRL"`
+	Value      int        `json:"value,omitempty" validate:"required" example:"1000"`
+	Scale      int        `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Source     Source     `json:"source,omitempty" validate:"required"`
+	Distribute Distribute `json:"distribute,omitempty" validate:"required"`
 } // @name Send
 
 // Source structure for marshaling/unmarshalling JSON.
@@ -121,5 +122,4 @@ type Transaction struct {
 	Pending                  bool           `json:"pending,omitempty" example:"false"`
 	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	Send                     Send           `json:"send" validate:"required"`
-	Distribute               Distribute     `json:"distribute" validate:"required"`
 } // @name Transaction
