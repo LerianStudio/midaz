@@ -16,7 +16,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/google/trillian v1.7.0
 	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0
-	github.com/jackc/pgx/v5 v5.7.1
+	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
