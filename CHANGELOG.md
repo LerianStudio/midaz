@@ -1,3 +1,10 @@
+## [1.38.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.37.0...v1.38.0-beta.1) (2024-12-23)
+
+
+### Bug Fixes
+
+* add release verification to ensure valid conditions for brew and choco jobs ([3e2f473](https://github.com/LerianStudio/midaz/commit/3e2f473baf9e9f7df6ae5a38c55b9cd2d0dd8e6c))
+
 ## [1.37.0](https://github.com/LerianStudio/midaz/compare/v1.36.0...v1.37.0) (2024-12-23)
 
 
