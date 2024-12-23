@@ -22,6 +22,8 @@ jobs:
           if [[ "$TAG_NAME" == *"-beta"* ]]; then
             echo "This is a beta release. Skipping."
             exit 1
+          fi
+
           # Check if the release is hotfix
           if [[ "$TAG_NAME" == *"-hf"* ]]; then
             echo "This is a hotfix release. Skipping."
