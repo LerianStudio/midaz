@@ -1,3 +1,10 @@
+## [1.38.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.38.0-beta.1...v1.38.0-beta.2) (2024-12-23)
+
+
+### Bug Fixes
+
+* syntax error in release script (missing 'fi') ([da2c053](https://github.com/LerianStudio/midaz/commit/da2c0532b1d9fbb1fcbcf57b5953f98981adcb7f))
+
 ## [1.38.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.37.0...v1.38.0-beta.1) (2024-12-23)
 
 
