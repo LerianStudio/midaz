@@ -31,12 +31,7 @@ builds:
       - -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.Version={{.Version}}
 
 archives:
-  - id: "mdz"
-    builds:
-      - "mdz"
-    format: tar.gz
-    name_template: "{{ .Binary }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    wrap_in_directory: true
+  - format: zip
 
 nfpms:
   - id: packages

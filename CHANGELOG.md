@@ -1,3 +1,25 @@
+## [1.37.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.37.0-beta.1...v1.37.0-beta.2) (2024-12-20)
+
+
+### Features
+
+* publish cli midaz in the choco ([fac503f](https://github.com/LerianStudio/midaz/commit/fac503f593fe344ba47e3aebc9a4e880c5661d68))
+
+## [1.37.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.36.0...v1.37.0-beta.1) (2024-12-20)
+
+
+### Bug Fixes
+
+* help :bug: ([8f9358f](https://github.com/LerianStudio/midaz/commit/8f9358f0d0608ce82f96084f0761de6edc7dcdae))
+* **audit:** improve makefile changing docker-compose to a choose based version command :bug: ([14506fe](https://github.com/LerianStudio/midaz/commit/14506fec46ee5f5c946d67c7fc63135a08a739aa))
+* **auth:** improve makefile changing docker-compose to a choose based version command :bug: ([d9ee74c](https://github.com/LerianStudio/midaz/commit/d9ee74c64e3e64e0b06ac390dd0feda4810b4daf))
+* **infra:** improve makefile changing docker-compose to a choose based version command :bug: ([e43892c](https://github.com/LerianStudio/midaz/commit/e43892ce9eb930b2f57e0814b0b3793be11c8be7))
+* **ledger:** improve makefile changing docker-compose to a choose based version command :bug: ([89552e0](https://github.com/LerianStudio/midaz/commit/89552e066cbf45e18d8d824d9ad025ef48bee71b))
+* **midaz:** improve makefile changing docker-compose to a choose based version command :bug: ([9951e8c](https://github.com/LerianStudio/midaz/commit/9951e8c706c12bcee8fadf6af01186a82834f547))
+* **transaction:** improve makefile changing docker-compose to a choose based version command :bug: ([44a1b1f](https://github.com/LerianStudio/midaz/commit/44a1b1fc977b85bedb59a368075089f0b2d5da2c))
+* info :bug: ([3f01ba4](https://github.com/LerianStudio/midaz/commit/3f01ba4452082a728580a0296f4b64bff6c40e16))
+* remove wire reference :bug: ([a7c61ee](https://github.com/LerianStudio/midaz/commit/a7c61ee2426ec1523d7750fc22041e9478f9ebad))
+
 ## [1.36.0](https://github.com/LerianStudio/midaz/compare/v1.35.0...v1.36.0) (2024-12-19)
 
 
