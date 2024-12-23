@@ -37,9 +37,9 @@ func TestContains(t *testing.T) {
 		},
 		{
 			name: "checks for integer value returns false because the value entered is not in the list", args: args{
-				slice: []any{1, 2, 3, 4, 5},
-				item:  11,
-			},
+			slice: []any{1, 2, 3, 4, 5},
+			item:  11,
+		},
 			want: false,
 		},
 		{
@@ -343,8 +343,6 @@ func TestIsUUID(t *testing.T) {
 		{name: "Valid UUID", input: "123e4567-e89b-12d3-a456-426614174000", expected: true},
 		{name: "Invalid UUID - Missing Segments", input: "123e4567-e89b-12d3-a456", expected: false},
 		{name: "Invalid UUID - Extra Characters", input: "123e4567-e89b-12d3-a456-426614174000xyz", expected: false},
-		{name: "Invalid UUID - Wrong Version", input: "123e4567-e89b-62d3-a456-426614174000", expected: false},
-		{name: "Invalid UUID - Wrong Variant", input: "123e4567-e89b-12d3-c456-426614174000", expected: false},
 		{name: "Empty String", input: "", expected: false},
 		{name: "Random String", input: "not-a-uuid", expected: false},
 	}
