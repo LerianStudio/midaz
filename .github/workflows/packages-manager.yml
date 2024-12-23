@@ -36,9 +36,11 @@ jobs:
           BRANCH=$(git name-rev --name-only $GITHUB_SHA)
           if [[ "$BRANCH" != "main" ]]; then
             echo "Tag was not created from the main branch. Skipping."
+            echo "::set-output name=skip::true"
             exit 1
           fi
 
+          echo "::set-output name=skip::false"
           echo "Release is final and from main branch."
 
   brew_release:
