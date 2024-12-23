@@ -112,7 +112,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 	errListener := goldTransaction.Validate(dsl)
 	if errListener != nil && len(errListener.Errors) > 0 {
-		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, reflect.TypeOf(transaction.Transaction{}).Name(), errListener.Errors)
 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate script in DSL", err)
 

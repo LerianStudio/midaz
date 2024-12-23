@@ -50,13 +50,12 @@ func (s Status) IsEmpty() bool {
 // swagger:model CreateTransactionInput
 // @Description CreateTransactionInput is the input payload to create a transaction.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName string                `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
-	Description              string                `json:"description,omitempty" validate:"max=256"`
-	Code                     string                `json:"code,omitempty" validate:"max=100"`
-	Pending                  bool                  `json:"pending,omitempty"`
-	Metadata                 map[string]any        `json:"metadata,omitempty"`
-	Send                     *goldModel.Send       `json:"send,omitempty" validate:"required,dive"`
-	Distribute               *goldModel.Distribute `json:"distribute,omitempty" validate:"required,dive"`
+	ChartOfAccountsGroupName string          `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
+	Description              string          `json:"description,omitempty" validate:"max=256"`
+	Code                     string          `json:"code,omitempty" validate:"max=100"`
+	Pending                  bool            `json:"pending,omitempty"`
+	Metadata                 map[string]any  `json:"metadata,omitempty"`
+	Send                     *goldModel.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.
@@ -177,10 +176,6 @@ func (cti *CreateTransactionInput) FromDSl() *goldModel.Transaction {
 		}
 
 		dsl.Send = *cti.Send
-	}
-
-	if cti.Distribute != nil {
-		dsl.Distribute = *cti.Distribute
 	}
 
 	return dsl
