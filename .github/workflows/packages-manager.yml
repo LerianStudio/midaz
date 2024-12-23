@@ -8,6 +8,8 @@ on:
 jobs:
   verify_release:
     runs-on: ubuntu-24.04
+    outputs:
+      skip: ${{ env.skip }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,14 +23,14 @@ jobs:
           # Check if the release is beta
           if [[ "$TAG_NAME" == *"-beta"* ]]; then
             echo "This is a beta release. Skipping."
-            echo "::set-output name=skip::true"
+            echo "skip=true" >> $GITHUB_ENV
             exit 0
           fi
 
           # Check if the release is hotfix
           if [[ "$TAG_NAME" == *"-hf"* ]]; then
             echo "This is a hotfix release. Skipping."
-            echo "::set-output name=skip::true"
+            echo "skip=true" >> $GITHUB_ENV
             exit 0
           fi
 
@@ -36,32 +38,32 @@ jobs:
           BRANCH=$(git name-rev --name-only $GITHUB_SHA)
           if [[ "$BRANCH" != "main" ]]; then
             echo "Tag was not created from the main branch. Skipping."
-            echo "::set-output name=skip::true"
+            echo "skip=true" >> $GITHUB_ENV
             exit 1
           fi
 
-          echo "::set-output name=skip::false"
+          echo "skip=false" >> $GITHUB_ENV
           echo "Release is final and from main branch."
 
   brew_release:
     runs-on: ubuntu-24.04
     needs: verify_release
-    if: steps.check_release.outputs.skip == 'false'
+    if: ${{ needs.verify_release.outputs.skip == 'false' }}
     steps:
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
         with:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
           formula: mdz
-  
+
   choco_release:
     runs-on: windows-latest
     needs: verify_release
-    if: steps.check_release.outputs.skip == 'false'
+    if: ${{ needs.verify_release.outputs.skip == 'false' }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3 
-  
+        uses: actions/checkout@v3
+
       - uses: actions/create-github-app-token@v1
         id: app-token
         with:
