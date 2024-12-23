@@ -1,4 +1,4 @@
-name: "homebrew formula bump"
+name: "packages manager"
 
 on:
   release:
@@ -6,9 +6,40 @@ on:
       - published
 
 jobs:
-  brew_release:
-    if: github.ref == 'refs/heads/main'
+  verify_release:
     runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Release Source
+        id: check_release
+        run: |
+          # Extract the tag name
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+
+          # Check if the release is beta
+          if [[ "$TAG_NAME" == *"-beta"* ]]; then
+            echo "This is a beta release. Skipping."
+            exit 1
+          # Check if the release is hotfix
+          if [[ "$TAG_NAME" == *"-hf"* ]]; then
+            echo "This is a hotfix release. Skipping."
+            exit 1
+          fi
+
+          # Determine the branch where the tag was created
+          BRANCH=$(git name-rev --name-only $GITHUB_SHA)
+          if [[ "$BRANCH" != "main" ]]; then
+            echo "Tag was not created from the main branch. Skipping."
+            exit 1
+          fi
+
+          echo "Release is final and from main branch."
+
+  brew_release:
+    runs-on: ubuntu-24.04
+    needs: verify_release
     steps:
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
@@ -17,8 +48,8 @@ jobs:
           formula: mdz
   
   choco_release:
-    if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
+    needs: verify_release
     steps:
       - name: Checkout code
         uses: actions/checkout@v3 
