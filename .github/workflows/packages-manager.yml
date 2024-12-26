@@ -40,10 +40,16 @@ jobs:
             echo "is_main=false" >> $GITHUB_ENV
           fi
 
-      - name: Output branch check result
-        run: echo "Is the branch main? ${{ env.is_main }}"
-
-      - name: Use the output
+      - name: Run only if IS main branch
+        if: env.is_main == 'true'
         run: |
+          echo "This step runs only on the main branch"
+          echo "The raw_release value is: ${{ env.raw_release }}"
+          echo "The formatted_release value is: ${{ env.formatted_release }}"
+
+      - name: Run only if NOT main branch
+        if: env.is_main == 'false'
+        run: |
+          echo "This step runs only on branches other than main"
           echo "The raw_release value is: ${{ env.raw_release }}"
           echo "The formatted_release value is: ${{ env.formatted_release }}"
