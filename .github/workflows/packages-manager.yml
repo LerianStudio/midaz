@@ -120,11 +120,18 @@ jobs:
           | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
         shell: pwsh
 
+      # - name: Publish Chocolatey package
+      #   env:
+      #     CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
+      #   shell: pwsh
+      #   run: |
+      #     $version = $env:version
+      #     choco pack chocolatey/mdz.nuspec
+      #     choco push "mdz.$version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+
       - name: Publish Chocolatey package
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
         shell: pwsh
         run: |
-          $version = $env:version
-          choco pack chocolatey/mdz.nuspec
-          choco push "mdz.$version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          echo $env:version
