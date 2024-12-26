@@ -1,3 +1,5 @@
+Write-Output "start install CLI mdz"
+
 $ErrorActionPreference = 'Stop';
 
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
