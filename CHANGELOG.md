@@ -1,3 +1,14 @@
+## [1.39.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.39.0-beta.1...v1.39.0-beta.2) (2024-12-26)
+
+
+### Bug Fixes
+
+* add same behavior in metadata transaction :bug: ([783ae69](https://github.com/LerianStudio/midaz/commit/783ae69fbcbb32ce1c46a363c532988eb0fb03e4))
+* adjust trigger git actions :bug: ([7dca6a7](https://github.com/LerianStudio/midaz/commit/7dca6a723972805a2392a237ca365426aeb8bcd6))
+* remove uuid wrong version and invalid variant from tests :bug: ([cf7587d](https://github.com/LerianStudio/midaz/commit/cf7587d0d34c1f3061d6f0acc93a5b7778e6415f))
+* update from and to :bug: ([dda0b79](https://github.com/LerianStudio/midaz/commit/dda0b79ed9975523c49fa853c0ffe0dde3f631b9))
+* update func that check is uuid our alias from account :bug: ([f336c64](https://github.com/LerianStudio/midaz/commit/f336c64214345093e2e4d24162e206c2f8c975d3))
+
 ## [1.39.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.38.1...v1.39.0-beta.1) (2024-12-26)
 
 
