@@ -95,7 +95,8 @@ jobs:
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
           
-          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/mdz_$($env:version)_windows_amd64.zip"
+          # $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/mdz_$($env:version)_windows_amd64.zip"
+          $url = "https://github.com/LerianStudio/midaz/releases/download/v1.38.1/midaz_1.38.1_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
 
