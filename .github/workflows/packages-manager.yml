@@ -27,10 +27,13 @@ jobs:
         run: |
           CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
           if [ "$CURRENT_BRANCH" = "main" ]; then
-            echo "is_main=true" >> $GITHUB_OUTPUT
+            echo "is_main=true" >> $GITHUB_ENV
           else
-            echo "is_main=false" >> $GITHUB_OUTPUT
+            echo "is_main=false" >> $GITHUB_ENV
           fi
+
+      - name: Set output for next job
+        run: echo "is_main=${{ env.is_main }}" >> $GITHUB_OUTPUT
 
   brew_release:
     needs: get_branch
