@@ -29,6 +29,13 @@ jobs:
 
           # Extract the tag name
           TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          echo "TAG_NAME: $TAG_NAME"
+          
+          # Extract the head name
+          HEAD_NAME=${GITHUB_REF#refs/heads/}
+          
+          echo "HEAD_NAME: HEAD_NAME"
 
           # Check if the release is beta
           if [[ "$TAG_NAME" == *"-beta"* ]]; then
