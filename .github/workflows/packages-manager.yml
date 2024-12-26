@@ -135,4 +135,4 @@ jobs:
         shell: pwsh
         run: |
           echo $env:version
-          echo $env:CHOCO_API_KEY
+          choco pack chocolatey/mdz.nuspec
