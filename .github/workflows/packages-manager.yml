@@ -35,6 +35,15 @@ jobs:
       - name: Set output for next job
         run: echo "is_main=${{ env.is_main }}" >> $GITHUB_OUTPUT
 
+  check_branch:
+    needs: get_branch
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Run to print variable
+        run: |
+          echo "This printtttttt"
+          echo "The formatted_release value is: ${{ needs.get_branch.outputs.is_main }}"    
+
   brew_release:
     needs: get_branch
     runs-on: ubuntu-24.04
