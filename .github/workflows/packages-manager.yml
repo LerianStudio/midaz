@@ -1,9 +1,15 @@
 name: "packages manager"
 
 on:
-  release:
+  pull_request:
+    branches:
+      - develop
+      - main
     types:
-      - published
+      - opened
+      - edited
+      - synchronize
+      - reopened
 
 jobs:
   get_branch:
