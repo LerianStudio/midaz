@@ -15,8 +15,6 @@ on:
 jobs:
   verify_release:
     runs-on: ubuntu-24.04
-    outputs:
-      skip: ${{ steps.check_release.outputs.skip }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -32,8 +30,18 @@ jobs:
           echo "Raw release: $RAW_RELEASE"
           echo "Formatted release: $FORMATTED_RELEASE"
 
-          echo "raw_release=RAW_RELEASE" >> $GITHUB_ENV
+          echo "raw_release=$RAW_RELEASE" >> $GITHUB_ENV
           echo "formatted_release=$FORMATTED_RELEASE" >> $GITHUB_ENV
+
+          CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
+          if [ "$CURRENT_BRANCH" = "main" ]; then
+            echo "is_main=true" >> $GITHUB_ENV
+          else
+            echo "is_main=false" >> $GITHUB_ENV
+          fi
+
+      - name: Output branch check result
+        run: echo "Is the branch main? ${{ env.is_main }}"
 
       - name: Use the output
         run: |
