@@ -18,11 +18,8 @@ jobs:
       is_main: ${{ steps.verify_branch.outputs.is_main }}
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Verify Branch
-        id: verify_branch
+      - uses: actions/checkout@v4
+      - id: verify_branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
