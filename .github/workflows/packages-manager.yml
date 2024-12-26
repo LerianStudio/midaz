@@ -128,5 +128,6 @@ jobs:
           choco pack chocolatey/mdz.nuspec
           ls 
           choco install mdz --version="1.39.0-beta.2" --prerelease --source="D:\a\midaz\midaz"
+          mdz version
           # choco install mdz.1.39.0-beta.2.nupkg --allow-unofficial
           # choco push "mdz.$env:version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
