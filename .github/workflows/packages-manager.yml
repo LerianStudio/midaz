@@ -2,26 +2,20 @@ name: "packages manager"
 
 on:
   push:
-    branches:
-      - main
-  release:
-    types:
-      - released
+    tags: [ 'v*.*.*' ]
 
 jobs:
-  brew_release:
-    runs-on: ubuntu-24.04
-    if: github.event_name == 'release' && github.event.release.tag_name != ''
-    steps:
-      - name: Update Homebrew Formula
-        uses: dawidd6/action-homebrew-bump-formula@v4
-        with:
-          token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
-          formula: mdz
+  # brew_release:
+  #   runs-on: ubuntu-24.04
+  #   steps:
+  #     - name: Update Homebrew Formula
+  #       uses: dawidd6/action-homebrew-bump-formula@v4
+  #       with:
+  #         token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+  #         formula: mdz
 
   choco_release:
     runs-on: windows-latest
-    if: github.event_name == 'release' && github.event.release.tag_name != ''
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -72,7 +66,7 @@ jobs:
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
           
-          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/mdz_$($env:version)_windows_amd64.zip"
+          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/midaz_$($env:version)_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
 
