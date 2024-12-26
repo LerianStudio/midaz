@@ -24,30 +24,8 @@ jobs:
       - name: Verify Release Source
         id: check_release
         run: |
-          echo "DEBUG: GITHUB_REF=${GITHUB_REF}"
-          echo "DEBUG: GITHUB_SHA=${GITHUB_SHA}"
-
-          # Extract the tag name
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          
-          echo "TAG_NAME: $TAG_NAME"
-          
-          # Extract the head name
-          HEAD_NAME=${GITHUB_REF#refs/heads/}
-          
-          echo "HEAD_NAME: $HEAD_NAME"
-
-          # Check if the release is beta
-          if [[ "$TAG_NAME" == *"-beta"* ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Check if the release is hotfix
-          if [[ "$TAG_NAME" == *"-hf"* ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          echo "skip=false" >> $GITHUB_OUTPUT
-          echo "Release is final and from main branch."
+          RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
+          FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
+          echo "Raw release: $RAW_RELEASE"
+          echo "Formatted release: $FORMATTED_RELEASE"
+          echo "::set-output name=tag::$FORMATTED_RELEASE"
