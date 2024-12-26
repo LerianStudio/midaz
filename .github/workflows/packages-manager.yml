@@ -1,47 +1,17 @@
 name: "packages manager"
 
 on:
+  push:
+    branches:
+      - main
   release:
     types:
-      - published
+      - released
 
 jobs:
-  verify_release:
-    runs-on: ubuntu-24.04
-    outputs:
-      skip: ${{ steps.check_release.outputs.skip }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Verify Release Source
-        id: check_release
-        run: |
-          echo "DEBUG: GITHUB_REF=${GITHUB_REF}"
-          echo "DEBUG: GITHUB_SHA=${GITHUB_SHA}"
-
-          # Extract the tag name
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-
-          # Check if the release is beta
-          if [[ "$TAG_NAME" == *"-beta"* ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Check if the release is hotfix
-          if [[ "$TAG_NAME" == *"-hf"* ]]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          echo "skip=false" >> $GITHUB_OUTPUT
-          echo "Release is final and from main branch."
-
   brew_release:
     runs-on: ubuntu-24.04
-    needs: verify_release
-    if: ${{ needs.verify_release.outputs.skip == 'false' }}
+    if: github.event_name == 'release' && github.event.release.tag_name != ''
     steps:
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
@@ -51,8 +21,7 @@ jobs:
 
   choco_release:
     runs-on: windows-latest
-    needs: verify_release
-    if: ${{ needs.verify_release.outputs.skip == 'false' }}
+    if: github.event_name == 'release' && github.event.release.tag_name != ''
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
