@@ -42,7 +42,6 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 	}
 
 	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(model.Send)
-	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(model.Distribute)
 
 	transaction := model.Transaction{
 		ChartOfAccountsGroupName: v.VisitVisitChartOfAccountsGroupName(ctx.ChartOfAccountsGroupName().(*parser.ChartOfAccountsGroupNameContext)).(string),
@@ -51,7 +50,6 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 		Pending:                  pending,
 		Metadata:                 metadata,
 		Send:                     send,
-		Distribute:               distribute,
 	}
 
 	return transaction
@@ -117,15 +115,17 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
 	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(model.Source)
+	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(model.Distribute)
 
 	value, _ := strconv.Atoi(val)
 	scale, _ := strconv.Atoi(scl)
 
 	return model.Send{
-		Asset:  asset,
-		Value:  value,
-		Scale:  scale,
-		Source: source,
+		Asset:      asset,
+		Value:      value,
+		Scale:      scale,
+		Source:     source,
+		Distribute: distribute,
 	}
 }
 

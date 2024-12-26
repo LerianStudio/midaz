@@ -88,14 +88,14 @@ func (v *BaseTransactionVisitor) VisitSource(ctx *SourceContext) interface{} {
 	return v.VisitChildren(ctx)
 }
 
-func (v *BaseTransactionVisitor) VisitSend(ctx *SendContext) interface{} {
-	return v.VisitChildren(ctx)
-}
-
 func (v *BaseTransactionVisitor) VisitTo(ctx *ToContext) interface{} {
 	return v.VisitChildren(ctx)
 }
 
 func (v *BaseTransactionVisitor) VisitDistribute(ctx *DistributeContext) interface{} {
+	return v.VisitChildren(ctx)
+}
+
+func (v *BaseTransactionVisitor) VisitSend(ctx *SendContext) interface{} {
 	return v.VisitChildren(ctx)
 }

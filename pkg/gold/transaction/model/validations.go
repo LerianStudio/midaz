@@ -355,7 +355,7 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	response.Sources = <-sd
 	response.Aliases = append(response.Aliases, response.Sources...)
 
-	go calculateTotal(transaction.Distribute.To, transaction.Send, t, ft, sd)
+	go calculateTotal(transaction.Send.Distribute.To, transaction.Send, t, ft, sd)
 	destinationsTotal = <-t
 	response.To = <-ft
 	response.Destinations = <-sd

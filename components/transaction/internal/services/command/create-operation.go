@@ -29,7 +29,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 
 	var fromTo []goldModel.FromTo
 	fromTo = append(fromTo, dsl.Send.Source.From...)
-	fromTo = append(fromTo, dsl.Distribute.To...)
+	fromTo = append(fromTo, dsl.Send.Distribute.To...)
 
 	for _, acc := range accounts {
 		for i := range fromTo {

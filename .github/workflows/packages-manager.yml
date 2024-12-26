@@ -1,8 +1,9 @@
 name: "packages manager"
 
 on:
-  push:
-    tags: [ 'v*.*.*' ]
+  release:
+    branches: [ main ]
+    types: [released]
 
 jobs:
   # brew_release:
