@@ -125,18 +125,18 @@ jobs:
           CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
         shell: pwsh
         run: |
+          echo $env:version
+
           choco pack chocolatey/mdz.nuspec
           ls 
 
           # install local test
-          choco install mdz --version="1.39.0-beta.2" --prerelease --source="D:\a\midaz\midaz"
-          mdz version
-
-          choco apikey --set $env:CHOCO_API_KEY
-          choco push mdz.1.39.0-beta.2.nupkg --source https://push.chocolatey.org/
-
-          # test install public mdz chocolatey
-          choco install mdz --version="1.39.0-beta.2" --prerelease
-
-          # choco install mdz.1.39.0-beta.2.nupkg --allow-unofficial
-          # choco push "mdz.$env:version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+          # choco install mdz --version="1.39.0-beta.2" --prerelease --source="D:\a\midaz\midaz"
+          # mdz version
+          #
+          # choco apikey --set $env:CHOCO_API_KEY
+          # choco push mdz.1.39.0-beta.2.nupkg --source https://push.chocolatey.org/
+          #
+          # # test install public mdz chocolatey
+          # choco install mdz --version="1.39.0-beta.2" --prerelease
+          # mdz version
