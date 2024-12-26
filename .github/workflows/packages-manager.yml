@@ -28,12 +28,11 @@ jobs:
           CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
           if [ "$CURRENT_BRANCH" = "main" ]; then
             echo "is_main=true" >> $GITHUB_ENV
+            echo "is_main=true" >> $GITHUB_OUTPUT
           else
             echo "is_main=false" >> $GITHUB_ENV
+            echo "is_main=false" >> $GITHUB_OUTPUT
           fi
-
-      - name: Set output for next job
-        run: echo "is_main=${{ env.is_main }}" >> $GITHUB_OUTPUT
 
   check_branch:
     needs: get_branch
@@ -52,8 +51,6 @@ jobs:
       - name: Run only if NOT main branch
         run: |
           echo "This step runs only on branches other than main"
-          echo "The raw_release value is: ${{ env.raw_release }}"
-          echo "The formatted_release value is: ${{ env.formatted_release }}"
 
   chocolatey_release:
     needs: get_branch
@@ -63,5 +60,3 @@ jobs:
       - name: Run only if NOT main branch
         run: |
           echo "This step runs only on the main branch"
-          echo "The raw_release value is: ${{ env.raw_release }}"
-          echo "The formatted_release value is: ${{ env.formatted_release }}"
