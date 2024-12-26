@@ -1,3 +1,10 @@
+## [1.39.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.38.1...v1.39.0-beta.1) (2024-12-26)
+
+
+### Bug Fixes
+
+* update dispached action chocolaty in momment correct ([99cd335](https://github.com/LerianStudio/midaz/commit/99cd33503f2c8389445f186ef5f8b801da8ff2aa))
+
 ## [1.38.1](https://github.com/LerianStudio/midaz/compare/v1.38.0...v1.38.1) (2024-12-26)
 
 ## [1.38.1-beta.1](https://github.com/LerianStudio/midaz/compare/v1.38.0...v1.38.1-beta.1) (2024-12-26)
