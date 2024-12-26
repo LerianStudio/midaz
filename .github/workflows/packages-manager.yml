@@ -28,6 +28,14 @@ jobs:
         run: |
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
           FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
+          
           echo "Raw release: $RAW_RELEASE"
           echo "Formatted release: $FORMATTED_RELEASE"
-          echo "::set-output name=tag::$FORMATTED_RELEASE"
+
+          echo "raw_release=RAW_RELEASE" >> $GITHUB_ENV
+          echo "formatted_release=$FORMATTED_RELEASE" >> $GITHUB_ENV
+
+      - name: Use the output
+        run: |
+          echo "The raw_release value is: ${{ env.raw_release }}"
+          echo "The formatted_release value is: ${{ env.formatted_release }}"
