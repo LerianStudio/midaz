@@ -11,28 +11,17 @@ on:
       - synchronize
       - reopened
 
-
 jobs:
-  verify_release:
+  get_branch:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Verify Release Source
-        id: check_release
+      - name: Verify Branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
-          FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
-          
-          echo "Raw release: $RAW_RELEASE"
-          echo "Formatted release: $FORMATTED_RELEASE"
-
-          echo "raw_release=$RAW_RELEASE" >> $GITHUB_ENV
-          echo "formatted_release=$FORMATTED_RELEASE" >> $GITHUB_ENV
-
           CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
           if [ "$CURRENT_BRANCH" = "main" ]; then
             echo "is_main=true" >> $GITHUB_ENV
@@ -40,16 +29,24 @@ jobs:
             echo "is_main=false" >> $GITHUB_ENV
           fi
 
-      - name: Run only if IS main branch
-        if: env.is_main == 'true'
+  brew_release:
+    needs: get_branch
+    runs-on: ubuntu-24.04
+    if: needs.get_branch.outputs.is_main == 'false'
+    steps:
+      - name: Run only if NOT main branch
         run: |
-          echo "This step runs only on the main branch"
+          echo "This step runs only on branches other than main"
           echo "The raw_release value is: ${{ env.raw_release }}"
           echo "The formatted_release value is: ${{ env.formatted_release }}"
 
+  chocolatey_release:
+    needs: get_branch
+    runs-on: ubuntu-24.04
+    if: needs.get_branch.outputs.is_main == 'true'
+    steps:
       - name: Run only if NOT main branch
-        if: env.is_main == 'false'
         run: |
-          echo "This step runs only on branches other than main"
+          echo "This step runs only on the main branch"
           echo "The raw_release value is: ${{ env.raw_release }}"
           echo "The formatted_release value is: ${{ env.formatted_release }}"
