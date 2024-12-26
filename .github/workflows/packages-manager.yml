@@ -15,13 +15,14 @@ jobs:
   get_branch:
     runs-on: ubuntu-24.04
     outputs:
-      is_main: ${{ steps.get_branch.outputs.is_main }}
+      is_main: ${{ steps.verify_branch.outputs.is_main }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Verify Branch
+        id: verify_branch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -40,7 +41,7 @@ jobs:
     steps:
       - name: Run to print variable
         run: |
-          echo "This printtttttt"
+          echo "heeeeeeeeeeeeeeeeeeeeeelp"
           echo "The formatted_release value is: ${{ needs.get_branch.outputs.is_main }}"    
 
   brew_release:
