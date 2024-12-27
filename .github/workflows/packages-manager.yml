@@ -37,8 +37,8 @@ jobs:
     needs: get_branch
     runs-on: ubuntu-24.04
     steps:
-      - name: Wait for 30 seconds
-        run: sleep 30
+      - name: Wait for 10 minutes
+        run: sleep 600
 
   # NOTE: our cli is in homebrew's autobump.txt because it has been updated so much
   # brew_release:
