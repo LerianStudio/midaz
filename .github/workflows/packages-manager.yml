@@ -1,17 +1,33 @@
 name: "packages manager"
 
 on:
-  push:
-    branches:
-      - main
   release:
     types:
-      - released
+      - published
 
 jobs:
-  brew_release:
+  get_branch:
     runs-on: ubuntu-24.04
-    if: github.event_name == 'release' && github.event.release.tag_name != ''
+    outputs:
+      is_main: ${{ steps.verify_branch.outputs.is_main }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - id: verify_branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
+          if [ "$CURRENT_BRANCH" = "main" ]; then
+            echo "is_main=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_main=false" >> $GITHUB_OUTPUT
+          fi
+
+  brew_release:
+    needs: get_branch
+    runs-on: ubuntu-24.04
+    if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Update Homebrew Formula
         uses: dawidd6/action-homebrew-bump-formula@v4
@@ -19,9 +35,10 @@ jobs:
           token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
           formula: mdz
 
-  choco_release:
+  chocolatey_release:
+    needs: get_branch
     runs-on: windows-latest
-    if: github.event_name == 'release' && github.event.release.tag_name != ''
+    if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -54,12 +71,12 @@ jobs:
       - name: Update nuspec version
         run: |
           $nuspecPath = Resolve-Path .\chocolatey\mdz.nuspec
-      
+          
           if (-Not (Test-Path $nuspecPath)) {
             Write-Error "The nuspec file was not found at $nuspecPath"
             exit 1
           }
-      
+          
           $version = $env:version
           Write-Host "Updating nuspec version to $version"
           (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>$version</version>" | Set-Content $nuspecPath
@@ -72,7 +89,7 @@ jobs:
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
           
-          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/mdz_$($env:version)_windows_amd64.zip"
+          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/midaz_$($env:version)_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
 
@@ -99,8 +116,18 @@ jobs:
       - name: Publish Chocolatey package
         env:
           CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
-        run: |
-          $version = $env:version
-          choco pack chocolatey/mdz.nuspec
-          choco push "mdz.$version.nupkg" --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
         shell: pwsh
+        run: |
+          choco pack chocolatey/mdz.nuspec
+          ls 
+
+          # install local test
+          choco install mdz --version=$env:version --prerelease --source="D:\a\midaz\midaz"
+          mdz version
+          
+          choco apikey --set $env:CHOCO_API_KEY
+          choco push mdz.$env:version.nupkg --source https://push.chocolatey.org/
+          
+          # test install public mdz chocolatey
+          choco install mdz --version=$env:version --prerelease
+          mdz version

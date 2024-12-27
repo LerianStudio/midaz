@@ -143,12 +143,6 @@ func (s *BaseTransactionListener) EnterSource(ctx *SourceContext) {}
 // ExitSource is called when production source is exited.
 func (s *BaseTransactionListener) ExitSource(ctx *SourceContext) {}
 
-// EnterSend is called when production send is entered.
-func (s *BaseTransactionListener) EnterSend(ctx *SendContext) {}
-
-// ExitSend is called when production send is exited.
-func (s *BaseTransactionListener) ExitSend(ctx *SendContext) {}
-
 // EnterTo is called when production to is entered.
 func (s *BaseTransactionListener) EnterTo(ctx *ToContext) {}
 
@@ -160,3 +154,9 @@ func (s *BaseTransactionListener) EnterDistribute(ctx *DistributeContext) {}
 
 // ExitDistribute is called when production distribute is exited.
 func (s *BaseTransactionListener) ExitDistribute(ctx *DistributeContext) {}
+
+// EnterSend is called when production send is entered.
+func (s *BaseTransactionListener) EnterSend(ctx *SendContext) {}
+
+// ExitSend is called when production send is exited.
+func (s *BaseTransactionListener) ExitSend(ctx *SendContext) {}

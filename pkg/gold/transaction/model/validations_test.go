@@ -738,16 +738,16 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 						},
 					},
 				},
-			},
-			Distribute: Distribute{
-				To: []FromTo{
-					{
-						Account: "@account3",
-						Amount:  &Amount{Value: 60},
-					},
-					{
-						Account: "@account4",
-						Amount:  &Amount{Value: 40},
+				Distribute: Distribute{
+					To: []FromTo{
+						{
+							Account: "@account3",
+							Amount:  &Amount{Value: 60},
+						},
+						{
+							Account: "@account4",
+							Amount:  &Amount{Value: 40},
+						},
 					},
 				},
 			},
@@ -817,16 +817,16 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 						},
 					},
 				},
-			},
-			Distribute: Distribute{
-				To: []FromTo{
-					{
-						Account: "@account3",
-						Amount:  &Amount{Value: 60},
-					},
-					{
-						Account: "@account4",
-						Amount:  &Amount{Value: 40},
+				Distribute: Distribute{
+					To: []FromTo{
+						{
+							Account: "@account3",
+							Amount:  &Amount{Value: 60},
+						},
+						{
+							Account: "@account4",
+							Amount:  &Amount{Value: 40},
+						},
 					},
 				},
 			},
@@ -854,16 +854,16 @@ func TestValidateSendSourceAndDistribute(t *testing.T) {
 						},
 					},
 				},
-			},
-			Distribute: Distribute{
-				To: []FromTo{
-					{
-						Account: "@account3",
-						Amount:  &Amount{Value: 41},
-					},
-					{
-						Account: "@account4",
-						Amount:  &Amount{Value: 40},
+				Distribute: Distribute{
+					To: []FromTo{
+						{
+							Account: "@account3",
+							Amount:  &Amount{Value: 41},
+						},
+						{
+							Account: "@account4",
+							Amount:  &Amount{Value: 40},
+						},
 					},
 				},
 			},

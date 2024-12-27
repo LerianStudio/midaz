@@ -86,6 +86,12 @@ jobs:
         run: |
           sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/mdz/.env.example
 
+      - name: Update Version Choco version file install.ps1
+        if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
+        run: |
+          TAG=${{ steps.latest_release.outputs.tag }}
+          sed -i "s/\$version *= *'[^']*'/\$version = '$TAG'/g" "./chocolatey/tools/chocolateyinstall.ps1"
+
       - name: Git Diff
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |

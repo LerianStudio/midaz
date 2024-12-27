@@ -7,7 +7,6 @@ import (
 	"math"
 	"os/exec"
 	"reflect"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -159,8 +158,9 @@ func SafeInt64ToInt(val int64) int {
 
 // IsUUID Validate if the string pass through is an uuid
 func IsUUID(s string) bool {
-	r := regexp.MustCompile("^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[1-5][a-fA-F0-9]{3}-[89abAB][a-fA-F0-9]{3}-[a-fA-F0-9]{12}$")
-	return r.MatchString(s)
+	_, err := uuid.Parse(s)
+
+	return err == nil
 }
 
 // GenerateUUIDv7 generate a new uuid v7 using google/uuid package and return it. If an error occurs, it will return the error.
