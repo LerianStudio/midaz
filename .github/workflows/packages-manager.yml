@@ -1,15 +1,9 @@
 name: "packages manager"
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
+  release:
     types:
-      - opened
-      - edited
-      - synchronize
-      - reopened
+      - published
 
 jobs:
   get_branch:
@@ -24,6 +18,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
+          
           echo "CURRENT_BRANCH: $CURRENT_BRANCH"
           
           if [ "$CURRENT_BRANCH" = "main" ]; then
