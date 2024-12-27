@@ -1,3 +1,13 @@
+## [1.40.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.39.0...v1.40.0-beta.1) (2024-12-27)
+
+
+### Bug Fixes
+
+* change the way of trigger actions only to test :bug: ([a2236fc](https://github.com/LerianStudio/midaz/commit/a2236fc0c31c868afb31e4c5663ea62129ea2425))
+* echo CURRENT_BRANCH :bug: ([27fd429](https://github.com/LerianStudio/midaz/commit/27fd429228c39a0d58285ec719e2e049ff5e5802))
+* return right way trigger :bug: ([52bd136](https://github.com/LerianStudio/midaz/commit/52bd1368f2ca176bf3a906b4270b0e74e8112e9d))
+* tag to print the real branch :bug: ([aa34991](https://github.com/LerianStudio/midaz/commit/aa349914022d3768fbfe25b3e0cebb441ba8f9f2))
+
 ## [1.39.0](https://github.com/LerianStudio/midaz/compare/v1.38.1...v1.39.0) (2024-12-27)
 
 
