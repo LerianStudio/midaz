@@ -1,3 +1,17 @@
+## [1.41.0](https://github.com/LerianStudio/midaz/compare/v1.40.0...v1.41.0) (2024-12-27)
+
+
+### Bug Fixes
+
+* final :bug: ([e07f491](https://github.com/LerianStudio/midaz/commit/e07f4912b23046ab2b5ac0bfa8547117bd7f4598))
+* formatted version in script install cli :bug: ([d418612](https://github.com/LerianStudio/midaz/commit/d41861296564f2a883f8bbf557169b81bc7e5841))
+* name the step wait change update needs of the step from choco :bug: ([c7062e7](https://github.com/LerianStudio/midaz/commit/c7062e79c8b7fec4b39e0bf7fc0a1f8a84b146f0))
+* runner to branch develop :bug: ([f1bd475](https://github.com/LerianStudio/midaz/commit/f1bd4756c86aff250e867d5c222d4245db7cd675))
+* syntax error replace change to sed bash :bug: ([edbf9c5](https://github.com/LerianStudio/midaz/commit/edbf9c5ccf753f51499a7c0458e2d4a072c575a6))
+* test if vars functionals normal :bug: ([be817c0](https://github.com/LerianStudio/midaz/commit/be817c0f95ad4f1f8a6cee1e13d2ccdd53427df1))
+* wait 10 minutes before of the exec push to choco :bug: ([0a64bf8](https://github.com/LerianStudio/midaz/commit/0a64bf8d65b85c81a9f8efbc2b59107b17b19a6a))
+* wait no runner in develop :bug: ([07883ff](https://github.com/LerianStudio/midaz/commit/07883ff47c7ac29579c23ceb5ae4928cf9ccae86))
+
 ## [1.41.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.41.0-beta.1...v1.41.0-beta.2) (2024-12-27)
 
 
