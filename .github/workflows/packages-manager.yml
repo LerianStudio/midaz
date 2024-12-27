@@ -24,7 +24,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
-          echo "CURRENT_BRANCH: CURRENT_BRANCH"
+          echo "CURRENT_BRANCH: $CURRENT_BRANCH"
           
           if [ "$CURRENT_BRANCH" = "main" ]; then
             echo "is_main=true" >> $GITHUB_OUTPUT
