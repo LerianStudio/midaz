@@ -1,15 +1,21 @@
 name: "packages manager"
 
 on:
-  release:
+  pull_request:
+    branches:
+      - main
     types:
-      - published
+      - opened
+      - edited
+      - synchronize
+      - reopened
 
 jobs:
   get_branch:
     runs-on: ubuntu-24.04
     outputs:
       is_main: ${{ steps.verify_branch.outputs.is_main }}
+      version: ${{ steps.verify_branch.outputs.version }} 
 
     steps:
       - uses: actions/checkout@v4
@@ -29,22 +35,31 @@ jobs:
             echo "is_main=false" >> $GITHUB_OUTPUT
           fi          
 
+          $version = $RAW_RELEASE -replace '^v', ''
+          echo "version=$version" >> $GITHUB_OUTPUT
 
-  brew_release:
+  wait_release:
     needs: get_branch
     runs-on: ubuntu-24.04
-    if: needs.get_branch.outputs.is_main == 'true'
     steps:
-      - name: Update Homebrew Formula
-        uses: dawidd6/action-homebrew-bump-formula@v4
-        with:
-          token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
-          formula: mdz
+      - name: Wait for 30 seconds
+        run: sleep 30
+
+  # brew_release:
+  #   needs: [get_branch, wait_job]
+  #   runs-on: ubuntu-24.04
+  #   if: needs.get_branch.outputs.is_main == 'true'
+  #   steps:
+  #     - name: Update Homebrew Formula
+  #       uses: dawidd6/action-homebrew-bump-formula@v4
+  #       with:
+  #         token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+  #         formula: mdz
 
   chocolatey_release:
-    needs: get_branch
+    needs: [get_branch, wait_job]
     runs-on: windows-latest
-    if: needs.get_branch.outputs.is_main == 'true'
+    # if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -54,18 +69,6 @@ jobs:
         with:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-
-      - name: Fetch Latest Tag
-        id: latest_tag
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          $RawRelease = gh release list --repo $env:GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName'
-          $FormattedRelease = $RawRelease -replace '^v', ''
-          Write-Host "Formatted release: $FormattedRelease"
-
-          echo "version=$FormattedRelease" >> $env:GITHUB_ENV
-        shell: pwsh
 
       - name: Set up Chocolatey
         run: |
@@ -83,9 +86,8 @@ jobs:
             exit 1
           }
           
-          $version = $env:version
-          Write-Host "Updating nuspec version to $version"
-          (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>$version</version>" | Set-Content $nuspecPath
+          Write-Host "Updating nuspec version to ${{ needs.get_branch.outputs.version }}"
+          (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>${{ needs.get_branch.outputs.version }}</version>" | Set-Content $nuspecPath
         shell: pwsh
 
       - name: Download and extract ZIP
@@ -95,7 +97,7 @@ jobs:
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
           
-          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/midaz_$($env:version)_windows_amd64.zip"
+          $url = "https://github.com/LerianStudio/midaz/releases/download/v${{ needs.get_branch.outputs.version }}/midaz_${{ needs.get_branch.outputs.version }}_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
 
@@ -128,12 +130,12 @@ jobs:
           ls 
 
           # install local test
-          choco install mdz --version=$env:version --prerelease --source="D:\a\midaz\midaz"
+          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
           mdz version
           
           choco apikey --set $env:CHOCO_API_KEY
-          choco push mdz.$env:version.nupkg --source https://push.chocolatey.org/
+          choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
           
           # test install public mdz chocolatey
-          choco install mdz --version=$env:version --prerelease
+          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
           mdz version

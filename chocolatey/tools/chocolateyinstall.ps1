@@ -7,7 +7,7 @@ $binDir     = Join-Path $env:ChocolateyInstall 'bin'
 $outputFile = Join-Path $toolsDir 'mdz.exe'
 
 # URL do arquivo zipado
-$url        = 'https://github.com/LerianStudio/midaz/releases/download/v${version}/midaz_${version}_windows_amd64.zip'
+$url        = "https://github.com/LerianStudio/midaz/releases/download/"+$version+"/midaz_"+$version+"_windows_amd64.zip"
 $checksum   = '{{CHECKSUM}}'
 $silentArgs = ''
 
