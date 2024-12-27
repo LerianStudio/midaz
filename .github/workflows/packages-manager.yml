@@ -36,7 +36,7 @@ jobs:
             echo "is_main=false" >> $GITHUB_OUTPUT
           fi          
 
-          $version = $RAW_RELEASE -replace '^v', ''
+          version=$(echo "$RAW_RELEASE" | sed 's/^v//')
           echo "version=$version" >> $GITHUB_OUTPUT
 
   wait_release:
