@@ -24,6 +24,7 @@ jobs:
         run: |
           echo "PR_NUMBER=$(gh pr view --json number | jq -r '.number')" >> $GITHUB_ENV
           echo "PR_NUMBER: $PR_NUMBER"
+          echo "env.PR_NUMBER: ${{ env.PR_NUMBER }}"
           
           echo "$BRANCH_TO_MERGE=$(gh pr view $PR_NUMBER --json baseRefName | jq -r '.baseRefName')" >> $GITHUB_ENV
           echo "BRANCH_TO_MERGE: $BRANCH_TO_MERGE"
