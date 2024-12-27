@@ -58,7 +58,7 @@ jobs:
   #         formula: mdz
 
   chocolatey_release:
-    needs: [get_branch, wait_job]
+    needs: [get_branch, wait_release]
     runs-on: windows-latest
     # if: needs.get_branch.outputs.is_main == 'true'
     steps:
