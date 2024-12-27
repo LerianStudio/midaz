@@ -22,10 +22,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PR_NUMBER=$(gh pr view --json number | jq -r '.number')
+          PR_NUMBER=$(gh pr view --json number --jq '.[0].number')
           echo "PR_NUMBER: $PR_NUMBER"
           
-          BRANCH_TO_MERGE=$(gh pr view $PR_NUMBER --json baseRefName | jq -r '.baseRefName')
+          BRANCH_TO_MERGE=$(gh pr view $PR_NUMBER --json baseRefName --jq '.[0].baseRefName')
           echo "BRANCH_TO_MERGE: $BRANCH_TO_MERGE"
           
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
