@@ -1,4 +1,4 @@
-Write-Output "start install CLI mdz"
+$version = '1.38.1'
 
 $ErrorActionPreference = 'Stop';
 
@@ -7,7 +7,7 @@ $binDir     = Join-Path $env:ChocolateyInstall 'bin'
 $outputFile = Join-Path $toolsDir 'mdz.exe'
 
 # URL do arquivo zipado
-$url        = 'https://github.com/LerianStudio/midaz/releases/download/v1.38.1/midaz_1.38.1_windows_amd64.zip'
+$url        = 'https://github.com/LerianStudio/midaz/releases/download/v${version}/midaz_${version}_windows_amd64.zip'
 $checksum   = '{{CHECKSUM}}'
 $silentArgs = ''
 

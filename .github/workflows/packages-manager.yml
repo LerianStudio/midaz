@@ -1,15 +1,9 @@
 name: "packages manager"
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
+  release:
     types:
-      - opened
-      - edited
-      - synchronize
-      - reopened
+      - published
 
 jobs:
   get_branch:
@@ -44,7 +38,7 @@ jobs:
   chocolatey_release:
     needs: get_branch
     runs-on: windows-latest
-    # if: needs.get_branch.outputs.is_main == 'true'
+    if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -95,8 +89,7 @@ jobs:
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
           
-          # $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/mdz_$($env:version)_windows_amd64.zip"
-          $url = "https://github.com/LerianStudio/midaz/releases/download/v1.38.1/midaz_1.38.1_windows_amd64.zip"
+          $url = "https://github.com/LerianStudio/midaz/releases/download/v$($env:version)/midaz_$($env:version)_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
 
@@ -125,18 +118,16 @@ jobs:
           CHOCO_API_KEY: ${{ secrets.CHOCO_TOKEN }}
         shell: pwsh
         run: |
-          echo $env:version
-
           choco pack chocolatey/mdz.nuspec
           ls 
 
           # install local test
-          # choco install mdz --version="1.39.0-beta.2" --prerelease --source="D:\a\midaz\midaz"
-          # mdz version
-          #
-          # choco apikey --set $env:CHOCO_API_KEY
-          # choco push mdz.1.39.0-beta.2.nupkg --source https://push.chocolatey.org/
-          #
-          # # test install public mdz chocolatey
-          # choco install mdz --version="1.39.0-beta.2" --prerelease
-          # mdz version
+          choco install mdz --version=$env:version --prerelease --source="D:\a\midaz\midaz"
+          mdz version
+          
+          choco apikey --set $env:CHOCO_API_KEY
+          choco push mdz.$env:version.nupkg --source https://push.chocolatey.org/
+          
+          # test install public mdz chocolatey
+          choco install mdz --version=$env:version --prerelease
+          mdz version
