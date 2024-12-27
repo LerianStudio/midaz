@@ -1,4 +1,4 @@
-$version = 'v1.40.0'
+$version = 'v1.41.0'
 
 $ErrorActionPreference = 'Stop';
 
@@ -6,8 +6,10 @@ $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 $binDir     = Join-Path $env:ChocolateyInstall 'bin'
 $outputFile = Join-Path $toolsDir 'mdz.exe'
 
+$versionFmt = $version -replace '^v', ''
+
 # URL do arquivo zipado
-$url        = 'https://github.com/LerianStudio/midaz/releases/download/v${version}/midaz_${version}_windows_amd64.zip'
+$url        = "https://github.com/LerianStudio/midaz/releases/download/"+$version+"/midaz_"+$versionFmt+"_windows_amd64.zip"
 $checksum   = '{{CHECKSUM}}'
 $silentArgs = ''
 
