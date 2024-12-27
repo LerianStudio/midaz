@@ -22,10 +22,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-        
-          echo "steps.latest_release.outputs.release_id: ${{steps.latest_release.outputs.release_id}}"
-          echo "github.event.release.id: ${{github.event.release.id}}"
-          
           PR_NUMBER=$(gh pr view --json number | jq -r '.number')
           echo "PR_NUMBER: $PR_NUMBER"
 
