@@ -1,3 +1,10 @@
+## [1.41.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.41.0-beta.1...v1.41.0-beta.2) (2024-12-27)
+
+
+### Bug Fixes
+
+* wait no runner in develop :bug: ([07883ff](https://github.com/LerianStudio/midaz/commit/07883ff47c7ac29579c23ceb5ae4928cf9ccae86))
+
 ## [1.41.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.40.0...v1.41.0-beta.1) (2024-12-27)
 
 
