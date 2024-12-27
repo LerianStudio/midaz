@@ -1,15 +1,9 @@
 name: "packages manager"
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
+  release:
     types:
-      - opened
-      - edited
-      - synchronize
-      - reopened
+      - published
 
 jobs:
   get_branch:
@@ -46,6 +40,7 @@ jobs:
       - name: Wait for 30 seconds
         run: sleep 30
 
+  # NOTE: our cli is in homebrew's autobump.txt because it has been updated so much
   # brew_release:
   #   needs: [get_branch, wait_job]
   #   runs-on: ubuntu-24.04
@@ -60,7 +55,7 @@ jobs:
   chocolatey_release:
     needs: [get_branch, wait_release]
     runs-on: windows-latest
-    # if: needs.get_branch.outputs.is_main == 'true'
+    if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
