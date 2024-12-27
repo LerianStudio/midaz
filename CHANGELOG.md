@@ -1,3 +1,50 @@
+## [1.39.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.39.0-beta.2...v1.39.0-beta.3) (2024-12-27)
+
+
+### Features
+
+* add tests to to print :sparkles: ([49bd3ce](https://github.com/LerianStudio/midaz/commit/49bd3ce6bbbe6a38a14a6378500b5a88367a2f7f))
+* print release ([c915b67](https://github.com/LerianStudio/midaz/commit/c915b677409ff0564b2b75ce416d4b38243c81c2))
+* update Choco install.ps1 with the latest release version :sparkles: ([3fbc073](https://github.com/LerianStudio/midaz/commit/3fbc0733d73970ca49a3808cb5ca85ae9e08f394))
+
+
+### Bug Fixes
+
+* add env test :bug: ([23351ae](https://github.com/LerianStudio/midaz/commit/23351aefa10786e7c9a6bea27b02ae5e5da5bc5d))
+* add git token :bug: ([a42bf8b](https://github.com/LerianStudio/midaz/commit/a42bf8b0eaaac0c746b665e0fa6ed4979b25fa9e))
+* add id to steps :bug: ([e6b22f8](https://github.com/LerianStudio/midaz/commit/e6b22f85bc43daa98e539e9c71b5329788c403df))
+* add jobs with conditional :bug: ([fecc256](https://github.com/LerianStudio/midaz/commit/fecc256917173e6d4e3c0f7a35d2f5a49f342761))
+* add more echo :bug: ([8d71809](https://github.com/LerianStudio/midaz/commit/8d7180977a5d23d74e2d52a1f1c12083ee89adc8))
+* add new echos :bug: ([1d5f58d](https://github.com/LerianStudio/midaz/commit/1d5f58d83a093465f69735f5bfd3851a4be6cf8e))
+* add on outputs :bug: ([967a3e6](https://github.com/LerianStudio/midaz/commit/967a3e6f45f61afc4df273fd2f46ec83f3270d32))
+* add prints :bug: ([27e7c43](https://github.com/LerianStudio/midaz/commit/27e7c43567de2a6eb5aa44fb47571f8e2f6bd719))
+* add steps if main or not :bug: ([dc7ac2e](https://github.com/LerianStudio/midaz/commit/dc7ac2e34af068c5a8df829bbe11e454d444edf1))
+* add variables :bug: ([d69afd4](https://github.com/LerianStudio/midaz/commit/d69afd450765c42c98e73a560e7f0dfe4d180eb7))
+* added print install.ps1 shell ([389c26a](https://github.com/LerianStudio/midaz/commit/389c26ae30e25876f8672f97f1e828c96c1e3f9a))
+* added push choco ([ecd2580](https://github.com/LerianStudio/midaz/commit/ecd25809e3f2de081514de5d12614cc0335a29f7))
+* added url hardcoded to test run package choco ([a6c9632](https://github.com/LerianStudio/midaz/commit/a6c963223943cf49cc096a3fecc7c298c50866ed))
+* adjust ref variable :bug: ([f7bb3d8](https://github.com/LerianStudio/midaz/commit/f7bb3d8c59410001cd0797a51552006ade264209))
+* check bin access cli mdz :bug: ([f93da6c](https://github.com/LerianStudio/midaz/commit/f93da6c1e7a6decb03e94c8e6089d0d583d13666))
+* check var version value :bug: ([42731cc](https://github.com/LerianStudio/midaz/commit/42731cc894e3f78a7c0cb4ec4c0fe0e7a30fed16))
+* choco pack added ([0d8876e](https://github.com/LerianStudio/midaz/commit/0d8876e82f2ffda20b2f6d8c63640675683a47f5))
+* comment if check main to action choco to validated ([c55a9e8](https://github.com/LerianStudio/midaz/commit/c55a9e82e2472a5076654b7fa88257b217522a66))
+* define shell before script ([3091d0d](https://github.com/LerianStudio/midaz/commit/3091d0d012c055a6fb3743282ed0269b71575241))
+* final :bug: ([5c3347c](https://github.com/LerianStudio/midaz/commit/5c3347ce4b97631399d08ff89c5f58dba6ae8065))
+* get branch and set to env :bug: ([4a5cde0](https://github.com/LerianStudio/midaz/commit/4a5cde0550df1d2a2ce7871625fba542612059cf))
+* list itens ([f8da540](https://github.com/LerianStudio/midaz/commit/f8da540a9f64d33e22a29094cf2a143fff9ecb74))
+* print job variable :bug: ([db155b3](https://github.com/LerianStudio/midaz/commit/db155b3718133acc483c6abee3ed8a426dfa7de1))
+* print var env ([d3422e0](https://github.com/LerianStudio/midaz/commit/d3422e0a42d250ff4d2e80255ab17368c25be230))
+* print var env choco ([a9e7be7](https://github.com/LerianStudio/midaz/commit/a9e7be78aeb4a6bf067ec7a2854999ca77f287db))
+* push package in chocoloty :bug: ([4c17e0a](https://github.com/LerianStudio/midaz/commit/4c17e0ad1c1217a465d2884ddad8a5db24aadef9))
+* remove query params url icon github ([bfcdbe3](https://github.com/LerianStudio/midaz/commit/bfcdbe320df061f0235cb9c0d8944f31371bac23))
+* runner action package to commit ([3395dfa](https://github.com/LerianStudio/midaz/commit/3395dfa405bbc909ac447478eb02fd6bf4265fd3))
+* tagname nuspec close errored ([f97e2a6](https://github.com/LerianStudio/midaz/commit/f97e2a62ab0a72c37edc41c2884e0cd952f6f763))
+* try install local 2 testing :bug: ([7d1998f](https://github.com/LerianStudio/midaz/commit/7d1998f77dcb450b3172db7a4fcddf2264b70352))
+* try install local testing :bug: ([2737ded](https://github.com/LerianStudio/midaz/commit/2737ded50d77704398661735009bc8adfa104777))
+* update some adjusts :bug: ([61db1cf](https://github.com/LerianStudio/midaz/commit/61db1cfd6e90bee2e5649918481c7d4361ac00a1))
+* update version final :bug: ([668ede4](https://github.com/LerianStudio/midaz/commit/668ede4c692d541c8d91df1a47335db06e557ac5))
+* used var version correct ([cf11623](https://github.com/LerianStudio/midaz/commit/cf11623cf73e0bef14121d45f2c9d0fafc905f13))
+
 ## [1.39.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.39.0-beta.1...v1.39.0-beta.2) (2024-12-26)
 
 
