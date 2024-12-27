@@ -1,3 +1,34 @@
+## [1.40.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.40.0-beta.1...v1.40.0-beta.2) (2024-12-27)
+
+
+### Bug Fixes
+
+* add new way to find main. release :bug: ([d4ccbe3](https://github.com/LerianStudio/midaz/commit/d4ccbe3ef80517eeb490466861b8960d522c228e))
+* change command :bug: ([e7ef312](https://github.com/LerianStudio/midaz/commit/e7ef312e7eb5a2005a232d88f468258b45d1aab1))
+* change command :bug: ([e55db05](https://github.com/LerianStudio/midaz/commit/e55db05ed0093409b41862a62b6a4197ef056994))
+* change command :bug: ([558c982](https://github.com/LerianStudio/midaz/commit/558c9821785b36b36592af9b2395c06d4899dabe))
+* final :bug: ([831c6be](https://github.com/LerianStudio/midaz/commit/831c6befc64d0057a155a95bb717222b13346b0c))
+* gh command :bug: ([8a76a21](https://github.com/LerianStudio/midaz/commit/8a76a21a1377ccc1d214831f18bcb63d3c6d5eba))
+* print pr number and branch to merge pr :bug: ([a87b03f](https://github.com/LerianStudio/midaz/commit/a87b03fa3f69d88e8f6b1383e0e6cd38954322b0))
+* remove echo :bug: ([abfdb69](https://github.com/LerianStudio/midaz/commit/abfdb6994ee625ec0ba84ac29d793e0576ced316))
+* remove echos :bug: ([b329b11](https://github.com/LerianStudio/midaz/commit/b329b11c1e3231fc9f64b81c77e028f45d72235e))
+* some echos :bug: ([12cb38d](https://github.com/LerianStudio/midaz/commit/12cb38dca1d3a0136d14ddb150856b38088e69ef))
+* trigger :bug: ([9b62691](https://github.com/LerianStudio/midaz/commit/9b62691ea182703c53fb2dd1429332300e0ab4a5))
+* unix adjusts :bug: ([df55e06](https://github.com/LerianStudio/midaz/commit/df55e061420c553359b84c41cc2b5b96d1cf3a3f))
+* update :bug: ([5c91fbd](https://github.com/LerianStudio/midaz/commit/5c91fbdfe0560222ff0b62536f65656fad737d4c))
+* update command :bug: ([3a3d470](https://github.com/LerianStudio/midaz/commit/3a3d47086b642b87b6df30945d53af62662bd061))
+* update command :bug: ([faf8d8f](https://github.com/LerianStudio/midaz/commit/faf8d8f47802ee18163500a63b03371933e7b2a1))
+
+## [1.40.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.39.0...v1.40.0-beta.1) (2024-12-27)
+
+
+### Bug Fixes
+
+* change the way of trigger actions only to test :bug: ([a2236fc](https://github.com/LerianStudio/midaz/commit/a2236fc0c31c868afb31e4c5663ea62129ea2425))
+* echo CURRENT_BRANCH :bug: ([27fd429](https://github.com/LerianStudio/midaz/commit/27fd429228c39a0d58285ec719e2e049ff5e5802))
+* return right way trigger :bug: ([52bd136](https://github.com/LerianStudio/midaz/commit/52bd1368f2ca176bf3a906b4270b0e74e8112e9d))
+* tag to print the real branch :bug: ([aa34991](https://github.com/LerianStudio/midaz/commit/aa349914022d3768fbfe25b3e0cebb441ba8f9f2))
+
 ## [1.39.0](https://github.com/LerianStudio/midaz/compare/v1.38.1...v1.39.0) (2024-12-27)
 
 

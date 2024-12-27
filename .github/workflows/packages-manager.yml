@@ -17,12 +17,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CURRENT_BRANCH=$(gh pr view --json headRefName -q ".headRefName" 2>/dev/null || echo ${{ github.ref_name }})
-          if [ "$CURRENT_BRANCH" = "main" ]; then
+          RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
+          FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
+          
+          echo "Raw release: $RAW_RELEASE"
+          echo "Formatted release: $FORMATTED_RELEASE"
+          
+          if [ "$RAW_RELEASE" = "$FORMATTED_RELEASE" ]; then
             echo "is_main=true" >> $GITHUB_OUTPUT
           else
             echo "is_main=false" >> $GITHUB_OUTPUT
-          fi
+          fi          
+
 
   brew_release:
     needs: get_branch
