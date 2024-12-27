@@ -14,7 +14,7 @@ import (
 //go:generate mockgen --destination=redis.mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
-	Get(ctx context.Context, key string) error
+	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 }
 
@@ -49,13 +49,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	if ttl <= 0 {
-		ttl = mredis.RedisTTL
-	}
+	logger.Infof("value of ttl: %v", ttl*time.Second)
 
-	logger.Infof("value of ttl: %v", ttl)
-
-	statusCMD := rds.Set(ctx, key, value, ttl)
+	statusCMD := rds.SetNX(ctx, key, value, ttl*time.Second)
 	if statusCMD.Err() != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
 
@@ -65,8 +61,8 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
-func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
-	return nil
+func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
+	return "", nil
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {

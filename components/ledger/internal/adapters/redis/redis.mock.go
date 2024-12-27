@@ -11,9 +11,10 @@ package redis
 
 import (
 	context "context"
-	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 	time "time"
+
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRedisRepository is a mock of RedisRepository interface.
@@ -54,11 +55,12 @@ func (mr *MockRedisRepositoryMockRecorder) Del(arg0, arg1 any) *gomock.Call {
 }
 
 // Get mocks base method.
-func (m *MockRedisRepository) Get(arg0 context.Context, arg1 string) error {
+func (m *MockRedisRepository) Get(arg0 context.Context, arg1 string) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
