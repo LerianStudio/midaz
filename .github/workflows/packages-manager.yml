@@ -36,6 +36,7 @@ jobs:
   wait_release:
     needs: get_branch
     runs-on: ubuntu-24.04
+    if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Wait for 10 minutes
         run: sleep 600
