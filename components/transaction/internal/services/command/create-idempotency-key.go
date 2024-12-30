@@ -2,10 +2,12 @@ package command
 
 import (
 	"context"
+	"errors"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"time"
 )
 
@@ -25,13 +27,13 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
 
 	value, err := uc.RedisRepo.Get(ctx, internalKey)
-	if err != nil && err.Error() != "redis: nil" {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		logger.Error("Error to get idempotency key on redis failed:", err.Error())
 	}
 
 	if value == "" {
 		err = uc.RedisRepo.Set(ctx, internalKey, hash, ttl)
-		if err != nil && err.Error() != "redis: nil" {
+		if err != nil && !errors.Is(err, redis.Nil) {
 			logger.Error("Error to set idempotency key on redis failed:", err.Error())
 		}
 	} else {
