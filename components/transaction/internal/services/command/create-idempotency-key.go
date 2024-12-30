@@ -25,13 +25,13 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
 
 	value, err := uc.RedisRepo.Get(ctx, internalKey)
-	if err != nil {
+	if err != nil && err.Error() != "redis: nil" {
 		logger.Error("Error to get idempotency key on redis failed:", err.Error())
 	}
 
 	if value == "" {
 		err = uc.RedisRepo.Set(ctx, internalKey, hash, ttl)
-		if err != nil {
+		if err != nil && err.Error() != "redis: nil" {
 			logger.Error("Error to set idempotency key on redis failed:", err.Error())
 		}
 	} else {
