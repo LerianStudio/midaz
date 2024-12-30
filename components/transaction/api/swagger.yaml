@@ -118,8 +118,6 @@ definitions:
       description:
         maxLength: 256
         type: string
-      distribute:
-        $ref: '#/definitions/Distribute'
       metadata:
         additionalProperties: {}
         type: object
@@ -128,7 +126,6 @@ definitions:
       send:
         $ref: '#/definitions/Send'
     required:
-    - distribute
     - send
     type: object
   Distribute:
@@ -282,6 +279,8 @@ definitions:
       asset:
         example: BRL
         type: string
+      distribute:
+        $ref: '#/definitions/Distribute'
       scale:
         example: 2
         minimum: 0
@@ -293,6 +292,7 @@ definitions:
         type: integer
     required:
     - asset
+    - distribute
     - source
     - value
     type: object

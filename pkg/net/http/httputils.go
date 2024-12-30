@@ -2,15 +2,16 @@ package http
 
 import (
 	"bytes"
-	"github.com/LerianStudio/midaz/pkg/mredis"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg/mredis"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -27,6 +28,7 @@ type QueryHeader struct {
 	SortOrder    string
 	StartDate    time.Time
 	EndDate      time.Time
+	Alias        string
 	UseMetadata  bool
 	PortfolioID  string
 	ToAssetCodes []string
@@ -40,26 +42,24 @@ type Pagination struct {
 	SortOrder string
 	StartDate time.Time
 	EndDate   time.Time
+	Alias     string
 }
 
 // ValidateParameters validate and return struct of default parameters
 func ValidateParameters(params map[string]string) (*QueryHeader, error) {
-	var metadata *bson.M
-
-	var portfolioID string
-
-	var toAssetCodes []string
-
-	var startDate time.Time
-
-	var endDate time.Time
-
-	var cursor string
-
-	limit := 10
-	page := 1
-	sortOrder := "desc"
-	useMetadata := false
+	var (
+		metadata     *bson.M
+		portfolioID  string
+		toAssetCodes []string
+		startDate    time.Time
+		endDate      time.Time
+		cursor       string
+		alias        string
+		limit        = 10
+		page         = 1
+		sortOrder    = "desc"
+		useMetadata  = false
+	)
 
 	for key, value := range params {
 		switch {
@@ -82,6 +82,8 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 			portfolioID = value
 		case strings.Contains(key, "to"):
 			toAssetCodes = strings.Split(value, ",")
+		case key == "alias":
+			alias = value
 		}
 	}
 
@@ -110,6 +112,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		SortOrder:    sortOrder,
 		StartDate:    startDate,
 		EndDate:      endDate,
+		Alias:        alias,
 		UseMetadata:  useMetadata,
 		PortfolioID:  portfolioID,
 		ToAssetCodes: toAssetCodes,
@@ -273,6 +276,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 		SortOrder: qh.SortOrder,
 		StartDate: qh.StartDate,
 		EndDate:   qh.EndDate,
+		Alias:     qh.Alias,
 	}
 }
 

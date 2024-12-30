@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-	"github.com/LerianStudio/midaz/pkg/net/http"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/LerianStudio/midaz/pkg/net/http"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -174,8 +175,13 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))})
+
+	if len(filter.Alias) > 0 {
+		findAll = findAll.Where(squirrel.Expr("alias = ?", filter.Alias))
+	}
+
+	findAll = findAll.Limit(pkg.SafeIntToUint64(filter.Limit)).
 		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 

@@ -1,3 +1,10 @@
+## [1.42.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.41.0...v1.42.0-beta.1) (2024-12-30)
+
+
+### Features
+
+* will query the field alias added field alias for query via query param :sparkles: ([12e869e](https://github.com/LerianStudio/midaz/commit/12e869e2c30db1e98b0495fdd66c53bcd2b39222))
+
 ## [1.41.0](https://github.com/LerianStudio/midaz/compare/v1.40.0...v1.41.0) (2024-12-27)
 
 

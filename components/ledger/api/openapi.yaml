@@ -482,6 +482,11 @@ paths:
           - asc
           - desc
           type: string
+      - description: Find alias
+        in: query
+        name: alias
+        schema:
+          type: string
       responses:
         "200":
           content:

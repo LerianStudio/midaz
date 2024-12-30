@@ -680,6 +680,12 @@ const docTemplate = `{
                         "description": "Sort Order",
                         "name": "sort_order",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Find alias",
+                        "name": "alias",
+                        "in": "query"
                     }
                 ],
                 "responses": {
