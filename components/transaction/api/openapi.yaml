@@ -882,52 +882,52 @@ components:
         code: code
         pending: true
         description: description
-        distribute:
-          to:
-          - amount:
-              scale: 2
-              asset: BRL
-              value: 1000
-            metadata:
-              key: '{}'
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              scale: 2
-              from: BRL
-              to: USDe
-              value: 1000
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            account: '@person1'
-            remaining: remaining
-          - amount:
-              scale: 2
-              asset: BRL
-              value: 1000
-            metadata:
-              key: '{}'
-            rate:
-              externalId: 00000000-0000-0000-0000-000000000000
-              scale: 2
-              from: BRL
-              to: USDe
-              value: 1000
-            isFrom: true
-            chartOfAccounts: "1000"
-            description: description
-            share:
-              percentage: 0
-              percentageOfPercentage: 6
-            account: '@person1'
-            remaining: remaining
-          remaining: remaining
         chartOfAccountsGroupName: chartOfAccountsGroupName
         send:
           scale: 2
+          distribute:
+            to:
+            - amount:
+                scale: 2
+                asset: BRL
+                value: 1000
+              metadata:
+                key: '{}'
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                scale: 2
+                from: BRL
+                to: USDe
+                value: 1000
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              account: '@person1'
+              remaining: remaining
+            - amount:
+                scale: 2
+                asset: BRL
+                value: 1000
+              metadata:
+                key: '{}'
+              rate:
+                externalId: 00000000-0000-0000-0000-000000000000
+                scale: 2
+                from: BRL
+                to: USDe
+                value: 1000
+              isFrom: true
+              chartOfAccounts: "1000"
+              description: description
+              share:
+                percentage: 0
+                percentageOfPercentage: 6
+              account: '@person1'
+              remaining: remaining
+            remaining: remaining
           source:
             from:
             - amount:
@@ -983,8 +983,6 @@ components:
         description:
           maxLength: 256
           type: string
-        distribute:
-          $ref: '#/components/schemas/Distribute'
         metadata:
           additionalProperties:
             type: object
@@ -994,7 +992,6 @@ components:
         send:
           $ref: '#/components/schemas/Send'
       required:
-      - distribute
       - send
       type: object
     Distribute:
@@ -1258,6 +1255,49 @@ components:
         an operation.
       example:
         scale: 2
+        distribute:
+          to:
+          - amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              scale: 2
+              from: BRL
+              to: USDe
+              value: 1000
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            account: '@person1'
+            remaining: remaining
+          - amount:
+              scale: 2
+              asset: BRL
+              value: 1000
+            metadata:
+              key: '{}'
+            rate:
+              externalId: 00000000-0000-0000-0000-000000000000
+              scale: 2
+              from: BRL
+              to: USDe
+              value: 1000
+            isFrom: true
+            chartOfAccounts: "1000"
+            description: description
+            share:
+              percentage: 0
+              percentageOfPercentage: 6
+            account: '@person1'
+            remaining: remaining
+          remaining: remaining
         source:
           from:
           - amount:
@@ -1307,6 +1347,8 @@ components:
         asset:
           example: BRL
           type: string
+        distribute:
+          $ref: '#/components/schemas/Distribute'
         scale:
           example: 2
           minimum: 0
@@ -1318,6 +1360,7 @@ components:
           type: integer
       required:
       - asset
+      - distribute
       - source
       - value
       type: object
