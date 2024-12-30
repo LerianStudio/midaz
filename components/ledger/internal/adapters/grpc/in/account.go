@@ -45,11 +45,11 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.Accou
 
 	uuids := make([]uuid.UUID, len(ids.GetIds()))
 
-	for _, id := range ids.GetIds() {
-		parsedUUID, err := uuid.Parse(id)
+	for key := range ids.GetIds() {
+		parsedUUID, err := uuid.Parse(key)
 
 		if err != nil {
-			invalidUUIDs = append(invalidUUIDs, id)
+			invalidUUIDs = append(invalidUUIDs, key)
 			continue
 		} else {
 			uuids = append(uuids, parsedUUID)
@@ -99,7 +99,12 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *accou
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 	}
 
-	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, aliases.GetAliases())
+	al := make([]string, len(aliases.GetAliases()))
+	for key := range aliases.GetAliases() {
+		al = append(al, key)
+	}
+
+	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, al)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases for grpc", err)
 
@@ -132,8 +137,8 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 
 	uuids := make([]uuid.UUID, 0)
 
-	for _, getacc := range update.GetAccounts() {
-		if pkg.IsNilOrEmpty(&getacc.Id) {
+	for _, getAcc := range update.GetAccounts() {
+		if pkg.IsNilOrEmpty(&getAcc.Id) {
 			mopentelemetry.HandleSpanError(&span, "Failed to update Accounts because id is empty", nil)
 
 			logger.Errorf("Failed to update Accounts because id is empty")
@@ -142,22 +147,22 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 		}
 
 		balance := mmodel.Balance{
-			Available: &getacc.Balance.Available,
-			OnHold:    &getacc.Balance.OnHold,
-			Scale:     &getacc.Balance.Scale,
+			Available: &getAcc.Balance.Available,
+			OnHold:    &getAcc.Balance.OnHold,
+			Scale:     &getAcc.Balance.Scale,
 		}
 
-		organizationUUID, err := uuid.Parse(getacc.GetOrganizationId())
+		organizationUUID, err := uuid.Parse(getAcc.GetOrganizationId())
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
 		}
 
-		ledgerUUID, err := uuid.Parse(getacc.GetLedgerId())
+		ledgerUUID, err := uuid.Parse(getAcc.GetLedgerId())
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 		}
 
-		accountUUID, err := uuid.Parse(getacc.GetId())
+		accountUUID, err := uuid.Parse(getAcc.GetId())
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), accountUUID)
 		}
@@ -166,12 +171,12 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
 
-			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", getacc.OrganizationId, getacc.LedgerId, err.Error())
+			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", getAcc.OrganizationId, getAcc.LedgerId, err.Error())
 
 			return nil, pkg.ValidateBusinessError(constant.ErrBalanceUpdateFailed, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
-		uuids = append(uuids, uuid.MustParse(getacc.Id))
+		uuids = append(uuids, uuid.MustParse(getAcc.Id))
 	}
 
 	organizationID := update.GetOrganizationId()
