@@ -95,7 +95,7 @@ ps:
 # App Commands
 .PHONY: grpc-ledger-gen
 grpc-ledger-gen:
-	@protoc --proto_path=../../common/mgrpc --go-grpc_out=../../common/mgrpc --go_out=../../common/mgrpc ../../common/mgrpc/account/account.proto
+	@protoc --proto_path=../../pkg/mgrpc --go-grpc_out=../../pkg/mgrpc --go_out=../../pkg/mgrpc ../../pkg/mgrpc/account/account.proto
 
 .PHONY: run
 run:
