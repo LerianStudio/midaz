@@ -1194,7 +1194,6 @@ const docTemplate = `{
             "description": "CreateTransactionInput is the input payload to create a transaction.",
             "type": "object",
             "required": [
-                "distribute",
                 "send"
             ],
             "properties": {
@@ -1209,9 +1208,6 @@ const docTemplate = `{
                 "description": {
                     "type": "string",
                     "maxLength": 256
-                },
-                "distribute": {
-                    "$ref": "#/definitions/Distribute"
                 },
                 "metadata": {
                     "type": "object",
@@ -1423,6 +1419,7 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "asset",
+                "distribute",
                 "source",
                 "value"
             ],
@@ -1430,6 +1427,9 @@ const docTemplate = `{
                 "asset": {
                     "type": "string",
                     "example": "BRL"
+                },
+                "distribute": {
+                    "$ref": "#/definitions/Distribute"
                 },
                 "scale": {
                     "type": "integer",

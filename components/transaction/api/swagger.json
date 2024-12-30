@@ -1188,7 +1188,6 @@
             "description": "CreateTransactionInput is the input payload to create a transaction.",
             "type": "object",
             "required": [
-                "distribute",
                 "send"
             ],
             "properties": {
@@ -1203,9 +1202,6 @@
                 "description": {
                     "type": "string",
                     "maxLength": 256
-                },
-                "distribute": {
-                    "$ref": "#/definitions/Distribute"
                 },
                 "metadata": {
                     "type": "object",
@@ -1417,6 +1413,7 @@
             "type": "object",
             "required": [
                 "asset",
+                "distribute",
                 "source",
                 "value"
             ],
@@ -1424,6 +1421,9 @@
                 "asset": {
                     "type": "string",
                     "example": "BRL"
+                },
+                "distribute": {
+                    "$ref": "#/definitions/Distribute"
                 },
                 "scale": {
                     "type": "integer",
