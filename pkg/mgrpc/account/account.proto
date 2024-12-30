@@ -50,16 +50,22 @@ message AccountsRequest {
   repeated Account accounts = 3;
 }
 
+message Amount {
+  string asset = 1;
+  double value = 2;
+  double scale = 3;
+}
+
 message AccountsID {
   string   organization_id = 1;
   string   ledger_id = 2;
-  repeated string ids = 3;
+  map<string, Amount> ids = 3;
 }
 
 message AccountsAlias {
   string   organization_id = 1;
   string   ledger_id = 2;
-  repeated string aliases = 3;
+  map<string, Amount> aliases = 3;
 }
 
 service AccountProto {
