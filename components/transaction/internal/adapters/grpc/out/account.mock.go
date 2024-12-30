@@ -11,12 +11,11 @@ package out
 
 import (
 	context "context"
-	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	account "github.com/LerianStudio/midaz/pkg/mgrpc/account"
-
 	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.
@@ -43,7 +42,7 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // GetAccountsByAlias mocks base method.
-func (m *MockRepository) GetAccountsByAlias(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []string) (*account.AccountsResponse, error) {
+func (m *MockRepository) GetAccountsByAlias(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 map[string]*account.Amount) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAccountsByAlias", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*account.AccountsResponse)
@@ -58,7 +57,7 @@ func (mr *MockRepositoryMockRecorder) GetAccountsByAlias(arg0, arg1, arg2, arg3,
 }
 
 // GetAccountsByIds mocks base method.
-func (m *MockRepository) GetAccountsByIds(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []string) (*account.AccountsResponse, error) {
+func (m *MockRepository) GetAccountsByIds(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 map[string]*account.Amount) (*account.AccountsResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAccountsByIds", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*account.AccountsResponse)

@@ -420,7 +420,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	token := http.GetTokenHeader(c)
 
-	accounts, err := handler.getAccounts(ctxGetAccounts, logger, token, organizationID, ledgerID, validate.Aliases)
+	accounts, err := handler.getAccounts(ctxGetAccounts, logger, token, organizationID, ledgerID, validate)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetAccounts, "Failed to get accounts", err)
 
@@ -583,19 +583,31 @@ func (handler *TransactionHandler) logTransaction(ctx context.Context, operation
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, input []string) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses) ([]*account.Account, error) {
 	span := trace.SpanFromContext(ctx)
 
-	var ids []string
+	ids := make(map[string]*account.Amount)
+	aliases := make(map[string]*account.Amount)
 
-	var aliases []string
+	for _, item := range validate.Aliases {
+		process := func(source map[string]goldModel.Amount) {
+			if value, exists := source[item]; exists {
+				amount := &account.Amount{
+					Asset: value.Asset,
+					Value: float64(value.Value),
+					Scale: float64(value.Scale),
+				}
 
-	for _, item := range input {
-		if pkg.IsUUID(item) {
-			ids = append(ids, item)
-		} else {
-			aliases = append(aliases, item)
+				if pkg.IsUUID(item) {
+					ids[item] = amount
+				} else {
+					aliases[item] = amount
+				}
+			}
 		}
+
+		process(validate.To)
+		process(validate.From)
 	}
 
 	var accounts []*account.Account

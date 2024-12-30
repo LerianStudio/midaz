@@ -2,7 +2,6 @@ package out
 
 import (
 	"context"
-
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mgrpc"
 	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
@@ -15,8 +14,8 @@ import (
 //
 //go:generate mockgen --destination=account.mock.go --package=out . Repository
 type Repository interface {
-	GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error)
-	GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error)
+	GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids map[string]*proto.Amount) (*proto.AccountsResponse, error)
+	GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases map[string]*proto.Amount) (*proto.AccountsResponse, error)
 	UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error)
 }
 
@@ -40,7 +39,7 @@ func NewAccountGRPC(c *mgrpc.GRPCConnection) *AccountGRPCRepository {
 }
 
 // GetAccountsByIds returns a grpc accounts on ledger bi given ids.
-func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids map[string]*proto.Amount) (*proto.AccountsResponse, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.get_accounts_by_ids")
@@ -85,7 +84,7 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 }
 
 // GetAccountsByAlias returns a grpc accounts on ledger bi given aliases.
-func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases map[string]*proto.Amount) (*proto.AccountsResponse, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.get_accounts_by_alias")
