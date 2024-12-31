@@ -986,6 +986,10 @@ paths:
         in: query
         name: sort_order
         type: string
+      - description: Find alias
+        in: query
+        name: alias
+        type: string
       produces:
       - application/json
       responses:
