@@ -98,7 +98,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	aAlias := constant.DefaultExternalAccountAliasPrefix + cii.Code
 	aStatusDescription := "Account external created by asset: " + cii.Code
 
-	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+	account, err := uc.AccountRepo.ListAccountsByAliases(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
 

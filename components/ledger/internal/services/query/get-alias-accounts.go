@@ -19,12 +19,12 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledg
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.ListAccountsByAlias")
+	ctx, span := tracer.Start(ctx, "query.ListAccountsByAliases")
 	defer span.End()
 
 	logger.Infof("Retrieving account for alias: %s", aliases)
 
-	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
+	accounts, err := uc.AccountRepo.ListAccountsByAliases(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases", err)
 

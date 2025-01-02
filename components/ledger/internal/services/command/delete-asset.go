@@ -39,7 +39,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 	aAlias := constant.DefaultExternalAccountAliasPrefix + asset.Code
 
-	acc, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+	acc, err := uc.AccountRepo.ListAccountsByAliases(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
 
