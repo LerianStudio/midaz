@@ -14,7 +14,7 @@ import (
 //go:generate mockgen --destination=redis.mock.go --package=redis . RedisRepository
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
-	SetNX(ctx context.Context, key, value string, ttl time.Duration) error
+	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 }
@@ -62,7 +62,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
-func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) error {
+func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -73,19 +73,19 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
-		return err
+		return false, err
 	}
 
 	logger.Infof("value of ttl: %v", ttl*time.Second)
 
-	statusCMD := rds.SetNX(ctx, key, value, ttl*time.Second)
-	if statusCMD.Err() != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
+	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
-		return statusCMD.Err()
+		return false, err
 	}
 
-	return nil
+	return isLocked, nil
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {

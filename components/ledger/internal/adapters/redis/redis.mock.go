@@ -84,11 +84,12 @@ func (mr *MockRedisRepositoryMockRecorder) Set(arg0, arg1, arg2, arg3 any) *gomo
 }
 
 // SetNX mocks base method.
-func (m *MockRedisRepository) SetNX(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) error {
+func (m *MockRedisRepository) SetNX(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetNX", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // SetNX indicates an expected call of SetNX.
