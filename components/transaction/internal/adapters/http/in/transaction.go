@@ -590,12 +590,13 @@ func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.
 	aliases := make(map[string]*account.Amount)
 
 	for _, item := range validate.Aliases {
-		process := func(source map[string]goldModel.Amount) {
+		process := func(source map[string]goldModel.Amount, isFrom bool) {
 			if value, exists := source[item]; exists {
 				amount := &account.Amount{
-					Asset: value.Asset,
-					Value: float64(value.Value),
-					Scale: float64(value.Scale),
+					Asset:  value.Asset,
+					Value:  float64(value.Value),
+					Scale:  float64(value.Scale),
+					IsFrom: isFrom,
 				}
 
 				if pkg.IsUUID(item) {
@@ -606,8 +607,8 @@ func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.
 			}
 		}
 
-		process(validate.To)
-		process(validate.From)
+		process(validate.To, false)
+		process(validate.From, true)
 	}
 
 	var accounts []*account.Account
