@@ -1,6 +1,7 @@
 package mmodel
 
 import (
+	"github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"time"
 
 	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
@@ -113,6 +114,79 @@ func (e *Account) ToProto() *proto.Account {
 		OrganizationId: e.OrganizationID,
 		LedgerId:       e.LedgerID,
 		Balance:        &balance,
+		Status:         &status,
+		AllowSending:   *e.AllowSending,
+		AllowReceiving: *e.AllowReceiving,
+		Type:           e.Type,
+	}
+
+	if e.ParentAccountID != nil {
+		account.ParentAccountId = *e.ParentAccountID
+	}
+
+	if e.DeletedAt != nil {
+		account.DeletedAt = e.DeletedAt.String()
+	}
+
+	if !e.UpdatedAt.IsZero() {
+		account.UpdatedAt = e.UpdatedAt.String()
+	}
+
+	if !e.CreatedAt.IsZero() {
+		account.CreatedAt = e.CreatedAt.String()
+	}
+
+	if e.EntityID != nil {
+		account.EntityId = *e.EntityID
+	}
+
+	if e.PortfolioID != nil {
+		account.PortfolioId = *e.PortfolioID
+	}
+
+	if e.ProductID != nil {
+		account.ProductId = *e.ProductID
+	}
+
+	if e.Alias != nil {
+		account.Alias = *e.Alias
+	}
+
+	return account
+}
+
+// ToProtoChangeBalance converts entity Account to a response protobuf proto chamging balance
+func (e *Account) ToProtoChangeBalance(b *model.Balance) *proto.Account {
+	status := proto.Status{
+		Code: e.Status.Code,
+	}
+
+	if e.Status.Description != nil {
+		status.Description = *e.Status.Description
+	}
+
+	balance := &proto.Balance{}
+	if b != nil {
+		balance = &proto.Balance{
+			Available: float64(b.Available),
+			OnHold:    float64(b.OnHold),
+			Scale:     float64(b.Scale),
+		}
+	} else {
+		balance = &proto.Balance{
+			Available: *e.Balance.Available,
+			OnHold:    *e.Balance.OnHold,
+			Scale:     *e.Balance.Scale,
+		}
+	}
+
+	account := &proto.Account{
+		Id:             e.ID,
+		Name:           e.Name,
+		AssetCode:      e.AssetCode,
+		OrganizationId: e.OrganizationID,
+		LedgerId:       e.LedgerID,
+		Balance:        balance,
 		Status:         &status,
 		AllowSending:   *e.AllowSending,
 		AllowReceiving: *e.AllowReceiving,
