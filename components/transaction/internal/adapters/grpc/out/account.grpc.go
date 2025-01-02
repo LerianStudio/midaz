@@ -54,10 +54,10 @@ func (a *AccountGRPCRepository) GetAccountsByIds(ctx context.Context, token stri
 
 	client := proto.NewAccountProtoClient(conn)
 
-	accountsID := &proto.AccountsID{
+	accountsID := &proto.Accounts{
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
-		Ids:            ids,
+		AliasId:        ids,
 	}
 
 	ctx, spanClientReq := tracer.Start(ctx, "grpc.get_accounts_by_ids.client_request")
@@ -99,10 +99,10 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 
 	client := proto.NewAccountProtoClient(conn)
 
-	accountsAlias := &proto.AccountsAlias{
+	accountsAlias := &proto.Accounts{
 		OrganizationId: organizationID.String(),
 		LedgerId:       ledgerID.String(),
-		Aliases:        aliases,
+		AliasId:        aliases,
 	}
 
 	ctx, spanClientReq := tracer.Start(ctx, "grpc.get_accounts_by_alias.client_request")

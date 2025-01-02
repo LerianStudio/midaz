@@ -24,7 +24,7 @@ type AccountProto struct {
 }
 
 // GetAccountsByIds is a method that retrieves Account information by a given ids.
-func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.AccountsID) (*account.AccountsResponse, error) {
+func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.Accounts) (*account.AccountsResponse, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -43,9 +43,9 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.Accou
 
 	var invalidUUIDs []string
 
-	uuids := make([]uuid.UUID, len(ids.GetIds()))
+	uuids := make([]uuid.UUID, len(ids.GetAliasId()))
 
-	for key := range ids.GetIds() {
+	for key := range ids.GetAliasId() {
 		parsedUUID, err := uuid.Parse(key)
 
 		if err != nil {
@@ -82,29 +82,14 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.Accou
 }
 
 // GetAccountsByAliases is a method that retrieves Account information by a given aliases.
-func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *account.AccountsAlias) (*account.AccountsResponse, error) {
+func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *account.Accounts) (*account.AccountsResponse, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.GetAccountsByAliases")
 	defer span.End()
 
-	organizationUUID, err := uuid.Parse(aliases.GetOrganizationId())
-	if err != nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
-	}
-
-	ledgerUUID, err := uuid.Parse(aliases.GetLedgerId())
-	if err != nil {
-		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
-	}
-
-	al := make([]string, len(aliases.GetAliases()))
-	for key := range aliases.GetAliases() {
-		al = append(al, key)
-	}
-
-	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, al)
+	acc, err := ap.Query.GetAccountRedisOrDatabase(ctx, aliases, true)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases for grpc", err)
 
@@ -114,8 +99,8 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *accou
 	}
 
 	accounts := make([]*account.Account, 0)
-	for _, a := range acc {
-		accounts = append(accounts, a.ToProto())
+	for _, ac := range acc {
+		accounts = append(accounts, ac.ToProto())
 	}
 
 	response := account.AccountsResponse{
