@@ -1,3 +1,17 @@
+## [1.42.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.42.0-beta.1...v1.42.0-beta.2) (2025-01-02)
+
+
+### Bug Fixes
+
+* changed the way to add the key :bug: ([10e7b13](https://github.com/LerianStudio/midaz/commit/10e7b1344a64a36153e2c281485aa92b3e10673b))
+
+## [1.42.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.41.0...v1.42.0-beta.1) (2024-12-30)
+
+
+### Features
+
+* will query the field alias added field alias for query via query param :sparkles: ([12e869e](https://github.com/LerianStudio/midaz/commit/12e869e2c30db1e98b0495fdd66c53bcd2b39222))
+
 ## [1.41.0](https://github.com/LerianStudio/midaz/compare/v1.40.0...v1.41.0) (2024-12-27)
 
 

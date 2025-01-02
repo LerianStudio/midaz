@@ -15,6 +15,7 @@ type Pagination struct {
 	SortOrder  string    `json:"-" example:"asc"`
 	StartDate  time.Time `json:"-" example:"2021-01-01"`
 	EndDate    time.Time `json:"-" example:"2021-12-31"`
+	Alias      string    `json:"-" example:"@wallet_12345123"`
 } // @name Pagination
 
 // SetItems set an array of any struct in items.
