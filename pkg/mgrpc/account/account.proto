@@ -54,22 +54,17 @@ message Amount {
   string asset = 1;
   double value = 2;
   double scale = 3;
+  bool   is_from = 4;
 }
 
-message AccountsID {
+message Accounts {
   string   organization_id = 1;
   string   ledger_id = 2;
-  map<string, Amount> ids = 3;
-}
-
-message AccountsAlias {
-  string   organization_id = 1;
-  string   ledger_id = 2;
-  map<string, Amount> aliases = 3;
+  map<string, Amount> alias_id = 3;
 }
 
 service AccountProto {
-  rpc GetAccountsByIds(AccountsID) returns (AccountsResponse) {}
-  rpc GetAccountsByAliases(AccountsAlias) returns (AccountsResponse) {}
+  rpc GetAccountsByIds(Accounts) returns (AccountsResponse) {}
+  rpc GetAccountsByAliases(Accounts) returns (AccountsResponse) {}
   rpc UpdateAccounts(AccountsRequest) returns (AccountsResponse) {}
 }
