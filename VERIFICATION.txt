@@ -1,0 +1,10 @@
+VERIFICATION
+Verification is intended to help moderators and the Chocolatey community to
+verify that the contents of this package are trustworthy.
+
+This package is published by the author LerianStudio. The binaries provided are
+identical to those on the GitHub release page for the windows_amd64 target.
+
+Mdz versions for all platforms are available at:
+
+    https://github.com/LerianStudio/midaz/releases
