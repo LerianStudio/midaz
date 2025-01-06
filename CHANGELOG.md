@@ -1,3 +1,10 @@
+## [1.43.0](https://github.com/LerianStudio/midaz/compare/v1.42.0...v1.43.0) (2025-01-06)
+
+
+### Bug Fixes
+
+* no file verification :bug: ([aec934b](https://github.com/LerianStudio/midaz/commit/aec934bb9b051bee1dfb6393a776ed0f6c983292))
+
 ## [1.43.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.42.0...v1.43.0-beta.1) (2025-01-06)
 
 
