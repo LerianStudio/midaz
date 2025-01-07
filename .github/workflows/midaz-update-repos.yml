@@ -108,7 +108,7 @@ jobs:
           
           cd ..
 
-      - name: Copy Swagger.json to Repo Ledger and Transaction to LerianStudio.github.io
+      - name: Copy openapi.yaml and swagger.json to Repos to LerianStudio.github.io
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -137,17 +137,11 @@ jobs:
           
             git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
           
-            git add audit
-            git commit -S -m "Update Swagger.json from Repo Audit"
-          
-            git add ledger
-            git commit -S -m "Update Swagger.json from Repo Ledger"
-          
-            git add transaction
-            git commit -S -m "Update Swagger.json from Repo Transaction"
+            git add audit ledger transaction
+            git commit -S -m "Update openapi.yaml and swagger.json from Repositories"
           
             git push origin main
           else
             echo "No changes detected."
             exit 0
-            fi
+          fi
