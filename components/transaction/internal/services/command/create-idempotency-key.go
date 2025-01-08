@@ -22,7 +22,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		key = hash
 	}
 
-	internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+	internalKey := pkg.InternalKey(organizationID, ledgerID, key)
 
 	value, err := uc.RedisRepo.Get(ctx, internalKey)
 	if err != nil {
