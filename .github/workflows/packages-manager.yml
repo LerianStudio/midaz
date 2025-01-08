@@ -119,7 +119,7 @@ jobs:
           cd tools
           # Get-Content chocolateyinstall.ps1
           Get-Content VERIFICATION.txt
-          # cd ./../..
+          cd ./../..
           # ls
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
