@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       is_main: ${{ steps.verify_branch.outputs.is_main }}
-      version: ${{ steps.verify_branch.outputs.version }} 
+      version: ${{ steps.verify_branch.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,15 +26,15 @@ jobs:
         run: |
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
           FORMATTED_RELEASE=$(echo "$RAW_RELEASE" | sed -E 's/-[a-zA-Z0-9.]+//')
-          
+
           echo "Raw release: $RAW_RELEASE"
           echo "Formatted release: $FORMATTED_RELEASE"
-          
+
           if [ "$RAW_RELEASE" = "$FORMATTED_RELEASE" ]; then
             echo "is_main=true" >> $GITHUB_OUTPUT
           else
             echo "is_main=false" >> $GITHUB_OUTPUT
-          fi          
+          fi
 
           version=$(echo "$RAW_RELEASE" | sed 's/^v//')
           echo "version=$version" >> $GITHUB_OUTPUT
@@ -68,22 +68,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Chocolatey
-        run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-          Invoke-WebRequest https://chocolatey.org/install.ps1 -UseBasicParsing | Invoke-Expression
-        shell: pwsh
-
       - name: Update nuspec version
         run: |
           $nuspecPath = Resolve-Path .\chocolatey\mdz.nuspec
-          
+
           if (-Not (Test-Path $nuspecPath)) {
             Write-Error "The nuspec file was not found at $nuspecPath"
             exit 1
           }
-          
+
           Write-Host "Updating nuspec version to ${{ needs.get_branch.outputs.version }}"
           (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>${{ needs.get_branch.outputs.version }}</version>" | Set-Content $nuspecPath
         shell: pwsh
@@ -94,7 +87,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $toolsDir | Out-Null
           $zipFile = Join-Path $toolsDir 'mdz.zip'
           $outputFile = Join-Path $toolsDir 'mdz.exe'
-          
+
           $url = "https://github.com/LerianStudio/midaz/releases/download/v${{ needs.get_branch.outputs.version }}/midaz_${{ needs.get_branch.outputs.version }}_windows_amd64.zip"
           Write-Host "Downloading ZIP from $url to $zipFile"
           Invoke-WebRequest -Uri $url -OutFile $zipFile
@@ -103,21 +96,13 @@ jobs:
           Expand-Archive -Path $zipFile -DestinationPath $toolsDir -Force
         shell: pwsh
 
-      - name: Calculate checksum
-        id: calculate-checksum
+      - name: Checksum
         run: |
+          # Checksum Calculate
           $outputFile = "$(Resolve-Path .\chocolatey\tools\mdz.exe)"
           $checksum = (Get-FileHash -Path $outputFile -Algorithm SHA256).Hash
 
-          Write-Host $checksum
-
-          echo "checksum=$checksum" >> $GITHUB_OUTPUT
-        shell: pwsh
-
-      - name: Replace checksum in chocolateyinstall.ps1 and VERIFICATION.txt
-        run: |
-          Write-Host '${{ steps.calculate-checksum.outputs.checksum }}'
-
+          # Replace checksum in chocolateyinstall.ps1 and VERIFICATION.txt
           (Get-Content .\chocolatey\tools\chocolateyinstall.ps1) `
             -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
           | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
@@ -134,12 +119,19 @@ jobs:
         run: |
           choco pack chocolatey/mdz.nuspec
           cd chocolatey
-          ls 
+          ls
+          Get-Content mdz.nuspec
+          cd tools
+          Get-Content chocolateyinstall.ps1
+          Get-Content VERIFICATION.txt
+          ls
+          cd ./../..
+          ls
 
           # install local test
           # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
           # mdz version
-          
+
           # choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
           # choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
           #
