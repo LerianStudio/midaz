@@ -60,9 +60,10 @@ jobs:
   #         formula: mdz
 
   chocolatey_release:
-    needs: [get_branch, wait_release]
+    needs: get_branch
+    # needs: [get_branch, wait_release]
     runs-on: windows-latest
-    if: needs.get_branch.outputs.is_main == 'true'
+    # if: needs.get_branch.outputs.is_main == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
