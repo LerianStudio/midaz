@@ -115,7 +115,9 @@ jobs:
           cd tools
           Get-Content chocolateyinstall.ps1
           Get-Content VERIFICATION.txt
+          ls
           cd ./../..
+          ls
 
           # install local test
           # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
