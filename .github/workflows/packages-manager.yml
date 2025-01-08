@@ -109,14 +109,15 @@ jobs:
         shell: pwsh
         run: |
           choco pack chocolatey/mdz.nuspec
-          cd chocolatey
-          ls
-          Get-Content mdz.nuspec
-          cd tools
-          Get-Content chocolateyinstall.ps1
-          Get-Content VERIFICATION.txt
-          cd ./../..
-          ls
+
+          # cd chocolatey
+          # ls
+          # Get-Content mdz.nuspec
+          # cd tools
+          # Get-Content chocolateyinstall.ps1
+          # Get-Content VERIFICATION.txt
+          # cd ./../..
+          # ls
 
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           
@@ -128,12 +129,12 @@ jobs:
           }
 
           # install local test
-          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
-          mdz version
+          # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
+          # mdz version
 
           choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
           choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
           
-          # test install public mdz chocolatey
-          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
-          mdz version
+          # # test install public mdz chocolatey
+          # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
+          # mdz version
