@@ -8,12 +8,12 @@ $outputFile = Join-Path $toolsDir 'mdz.exe'
 
 $versionFmt = $version -replace '^v', ''
 
-# URL do arquivo zipado
+# Zipped file URL
 $url        = "https://github.com/LerianStudio/midaz/releases/download/"+$version+"/midaz_"+$versionFmt+"_windows_amd64.zip"
 $checksum   = '{{CHECKSUM}}'
 $silentArgs = ''
 
-# Argumentos do pacote
+# Package arguments
 $packageArgs = @{
     packageName   = 'mdz'
     unzipLocation = $toolsDir
@@ -23,22 +23,22 @@ $packageArgs = @{
     checksumType  = 'sha256'
 }
 
-# Instalar e descompactar o pacote
+# Install and unzip the package
 Install-ChocolateyZipPackage @packageArgs
 
-# Verificar se o arquivo .exe foi extraído corretamente
+# Check that the .exe file has been extracted correctly
 if (-Not (Test-Path $outputFile)) {
-    throw "O arquivo mdz.exe não foi encontrado após a extração do zip."
+    throw "The file mdz.exe was not found after extracting the zip."
 }
 
-# Certificar-se de que o diretório global 'bin' existe
+# Make sure the global directory 'bin' exists
 if (-Not (Test-Path $binDir)) {
     New-Item -ItemType Directory -Path $binDir | Out-Null
 }
 
-# Mover o executável para o diretório global
-Write-Host "Copiando $outputFile para $binDir"
+# Move the executable to the global directory
+Write-Host "Copying $outputFile to $binDir"
 Copy-Item -Path $outputFile -Destination $binDir -Force
 
-# Confirmar a instalação
-Write-Host "Instalação completa. O executável mdz está disponível globalmente."
+# Confirm installation
+Write-Host "Installation complete. The mdz executable is available globally.
