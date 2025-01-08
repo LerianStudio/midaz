@@ -37,7 +37,7 @@ jobs:
           fi
 
           version=$(echo "$RAW_RELEASE" | sed 's/^v//')
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "version=1.42.0" >> $GITHUB_OUTPUT
 
   wait_release:
     needs: get_branch
@@ -116,14 +116,15 @@ jobs:
           Get-Content chocolateyinstall.ps1
           Get-Content VERIFICATION.txt
           cd ./../..
+          ls
 
           # install local test
-          # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
-          # mdz version
+          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
+          mdz version
 
-          # choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
-          # choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
-          #
-          # # test install public mdz chocolatey
-          # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
-          # mdz version
+          choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
+          choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
+          
+          # test install public mdz chocolatey
+          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
+          mdz version
