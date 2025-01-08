@@ -1,3 +1,16 @@
+## [1.44.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.44.0-beta.1...v1.44.0-beta.2) (2025-01-08)
+
+
+### Features
+
+* add verification.txt on tools ([7b270e5](https://github.com/LerianStudio/midaz/commit/7b270e5a677bf8e14665d498897a872045a51c75))
+
+
+### Bug Fixes
+
+* check context if is diff nil :bug: ([8212740](https://github.com/LerianStudio/midaz/commit/821274079acf0278faf69ffb383723d4f8c59349))
+* delete from root :bug: ([eefa57a](https://github.com/LerianStudio/midaz/commit/eefa57a61b36b57a66e7244001733cbc32bbc10d))
+
 ## [1.44.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.43.0...v1.44.0-beta.1) (2025-01-07)
 
 
