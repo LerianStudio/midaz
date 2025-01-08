@@ -118,6 +118,15 @@ jobs:
           cd ./../..
           ls
 
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          
+          $zipFile = ".\mdz.1.42.0.nupkg"
+          $entries = [System.IO.Compression.ZipFile]::OpenRead($zipFile).Entries
+          
+          $entries | ForEach-Object {
+              Write-Host $_.FullName
+          }
+
           # install local test
           choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
           mdz version
