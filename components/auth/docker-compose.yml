@@ -1,7 +1,7 @@
 services:
   midaz-casdoor:
     container_name: midaz-casdoor
-    image: casbin/casdoor:latest
+    image: casbin/casdoor:v1.787.0
     restart: always
     env_file:
       - .env
