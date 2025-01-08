@@ -116,6 +116,8 @@ jobs:
 
       - name: Replace checksum in chocolateyinstall.ps1 and VERIFICATION.txt
         run: |
+          Write-Host '${{ steps.calculate-checksum.outputs.checksum }}'
+
           (Get-Content .\chocolatey\tools\chocolateyinstall.ps1) `
             -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
           | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
@@ -131,11 +133,12 @@ jobs:
         shell: pwsh
         run: |
           choco pack chocolatey/mdz.nuspec
+          cd chocolatey
           ls 
 
           # install local test
-          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
-          mdz version
+          # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
+          # mdz version
           
           # choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
           # choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
