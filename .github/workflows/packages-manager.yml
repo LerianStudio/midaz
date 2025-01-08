@@ -1,9 +1,15 @@
 name: "packages manager"
 
 on:
-  release:
+  pull_request:
+    branches:
+      - develop
+      - main
     types:
-      - published
+      - opened
+      - edited
+      - synchronize
+      - reopened
 
 jobs:
   get_branch:
@@ -102,6 +108,8 @@ jobs:
           $outputFile = "$(Resolve-Path .\chocolatey\tools\mdz.exe)"
           $checksum = (Get-FileHash -Path $outputFile -Algorithm SHA256).Hash
 
+          Write-Host $checksum
+
           echo "checksum=$checksum" >> $GITHUB_OUTPUT
         shell: pwsh
 
@@ -128,9 +136,9 @@ jobs:
           choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
           mdz version
           
-          choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
-          choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
-          
-          # test install public mdz chocolatey
-          choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
-          mdz version
+          # choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
+          # choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
+          #
+          # # test install public mdz chocolatey
+          # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
+          # mdz version
