@@ -102,7 +102,7 @@ jobs:
           $verificationPath = Resolve-Path  .\chocolatey\tools\VERIFICATION.txt
           (Get-Content $verificationPath) -replace '{{CHECKSUM}}', "$checksum" | Set-Content $verificationPath
 
-          (Get-Content $verificationPath) -replace '{{VERSION}}', "${{ needs.get_branch.outputs.version }}" -replace '${{VERSION}}', "{{ needs.get_branch.outputs.version }}" | Set-Content $verificationPath
+          (Get-Content $verificationPath) -replace '{{VERSION}}', "${{ needs.get_branch.outputs.version }}" -replace '{{VERSION}}', "${{ needs.get_branch.outputs.version }}" | Set-Content $verificationPath
 
         shell: pwsh
 
