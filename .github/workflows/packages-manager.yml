@@ -81,15 +81,15 @@ jobs:
 
           Write-Host "Extracting $zipFile to $toolsDir"
           Expand-Archive -Path $zipFile -DestinationPath $toolsDir -Force
-
-          Remove-Item $zipFile
         shell: pwsh
 
       - name: Prepare
         run: |
           # Checksum Calculate
-          $outputFile = "$(Resolve-Path .\chocolatey\tools\mdz.exe)"
-          $checksum = (Get-FileHash -Path $outputFile -Algorithm SHA256).Hash
+          $zipFile = "$(Resolve-Path .\chocolatey\tools\mdz.zip)"
+          $checksum = (Get-FileHash -Path $zipFile -Algorithm SHA256).Hash
+
+          Remove-Item $zipFile
 
           Write-Host "Updating nuspec version to ${{ needs.get_branch.outputs.version }}"
           $nuspecPath = Resolve-Path .\chocolatey\mdz.nuspec
