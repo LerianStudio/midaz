@@ -68,19 +68,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Update nuspec version
-        run: |
-          $nuspecPath = Resolve-Path .\chocolatey\mdz.nuspec
-
-          if (-Not (Test-Path $nuspecPath)) {
-            Write-Error "The nuspec file was not found at $nuspecPath"
-            exit 1
-          }
-
-          Write-Host "Updating nuspec version to ${{ needs.get_branch.outputs.version }}"
-          (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>${{ needs.get_branch.outputs.version }}</version>" | Set-Content $nuspecPath
-        shell: pwsh
-
       - name: Download and extract ZIP
         run: |
           $toolsDir = "$(Resolve-Path .\chocolatey\tools)"
@@ -96,20 +83,22 @@ jobs:
           Expand-Archive -Path $zipFile -DestinationPath $toolsDir -Force
         shell: pwsh
 
-      - name: Checksum
+      - name: Prepare
         run: |
           # Checksum Calculate
           $outputFile = "$(Resolve-Path .\chocolatey\tools\mdz.exe)"
           $checksum = (Get-FileHash -Path $outputFile -Algorithm SHA256).Hash
 
-          # Replace checksum in chocolateyinstall.ps1 and VERIFICATION.txt
-          (Get-Content .\chocolatey\tools\chocolateyinstall.ps1) `
-            -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
-          | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
+          Write-Host "Updating nuspec version to ${{ needs.get_branch.outputs.version }}"
+          $nuspecPath = Resolve-Path .\chocolatey\mdz.nuspec
+          (Get-Content $nuspecPath) -replace '<version>.*</version>', "<version>${{ needs.get_branch.outputs.version }}</version>" | Set-Content $nuspecPath
 
-          (Get-Content .\chocolatey\tools\VERIFICATION.txt) `
-            -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
-          | Set-Content .\chocolatey\tools\VERIFICATION.txt
+          Write-Host "Updating Checksum files $checksum"
+          $chocoInstallPath = Resolve-Path  .\chocolatey\tools\chocolateyinstall.ps1
+          (Get-Content $chocoInstallPath) -replace '{{CHECKSUM}}', "$checksum" | Set-Content $chocoInstallPath
+
+          $verificationPath = Resolve-Path  .\chocolatey\tools\VERIFICATION.txt
+          (Get-Content $verificationPath) -replace '{{CHECKSUM}}', "$checksum" | Set-Content $verificationPath
         shell: pwsh
 
       - name: Publish Chocolatey package
