@@ -105,11 +105,15 @@ jobs:
           echo "checksum=$checksum" >> $GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Replace checksum in chocolateyinstall.ps1
+      - name: Replace checksum in chocolateyinstall.ps1 and VERIFICATION.txt
         run: |
           (Get-Content .\chocolatey\tools\chocolateyinstall.ps1) `
             -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
           | Set-Content .\chocolatey\tools\chocolateyinstall.ps1
+
+          (Get-Content .\chocolatey\tools\VERIFICATION.txt) `
+            -replace '{{CHECKSUM}}', '${{ steps.calculate-checksum.outputs.checksum }}' `
+          | Set-Content .\chocolatey\tools\VERIFICATION.txt
         shell: pwsh
 
       - name: Publish Chocolatey package
