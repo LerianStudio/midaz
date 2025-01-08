@@ -10,4 +10,7 @@ https://github.com/LerianStudio/midaz/releases
 
 Download the zipped application `windows_amd64.zip` from the github release tab
 
-It's hash should match: "{{CHECKSUM}}"
+Inside the zip is an mdz.exe file
+Downloaded from: https://github.com/LerianStudio/midaz/releases/download/v{{VERSION}}/midaz_{{VERSION}}_windows_amd64.zip
+
+It's hash should match SHA256: "{{CHECKSUM}}"

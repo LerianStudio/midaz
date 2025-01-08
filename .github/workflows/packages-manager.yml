@@ -101,6 +101,9 @@ jobs:
 
           $verificationPath = Resolve-Path  .\chocolatey\tools\VERIFICATION.txt
           (Get-Content $verificationPath) -replace '{{CHECKSUM}}', "$checksum" | Set-Content $verificationPath
+
+          (Get-Content $verificationPath) -replace '{{VERSION}}', "${{ needs.get_branch.outputs.version }}" -replace '${{VERSION}}', "{{ needs.get_branch.outputs.version }}" | Set-Content $verificationPath
+
         shell: pwsh
 
       - name: Publish Chocolatey package
@@ -110,12 +113,12 @@ jobs:
         run: |
           choco pack chocolatey/mdz.nuspec
 
-          # cd chocolatey
+          cd chocolatey
           # ls
           # Get-Content mdz.nuspec
-          # cd tools
+          cd tools
           # Get-Content chocolateyinstall.ps1
-          # Get-Content VERIFICATION.txt
+          Get-Content VERIFICATION.txt
           # cd ./../..
           # ls
 
@@ -132,8 +135,8 @@ jobs:
           # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease --source="D:\a\midaz\midaz"
           # mdz version
 
-          choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
-          choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
+          # choco apikey add -s="https://push.chocolatey.org/" -k="$env:CHOCO_API_KEY"
+          # choco push mdz.${{ needs.get_branch.outputs.version }}.nupkg --source https://push.chocolatey.org/
           
           # # test install public mdz chocolatey
           # choco install mdz --version=${{ needs.get_branch.outputs.version }} --prerelease
