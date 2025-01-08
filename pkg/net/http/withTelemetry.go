@@ -55,10 +55,15 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 
 // EndTracingSpans is a middleware that ends the tracing spans.
 func (tm *TelemetryMiddleware) EndTracingSpans(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+	if ctx == nil {
+		return nil
+	}
+
 	err := c.Next()
 
 	go func() {
-		trace.SpanFromContext(c.UserContext()).End()
+		trace.SpanFromContext(ctx).End()
 	}()
 
 	return err
