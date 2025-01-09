@@ -60,7 +60,7 @@ func (ap *AccountProto) GetAccountsByIds(ctx context.Context, ids *account.Accou
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
 	}
 
-	acc, err := ap.Query.ListAccountsByIDs(ctx, organizationUUID, ledgerUUID, uuids)
+	acc, err := ap.Command.ListAccountsByIDs(ctx, organizationUUID, ledgerUUID, uuids)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids for grpc", err)
 
@@ -99,7 +99,7 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *accou
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
 	}
 
-	acc, err := ap.Query.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, aliases.GetAliases())
+	acc, err := ap.Command.ListAccountsByAlias(ctx, organizationUUID, ledgerUUID, aliases.GetAliases())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases for grpc", err)
 
@@ -177,7 +177,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 	organizationID := update.GetOrganizationId()
 	ledgerID := update.GetLedgerId()
 
-	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
+	acc, err := ap.Command.ListAccountsByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids for grpc", err)
 
