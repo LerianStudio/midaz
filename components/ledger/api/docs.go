@@ -680,12 +680,6 @@ const docTemplate = `{
                         "description": "Sort Order",
                         "name": "sort_order",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Find alias",
-                        "name": "alias",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -766,6 +760,62 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/CreateAccountInput"
                         }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/Account"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}": {
+            "get": {
+                "description": "Get an Account with the input Alias",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Accounts"
+                ],
+                "summary": "Get an Account by Alias",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "Midaz-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Alias",
+                        "name": "alias",
+                        "in": "path",
+                        "required": true
                     }
                 ],
                 "responses": {

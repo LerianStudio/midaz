@@ -482,11 +482,6 @@ paths:
           - asc
           - desc
           type: string
-      - description: Find alias
-        in: query
-        name: alias
-        schema:
-          type: string
       responses:
         "200":
           content:
@@ -541,6 +536,49 @@ paths:
       tags:
       - Accounts
       x-codegen-request-body-name: account
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}:
+    get:
+      description: Get an Account with the input Alias
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Alias
+        in: path
+        name: alias
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+          description: OK
+      summary: Get an Account by Alias
+      tags:
+      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       description: Delete an Account with the input ID
