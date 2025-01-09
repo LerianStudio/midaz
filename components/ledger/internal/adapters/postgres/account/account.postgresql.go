@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"reflect"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ type Repository interface {
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
+	UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, acc []*account.Account) error
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -938,4 +940,67 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	}
 
 	return record.ToEntity(), nil
+}
+
+func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
+	tracer := pkg.NewTracerFromContext(ctx)
+	ctx, span0 := tracer.Start(ctx, "postgres.update_accounts.get_db")
+	defer span0.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span0, "Failed to get database connection", err)
+
+		return err
+	}
+
+	ctx, span1 := tracer.Start(ctx, "postgres.update_accounts.begin")
+	defer span1.End()
+
+	tx, err := db.Begin()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span1, "Failed to init transaction", err)
+
+		return err
+	}
+
+	for _, acc := range accounts {
+		var updates []string
+		var args []any
+
+		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
+		args = append(args, acc.Balance.Available)
+
+		updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
+		args = append(args, acc.Balance.OnHold)
+
+		updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
+		args = append(args, acc.Balance.Scale)
+
+		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+		args = append(args, time.Now(), organizationID, ledgerID, acc.Id)
+
+		query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+			` AND id = $` + strconv.Itoa(len(args)) +
+			` AND deleted_at IS NULL`
+
+		_, err := tx.ExecContext(ctx, query, args...)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span1, "Failed to update account", err)
+
+			return err
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+		mopentelemetry.HandleSpanError(&span1, "Failed to commit accounts", err)
+
+		return err
+	}
+
+	return nil
 }
