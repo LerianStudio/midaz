@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const TimeSetLock = 2
+const TimeSetLock = 1
 
 func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) {
 	logger := pkg.NewLoggerFromContext(context.Background())
@@ -57,7 +57,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 			return
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 	}
 }
 
