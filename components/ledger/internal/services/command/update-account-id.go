@@ -25,11 +25,11 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to update account by id: %v", id)
 
-	account := &mmodel.Account{
+	acc := &mmodel.Account{
 		Balance: *balance,
 	}
 
-	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, organizationID, ledgerID, id, account)
+	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, organizationID, ledgerID, id, acc)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update account on repo by id", err)
 

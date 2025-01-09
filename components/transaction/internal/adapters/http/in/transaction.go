@@ -418,7 +418,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	_, spanRaceCondition := tracer.Start(ctx, "handler.create_transaction.race_condition")
 
-	handler.Command.AllKeysUnlocked(ctx, organizationID, ledgerID, validate.Aliases)
+	handler.Command.AllKeysUnlocked(ctx, organizationID, ledgerID, validate.Aliases, hash)
 
 	spanRaceCondition.End()
 
@@ -505,13 +505,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	_, spanReleaseLock := tracer.Start(ctx, "handler.create_transaction.delete_race_condition")
 
-	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases)
+	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
 
 	spanReleaseLock.End()
 
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
-
-	//TODO: use event driven and broken and parts
 	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
@@ -525,7 +523,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.create_transaction.get_transaction")
 
-	//TODO: use event driven and broken and parts
 	tran, err = handler.Query.GetTransactionByID(ctxGetTransaction, organizationID, ledgerID, tran.IDtoUUID())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetTransaction, "Failed to retrieve transaction", err)

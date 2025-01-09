@@ -2,16 +2,18 @@ package command
 
 import (
 	"context"
+	"errors"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"sync"
 	"time"
 )
 
 const TimeSetLock = 1
 
-func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) {
+func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, hash string) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
 
@@ -27,14 +29,14 @@ func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID
 		logger.Infof("Account try to lock on redis: %v", internalKey)
 
 		wg.Add(1)
-		go uc.checkAndReleaseLock(ctx, &wg, internalKey, resultChan)
+		go uc.checkAndReleaseLock(ctx, &wg, internalKey, hash, resultChan)
 	}
 
 	wg.Wait()
 	close(resultChan)
 }
 
-func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, internalKey string, resultChan chan bool) {
+func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, internalKey, hash string, resultChan chan bool) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
 
@@ -44,7 +46,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 	defer wg.Done()
 
 	for {
-		success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, "processing account...", TimeSetLock)
+		success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, hash, TimeSetLock)
 		if err != nil {
 			resultChan <- false
 			return
@@ -57,11 +59,11 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 			return
 		}
 
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 }
 
-func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string) {
+func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, hash string) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
 
@@ -73,11 +75,14 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 
 		logger.Infof("Account releasing lock on redis: %v", internalKey)
 
-		err := uc.RedisRepo.Del(ctx, internalKey)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to release Accounts lock", err)
+		val, err := uc.RedisRepo.Get(ctx, key)
+		if !errors.Is(err, redis.Nil) && err != nil && val == hash {
+			err = uc.RedisRepo.Del(ctx, internalKey)
+			if err != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to release Accounts lock", err)
 
-			logger.Errorf("Failed to release Accounts lock: %v", err)
+				logger.Errorf("Failed to release Accounts lock: %v", err)
+			}
 		}
 	}
 }

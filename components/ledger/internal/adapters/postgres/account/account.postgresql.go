@@ -942,24 +942,23 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	return record.ToEntity(), nil
 }
 
+// UpdateAccounts an update all Accounts entity by ID only into Postgresql.
 func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
 	tracer := pkg.NewTracerFromContext(ctx)
-	ctx, span0 := tracer.Start(ctx, "postgres.update_accounts.get_db")
-	defer span0.End()
+
+	ctx, span := tracer.Start(ctx, "postgres.update_accounts")
+	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span0, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return err
 	}
 
-	ctx, span1 := tracer.Start(ctx, "postgres.update_accounts.begin")
-	defer span1.End()
-
 	tx, err := db.Begin()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span1, "Failed to init transaction", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to init transaction", err)
 
 		return err
 	}
@@ -988,16 +987,16 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 
 		_, err := tx.ExecContext(ctx, query, args...)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span1, "Failed to update account", err)
+			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
 
 			return err
 		}
 	}
 
-	if err := tx.Commit().Error; err != nil {
+	if err := tx.Commit(); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		mopentelemetry.HandleSpanError(&span1, "Failed to commit accounts", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to commit accounts", err)
 
 		return err
 	}
