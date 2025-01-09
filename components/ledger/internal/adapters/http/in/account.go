@@ -89,7 +89,6 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param          alias           query       string  false   "Find alias"    example "@wallet_12345123"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
@@ -120,7 +119,6 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		SortOrder: headerParams.SortOrder,
 		StartDate: headerParams.StartDate,
 		EndDate:   headerParams.EndDate,
-		Alias:     headerParams.Alias,
 	}
 
 	if !pkg.IsNilOrEmpty(&headerParams.PortfolioID) {

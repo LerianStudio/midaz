@@ -177,10 +177,6 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))})
 
-	if len(filter.Alias) > 0 {
-		findAll = findAll.Where(squirrel.Expr("alias = ?", filter.Alias))
-	}
-
 	findAll = findAll.Limit(pkg.SafeIntToUint64(filter.Limit)).
 		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
