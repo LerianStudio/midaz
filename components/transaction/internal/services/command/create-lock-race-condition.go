@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const TimeSetLock = 1
+const TimeSetLock = 3
 
 func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, hash string) {
 	logger := pkg.NewLoggerFromContext(context.Background())
