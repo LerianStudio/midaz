@@ -33,6 +33,7 @@ type Repository interface {
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
 	Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
 	FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error)
+	FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error)
 	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*mmodel.Account, error)
@@ -176,10 +177,6 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
 		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))})
-
-	if len(filter.Alias) > 0 {
-		findAll = findAll.Where(squirrel.Expr("alias = ?", filter.Alias))
-	}
 
 	findAll = findAll.Limit(pkg.SafeIntToUint64(filter.Limit)).
 		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
@@ -374,6 +371,74 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		}
+
+		return nil, err
+	}
+
+	return account.ToEntity(), nil
+}
+
+// FindAlias retrieves an Account entity from the database using the provided Alias (including soft-deleted ones).
+func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_alias")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3"
+	args := []any{organizationID, ledgerID, alias}
+
+	if portfolioID != nil && *portfolioID != uuid.Nil {
+		query += " AND portfolio_id = $4"
+
+		args = append(args, portfolioID)
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	account := &AccountPostgreSQLModel{}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
+
+	row := db.QueryRowContext(ctx, query, args...)
+
+	spanQuery.End()
+
+	if err := row.Scan(
+		&account.ID,
+		&account.Name,
+		&account.ParentAccountID,
+		&account.EntityID,
+		&account.AssetCode,
+		&account.OrganizationID,
+		&account.LedgerID,
+		&account.PortfolioID,
+		&account.ProductID,
+		&account.AvailableBalance,
+		&account.OnHoldBalance,
+		&account.BalanceScale,
+		&account.Status,
+		&account.StatusDescription,
+		&account.AllowSending,
+		&account.AllowReceiving,
+		&account.Alias,
+		&account.Type,
+		&account.CreatedAt,
+		&account.UpdatedAt,
+		&account.DeletedAt,
+	); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err

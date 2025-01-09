@@ -89,7 +89,6 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param          alias           query       string  false   "Find alias"    example "@wallet_12345123"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
@@ -120,7 +119,6 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		SortOrder: headerParams.SortOrder,
 		StartDate: headerParams.StartDate,
 		EndDate:   headerParams.EndDate,
-		Alias:     headerParams.Alias,
 	}
 
 	if !pkg.IsNilOrEmpty(&headerParams.PortfolioID) {
@@ -207,6 +205,48 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	}
 
 	logger.Infof("Successfully retrieved Account with Account ID: %s", id.String())
+
+	return http.OK(c, account)
+}
+
+// GetAccountByAlias is a method that retrieves Account information by a given account alias.
+//
+//	@Summary		Get an Account by Alias
+//	@Description	Get an Account with the input Alias
+//	@Tags			Accounts
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			alias			path		string	true	"Alias"
+//	@Success		200				{object}	mmodel.Account
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias} [get]
+func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
+	defer span.End()
+
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	alias := c.Params("alias")
+
+	logger.Infof("Initiating retrieval of Account with Account Alias: %s", alias)
+
+	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+
+		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Account with Account Alias: %s", alias)
 
 	return http.OK(c, account)
 }
