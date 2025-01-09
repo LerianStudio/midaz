@@ -386,6 +386,23 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
+	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
+
+	ts, _ := pkg.StructToJSONString(parserDSL)
+	hash := pkg.HashSHA256(ts)
+	key, ttl := http.GetIdempotencyKeyAndTTL(c)
+
+	err := handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanIdempotency, "Redis idempotency key", err)
+
+		logger.Infof("Redis idempotency key: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	spanIdempotency.End()
+
 	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
 
 	validate, err := goldModel.ValidateSendSourceAndDistribute(parserDSL)
@@ -401,49 +418,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	_, spanRaceCondition := tracer.Start(ctx, "handler.create_transaction.race_condition")
 
-	for _, alias := range validate.Aliases {
-		if !isLocked {
-			isLocked, err = handler.Command.CreateLockAccount(ctx, organizationID, ledgerID, alias)
-			if err != nil {
-				mopentelemetry.HandleSpanError(&spanRaceCondition, "Race Condition", err)
-
-				logger.Error("Race Condition:", err.Error())
-
-				return http.WithError(c, err)
-			}
-		}
-
-		for !isLocked {
-			err = handler.createTransaction(c, logger, parserDSL, isLocked)
-			if err != nil {
-				mopentelemetry.HandleSpanError(&spanRaceCondition, "Race Condition", err)
-
-				logger.Error("Race Condition:", err.Error())
-
-				return http.WithError(c, err)
-			}
-		}
-
-	}
+	handler.Command.AllKeysUnlocked(ctx, organizationID, ledgerID, validate.Aliases)
 
 	spanRaceCondition.End()
-
-	_, spanRedis := tracer.Start(ctx, "handler.create_transaction_idempotency")
-
-	ts, _ := pkg.StructToJSONString(parserDSL)
-	hash := pkg.HashSHA256(ts)
-	key, ttl := http.GetIdempotencyKeyAndTTL(c)
-
-	err = handler.Command.CreateOrCheckIdempotencyKey(ctx, organizationID, ledgerID, key, hash, ttl)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanRedis, "Redis idempotency key", err)
-
-		logger.Error("Redis idempotency key:", err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	spanRedis.End()
 
 	ctxGetAccounts, spanGetAccounts := tracer.Start(ctx, "handler.create_transaction.get_accounts")
 
@@ -525,6 +502,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	}
 
 	spanProcessAccounts.End()
+
+	_, spanReleaseLock := tracer.Start(ctx, "handler.create_transaction.delete_race_condition")
+
+	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases)
+
+	spanReleaseLock.End()
 
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
 
