@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"strconv"
 	"sync"
 	"time"
 )
 
-const TimeSetLock = 3
+const TimeSetLock = 1
+const TimeSetLockBalance = 60
 
 func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, hash string) {
 	logger := pkg.NewLoggerFromContext(context.Background())
@@ -85,4 +88,45 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 			}
 		}
 	}
+}
+
+func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) (bool, error) {
+	logger := pkg.NewLoggerFromContext(context.Background())
+	tracer := pkg.NewTracerFromContext(context.Background())
+
+	ctx, span := tracer.Start(ctx, "redis.lock_balance_version")
+	defer span.End()
+
+	accountsMap := make(map[string]*account.Account)
+	for _, acc := range accounts {
+		accountsMap[acc.Id] = acc
+		accountsMap[acc.Alias] = acc
+	}
+
+	for _, key := range keys {
+		if acc, exists := accountsMap[key]; exists {
+			balanceAvailable := strconv.FormatFloat(acc.Balance.Available, 'f', -1, 64)
+
+			internalKey := pkg.LockInternalKey(organizationID, ledgerID, key) + ":" + balanceAvailable
+
+			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
+
+			success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, "lock balance version...", TimeSetLockBalance)
+			if err != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to lock Account balance version: ", err)
+
+				logger.Errorf("Failed to lock Account balance version: %v", err)
+
+				return false, err
+			}
+
+			if !success {
+				logger.Infof("Lock already exists for key, get Accounts again: %v", internalKey)
+
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
 }
