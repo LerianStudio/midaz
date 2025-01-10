@@ -78,7 +78,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 	if ft.IsFrom {
 		ba := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
 
-		if ba.Available < 0 && acc.Type != "external" {
+		if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
 			return amount, balanceAfter, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
 		}
 
