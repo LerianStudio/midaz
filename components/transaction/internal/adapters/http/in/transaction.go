@@ -426,7 +426,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	token := http.GetTokenHeader(c)
 
-	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, organizationID, ledgerID, validate, parserDSL)
+	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, hash, organizationID, ledgerID, validate, parserDSL)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetAccounts, "Failed to get accounts", err)
 
@@ -571,7 +571,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, transaction goldModel.Transaction) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, transaction goldModel.Transaction) ([]*account.Account, error) {
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
@@ -586,6 +586,8 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate accounts", err)
 
+		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+
 		return nil, err
 	}
 
@@ -599,7 +601,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	}
 
 	if searchAgain {
-		return handler.getAccountsAndValidate(ctx, logger, token, organizationID, ledgerID, validate, transaction)
+		return handler.getAccountsAndValidate(ctx, logger, token, hash, organizationID, ledgerID, validate, transaction)
 	}
 
 	return accounts, nil
