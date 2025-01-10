@@ -290,3 +290,9 @@ func LockInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 
 	return lockInternalKey
 }
+
+func LockBalanceInternalKey(organizationID, ledgerID uuid.UUID, key, balanceAvailable, balanceScale string) string {
+	lockBalanceInternalKey := LockInternalKey(organizationID, ledgerID, key) + ":" + balanceAvailable + ":" + balanceScale
+
+	return lockBalanceInternalKey
+}
