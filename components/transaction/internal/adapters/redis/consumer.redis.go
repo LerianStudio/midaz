@@ -17,6 +17,7 @@ type RedisRepository interface {
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
+	Incr(ctx context.Context, key string) int64
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -66,7 +67,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.set")
+	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -80,7 +81,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 
 	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 
 		return false, err
 	}
@@ -138,4 +139,20 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger.Infof("value : %v", val)
 
 	return nil
+}
+
+func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.incr")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		return 0
+	}
+
+	return rds.Incr(ctx, key).Val()
 }

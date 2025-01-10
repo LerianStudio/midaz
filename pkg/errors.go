@@ -783,6 +783,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
 		},
+		constant.ErrLockVersionAccountBalance: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLockVersionAccountBalance.Error(),
+			Title:      "Race conditioning detected",
+			Message:    "A race condition was detected while processing your request. Please try again",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

@@ -426,9 +426,14 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	token := http.GetTokenHeader(c)
 
-	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, organizationID, ledgerID, validate)
+	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, organizationID, ledgerID, validate, parserDSL)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetAccounts, "Failed to get accounts", err)
+
+		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
+		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+
+		spanReleaseLock.End()
 
 		return http.WithError(c, err)
 	}
@@ -450,10 +455,41 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 		logger.Error("Failed to create transaction", err.Error())
 
+		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
+		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+
+		spanReleaseLock.End()
+
 		return http.WithError(c, err)
 	}
 
 	spanCreateTransaction.End()
+
+	e := make(chan error)
+	result := make(chan []*operation.Operation)
+
+	var operations []*operation.Operation
+
+	ctxCreateOperation, spanCreateOperation := tracer.Start(ctx, "handler.create_transaction.create_operation")
+
+	go handler.Command.CreateOperation(ctxCreateOperation, accounts, tran.ID, &parserDSL, *validate, result, e)
+	select {
+	case ops := <-result:
+		operations = append(operations, ops...)
+	case err := <-e:
+		mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operations", err)
+
+		logger.Error("Failed to create operations: ", err.Error())
+
+		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
+		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+
+		spanReleaseLock.End()
+
+		return http.WithError(c, err)
+	}
+
+	spanCreateOperation.End()
 
 	ctxProcessAccounts, spanUpdateAccounts := tracer.Start(ctx, "handler.create_transaction.update_accounts")
 
@@ -466,7 +502,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_race_condition")
+		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
 		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
 
 		spanReleaseLock.End()
@@ -488,33 +524,17 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanUpdateAccounts.End()
 
-	e := make(chan error)
-	result := make(chan []*operation.Operation)
-
-	var operations []*operation.Operation
-
-	ctxCreateOperation, spanCreateOperation := tracer.Start(ctx, "handler.create_transaction.create_operation")
-
-	go handler.Command.CreateOperation(ctxCreateOperation, accounts, tran.ID, &parserDSL, *validate, result, e)
-	select {
-	case ops := <-result:
-		operations = append(operations, ops...)
-	case err := <-e:
-		mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operations", err)
-
-		logger.Error("Failed to create operations: ", err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	spanCreateOperation.End()
-
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
 	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
 		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
+
+		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
+		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+
+		spanReleaseLock.End()
 
 		return http.WithError(c, err)
 	}
@@ -541,7 +561,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
 	_, spanReleaseLock := tracer.Start(ctx, "handler.create_transaction.delete_race_condition")
-
 	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
 
 	spanReleaseLock.End()
@@ -552,7 +571,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, transaction goldModel.Transaction) ([]*account.Account, error) {
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
@@ -580,7 +599,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	}
 
 	if searchAgain {
-		return handler.getAccountsAndValidate(ctx, logger, token, organizationID, ledgerID, validate)
+		return handler.getAccountsAndValidate(ctx, logger, token, organizationID, ledgerID, validate, transaction)
 	}
 
 	return accounts, nil

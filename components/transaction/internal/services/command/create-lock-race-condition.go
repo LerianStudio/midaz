@@ -88,6 +88,22 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 	}
 }
 
+func (uc *UseCase) getCounter(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (int, error) {
+	val, err := uc.RedisRepo.Get(ctx, key)
+	if err != nil {
+		if !errors.Is(err, redis.Nil) && err != nil {
+			return 1, nil
+		}
+		return 1, err
+	}
+	integer, err := strconv.Atoi(val)
+	if err != nil {
+		return 1, err
+	}
+
+	return integer, nil
+}
+
 func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) (bool, error) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
@@ -110,7 +126,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 
 			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
 
-			success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, constant.ValueBalanceLock, constant.TimeSetLockBalance)
+			isSuccess, err := uc.RedisRepo.SetNX(ctx, internalKey, "0", constant.TimeSetLockBalance)
 			if err != nil {
 				mopentelemetry.HandleSpanError(&span, "Failed to lock Account balance version: ", err)
 
@@ -119,7 +135,23 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 				return false, err
 			}
 
-			if !success {
+			total := uc.RedisRepo.Incr(ctx, internalKey)
+			if total > 3 {
+				err = uc.RedisRepo.Del(ctx, internalKey)
+				if err != nil {
+					mopentelemetry.HandleSpanError(&span, "Failed to release Account balance version lock", err)
+
+					logger.Errorf("Failed to release Account balance version lock: %v", err)
+				}
+
+				logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
+
+				return false, pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, "LockBalanceVersion")
+			}
+
+			if !isSuccess {
+				time.Sleep(200 * time.Millisecond)
+
 				logger.Infof("Lock already exists for key, get Accounts again: %v", internalKey)
 
 				return true, nil
