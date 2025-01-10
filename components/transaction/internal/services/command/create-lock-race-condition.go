@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
@@ -12,9 +13,6 @@ import (
 	"sync"
 	"time"
 )
-
-const TimeSetLock = 1
-const TimeSetLockBalance = 60
 
 func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, hash string) {
 	logger := pkg.NewLoggerFromContext(context.Background())
@@ -49,7 +47,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 	defer wg.Done()
 
 	for {
-		success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, hash, TimeSetLock)
+		success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, hash, constant.TimeSetLock)
 		if err != nil {
 			resultChan <- false
 			return
@@ -111,7 +109,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 
 			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
 
-			success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, "lock balance version...", TimeSetLockBalance)
+			success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, constant.ValueBalanceLock, constant.TimeSetLockBalance)
 			if err != nil {
 				mopentelemetry.HandleSpanError(&span, "Failed to lock Account balance version: ", err)
 
