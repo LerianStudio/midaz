@@ -136,6 +136,8 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 			}
 
 			total := uc.RedisRepo.Incr(ctx, internalKey)
+			logger.Infof("%v attempt(s) to get Account balance", internalKey)
+
 			if total > 3 {
 				err = uc.RedisRepo.Del(ctx, internalKey)
 				if err != nil {
