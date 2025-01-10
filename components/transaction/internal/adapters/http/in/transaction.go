@@ -439,8 +439,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	err = goldModel.ValidateAccounts(*validate, accounts)
 	if err != nil {
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, constant.ValueBalanceLock)
 		mopentelemetry.HandleSpanError(&spanValidateAccounts, "Failed to validate accounts", err)
+		
+		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, constant.ValueBalanceLock)
 
 		return http.WithError(c, err)
 	}
