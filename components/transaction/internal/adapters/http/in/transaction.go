@@ -426,7 +426,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	token := http.GetTokenHeader(c)
 
-	accounts, err := handler.getAccounts(ctxGetAccounts, logger, token, organizationID, ledgerID, validate.Aliases)
+	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, organizationID, ledgerID, validate)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetAccounts, "Failed to get accounts", err)
 
@@ -434,19 +434,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	}
 
 	spanGetAccounts.End()
-
-	_, spanValidateAccounts := tracer.Start(ctx, "handler.create_transaction.validate_accounts")
-
-	err = goldModel.ValidateAccounts(*validate, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanValidateAccounts, "Failed to validate accounts", err)
-
-		handler.Command.DeleteLocksBalanceVersion(ctx, organizationID, ledgerID, validate.Aliases, accounts)
-
-		return http.WithError(c, err)
-	}
-
-	spanValidateAccounts.End()
 
 	ctxCreateTransaction, spanCreateTransaction := tracer.Start(ctx, "handler.create_transaction.create_transaction")
 
@@ -515,8 +502,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	case err := <-e:
 		mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operations", err)
 
-		handler.Command.DeleteLocksBalanceVersion(ctx, organizationID, ledgerID, validate.Aliases, accounts)
-
 		logger.Error("Failed to create operations: ", err.Error())
 
 		return http.WithError(c, err)
@@ -567,18 +552,25 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, input []string) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses) ([]*account.Account, error) {
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
-	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, token, organizationID, ledgerID, input)
+	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, token, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get accounts", err)
 
 		return nil, err
 	}
 
-	searchAgain, err := handler.Command.LockBalanceVersion(ctx, organizationID, ledgerID, input, accounts)
+	err = goldModel.ValidateAccounts(*validate, accounts)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate accounts", err)
+
+		return nil, err
+	}
+
+	searchAgain, err := handler.Command.LockBalanceVersion(ctx, organizationID, ledgerID, validate.Aliases, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get account by alias gRPC on Ledger", err)
 
@@ -588,7 +580,7 @@ func (handler *TransactionHandler) getAccounts(ctx context.Context, logger mlog.
 	}
 
 	if searchAgain {
-		return handler.getAccounts(ctx, logger, token, organizationID, ledgerID, input)
+		return handler.getAccountsAndValidate(ctx, logger, token, organizationID, ledgerID, validate)
 	}
 
 	return accounts, nil

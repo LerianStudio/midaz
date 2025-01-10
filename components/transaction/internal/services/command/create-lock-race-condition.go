@@ -88,41 +88,6 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 	}
 }
 
-func (uc *UseCase) DeleteLocksBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) {
-	logger := pkg.NewLoggerFromContext(context.Background())
-	tracer := pkg.NewTracerFromContext(context.Background())
-
-	ctx, span := tracer.Start(ctx, "redis.delete_locks")
-	defer span.End()
-
-	accountsMap := make(map[string]*account.Account)
-	for _, acc := range accounts {
-		accountsMap[acc.Id] = acc
-		accountsMap[acc.Alias] = acc
-	}
-
-	for _, key := range keys {
-		if acc, exists := accountsMap[key]; exists {
-			balanceAvailable := strconv.FormatFloat(acc.Balance.Available, 'f', -1, 64)
-			balanceScale := strconv.FormatFloat(acc.Balance.Scale, 'f', -1, 64)
-
-			internalKey := pkg.LockBalanceInternalKey(organizationID, ledgerID, key, balanceAvailable, balanceScale)
-
-			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
-
-			_, err := uc.RedisRepo.Get(ctx, key)
-			if !errors.Is(err, redis.Nil) && err != nil {
-				err = uc.RedisRepo.Del(ctx, internalKey)
-				if err != nil {
-					mopentelemetry.HandleSpanError(&span, "Failed to release Accounts lock", err)
-
-					logger.Errorf("Failed to release Accounts lock: %v", err)
-				}
-			}
-		}
-	}
-}
-
 func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) (bool, error) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
