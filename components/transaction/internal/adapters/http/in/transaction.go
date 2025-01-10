@@ -582,7 +582,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 		return nil, err
 	}
 
-	err = goldModel.ValidateAccounts(*validate, accounts)
+	err = goldModel.ValidateAccounts(transaction, *validate, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate accounts", err)
 

@@ -11,7 +11,7 @@ import (
 )
 
 // ValidateAccounts function with some validates in accounts and DSL operations
-func ValidateAccounts(validate Responses, accounts []*a.Account) error {
+func ValidateAccounts(transaction Transaction, validate Responses, accounts []*a.Account) error {
 	if len(accounts) != (len(validate.From) + len(validate.To)) {
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 	}
@@ -23,6 +23,27 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 
 		if err := validateToAccounts(acc, validate.To, validate.Asset); err != nil {
 			return err
+		}
+
+		if err := validateBalance(transaction, validate.From, acc); err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func validateBalance(dsl Transaction, from map[string]Amount, acc *a.Account) error {
+	for key := range from {
+		for _, f := range dsl.Send.Source.From {
+			if acc.Id == key || acc.Alias == key {
+				ba := OperateAmounts(from[f.Account], acc.Balance, constant.DEBIT)
+
+				if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
+					return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
+				}
+			}
 		}
 	}
 
