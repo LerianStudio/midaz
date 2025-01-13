@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/bxcodec/dbresolver/v2"
 	"reflect"
 	"strconv"
 	"strings"
@@ -1031,6 +1032,13 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 		return err
 	}
 
+	defer func(tx dbresolver.Tx) {
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+		}
+	}(tx)
+
 	for _, acc := range accounts {
 		var updates []string
 
@@ -1074,7 +1082,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 		}
 
 		if rowsAffected == 0 {
-			err = pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, reflect.TypeOf(mmodel.Account{}).Name())
+			err := pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, reflect.TypeOf(mmodel.Account{}).Name())
 
 			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
 
@@ -1082,12 +1090,12 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
+	if commitErr := tx.Commit(); commitErr != nil {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to commit accounts", err)
 
-		return err
+		return commitErr
 	}
 
 	return nil
