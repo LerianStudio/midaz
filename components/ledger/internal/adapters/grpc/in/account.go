@@ -204,14 +204,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 
 	ctx, span := tracer.Start(ctx, "handler.UpdateAccounts")
 	defer span.End()
-
-	uuids := make([]uuid.UUID, 0)
-	aliases := make([]string, 0)
-	for _, getAcc := range update.GetAccounts() {
-		uuids = append(uuids, uuid.MustParse(getAcc.Id))
-		aliases = append(aliases, getAcc.Alias)
-	}
-
+	
 	organizationID, err := uuid.Parse(update.OrganizationId)
 	if err != nil {
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationID)
