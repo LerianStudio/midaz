@@ -13,7 +13,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create-idempotency-key")
+	_, span := tracer.Start(ctx, "command.create-idempotency-key")
 	defer span.End()
 
 	logger.Infof("Trying to create or check idempotency key in redis")

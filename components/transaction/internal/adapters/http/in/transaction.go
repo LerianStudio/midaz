@@ -62,7 +62,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 	parserDSL := input.FromDSl()
 	logger.Infof("Request to create an transaction with details: %#v", parserDSL)
 
-	response := handler.createTransaction(c, logger, *parserDSL, false)
+	response := handler.createTransaction(c, logger, *parserDSL)
 
 	return response
 }
@@ -130,7 +130,7 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	response := handler.createTransaction(c, logger, parserDSL, false)
+	response := handler.createTransaction(c, logger, parserDSL)
 
 	return response
 }
@@ -379,7 +379,7 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
-func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.Logger, parserDSL goldModel.Transaction, isLocked bool) error {
+func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.Logger, parserDSL goldModel.Transaction) error {
 	ctx := c.UserContext()
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -509,6 +509,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 		ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.update_accounts.update_transaction_status")
 		_, er := handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
+
 		if er != nil {
 			mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
@@ -526,6 +527,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
 	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
+
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
@@ -571,7 +573,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, transaction goldModel.Transaction) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, body goldModel.Transaction) ([]*account.Account, error) {
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
@@ -582,7 +584,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 		return nil, err
 	}
 
-	err = goldModel.ValidateAccounts(transaction, *validate, accounts)
+	err = goldModel.ValidateAccounts(body, *validate, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate accounts", err)
 
@@ -601,7 +603,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	}
 
 	if searchAgain {
-		return handler.getAccountsAndValidate(ctx, logger, token, hash, organizationID, ledgerID, validate, transaction)
+		return handler.getAccountsAndValidate(ctx, logger, token, hash, organizationID, ledgerID, validate, body)
 	}
 
 	return accounts, nil

@@ -271,7 +271,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	query += " ORDER BY created_at DESC"
 
-	account := &AccountPostgreSQLModel{}
+	acc := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -280,27 +280,27 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	spanQuery.End()
 
 	if err := row.Scan(
-		&account.ID,
-		&account.Name,
-		&account.ParentAccountID,
-		&account.EntityID,
-		&account.AssetCode,
-		&account.OrganizationID,
-		&account.LedgerID,
-		&account.PortfolioID,
-		&account.ProductID,
-		&account.AvailableBalance,
-		&account.OnHoldBalance,
-		&account.BalanceScale,
-		&account.Status,
-		&account.StatusDescription,
-		&account.AllowSending,
-		&account.AllowReceiving,
-		&account.Alias,
-		&account.Type,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-		&account.DeletedAt,
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.ProductID,
+		&acc.AvailableBalance,
+		&acc.OnHoldBalance,
+		&acc.BalanceScale,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.AllowSending,
+		&acc.AllowReceiving,
+		&acc.Alias,
+		&acc.Type,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -311,7 +311,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	return account.ToEntity(), nil
+	return acc.ToEntity(), nil
 }
 
 // FindWithDeleted retrieves an Account entity from the database using the provided ID (including soft-deleted ones).
@@ -339,7 +339,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 	query += " ORDER BY created_at DESC"
 
-	account := &AccountPostgreSQLModel{}
+	acc := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
 
@@ -348,27 +348,27 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	spanQuery.End()
 
 	if err := row.Scan(
-		&account.ID,
-		&account.Name,
-		&account.ParentAccountID,
-		&account.EntityID,
-		&account.AssetCode,
-		&account.OrganizationID,
-		&account.LedgerID,
-		&account.PortfolioID,
-		&account.ProductID,
-		&account.AvailableBalance,
-		&account.OnHoldBalance,
-		&account.BalanceScale,
-		&account.Status,
-		&account.StatusDescription,
-		&account.AllowSending,
-		&account.AllowReceiving,
-		&account.Alias,
-		&account.Type,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-		&account.DeletedAt,
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.ProductID,
+		&acc.AvailableBalance,
+		&acc.OnHoldBalance,
+		&acc.BalanceScale,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.AllowSending,
+		&acc.AllowReceiving,
+		&acc.Alias,
+		&acc.Type,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -379,7 +379,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		return nil, err
 	}
 
-	return account.ToEntity(), nil
+	return acc.ToEntity(), nil
 }
 
 // FindAlias retrieves an Account entity from the database using the provided Alias (including soft-deleted ones).
@@ -407,7 +407,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 	query += " ORDER BY created_at DESC"
 
-	account := &AccountPostgreSQLModel{}
+	acc := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
 
@@ -416,27 +416,27 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 	spanQuery.End()
 
 	if err := row.Scan(
-		&account.ID,
-		&account.Name,
-		&account.ParentAccountID,
-		&account.EntityID,
-		&account.AssetCode,
-		&account.OrganizationID,
-		&account.LedgerID,
-		&account.PortfolioID,
-		&account.ProductID,
-		&account.AvailableBalance,
-		&account.OnHoldBalance,
-		&account.BalanceScale,
-		&account.Status,
-		&account.StatusDescription,
-		&account.AllowSending,
-		&account.AllowReceiving,
-		&account.Alias,
-		&account.Type,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-		&account.DeletedAt,
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.ProductID,
+		&acc.AvailableBalance,
+		&acc.OnHoldBalance,
+		&acc.BalanceScale,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.AllowSending,
+		&acc.AllowReceiving,
+		&acc.Alias,
+		&acc.Type,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -447,7 +447,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	return account.ToEntity(), nil
+	return acc.ToEntity(), nil
 }
 
 // FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
@@ -1033,6 +1033,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 
 	for _, acc := range accounts {
 		var updates []string
+
 		var args []any
 
 		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
@@ -1079,7 +1080,6 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 
 			return err
 		}
-
 	}
 
 	if err := tx.Commit(); err != nil {

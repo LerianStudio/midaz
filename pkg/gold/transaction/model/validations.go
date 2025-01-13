@@ -28,7 +28,6 @@ func ValidateAccounts(transaction Transaction, validate Responses, accounts []*a
 		if err := validateBalance(transaction, validate.From, acc); err != nil {
 			return err
 		}
-
 	}
 
 	return nil

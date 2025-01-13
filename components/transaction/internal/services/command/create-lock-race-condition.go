@@ -22,6 +22,7 @@ func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID
 	defer span.End()
 
 	var wg sync.WaitGroup
+
 	resultChan := make(chan bool, len(keys))
 
 	for _, key := range keys {
@@ -30,6 +31,7 @@ func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID
 		logger.Infof("Account try to lock on redis: %v", internalKey)
 
 		wg.Add(1)
+
 		go uc.checkAndReleaseLock(ctx, &wg, internalKey, hash, resultChan)
 	}
 
@@ -41,7 +43,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
 
-	ctx, span := tracer.Start(ctx, "redis.check_and_release_lock")
+	_, span := tracer.Start(ctx, "redis.check_and_release_lock")
 	defer span.End()
 
 	defer wg.Done()
