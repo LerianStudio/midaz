@@ -1,3 +1,11 @@
+## [1.45.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.44.1-beta.1...v1.45.0-beta.1) (2025-01-09)
+
+
+### Features
+
+* added router find account by alias :sparkles: ([a2e8c99](https://github.com/LerianStudio/midaz/commit/a2e8c99ec816149c23beb5962a600ca7d7bb0328))
+* push choco :sparkles: ([4d19380](https://github.com/LerianStudio/midaz/commit/4d19380685d0bad020ed4f0b67e73dcac372876e))
+
 ## [1.44.1-beta.1](https://github.com/LerianStudio/midaz/compare/v1.44.0...v1.44.1-beta.1) (2025-01-08)
 
 ## [1.44.0](https://github.com/LerianStudio/midaz/compare/v1.43.0...v1.44.0) (2025-01-08)

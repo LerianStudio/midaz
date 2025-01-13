@@ -92,5 +92,6 @@ var (
 	ErrInvalidQueryParameter                = errors.New("0082")
 	ErrInvalidDateRange                     = errors.New("0083")
 	ErrIdempotencyKey                       = errors.New("0084")
+	ErrAccountAliasNotFound                 = errors.New("0085")
 	ErrLockVersionAccountBalance            = errors.New("0085")
 )

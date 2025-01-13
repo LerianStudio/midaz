@@ -1,4 +1,4 @@
-$version = 'v1.44.0'
+$version = 'v1.44.1'
 
 $ErrorActionPreference = 'Stop';
 
@@ -41,4 +41,4 @@ Write-Host "Copying $outputFile to $binDir"
 Copy-Item -Path $outputFile -Destination $binDir -Force
 
 # Confirm installation
-Write-Host "Installation complete. The mdz executable is available globally.
+Write-Host "Installation complete. The mdz executable is available globally."
