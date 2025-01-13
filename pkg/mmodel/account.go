@@ -59,6 +59,7 @@ type Account struct {
 	AllowReceiving  *bool          `json:"allowReceiving" example:"true"`
 	Alias           *string        `json:"alias" example:"@person1"`
 	Type            string         `json:"type" example:"creditCard"`
+	Version         int64          `json:"-"`
 	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
@@ -117,6 +118,7 @@ func (e *Account) ToProto() *proto.Account {
 		AllowSending:   *e.AllowSending,
 		AllowReceiving: *e.AllowReceiving,
 		Type:           e.Type,
+		Version:        e.Version,
 	}
 
 	if e.ParentAccountID != nil {

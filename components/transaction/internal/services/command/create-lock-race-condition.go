@@ -103,10 +103,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 
 	for _, key := range keys {
 		if acc, exists := accountsMap[key]; exists {
-			balanceAvailable := strconv.FormatFloat(acc.Balance.Available, 'f', -1, 64)
-			balanceScale := strconv.FormatFloat(acc.Balance.Scale, 'f', -1, 64)
-
-			internalKey := pkg.LockBalanceInternalKey(organizationID, ledgerID, key, balanceAvailable, balanceScale)
+			internalKey := pkg.LockVersionInternalKey(organizationID, ledgerID, key, strconv.FormatInt(acc.Version, 10))
 
 			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
 

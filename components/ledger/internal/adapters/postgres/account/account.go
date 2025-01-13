@@ -28,6 +28,7 @@ type AccountPostgreSQLModel struct {
 	AllowReceiving    bool
 	Alias             *string
 	Type              string
+	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         sql.NullTime
@@ -63,6 +64,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		AllowReceiving:  &t.AllowReceiving,
 		Alias:           t.Alias,
 		Type:            t.Type,
+		Version:         t.Version,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
@@ -94,6 +96,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		StatusDescription: account.Status.Description,
 		Alias:             account.Alias,
 		Type:              account.Type,
+		Version:           account.Version,
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
 	}

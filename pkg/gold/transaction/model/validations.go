@@ -158,6 +158,7 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 					AllowSending:    acc.AllowSending,
 					AllowReceiving:  acc.AllowReceiving,
 					Type:            acc.Type,
+					Version:         acc.Version,
 					CreatedAt:       acc.CreatedAt,
 					UpdatedAt:       acc.UpdatedAt,
 				}

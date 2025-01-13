@@ -94,7 +94,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	result, err := db.ExecContext(ctx, `INSERT INTO account VALUES 
         (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
         )
 		RETURNING *`,
 		record.ID,
@@ -115,6 +115,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.AllowReceiving,
 		record.Alias,
 		record.Type,
+		record.Version,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -767,6 +768,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -837,6 +839,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -976,21 +979,42 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 		updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
 		args = append(args, acc.Balance.Scale)
 
+		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+		version := acc.Version + 1
+		args = append(args, version)
+
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, acc.Id)
+		args = append(args, time.Now(), organizationID, ledgerID, acc.Id, acc.Version)
 
 		query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-			` AND id = $` + strconv.Itoa(len(args)) +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+			` AND id = $` + strconv.Itoa(len(args)-1) +
+			` AND version = $` + strconv.Itoa(len(args)) +
 			` AND deleted_at IS NULL`
 
-		_, err := tx.ExecContext(ctx, query, args...)
+		result, err := tx.ExecContext(ctx, query, args...)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
 
 			return err
 		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+			return err
+		}
+
+		if rowsAffected == 0 {
+			err = pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, reflect.TypeOf(mmodel.Account{}).Name())
+
+			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
+
+			return err
+		}
+
 	}
 
 	if err := tx.Commit(); err != nil {
