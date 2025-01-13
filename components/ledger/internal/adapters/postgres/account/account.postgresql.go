@@ -1071,12 +1071,22 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
 
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+			}
+
 			return err
 		}
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+			}
 
 			return err
 		}
@@ -1085,6 +1095,11 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 			err := pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, reflect.TypeOf(mmodel.Account{}).Name())
 
 			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
+
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+			}
 
 			return err
 		}
