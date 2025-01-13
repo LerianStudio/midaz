@@ -88,22 +88,6 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 	}
 }
 
-func (uc *UseCase) getCounter(ctx context.Context, organizationID, ledgerID uuid.UUID, key string) (int, error) {
-	val, err := uc.RedisRepo.Get(ctx, key)
-	if err != nil {
-		if !errors.Is(err, redis.Nil) && err != nil {
-			return 1, nil
-		}
-		return 1, err
-	}
-	integer, err := strconv.Atoi(val)
-	if err != nil {
-		return 1, err
-	}
-
-	return integer, nil
-}
-
 func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) (bool, error) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
@@ -138,7 +122,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 			total := uc.RedisRepo.Incr(ctx, internalKey)
 			logger.Infof("%v attempt(s) to get Account balance", internalKey)
 
-			if total > 3 {
+			if total > constant.RedisTimesRetry {
 				err = uc.RedisRepo.Del(ctx, internalKey)
 				if err != nil {
 					mopentelemetry.HandleSpanError(&span, "Failed to release Account balance version lock", err)
@@ -152,7 +136,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 			}
 
 			if !isSuccess {
-				time.Sleep(200 * time.Millisecond)
+				time.Sleep(constant.LockRetry * time.Millisecond)
 
 				logger.Infof("Lock already exists for key, get Accounts again: %v", internalKey)
 
