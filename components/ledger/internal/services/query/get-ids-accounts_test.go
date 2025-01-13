@@ -1,9 +1,8 @@
-package command
+package query
 
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
@@ -20,7 +19,7 @@ func TestListAccountsByIDs(t *testing.T) {
 
 	mockAccountRepo := account.NewMockRepository(ctrl)
 
-	uc := &query.UseCase{
+	uc := &UseCase{
 		AccountRepo: mockAccountRepo,
 	}
 

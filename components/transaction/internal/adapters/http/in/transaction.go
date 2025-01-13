@@ -446,7 +446,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to convert parserDSL from struct to JSON string", err)
 
-		return err
+		return http.WithError(c, err)
 	}
 
 	tran, err := handler.Command.CreateTransaction(ctxCreateTransaction, organizationID, ledgerID, &parserDSL)
@@ -508,13 +508,13 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		spanReleaseLock.End()
 
 		ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.update_accounts.update_transaction_status")
-		_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
-		if err != nil {
+		_, er := handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
+		if er != nil {
 			mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
 			logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
 
-			return http.WithError(c, err)
+			return http.WithError(c, er)
 		}
 
 		spanUpdateTransactionStatus.End()
