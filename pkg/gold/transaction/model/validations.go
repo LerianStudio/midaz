@@ -41,7 +41,7 @@ func validateBalance(dsl Transaction, from map[string]Amount, acc *a.Account) er
 				ba := OperateAmounts(from[f.Account], acc.Balance, constant.DEBIT)
 
 				if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
-					return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
+					return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", acc.Alias)
 				}
 			}
 		}
@@ -54,15 +54,15 @@ func validateFromAccounts(acc *a.Account, from map[string]Amount, asset string) 
 	for key := range from {
 		if acc.Id == key || acc.Alias == key {
 			if acc.AssetCode != asset {
-				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
 			if !acc.AllowSending {
-				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
 			if acc.Balance.Available <= 0 && acc.Type != constant.ExternalAccountType {
-				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateFromAccounts", acc.Alias)
 			}
 		}
 	}
@@ -74,15 +74,15 @@ func validateToAccounts(acc *a.Account, to map[string]Amount, asset string) erro
 	for key := range to {
 		if acc.Id == key || acc.Alias == key {
 			if acc.AssetCode != asset {
-				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
 			if !acc.AllowReceiving {
-				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 
 			if acc.Balance.Available > 0 && acc.Type == constant.ExternalAccountType {
-				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", acc.Alias)
 			}
 		}
 	}
