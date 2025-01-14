@@ -25,6 +25,7 @@ type TransactionPostgreSQLModel struct {
 	ChartOfAccountsGroupName string
 	LedgerID                 string
 	OrganizationID           string
+	Body                     goldModel.Transaction
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	DeletedAt                sql.NullTime
@@ -92,6 +93,7 @@ type Transaction struct {
 	Destination              []string               `json:"destination" example:"@person2"`
 	LedgerID                 string                 `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID           string                 `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	Body                     goldModel.Transaction  `json:"-"`
 	CreatedAt                time.Time              `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt                time.Time              `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt                *time.Time             `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
@@ -123,6 +125,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
+		Body:                     t.Body,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
 	}
@@ -150,6 +153,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
+		Body:                     transaction.Body,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
 	}

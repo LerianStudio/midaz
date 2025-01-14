@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -80,7 +81,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -93,6 +94,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.ChartOfAccountsGroupName,
 		record.LedgerID,
 		record.OrganizationID,
+		record.Body,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -197,6 +199,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.ChartOfAccountsGroupName,
 			&transaction.LedgerID,
 			&transaction.OrganizationID,
+			&transaction.Body,
 			&transaction.CreatedAt,
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
@@ -273,6 +276,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.ChartOfAccountsGroupName,
 			&transaction.LedgerID,
 			&transaction.OrganizationID,
+			&transaction.Body,
 			&transaction.CreatedAt,
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
@@ -310,6 +314,8 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 	transaction := &TransactionPostgreSQLModel{}
 
+	var body string
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
@@ -330,6 +336,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.ChartOfAccountsGroupName,
 		&transaction.LedgerID,
 		&transaction.OrganizationID,
+		&body,
 		&transaction.CreatedAt,
 		&transaction.UpdatedAt,
 		&transaction.DeletedAt,
@@ -339,6 +346,13 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 		}
+
+		return nil, err
+	}
+
+	err = json.Unmarshal([]byte(body), &transaction.Body)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
 		return nil, err
 	}
