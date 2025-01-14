@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
-	"github.com/bxcodec/dbresolver/v2"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mpointers"
@@ -1032,75 +1032,65 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 		return err
 	}
 
-	defer func(tx dbresolver.Tx) {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
-		}
-	}(tx)
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(accounts))
 
 	for _, acc := range accounts {
-		var updates []string
+		wg.Add(1)
 
-		var args []any
+		go func(acc *account.Account) {
+			defer wg.Done()
+			var updates []string
+			var args []interface{}
 
-		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
-		args = append(args, acc.Balance.Available)
+			updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
+			args = append(args, acc.Balance.Available)
 
-		updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
-		args = append(args, acc.Balance.OnHold)
+			updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
+			args = append(args, acc.Balance.OnHold)
 
-		updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, acc.Balance.Scale)
+			updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
+			args = append(args, acc.Balance.Scale)
 
-		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-		version := acc.Version + 1
-		args = append(args, version)
+			updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+			version := acc.Version + 1
+			args = append(args, version)
 
-		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, acc.Id, acc.Version)
+			updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+			args = append(args, time.Now(), organizationID, ledgerID, acc.Id, acc.Version)
 
-		query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
-			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
-			` AND id = $` + strconv.Itoa(len(args)-1) +
-			` AND version = $` + strconv.Itoa(len(args)) +
-			` AND deleted_at IS NULL`
+			query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+				` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+				` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+				` AND id = $` + strconv.Itoa(len(args)-1) +
+				` AND version = $` + strconv.Itoa(len(args)) +
+				` AND deleted_at IS NULL`
 
-		result, err := tx.ExecContext(ctx, query, args...)
+			result, err := tx.ExecContext(ctx, query, args...)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			rowsAffected, err := result.RowsAffected()
+			if err != nil || rowsAffected == 0 {
+				if err == nil {
+					err = sql.ErrNoRows
+				}
+				errChan <- err
+			}
+		}(acc)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
-
 			rollbackErr := tx.Rollback()
 			if rollbackErr != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
+				return rollbackErr
 			}
-
-			return err
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
-
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
-			}
-
-			return err
-		}
-
-		if rowsAffected == 0 {
-			err := pkg.ValidateBusinessError(constant.ErrLockVersionAccountBalance, reflect.TypeOf(mmodel.Account{}).Name())
-
-			mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
-
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to rollback transaction", rollbackErr)
-			}
-
 			return err
 		}
 	}
