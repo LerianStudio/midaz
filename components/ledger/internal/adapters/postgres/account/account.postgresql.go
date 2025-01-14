@@ -226,6 +226,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -299,6 +300,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.AllowReceiving,
 		&acc.Alias,
 		&acc.Type,
+		&acc.Version,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
@@ -367,6 +369,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.AllowReceiving,
 		&acc.Alias,
 		&acc.Type,
+		&acc.Version,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
@@ -435,6 +438,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.AllowReceiving,
 		&acc.Alias,
 		&acc.Type,
+		&acc.Version,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
@@ -549,6 +553,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -620,6 +625,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -1033,6 +1039,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 	}
 
 	var wg sync.WaitGroup
+
 	errChan := make(chan error, len(accounts))
 
 	for _, acc := range accounts {
@@ -1040,8 +1047,10 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 
 		go func(acc *account.Account) {
 			defer wg.Done()
+
 			var updates []string
-			var args []interface{}
+
+			var args []any
 
 			updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
 			args = append(args, acc.Balance.Available)
@@ -1091,6 +1100,7 @@ func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organi
 			if rollbackErr != nil {
 				return rollbackErr
 			}
+
 			return err
 		}
 	}
