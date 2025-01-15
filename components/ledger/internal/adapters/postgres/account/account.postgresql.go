@@ -965,16 +965,31 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 		args = append(args, record.BalanceScale)
 	}
 
-	record.UpdatedAt = time.Now()
+	var query string
+	if acc.Type != constant.ExternalAccountType {
+		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+		version := acc.Version + 1
+		args = append(args, version)
 
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
+		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+		args = append(args, time.Now(), organizationID, ledgerID, id, acc.Version)
 
-	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
+		query = `UPDATE account SET ` + strings.Join(updates, ", ") +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+			` AND id = $` + strconv.Itoa(len(args)-1) +
+			` AND version = $` + strconv.Itoa(len(args)) +
+			` AND deleted_at IS NULL`
+	} else {
+		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+		args = append(args, time.Now(), organizationID, ledgerID, id)
+
+		query = `UPDATE account SET ` + strings.Join(updates, ", ") +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+			` AND id = $` + strconv.Itoa(len(args)) +
+			` AND deleted_at IS NULL`
+	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update_account_by_id.exec")
 

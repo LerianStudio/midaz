@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
@@ -120,8 +121,8 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *accou
 	return &response, nil
 }
 
-// UpdateAccountsByIDS is a method that update Account balances by a given ids.
-func (ap *AccountProto) UpdateAccountsByIDS(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
+// UpdateAccounts is a method that update Account balances by a given ids.
+func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -132,52 +133,69 @@ func (ap *AccountProto) UpdateAccountsByIDS(ctx context.Context, update *account
 
 	uuids := make([]uuid.UUID, 0)
 
-	for _, getacc := range update.GetAccounts() {
-		if pkg.IsNilOrEmpty(&getacc.Id) {
-			mopentelemetry.HandleSpanError(&span, "Failed to update Accounts because id is empty", nil)
-
-			logger.Errorf("Failed to update Accounts because id is empty")
-
-			return nil, pkg.ValidateBusinessError(constant.ErrNoAccountIDsProvided, reflect.TypeOf(mmodel.Account{}).Name())
-		}
-
-		balance := mmodel.Balance{
-			Available: &getacc.Balance.Available,
-			OnHold:    &getacc.Balance.OnHold,
-			Scale:     &getacc.Balance.Scale,
-		}
-
-		organizationUUID, err := uuid.Parse(getacc.GetOrganizationId())
-		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationUUID)
-		}
-
-		ledgerUUID, err := uuid.Parse(getacc.GetLedgerId())
-		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerUUID)
-		}
-
-		accountUUID, err := uuid.Parse(getacc.GetId())
-		if err != nil {
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), accountUUID)
-		}
-
-		_, err = ap.Command.UpdateAccountByID(ctx, organizationUUID, ledgerUUID, accountUUID, &balance)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
-
-			logger.Errorf("Failed to update balance in Account by id for organizationId %s and ledgerId %s in grpc, Error: %s", getacc.OrganizationId, getacc.LedgerId, err.Error())
-
-			return nil, pkg.ValidateBusinessError(constant.ErrBalanceUpdateFailed, reflect.TypeOf(mmodel.Account{}).Name())
-		}
-
-		uuids = append(uuids, uuid.MustParse(getacc.Id))
+	organizationID, err := uuid.Parse(update.OrganizationId)
+	if err != nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationID)
 	}
 
-	organizationID := update.GetOrganizationId()
-	ledgerID := update.GetLedgerId()
+	ledgerID, err := uuid.Parse(update.LedgerId)
+	if err != nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerID)
+	}
 
-	acc, err := ap.Query.ListAccountsByIDs(ctx, uuid.MustParse(organizationID), uuid.MustParse(ledgerID), uuids)
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, len(update.GetAccounts()))
+
+	for _, acc := range update.GetAccounts() {
+		wg.Add(1)
+
+		go func(acc *account.Account) {
+			defer wg.Done()
+
+			if pkg.IsNilOrEmpty(&acc.Id) {
+				mopentelemetry.HandleSpanError(&span, "Failed to update Accounts because id is empty", nil)
+
+				logger.Errorf("Failed to update Accounts because id is empty")
+
+				errChan <- pkg.ValidateBusinessError(constant.ErrNoAccountIDsProvided, reflect.TypeOf(mmodel.Account{}).Name())
+			}
+
+			accountID, err := uuid.Parse(acc.Id)
+			if err != nil {
+				errChan <- pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), accountID)
+			}
+
+			balance := mmodel.Balance{
+				Available: &acc.Balance.Available,
+				OnHold:    &acc.Balance.OnHold,
+				Scale:     &acc.Balance.Scale,
+			}
+
+			_, err = ap.Command.UpdateAccountByID(ctx, organizationID, ledgerID, accountID, &balance)
+			if err != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
+
+				logger.Errorf("Failed to update balance in Account by id for organizationId %v and ledgerId %v in grpc, Error: %v", organizationID, ledgerID, err.Error())
+
+				errChan <- pkg.ValidateBusinessError(constant.ErrBalanceUpdateFailed, reflect.TypeOf(mmodel.Account{}).Name())
+			}
+
+			uuids = append(uuids, accountID)
+		}(acc)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+
+			return nil, err
+		}
+	}
+
+	acc, err := ap.Query.ListAccountsByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids for grpc", err)
 
@@ -197,14 +215,14 @@ func (ap *AccountProto) UpdateAccountsByIDS(ctx context.Context, update *account
 	return &response, nil
 }
 
-// UpdateAccounts is a method that update Account balances by a given ids.
-func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
+// UpdateAccountsTrue is a method that update Account balances by a given ids.
+func (ap *AccountProto) UpdateAccountsTrue(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.UpdateAccounts")
 	defer span.End()
-	
+
 	organizationID, err := uuid.Parse(update.OrganizationId)
 	if err != nil {
 		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationID)
