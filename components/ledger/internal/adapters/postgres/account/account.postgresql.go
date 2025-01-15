@@ -936,6 +936,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 // UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account_by_id")
 	defer span.End()
@@ -980,6 +981,9 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 			` AND id = $` + strconv.Itoa(len(args)-1) +
 			` AND version = $` + strconv.Itoa(len(args)) +
 			` AND deleted_at IS NULL`
+
+		logger.Infof("Version: %v, Updated Version: %v, by id: %v, query: %v", acc.Version, version, id, query)
+		logger.Infof("query != externl by id: %v, query: %v", id, query)
 	} else {
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
 		args = append(args, time.Now(), organizationID, ledgerID, id)
@@ -989,6 +993,8 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 			` AND id = $` + strconv.Itoa(len(args)) +
 			` AND deleted_at IS NULL`
+
+		logger.Infof("query == externl by id: %v, query: %v", id, query)
 	}
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update_account_by_id.exec")
@@ -996,6 +1002,8 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
+
+		logger.Errorf("Failed to convert account record from entity to JSON string by id: %v, PgError: %v", id, err)
 
 		return nil, err
 	}
@@ -1006,6 +1014,8 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
+			logger.Errorf("Error updating account on repo by id: %v, PgError: %v", id, pgErr)
+
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
@@ -1018,6 +1028,8 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
+		logger.Errorf("Failed to get rows affected by id: %v, PgError: %v", id, err)
+
 		return nil, err
 	}
 
@@ -1025,6 +1037,8 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
 		mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
+
+		logger.Errorf("Failed trows affected == 0 by id: %v, PgError: %v", id, err)
 
 		return nil, err
 	}

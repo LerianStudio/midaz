@@ -16,7 +16,7 @@ import (
 )
 
 // UpdateAccountByID update an account from the repository by given id.
-func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance *mmodel.Balance) (*mmodel.Account, error) {
+func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance *mmodel.Balance, types string) (*mmodel.Account, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -28,6 +28,8 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 	acc := &mmodel.Account{
 		Balance: *balance,
 	}
+
+	acc.Type = types
 
 	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, organizationID, ledgerID, id, acc)
 	if err != nil {

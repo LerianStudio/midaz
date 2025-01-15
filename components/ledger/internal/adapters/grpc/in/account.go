@@ -172,7 +172,7 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 				Scale:     &acc.Balance.Scale,
 			}
 
-			_, err = ap.Command.UpdateAccountByID(ctx, organizationID, ledgerID, accountID, &balance)
+			_, err = ap.Command.UpdateAccountByID(ctx, organizationID, ledgerID, accountID, &balance, acc.Type)
 			if err != nil {
 				mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
 
