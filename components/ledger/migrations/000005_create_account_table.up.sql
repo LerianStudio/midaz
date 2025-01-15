@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS account
     allow_receiving                 BOOLEAN NOT NULL,
     alias                           TEXT NULL,
     type                            TEXT NOT NULL,
+    version                         NUMERIC DEFAULT 0,
     created_at                      TIMESTAMP WITH TIME ZONE,
     updated_at                      TIMESTAMP WITH TIME ZONE,
     deleted_at                      TIMESTAMP WITH TIME ZONE,

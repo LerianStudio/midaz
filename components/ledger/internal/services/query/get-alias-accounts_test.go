@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"

@@ -13,7 +13,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create-idempotency-key")
+	_, span := tracer.Start(ctx, "command.create-idempotency-key")
 	defer span.End()
 
 	logger.Infof("Trying to create or check idempotency key in redis")
@@ -22,19 +22,14 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		key = hash
 	}
 
-	internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+	internalKey := pkg.InternalKey(organizationID, ledgerID, key)
 
-	value, err := uc.RedisRepo.Get(ctx, internalKey)
+	success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, hash, ttl)
 	if err != nil {
-		logger.Error("Error to get idempotency key on redis failed:", err.Error())
+		logger.Error("Error to lock idempotency key on redis failed:", err.Error())
 	}
 
-	if value == "" {
-		err = uc.RedisRepo.Set(ctx, internalKey, hash, ttl)
-		if err != nil {
-			logger.Error("Error to set idempotency key on redis failed:", err.Error())
-		}
-	} else {
+	if !success {
 		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
 
 		mopentelemetry.HandleSpanError(&span, "Failed exists value on redis with this key", err)

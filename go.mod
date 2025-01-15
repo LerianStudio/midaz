@@ -14,7 +14,7 @@ require (
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.6
-	github.com/google/trillian v1.7.0
+	github.com/google/trillian v1.7.1
 	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jarcoal/httpmock v1.3.1
@@ -29,7 +29,7 @@ require (
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.4
 	github.com/transparency-dev/merkle v0.0.2
-	go.mongodb.org/mongo-driver v1.17.1
+	go.mongodb.org/mongo-driver v1.17.2
 	go.opentelemetry.io/contrib/bridges/otelzap v0.8.0
 	go.opentelemetry.io/otel v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.9.0
@@ -43,7 +43,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.33.0
 	go.opentelemetry.io/otel/trace v1.33.0
 	go.uber.org/mock v0.5.0
-	google.golang.org/grpc v1.69.2
+	google.golang.org/grpc v1.69.4
 	google.golang.org/protobuf v1.36.2
 	gotest.tools v2.2.0+incompatible
 )
@@ -132,7 +132,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/lestrrat-go/jwx v1.2.30
-	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible

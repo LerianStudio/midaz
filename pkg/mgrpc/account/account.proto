@@ -34,10 +34,11 @@ message Account {
   bool     allow_receiving = 13;
   string   alias = 14;
   string   type = 15;
-  string   created_at = 16;
-  string   updated_at = 17;
-  string   deleted_at = 18;
-  Metadata metadata = 19;
+  int64    version = 16;
+  string   created_at = 17;
+  string   updated_at = 18;
+  string   deleted_at = 19;
+  Metadata metadata = 20;
 }
 
 message AccountsResponse {

@@ -6,6 +6,8 @@ import (
 	"go.uber.org/zap"
 	"net/url"
 	"path/filepath"
+	"time"
+
 	// File system migration source. We need to import it to be able to use it as source in migrate.NewWithSourceInstance
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
@@ -39,11 +41,19 @@ func (pc *PostgresConnection) Connect() error {
 		return nil
 	}
 
+	dbPrimary.SetMaxOpenConns(100)
+	dbPrimary.SetMaxIdleConns(100)
+	dbPrimary.SetConnMaxLifetime(time.Minute * 5)
+
 	dbReadOnlyReplica, err := sql.Open("pgx", pc.ConnectionStringReplica)
 	if err != nil {
 		pc.Logger.Fatal("failed to open connect to replica database", zap.Error(err))
 		return nil
 	}
+
+	dbReadOnlyReplica.SetMaxOpenConns(100)
+	dbReadOnlyReplica.SetMaxIdleConns(100)
+	dbReadOnlyReplica.SetConnMaxLifetime(time.Minute * 5)
 
 	connectionDB := dbresolver.New(
 		dbresolver.WithPrimaryDBs(dbPrimary),

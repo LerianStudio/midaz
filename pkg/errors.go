@@ -789,6 +789,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Account Alias Not Found",
 			Message:    "The provided account Alias does not exist in our records. Please verify the account Alias and try again.",
 		},
+		constant.ErrLockVersionAccountBalance: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLockVersionAccountBalance.Error(),
+			Title:      "Race conditioning detected",
+			Message:    "A race condition was detected while processing your request. Please try again",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

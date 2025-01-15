@@ -4,9 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mpointers"
@@ -42,6 +44,7 @@ type Repository interface {
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
+	UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, acc []*account.Account) error
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -93,7 +96,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	result, err := db.ExecContext(ctx, `INSERT INTO account VALUES 
         (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
         )
 		RETURNING *`,
 		record.ID,
@@ -114,6 +117,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.AllowReceiving,
 		record.Alias,
 		record.Type,
+		record.Version,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -222,6 +226,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -268,7 +273,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	query += " ORDER BY created_at DESC"
 
-	account := &AccountPostgreSQLModel{}
+	acc := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
@@ -277,27 +282,28 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	spanQuery.End()
 
 	if err := row.Scan(
-		&account.ID,
-		&account.Name,
-		&account.ParentAccountID,
-		&account.EntityID,
-		&account.AssetCode,
-		&account.OrganizationID,
-		&account.LedgerID,
-		&account.PortfolioID,
-		&account.ProductID,
-		&account.AvailableBalance,
-		&account.OnHoldBalance,
-		&account.BalanceScale,
-		&account.Status,
-		&account.StatusDescription,
-		&account.AllowSending,
-		&account.AllowReceiving,
-		&account.Alias,
-		&account.Type,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-		&account.DeletedAt,
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.ProductID,
+		&acc.AvailableBalance,
+		&acc.OnHoldBalance,
+		&acc.BalanceScale,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.AllowSending,
+		&acc.AllowReceiving,
+		&acc.Alias,
+		&acc.Type,
+		&acc.Version,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -308,7 +314,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	return account.ToEntity(), nil
+	return acc.ToEntity(), nil
 }
 
 // FindWithDeleted retrieves an Account entity from the database using the provided ID (including soft-deleted ones).
@@ -336,7 +342,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 	query += " ORDER BY created_at DESC"
 
-	account := &AccountPostgreSQLModel{}
+	acc := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
 
@@ -345,27 +351,28 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	spanQuery.End()
 
 	if err := row.Scan(
-		&account.ID,
-		&account.Name,
-		&account.ParentAccountID,
-		&account.EntityID,
-		&account.AssetCode,
-		&account.OrganizationID,
-		&account.LedgerID,
-		&account.PortfolioID,
-		&account.ProductID,
-		&account.AvailableBalance,
-		&account.OnHoldBalance,
-		&account.BalanceScale,
-		&account.Status,
-		&account.StatusDescription,
-		&account.AllowSending,
-		&account.AllowReceiving,
-		&account.Alias,
-		&account.Type,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-		&account.DeletedAt,
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.ProductID,
+		&acc.AvailableBalance,
+		&acc.OnHoldBalance,
+		&acc.BalanceScale,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.AllowSending,
+		&acc.AllowReceiving,
+		&acc.Alias,
+		&acc.Type,
+		&acc.Version,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -376,7 +383,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		return nil, err
 	}
 
-	return account.ToEntity(), nil
+	return acc.ToEntity(), nil
 }
 
 // FindAlias retrieves an Account entity from the database using the provided Alias (including soft-deleted ones).
@@ -404,7 +411,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 	query += " ORDER BY created_at DESC"
 
-	account := &AccountPostgreSQLModel{}
+	acc := &AccountPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_with_deleted.query")
 
@@ -413,27 +420,28 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 	spanQuery.End()
 
 	if err := row.Scan(
-		&account.ID,
-		&account.Name,
-		&account.ParentAccountID,
-		&account.EntityID,
-		&account.AssetCode,
-		&account.OrganizationID,
-		&account.LedgerID,
-		&account.PortfolioID,
-		&account.ProductID,
-		&account.AvailableBalance,
-		&account.OnHoldBalance,
-		&account.BalanceScale,
-		&account.Status,
-		&account.StatusDescription,
-		&account.AllowSending,
-		&account.AllowReceiving,
-		&account.Alias,
-		&account.Type,
-		&account.CreatedAt,
-		&account.UpdatedAt,
-		&account.DeletedAt,
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.ProductID,
+		&acc.AvailableBalance,
+		&acc.OnHoldBalance,
+		&acc.BalanceScale,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.AllowSending,
+		&acc.AllowReceiving,
+		&acc.Alias,
+		&acc.Type,
+		&acc.Version,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
@@ -444,7 +452,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	return account.ToEntity(), nil
+	return acc.ToEntity(), nil
 }
 
 // FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
@@ -545,6 +553,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -616,6 +625,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -830,6 +840,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -900,6 +911,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
+			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -1003,4 +1015,103 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	}
 
 	return record.ToEntity(), nil
+}
+
+// UpdateAccounts an update all Accounts entity by ID only into Postgresql.
+func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_accounts")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to init transaction", err)
+
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	errChan := make(chan error, len(accounts))
+
+	for _, acc := range accounts {
+		wg.Add(1)
+
+		go func(acc *account.Account) {
+			defer wg.Done()
+
+			var updates []string
+
+			var args []any
+
+			updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
+			args = append(args, acc.Balance.Available)
+
+			updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
+			args = append(args, acc.Balance.OnHold)
+
+			updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
+			args = append(args, acc.Balance.Scale)
+
+			updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+			version := acc.Version + 1
+			args = append(args, version)
+
+			updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+			args = append(args, time.Now(), organizationID, ledgerID, acc.Id, acc.Version)
+
+			query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+				` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+				` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+				` AND id = $` + strconv.Itoa(len(args)-1) +
+				` AND version = $` + strconv.Itoa(len(args)) +
+				` AND deleted_at IS NULL`
+
+			result, err := tx.ExecContext(ctx, query, args...)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			rowsAffected, err := result.RowsAffected()
+			if err != nil || rowsAffected == 0 {
+				if err == nil {
+					err = sql.ErrNoRows
+				}
+				errChan <- err
+			}
+		}(acc)
+	}
+
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		if err != nil {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				return rollbackErr
+			}
+
+			return err
+		}
+	}
+
+	if commitErr := tx.Commit(); commitErr != nil {
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to commit accounts", err)
+
+		return commitErr
+	}
+
+	return nil
 }

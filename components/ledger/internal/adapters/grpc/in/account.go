@@ -120,8 +120,8 @@ func (ap *AccountProto) GetAccountsByAliases(ctx context.Context, aliases *accou
 	return &response, nil
 }
 
-// UpdateAccounts is a method that update Account balances by a given ids.
-func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
+// UpdateAccountsByIDS is a method that update Account balances by a given ids.
+func (ap *AccountProto) UpdateAccountsByIDS(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -195,4 +195,34 @@ func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.Acco
 	}
 
 	return &response, nil
+}
+
+// UpdateAccounts is a method that update Account balances by a given ids.
+func (ap *AccountProto) UpdateAccounts(ctx context.Context, update *account.AccountsRequest) (*account.AccountsResponse, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "handler.UpdateAccounts")
+	defer span.End()
+	
+	organizationID, err := uuid.Parse(update.OrganizationId)
+	if err != nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), organizationID)
+	}
+
+	ledgerID, err := uuid.Parse(update.LedgerId)
+	if err != nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), ledgerID)
+	}
+
+	err = ap.Command.UpdateAccounts(ctx, organizationID, ledgerID, update.GetAccounts())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update balance in Account by id", err)
+
+		logger.Errorf("Failed to update balance in Account by id for organizationId %v and ledgerId %v in grpc, Error: %v", organizationID, ledgerID, err.Error())
+
+		return nil, err
+	}
+
+	return nil, nil
 }
