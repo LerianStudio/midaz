@@ -169,7 +169,18 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 
 // RevertTransaction method that revert transaction created before
 //
-// TODO: Implement this method and the swagger documentation related to it
+//	@Summary		Revert a Transaction
+//	@Description	Revert a Transaction with Transaction ID only
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string								true	"Authorization Bearer Token"
+//	@Param			Midaz-Id		header		string								false	"Request ID"
+//	@Param			organization_id	path		string								true	"Organization ID"
+//	@Param			ledger_id		path		string								true	"Ledger ID"
+//	@Param			transaction_id	path		string								true	"Transaction ID"
+//	@Success		200				{object}	transaction.Transaction
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -179,7 +190,60 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.revert_transaction")
 	defer span.End()
 
-	return http.Created(c, logger)
+	organizationID := c.Locals("organization_id").(uuid.UUID)
+	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID := c.Locals("transaction_id").(uuid.UUID)
+
+	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve transaction on query", err)
+
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve transaction on query", err)
+
+		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
+
+	newSource := goldModel.Source{
+		From:      tran.Body.Send.Distribute.To,
+		Remaining: tran.Body.Send.Distribute.Remaining,
+	}
+
+	newDistribute := goldModel.Distribute{
+		To:        tran.Body.Send.Source.From,
+		Remaining: tran.Body.Send.Source.Remaining,
+	}
+
+	send := goldModel.Send{
+		Asset:      tran.Body.Send.Asset,
+		Value:      tran.Body.Send.Value,
+		Scale:      tran.Body.Send.Scale,
+		Source:     newSource,
+		Distribute: newDistribute,
+	}
+
+	parserDSL := goldModel.Transaction{
+		ChartOfAccountsGroupName: tran.Body.ChartOfAccountsGroupName,
+		Description:              tran.Body.Description,
+		Code:                     tran.Body.Code,
+		Pending:                  tran.Body.Pending,
+		Metadata:                 tran.Body.Metadata,
+		Send:                     send,
+	}
+
+	response := handler.createTransaction(c, logger, parserDSL)
+
+	return response
 }
 
 // UpdateTransaction method that patch transaction created before
