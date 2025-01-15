@@ -62,7 +62,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 			return
 		}
 
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(constant.CheckAndReleaseLock * time.Millisecond)
 	}
 }
 
