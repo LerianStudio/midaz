@@ -7,4 +7,5 @@ const (
 	TimeSetLockBalance                = 5
 	LockRetry                         = 100
 	RedisTimesRetry                   = 3
+	CheckAndReleaseLock               = 200
 )
