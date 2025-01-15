@@ -33,7 +33,7 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update account on repo by id", err)
 
-		logger.Errorf("Error updating account on repo by id: %v", err)
+		logger.Errorf("Error updating account on repo by id: %v, Error: %v", id, err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, reflect.TypeOf(mmodel.Account{}).Name())

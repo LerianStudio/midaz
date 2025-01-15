@@ -26,13 +26,15 @@ func (uc *UseCase) AllKeysUnlocked(ctx context.Context, organizationID, ledgerID
 	resultChan := make(chan bool, len(keys))
 
 	for _, key := range keys {
-		internalKey := pkg.LockInternalKey(organizationID, ledgerID, key)
+		if key != "@external/BRL" {
+			internalKey := pkg.LockInternalKey(organizationID, ledgerID, key)
 
-		logger.Infof("Account try to lock on redis: %v", internalKey)
+			logger.Infof("Account try to lock on redis: %v", internalKey)
 
-		wg.Add(1)
+			wg.Add(1)
 
-		go uc.checkAndReleaseLock(ctx, &wg, internalKey, hash, resultChan)
+			go uc.checkAndReleaseLock(ctx, &wg, internalKey, hash, resultChan)
+		}
 	}
 
 	wg.Wait()
@@ -104,7 +106,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 	}
 
 	for _, key := range keys {
-		if acc, exists := accountsMap[key]; exists {
+		if acc, exists := accountsMap[key]; exists && key != "@external/BRL" {
 			internalKey := pkg.LockVersionInternalKey(organizationID, ledgerID, key, strconv.FormatInt(acc.Version, 10))
 
 			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
