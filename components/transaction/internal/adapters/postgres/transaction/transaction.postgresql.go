@@ -187,6 +187,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	for rows.Next() {
 		var transaction TransactionPostgreSQLModel
+
 		var body string
 
 		if err := rows.Scan(
@@ -273,6 +274,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	for rows.Next() {
 		var transaction TransactionPostgreSQLModel
+		
 		var body string
 
 		if err := rows.Scan(

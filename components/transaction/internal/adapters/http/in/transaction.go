@@ -233,6 +233,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	}
 
 	froms := make([]goldModel.FromTo, 0)
+
 	for _, to := range tran.Body.Send.Distribute.To {
 		to.IsFrom = true
 		froms = append(froms, to)
@@ -244,6 +245,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	}
 
 	tos := make([]goldModel.FromTo, 0)
+
 	for _, from := range tran.Body.Send.Source.From {
 		from.IsFrom = false
 		tos = append(tos, from)

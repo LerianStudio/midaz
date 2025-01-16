@@ -35,6 +35,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	scale := float64(t.Send.Scale)
 
 	var parentTransactionID *string
+
 	if transactionID != uuid.Nil {
 		value := transactionID.String()
 		parentTransactionID = &value

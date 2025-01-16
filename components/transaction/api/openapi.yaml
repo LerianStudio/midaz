@@ -731,6 +731,49 @@ paths:
       tags:
       - Operations
       x-codegen-request-body-name: operation
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
+    post:
+      description: Revert a Transaction with Transaction ID only
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: OK
+      summary: Revert a Transaction
+      tags:
+      - Transactions
 components:
   schemas:
     Amount:

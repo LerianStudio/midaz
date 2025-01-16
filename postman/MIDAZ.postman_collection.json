@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "04ac9f89-2f0e-4aa7-80db-92644332f965",
+		"_postman_id": "011947ce-a59a-4f67-a335-cf486cbe8d06",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -2308,7 +2308,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": 1000,\n        \"scale\": 1,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"@external/BRL\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 1000,\n                        \"scale\": 1\n                    },\n                    \"description\": \"Loan payment person1\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"0193f2d4-629f-702d-aeec-7cb80bb4097c\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 1000,\n                        \"scale\": 1\n                    },\n                    \"metadata\": {\n                        \"mensagem\": \"tks\"\n                    }\n                }\n            ]\n        }\n    }\n}",
+									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"200\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": 200,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"@external/BRL\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"description\": \"Loan payment person1\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"@mcgregor_brl\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"metadata\": {\n                        \"mensagem\": \"tks\"\n                    }\n                }\n            ]\n        }\n    }\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -2483,85 +2483,6 @@
 							"response": []
 						},
 						{
-							"name": "Transactions Revert",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Successful POST request\", function () {",
-											"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-											"});",
-											""
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "dsl",
-											"description": "ok",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.gold"
-										},
-										{
-											"key": "dsl",
-											"description": "empty",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/empty.gold",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "error",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/error.gold",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "wrong extension",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.yml",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "template",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction-template.gold",
-											"disabled": true
-										}
-									]
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/revert",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"{{transaction_id}}",
-										"revert"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						},
-						{
 							"name": "Transactions Commit",
 							"event": [
 								{
@@ -2634,6 +2555,85 @@
 										"transactions",
 										"{{transaction_id}}",
 										"commit"
+									]
+								},
+								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+							},
+							"response": []
+						},
+						{
+							"name": "Transactions Cancel",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Successful POST request\", function () {",
+											"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+											"});",
+											""
+										],
+										"type": "text/javascript",
+										"packages": {}
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "dsl",
+											"description": "ok",
+											"type": "file",
+											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.gold"
+										},
+										{
+											"key": "dsl",
+											"description": "empty",
+											"type": "file",
+											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/empty.gold",
+											"disabled": true
+										},
+										{
+											"key": "dsl",
+											"description": "error",
+											"type": "file",
+											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/error.gold",
+											"disabled": true
+										},
+										{
+											"key": "dsl",
+											"description": "wrong extension",
+											"type": "file",
+											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.yml",
+											"disabled": true
+										},
+										{
+											"key": "dsl",
+											"description": "template",
+											"type": "file",
+											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction-template.gold",
+											"disabled": true
+										}
+									]
+								},
+								"url": {
+									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/cancel",
+									"host": [
+										"{{url_transaction}}"
+									],
+									"path": [
+										"v1",
+										"organizations",
+										"{{organization_id}}",
+										"ledgers",
+										"{{ledger_id}}",
+										"transactions",
+										"{{transaction_id}}",
+										"cancel"
 									]
 								},
 								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
@@ -2782,6 +2782,58 @@
 								}
 							]
 						}
+					},
+					"response": []
+				},
+				{
+					"name": "Transactions Revert",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const jsonData = JSON.parse(responseBody);",
+									"if (jsonData.hasOwnProperty('id')) {",
+									"    console.log(\"parent_transaction_id before: \" + pm.collectionVariables.get(\"parent_transaction_id\"));",
+									"    pm.collectionVariables.set(\"parent_transaction_id\", jsonData.id);",
+									"    console.log(\"parent_transaction_id after: \" + pm.collectionVariables.get(\"parent_transaction_id\"));",
+									"}"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/revert",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"transactions",
+								"{{transaction_id}}",
+								"revert"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
 					},
 					"response": []
 				}
@@ -3650,6 +3702,11 @@
 		},
 		{
 			"key": "asset_rate_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "parent_transaction_id",
 			"value": "",
 			"type": "string"
 		}

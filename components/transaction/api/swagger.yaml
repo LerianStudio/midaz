@@ -1032,6 +1032,46 @@ paths:
       summary: Update an Operation
       tags:
       - Operations
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert:
+    post:
+      consumes:
+      - application/json
+      description: Revert a Transaction with Transaction ID only
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Transaction'
+      summary: Revert a Transaction
+      tags:
+      - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl:
     post:
       consumes:
