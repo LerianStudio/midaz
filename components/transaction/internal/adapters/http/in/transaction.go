@@ -196,9 +196,19 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 
 	parent, err := handler.Query.GetParentByTransactionID(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve transaction on query", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Parent Transaction on query", err)
 
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+		logger.Errorf("Failed to retrieve Parent Transaction with ID: %s, Error: %s", transactionID.String(), err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	if parent != nil {
+		err = pkg.ValidateBusinessError(constant.ErrTransactionIDHasAlreadyParentTransaction, "RevertTransaction")
+
+		mopentelemetry.HandleSpanError(&span, "Transaction Has Already Parent Transaction", err)
+
+		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
 
 		return http.WithError(c, err)
 	}
@@ -212,15 +222,35 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
+	if tran.ParentTransactionID != nil {
+		err = pkg.ValidateBusinessError(constant.ErrTransactionIDIsAlreadyARevert, "RevertTransaction")
+
+		mopentelemetry.HandleSpanError(&span, "Transaction Has Already Parent Transaction", err)
+
+		logger.Errorf("Transaction Has Already Parent Transaction with ID: %s, Error: %s", transactionID.String(), err)
+
+		return http.WithError(c, err)
+	}
+
+	froms := make([]goldModel.FromTo, 0)
+	for _, to := range tran.Body.Send.Distribute.To {
+		to.IsFrom = true
+		froms = append(froms, to)
+	}
 
 	newSource := goldModel.Source{
-		From:      tran.Body.Send.Distribute.To,
+		From:      froms,
 		Remaining: tran.Body.Send.Distribute.Remaining,
 	}
 
+	tos := make([]goldModel.FromTo, 0)
+	for _, from := range tran.Body.Send.Source.From {
+		from.IsFrom = false
+		tos = append(tos, from)
+	}
+
 	newDistribute := goldModel.Distribute{
-		To:        tran.Body.Send.Source.From,
+		To:        tos,
 		Remaining: tran.Body.Send.Source.Remaining,
 	}
 
@@ -449,6 +479,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
+	transactionID, _ := c.Locals("transaction_id").(uuid.UUID)
 
 	_, spanIdempotency := tracer.Start(ctx, "handler.create_transaction_idempotency")
 
@@ -513,7 +544,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		return http.WithError(c, err)
 	}
 
-	tran, err := handler.Command.CreateTransaction(ctxCreateTransaction, organizationID, ledgerID, &parserDSL)
+	tran, err := handler.Command.CreateTransaction(ctxCreateTransaction, organizationID, ledgerID, transactionID, &parserDSL)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction", err)
 

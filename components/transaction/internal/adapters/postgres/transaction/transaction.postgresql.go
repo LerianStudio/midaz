@@ -425,7 +425,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
+			return nil, nil
 		}
 
 		return nil, err

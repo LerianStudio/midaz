@@ -16,7 +16,7 @@ import (
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
-func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, t *goldModel.Transaction) (*transaction.Transaction, error) {
+func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *goldModel.Transaction) (*transaction.Transaction, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -34,9 +34,15 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	amount := float64(t.Send.Value)
 	scale := float64(t.Send.Scale)
 
+	var parentTransactionID *string
+	if transactionID != uuid.Nil {
+		value := transactionID.String()
+		parentTransactionID = &value
+	}
+
 	save := &transaction.Transaction{
 		ID:                       pkg.GenerateUUIDv7().String(),
-		ParentTransactionID:      nil,
+		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
 		Description:              t.Description,

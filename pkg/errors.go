@@ -795,6 +795,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Race conditioning detected",
 			Message:    "A race condition was detected while processing your request. Please try again",
 		},
+		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionIDHasAlreadyParentTransaction.Error(),
+			Title:      "Transaction Revert already exist",
+			Message:    "Transaction revert already exists. Please try again.",
+		},
+		constant.ErrTransactionIDIsAlreadyARevert: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionIDIsAlreadyARevert.Error(),
+			Title:      "Transaction is already a reversal",
+			Message:    "Transaction is already a reversal. Please try again",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
