@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -28,6 +29,7 @@ type Repository interface {
 	Create(ctx context.Context, transaction *Transaction) (*Transaction, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, http.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
+	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
@@ -80,7 +82,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO transaction VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
 		record.ID,
 		record.ParentTransactionID,
 		record.Description,
@@ -93,6 +95,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.ChartOfAccountsGroupName,
 		record.LedgerID,
 		record.OrganizationID,
+		record.Body,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -184,6 +187,9 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	for rows.Next() {
 		var transaction TransactionPostgreSQLModel
+
+		var body string
+
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
@@ -197,11 +203,19 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.ChartOfAccountsGroupName,
 			&transaction.LedgerID,
 			&transaction.OrganizationID,
+			&body,
 			&transaction.CreatedAt,
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
 		); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+
+		err = json.Unmarshal([]byte(body), &transaction.Body)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
 			return nil, http.CursorPagination{}, err
 		}
@@ -260,6 +274,9 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	for rows.Next() {
 		var transaction TransactionPostgreSQLModel
+		
+		var body string
+
 		if err := rows.Scan(
 			&transaction.ID,
 			&transaction.ParentTransactionID,
@@ -273,11 +290,19 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.ChartOfAccountsGroupName,
 			&transaction.LedgerID,
 			&transaction.OrganizationID,
+			&body,
 			&transaction.CreatedAt,
 			&transaction.UpdatedAt,
 			&transaction.DeletedAt,
 		); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			return nil, err
+		}
+
+		err = json.Unmarshal([]byte(body), &transaction.Body)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
 			return nil, err
 		}
@@ -310,6 +335,8 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 
 	transaction := &TransactionPostgreSQLModel{}
 
+	var body string
+
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
 	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
@@ -330,6 +357,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.ChartOfAccountsGroupName,
 		&transaction.LedgerID,
 		&transaction.OrganizationID,
+		&body,
 		&transaction.CreatedAt,
 		&transaction.UpdatedAt,
 		&transaction.DeletedAt,
@@ -339,6 +367,75 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Transaction{}).Name())
 		}
+
+		return nil, err
+	}
+
+	err = json.Unmarshal([]byte(body), &transaction.Body)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
+
+		return nil, err
+	}
+
+	return transaction.ToEntity(), nil
+}
+
+// FindByParentID retrieves a Transaction entity from the database using the provided parent ID.
+func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	transaction := &TransactionPostgreSQLModel{}
+
+	var body string
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
+	row := db.QueryRowContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND parent_transaction_id = $3 AND deleted_at IS NULL",
+		organizationID, ledgerID, parentID)
+
+	spanQuery.End()
+
+	if err := row.Scan(
+		&transaction.ID,
+		&transaction.ParentTransactionID,
+		&transaction.Description,
+		&transaction.Template,
+		&transaction.Status,
+		&transaction.StatusDescription,
+		&transaction.Amount,
+		&transaction.AmountScale,
+		&transaction.AssetCode,
+		&transaction.ChartOfAccountsGroupName,
+		&transaction.LedgerID,
+		&transaction.OrganizationID,
+		&body,
+		&transaction.CreatedAt,
+		&transaction.UpdatedAt,
+		&transaction.DeletedAt,
+	); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	err = json.Unmarshal([]byte(body), &transaction.Body)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to unmarshal address", err)
 
 		return nil, err
 	}

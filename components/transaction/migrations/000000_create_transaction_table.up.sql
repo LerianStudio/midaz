@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     chart_of_accounts_group_name        TEXT NOT NULL,
     ledger_id                           UUID NOT NULL,
     organization_id                     UUID NOT NULL,
+    body                                JSONB NOT NULL,
     created_at                          TIMESTAMP WITH TIME ZONE,
     updated_at                          TIMESTAMP WITH TIME ZONE,
     deleted_at                          TIMESTAMP WITH TIME ZONE,
