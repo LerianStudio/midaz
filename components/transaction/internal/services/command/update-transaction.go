@@ -80,7 +80,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		Status: status,
 	}
 
-	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
+	_, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update status transaction on repo by id", err)
 
@@ -93,5 +93,5 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	return transUpdated, nil
+	return nil, nil
 }

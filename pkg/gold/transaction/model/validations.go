@@ -11,7 +11,7 @@ import (
 )
 
 // ValidateAccounts function with some validates in accounts and DSL operations
-func ValidateAccounts(validate Responses, accounts []*a.Account) error {
+func ValidateAccounts(transaction Transaction, validate Responses, accounts []*a.Account) error {
 	if len(accounts) != (len(validate.From) + len(validate.To)) {
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 	}
@@ -24,6 +24,26 @@ func ValidateAccounts(validate Responses, accounts []*a.Account) error {
 		if err := validateToAccounts(acc, validate.To, validate.Asset); err != nil {
 			return err
 		}
+
+		if err := validateBalance(transaction, validate.From, acc); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateBalance(dsl Transaction, from map[string]Amount, acc *a.Account) error {
+	for key := range from {
+		for _, f := range dsl.Send.Source.From {
+			if acc.Id == key || acc.Alias == key {
+				ba := OperateAmounts(from[f.Account], acc.Balance, constant.DEBIT)
+
+				if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
+					return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", acc.Alias)
+				}
+			}
+		}
 	}
 
 	return nil
@@ -33,15 +53,15 @@ func validateFromAccounts(acc *a.Account, from map[string]Amount, asset string) 
 	for key := range from {
 		if acc.Id == key || acc.Alias == key {
 			if acc.AssetCode != asset {
-				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
 			if !acc.AllowSending {
-				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
 			if acc.Balance.Available <= 0 && acc.Type != constant.ExternalAccountType {
-				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateFromAccounts", acc.Alias)
 			}
 		}
 	}
@@ -53,15 +73,15 @@ func validateToAccounts(acc *a.Account, to map[string]Amount, asset string) erro
 	for key := range to {
 		if acc.Id == key || acc.Alias == key {
 			if acc.AssetCode != asset {
-				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
 			if !acc.AllowReceiving {
-				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "ValidateAccounts")
+				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 
 			if acc.Balance.Available > 0 && acc.Type == constant.ExternalAccountType {
-				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateAccounts", acc.Alias)
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", acc.Alias)
 			}
 		}
 	}
@@ -78,7 +98,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 	if ft.IsFrom {
 		ba := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
 
-		if ba.Available < 0 && acc.Type != "external" {
+		if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
 			return amount, balanceAfter, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
 		}
 
@@ -137,6 +157,7 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 					AllowSending:    acc.AllowSending,
 					AllowReceiving:  acc.AllowReceiving,
 					Type:            acc.Type,
+					Version:         acc.Version,
 					CreatedAt:       acc.CreatedAt,
 					UpdatedAt:       acc.UpdatedAt,
 				}

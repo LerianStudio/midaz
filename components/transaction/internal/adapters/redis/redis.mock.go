@@ -69,6 +69,20 @@ func (mr *MockRedisRepositoryMockRecorder) Get(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), arg0, arg1)
 }
 
+// Incr mocks base method.
+func (m *MockRedisRepository) Incr(arg0 context.Context, arg1 string) int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Incr", arg0, arg1)
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// Incr indicates an expected call of Incr.
+func (mr *MockRedisRepositoryMockRecorder) Incr(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incr", reflect.TypeOf((*MockRedisRepository)(nil).Incr), arg0, arg1)
+}
+
 // Set mocks base method.
 func (m *MockRedisRepository) Set(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) error {
 	m.ctrl.T.Helper()
@@ -81,4 +95,19 @@ func (m *MockRedisRepository) Set(arg0 context.Context, arg1, arg2 string, arg3 
 func (mr *MockRedisRepositoryMockRecorder) Set(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockRedisRepository)(nil).Set), arg0, arg1, arg2, arg3)
+}
+
+// SetNX mocks base method.
+func (m *MockRedisRepository) SetNX(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetNX", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetNX indicates an expected call of SetNX.
+func (mr *MockRedisRepositoryMockRecorder) SetNX(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), arg0, arg1, arg2, arg3)
 }

@@ -783,6 +783,30 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
 		},
+		constant.ErrAccountAliasNotFound: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrAccountAliasNotFound.Error(),
+			Title:      "Account Alias Not Found",
+			Message:    "The provided account Alias does not exist in our records. Please verify the account Alias and try again.",
+		},
+		constant.ErrLockVersionAccountBalance: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrLockVersionAccountBalance.Error(),
+			Title:      "Race conditioning detected",
+			Message:    "A race condition was detected while processing your request. Please try again",
+		},
+		constant.ErrTransactionIDHasAlreadyParentTransaction: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionIDHasAlreadyParentTransaction.Error(),
+			Title:      "Transaction Revert already exist",
+			Message:    "Transaction revert already exists. Please try again.",
+		},
+		constant.ErrTransactionIDIsAlreadyARevert: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionIDIsAlreadyARevert.Error(),
+			Title:      "Transaction is already a reversal",
+			Message:    "Transaction is already a reversal. Please try again",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

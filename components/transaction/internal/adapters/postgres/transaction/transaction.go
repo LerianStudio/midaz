@@ -25,6 +25,7 @@ type TransactionPostgreSQLModel struct {
 	ChartOfAccountsGroupName string
 	LedgerID                 string
 	OrganizationID           string
+	Body                     goldModel.Transaction
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	DeletedAt                sql.NullTime
@@ -92,6 +93,7 @@ type Transaction struct {
 	Destination              []string               `json:"destination" example:"@person2"`
 	LedgerID                 string                 `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID           string                 `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	Body                     goldModel.Transaction  `json:"-"`
 	CreatedAt                time.Time              `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt                time.Time              `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt                *time.Time             `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
@@ -123,6 +125,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		LedgerID:                 t.LedgerID,
 		OrganizationID:           t.OrganizationID,
+		Body:                     t.Body,
 		CreatedAt:                t.CreatedAt,
 		UpdatedAt:                t.UpdatedAt,
 	}
@@ -150,6 +153,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 		ChartOfAccountsGroupName: transaction.ChartOfAccountsGroupName,
 		LedgerID:                 transaction.LedgerID,
 		OrganizationID:           transaction.OrganizationID,
+		Body:                     transaction.Body,
 		CreatedAt:                transaction.CreatedAt,
 		UpdatedAt:                transaction.UpdatedAt,
 	}
@@ -179,4 +183,50 @@ func (cti *CreateTransactionInput) FromDSl() *goldModel.Transaction {
 	}
 
 	return dsl
+}
+
+// TransactionRevert is a func that revert transaction
+func (t Transaction) TransactionRevert() goldModel.Transaction {
+	froms := make([]goldModel.FromTo, 0)
+
+	for _, to := range t.Body.Send.Distribute.To {
+		to.IsFrom = true
+		froms = append(froms, to)
+	}
+
+	newSource := goldModel.Source{
+		From:      froms,
+		Remaining: t.Body.Send.Distribute.Remaining,
+	}
+
+	tos := make([]goldModel.FromTo, 0)
+
+	for _, from := range t.Body.Send.Source.From {
+		from.IsFrom = false
+		tos = append(tos, from)
+	}
+
+	newDistribute := goldModel.Distribute{
+		To:        tos,
+		Remaining: t.Body.Send.Source.Remaining,
+	}
+
+	send := goldModel.Send{
+		Asset:      t.Body.Send.Asset,
+		Value:      t.Body.Send.Value,
+		Scale:      t.Body.Send.Scale,
+		Source:     newSource,
+		Distribute: newDistribute,
+	}
+
+	transaction := goldModel.Transaction{
+		ChartOfAccountsGroupName: t.Body.ChartOfAccountsGroupName,
+		Description:              t.Body.Description,
+		Code:                     t.Body.Code,
+		Pending:                  t.Body.Pending,
+		Metadata:                 t.Body.Metadata,
+		Send:                     send,
+	}
+
+	return transaction
 }

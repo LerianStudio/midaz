@@ -14,6 +14,7 @@ import (
 func TestValidateAccounts(t *testing.T) {
 	tests := []struct {
 		name          string
+		tran          Transaction
 		validate      Responses
 		accounts      []*a.Account
 		expectedError error
@@ -65,7 +66,7 @@ func TestValidateAccounts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateAccounts(tt.validate, tt.accounts)
+			err := ValidateAccounts(tt.tran, tt.validate, tt.accounts)
 
 			if (err != nil && tt.expectedError == nil) || (err == nil && tt.expectedError != nil) {
 				t.Fatalf("Expected error: %v, got: %v", tt.expectedError, err)
@@ -82,6 +83,7 @@ func TestValidateFromToOperation(t *testing.T) {
 	tests := []struct {
 		name            string
 		ft              FromTo
+		tran            Transaction
 		validate        Responses
 		acc             *a.Account
 		expectedError   error
