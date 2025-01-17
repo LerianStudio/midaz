@@ -1,3 +1,42 @@
+## [1.45.0](https://github.com/LerianStudio/midaz/compare/v1.44.0...v1.45.0) (2025-01-17)
+
+
+### Features
+
+* add api on postman; adjust lint; generate swagger and open api; :sparkles: ([095f2d6](https://github.com/LerianStudio/midaz/commit/095f2d6942e7d8ab6be0822e66509d6d65392a10))
+* add go routines to update; some postgres configs :sparkles: ([25fdb70](https://github.com/LerianStudio/midaz/commit/25fdb706ef65ec550172bb7f6d47652eb8f944f5))
+* add logger :sparkles: ([6ff156d](https://github.com/LerianStudio/midaz/commit/6ff156d268d5647f19c9bcae394a5e788fddac4b))
+* add magic numbers to constant :sparkles: ([acc57a3](https://github.com/LerianStudio/midaz/commit/acc57a3fc91ebbe4d4a7492bbd4bd49d23945e78))
+* add optimistic lock on database using version to control race condition; ([3f37ade](https://github.com/LerianStudio/midaz/commit/3f37adeb3592531aa64612915066998defa00c06))
+* add transaction body on database; :sparkles: ([d5b6197](https://github.com/LerianStudio/midaz/commit/d5b619788782563d2c336fccaa01f4584ac54e57))
+* added router find account by alias :sparkles: ([a2e8c99](https://github.com/LerianStudio/midaz/commit/a2e8c99ec816149c23beb5962a600ca7d7bb0328))
+* adjust time :sparkles: ([60da1cf](https://github.com/LerianStudio/midaz/commit/60da1cf7dce25469c87bf5786aa6b603fbe79638))
+* create race condition using gorotine and chanel ([3248ee7](https://github.com/LerianStudio/midaz/commit/3248ee7e8fca50dc8882327e94f4c9fcbfd3529e))
+* final adjusts to rever transaction :sparkles: ([44b650c](https://github.com/LerianStudio/midaz/commit/44b650cb66cf14773119b7b94c790fa61a7e6231))
+* new implementatios; :sparkles: ([a8f5a6d](https://github.com/LerianStudio/midaz/commit/a8f5a6deb065858eb90a3a9b74c641ecc304e4f5))
+* new race condition implementation ([6bb89dd](https://github.com/LerianStudio/midaz/commit/6bb89dd46e163b057cb4c7c32cdd8e3a8c418147))
+* new updates to avoid race condition ([97448dc](https://github.com/LerianStudio/midaz/commit/97448dc69d6bcfafe66bbd94d81cff8b4733da3e))
+* push choco :sparkles: ([4d19380](https://github.com/LerianStudio/midaz/commit/4d19380685d0bad020ed4f0b67e73dcac372876e))
+* update time lock :sparkles: ([beb4921](https://github.com/LerianStudio/midaz/commit/beb49216d8e7c7ddcc76a841c9c454304abd0e62))
+
+
+### Bug Fixes
+
+* add defer rollback :bug: ([0cdabd1](https://github.com/LerianStudio/midaz/commit/0cdabd13e58d91d6f86170c70baf4d602690bd16))
+* add revert logic to object :bug: ([e0d36ad](https://github.com/LerianStudio/midaz/commit/e0d36ad33bb4962d4a7b4fc6646f5750e842a8f8))
+* add rollback in case of error to unlock database; :bug: ([66d7416](https://github.com/LerianStudio/midaz/commit/66d74168b2da61b5fc74662ff7150403fb624b36))
+* add unlock :bug: ([0c62a31](https://github.com/LerianStudio/midaz/commit/0c62a314e4ad86918b6955ba3792ce2017102c8e))
+* adjust to remove lock of get accounts :bug: ([1ddf09f](https://github.com/LerianStudio/midaz/commit/1ddf09f939da41d4ebabfd339b00d7caf9dc29f6))
+* change place :bug: ([3970a04](https://github.com/LerianStudio/midaz/commit/3970a04dd1ac5157081815726766387434ad0b66))
+* improve idempotency using setnx; :bug: ([5a7988e](https://github.com/LerianStudio/midaz/commit/5a7988e161e0bb64a64149c1871ba2f0c9f2dbd5))
+* lint; add version; :bug: ([a7df566](https://github.com/LerianStudio/midaz/commit/a7df566659892e15eddc0486087d93a74cf707d4))
+* make lint :bug: ([ff3a8ad](https://github.com/LerianStudio/midaz/commit/ff3a8ad792b1b592fb3faa93bcd86dc4f45a1572))
+* merge with develop :bug: ([a04a8ee](https://github.com/LerianStudio/midaz/commit/a04a8eebeda62ff6f1812606c778aa5bcbf15041))
+* reduce lock time :bug: ([ddb6a60](https://github.com/LerianStudio/midaz/commit/ddb6a60ca16b3560d6b8c0802e12fb9a246894bf))
+* unlock specify by get accounts :bug: ([26af469](https://github.com/LerianStudio/midaz/commit/26af4697aff95095a98681af98a3c0658a60c75b))
+* update go mod dependabot :bug: ([f776fcc](https://github.com/LerianStudio/midaz/commit/f776fcc678cbbb652dfb01ff6ab7890b6ac85777))
+* updates to improve race condition :bug: ([022c3c9](https://github.com/LerianStudio/midaz/commit/022c3c90f6827149bc8ba4e78b2acb314895bbc8))
+
 ## [1.45.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.45.0-beta.2...v1.45.0-beta.3) (2025-01-17)
 
 
