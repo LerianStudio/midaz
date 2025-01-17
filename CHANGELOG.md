@@ -1,3 +1,18 @@
+## [1.45.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.45.0-beta.2...v1.45.0-beta.3) (2025-01-17)
+
+
+### Features
+
+* add api on postman; adjust lint; generate swagger and open api; :sparkles: ([095f2d6](https://github.com/LerianStudio/midaz/commit/095f2d6942e7d8ab6be0822e66509d6d65392a10))
+* add transaction body on database; :sparkles: ([d5b6197](https://github.com/LerianStudio/midaz/commit/d5b619788782563d2c336fccaa01f4584ac54e57))
+* final adjusts to rever transaction :sparkles: ([44b650c](https://github.com/LerianStudio/midaz/commit/44b650cb66cf14773119b7b94c790fa61a7e6231))
+* new implementatios; :sparkles: ([a8f5a6d](https://github.com/LerianStudio/midaz/commit/a8f5a6deb065858eb90a3a9b74c641ecc304e4f5))
+
+
+### Bug Fixes
+
+* add revert logic to object :bug: ([e0d36ad](https://github.com/LerianStudio/midaz/commit/e0d36ad33bb4962d4a7b4fc6646f5750e842a8f8))
+
 ## [1.45.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.45.0-beta.1...v1.45.0-beta.2) (2025-01-15)
 
 
