@@ -184,3 +184,49 @@ func (cti *CreateTransactionInput) FromDSl() *goldModel.Transaction {
 
 	return dsl
 }
+
+// TransactionRevert is a func that revert transaction
+func (t Transaction) TransactionRevert() goldModel.Transaction {
+	froms := make([]goldModel.FromTo, 0)
+
+	for _, to := range t.Body.Send.Distribute.To {
+		to.IsFrom = true
+		froms = append(froms, to)
+	}
+
+	newSource := goldModel.Source{
+		From:      froms,
+		Remaining: t.Body.Send.Distribute.Remaining,
+	}
+
+	tos := make([]goldModel.FromTo, 0)
+
+	for _, from := range t.Body.Send.Source.From {
+		from.IsFrom = false
+		tos = append(tos, from)
+	}
+
+	newDistribute := goldModel.Distribute{
+		To:        tos,
+		Remaining: t.Body.Send.Source.Remaining,
+	}
+
+	send := goldModel.Send{
+		Asset:      t.Body.Send.Asset,
+		Value:      t.Body.Send.Value,
+		Scale:      t.Body.Send.Scale,
+		Source:     newSource,
+		Distribute: newDistribute,
+	}
+
+	transaction := goldModel.Transaction{
+		ChartOfAccountsGroupName: t.Body.ChartOfAccountsGroupName,
+		Description:              t.Body.Description,
+		Code:                     t.Body.Code,
+		Pending:                  t.Body.Pending,
+		Metadata:                 t.Body.Metadata,
+		Send:                     send,
+	}
+
+	return transaction
+}

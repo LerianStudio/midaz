@@ -232,48 +232,9 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 		return http.WithError(c, err)
 	}
 
-	froms := make([]goldModel.FromTo, 0)
+	transactionReverted := tran.TransactionRevert()
 
-	for _, to := range tran.Body.Send.Distribute.To {
-		to.IsFrom = true
-		froms = append(froms, to)
-	}
-
-	newSource := goldModel.Source{
-		From:      froms,
-		Remaining: tran.Body.Send.Distribute.Remaining,
-	}
-
-	tos := make([]goldModel.FromTo, 0)
-
-	for _, from := range tran.Body.Send.Source.From {
-		from.IsFrom = false
-		tos = append(tos, from)
-	}
-
-	newDistribute := goldModel.Distribute{
-		To:        tos,
-		Remaining: tran.Body.Send.Source.Remaining,
-	}
-
-	send := goldModel.Send{
-		Asset:      tran.Body.Send.Asset,
-		Value:      tran.Body.Send.Value,
-		Scale:      tran.Body.Send.Scale,
-		Source:     newSource,
-		Distribute: newDistribute,
-	}
-
-	parserDSL := goldModel.Transaction{
-		ChartOfAccountsGroupName: tran.Body.ChartOfAccountsGroupName,
-		Description:              tran.Body.Description,
-		Code:                     tran.Body.Code,
-		Pending:                  tran.Body.Pending,
-		Metadata:                 tran.Body.Metadata,
-		Send:                     send,
-	}
-
-	response := handler.createTransaction(c, logger, parserDSL)
+	response := handler.createTransaction(c, logger, transactionReverted)
 
 	return response
 }
