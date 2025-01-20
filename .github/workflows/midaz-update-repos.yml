@@ -1,4 +1,4 @@
-name: "Midaz Update Submodule on midaz-full and Swagger on Git Pages"
+name: "Midaz Update Submodule on midaz-stack and Swagger on Git Pages"
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
       - '**'
 
 jobs:
-  update-submodule-on-midaz-full:
-    name: Run Update midaz submodule on midaz-full
+  update-submodule-on-midaz-stack:
+    name: Run Update midaz submodule on midaz-stack
     runs-on: ubuntu-24.04
     steps:
       - name: Import GPG key
@@ -24,16 +24,16 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
-      - name: Pull midaz-full and submodules
+      - name: Pull midaz-stack and submodules
         uses: actions/checkout@v4
         with:
-          repository: LerianStudio/midaz-full
+          repository: LerianStudio/midaz-stack
           ref: main
-          path: midaz-full
+          path: midaz-stack
           submodules: recursive
           token: ${{ secrets.MANAGE_TOKEN }}
 
-      - name: Push midaz-full and midaz submodule
+      - name: Push midaz-stack and midaz submodule
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.MANAGE_TOKEN }}
@@ -42,7 +42,7 @@ jobs:
           GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
-          cd midaz-full
+          cd midaz-stack
           
           cd midaz
           git checkout main       
