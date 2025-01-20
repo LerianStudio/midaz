@@ -807,6 +807,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction is already a reversal",
 			Message:    "Transaction is already a reversal. Please try again",
 		},
+		constant.ErrTransactionCantRevert: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionCantRevert.Error(),
+			Title:      "Transaction can't be reverted",
+			Message:    "Transaction can't be reverted. Please try again",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
