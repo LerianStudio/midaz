@@ -1773,10 +1773,19 @@
 							"script": {
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
+									"",
+									"// Check and set account_id",
 									"if (jsonData.hasOwnProperty('id')) {",
 									"    console.log(\"account_id before: \" + pm.collectionVariables.get(\"account_id\"));",
 									"    pm.collectionVariables.set(\"account_id\", jsonData.id);",
 									"    console.log(\"account_id after: \" + pm.collectionVariables.get(\"account_id\"));",
+									"}",
+									"",
+									"// Check and set account_alias",
+									"if (jsonData.hasOwnProperty('alias')) {",
+									"    console.log(\"account_alias before: \" + pm.collectionVariables.get(\"account_alias\"));",
+									"    pm.collectionVariables.set(\"account_alias\", jsonData.alias);",
+									"    console.log(\"account_alias after: \" + pm.collectionVariables.get(\"account_alias\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -1830,10 +1839,19 @@
 							"script": {
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
+									"",
+									"// Check and set account_id",
 									"if (jsonData.hasOwnProperty('id')) {",
 									"    console.log(\"account_id before: \" + pm.collectionVariables.get(\"account_id\"));",
 									"    pm.collectionVariables.set(\"account_id\", jsonData.id);",
 									"    console.log(\"account_id after: \" + pm.collectionVariables.get(\"account_id\"));",
+									"}",
+									"",
+									"// Check and set account_alias",
+									"if (jsonData.hasOwnProperty('alias')) {",
+									"    console.log(\"account_alias before: \" + pm.collectionVariables.get(\"account_alias\"));",
+									"    pm.collectionVariables.set(\"account_alias\", jsonData.alias);",
+									"    console.log(\"account_alias after: \" + pm.collectionVariables.get(\"account_alias\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -2308,7 +2326,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"200\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": 200,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"@external/BRL\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"description\": \"Loan payment person1\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"@mcgregor_brl\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"metadata\": {\n                        \"mensagem\": \"tks\"\n                    }\n                }\n            ]\n        }\n    }\n}",
+									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"200\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": 200,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"{{account_external_brl}}\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"description\": \"Loan payment person1\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"{{account_alias}}\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"metadata\": {\n                        \"mensagem\": \"tks\"\n                    }\n                }\n            ]\n        }\n    }\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -3689,6 +3707,16 @@
 			"key": "account_id",
 			"value": "",
 			"type": "default"
+		},
+		{
+			"key": "account_external_brl",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "account_alias",
+			"value": "",
+			"type": "string"
 		},
 		{
 			"key": "transaction_id",
