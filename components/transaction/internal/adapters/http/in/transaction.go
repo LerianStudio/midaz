@@ -233,6 +233,15 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	}
 
 	transactionReverted := tran.TransactionRevert()
+	if transactionReverted.IsEmpty() {
+		err = pkg.ValidateBusinessError(constant.ErrTransactionCantRevert, "RevertTransaction")
+
+		mopentelemetry.HandleSpanError(&span, "Transaction can't be reverted", err)
+
+		logger.Errorf("Parent Transaction can't be reverted with ID: %s, Error: %s", transactionID.String(), err)
+
+		return http.WithError(c, err)
+	}
 
 	response := handler.createTransaction(c, logger, transactionReverted)
 
