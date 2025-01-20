@@ -1,3 +1,10 @@
+## [1.46.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.45.0...v1.46.0-beta.1) (2025-01-20)
+
+
+### Bug Fixes
+
+* treatment for old transactions without transaction body :bug: ([129f9de](https://github.com/LerianStudio/midaz/commit/129f9de7b0a62903d14738c379b47f4def41c844))
+
 ## [1.45.0](https://github.com/LerianStudio/midaz/compare/v1.44.0...v1.45.0) (2025-01-17)
 
 
