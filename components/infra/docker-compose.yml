@@ -115,6 +115,11 @@ services:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
     restart: always
+    environment:
+      GF_SECURITY_ADMIN_USER: ${OTEL_LGTM_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${OTEL_LGTM_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: false
+      GF_AUTH_DISABLE_LOGIN_FORM: false
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
