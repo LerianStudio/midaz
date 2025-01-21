@@ -43,7 +43,7 @@ services:
     ports:
       - ${MONGO_PORT}:${MONGO_PORT}
     volumes:
-      - mongodb_data_container:/data/db
+      - mongodb-data:/data/db
 
   midaz-redis:
     <<: *midaz-redis-common
@@ -76,6 +76,7 @@ services:
       -c max_replication_slots=10
       -c hot_standby_feedback=on
     volumes:
+      - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   midaz-postgres-replica:
@@ -124,6 +125,8 @@ services:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
       - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
+    volumes:
+      - grafana-data:/otel-lgtm/grafana/data
     networks:
       - infra_network
 
@@ -146,8 +149,10 @@ services:
       - infra_network
 
 volumes:
-  mongodb_data_container:
+  postgres-data:
+  mongodb-data:
   redis-data:
+  grafana-data:
 
 networks:
   infra_network:
