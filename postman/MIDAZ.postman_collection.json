@@ -1,6 +1,6 @@
 {
 	"info": {
-		"_postman_id": "011947ce-a59a-4f67-a335-cf486cbe8d06",
+		"_postman_id": "982da484-ef34-4ac4-bbae-27b8e0f5b3a8",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
@@ -508,7 +508,7 @@
 								"value": "application/json"
 							},
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -558,7 +558,7 @@
 								"value": "application/json"
 							},
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -609,7 +609,7 @@
 								"value": "application/json"
 							},
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -687,7 +687,7 @@
 								"type": "text"
 							},
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -730,7 +730,7 @@
 								"type": "text"
 							},
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -778,7 +778,7 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
