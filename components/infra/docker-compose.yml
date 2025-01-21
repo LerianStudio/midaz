@@ -119,14 +119,28 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${OTEL_LGTM_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${OTEL_LGTM_ADMIN_PASSWORD}
-      GF_AUTH_ANONYMOUS_ENABLED: false
-      GF_AUTH_DISABLE_LOGIN_FORM: false
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
       - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
+    command: |
+      sh -c '
+        echo "#!/bin/bash
+      
+        source ./logging.sh
+      
+        export GF_AUTH_ANONYMOUS_ENABLED=false
+      
+        export GF_PATHS_HOME=/data/grafana
+        export GF_PATHS_DATA=/data/grafana/data
+        export GF_PATHS_PLUGINS=/data/grafana/plugins
+      
+        cd ./grafana
+        run_with_logging \"Grafana ${GRAFANA_VERSION}\" \"${ENABLE_LOGS_GRAFANA:-false}\" ./bin/grafana server" > /otel-lgtm/run-grafana.sh &&
+        chmod +x /otel-lgtm/run-grafana.sh &&
+        /otel-lgtm/run-grafana.sh'
     networks:
       - infra_network
 
