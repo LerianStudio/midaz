@@ -826,7 +826,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -875,7 +875,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -950,7 +950,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -990,7 +990,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1040,7 +1040,7 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1090,7 +1090,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1129,7 +1129,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1197,7 +1197,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1231,7 +1231,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1287,7 +1287,7 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1337,7 +1337,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1376,7 +1376,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1444,7 +1444,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1478,7 +1478,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1534,7 +1534,7 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1584,7 +1584,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1626,7 +1626,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1698,7 +1698,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1732,7 +1732,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1797,7 +1797,7 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1863,7 +1863,7 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1913,7 +1913,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -1966,7 +1966,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2008,7 +2008,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2044,7 +2044,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2111,7 +2111,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2141,7 +2141,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2212,7 +2212,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2248,7 +2248,7 @@
 						"method": "DELETE",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2307,20 +2307,20 @@
 								"method": "POST",
 								"header": [
 									{
-										"key": "Midaz-ID",
+										"key": "X-Midaz-Id",
 										"value": "{{$randomUUID}}",
 										"type": "text"
 									},
 									{
-										"key": "Idempotency-Key",
+										"key": "X-Idempotency",
 										"value": "key-teste",
 										"description": "Idempotency Key, if not pass through we create base on body sha-256",
 										"type": "text"
 									},
 									{
-										"key": "TTL",
+										"key": "X-TTL",
 										"value": "5",
-										"description": "Idempotency ttl, if not pass through we use 5 minuts default",
+										"description": "Idempotency ttl, if not pass through we use 5 minutes default",
 										"type": "text"
 									}
 								],
@@ -2380,20 +2380,20 @@
 								"method": "POST",
 								"header": [
 									{
-										"key": "Midaz-ID",
+										"key": "X-Midaz-Id",
 										"value": "{{$randomUUID}}",
 										"type": "text"
 									},
 									{
-										"key": "Idempotency-Key",
+										"key": "X-Idempotency",
 										"value": "key-test",
 										"description": "Idempotency Key, if not pass through we create base on body sha-256",
 										"type": "text"
 									},
 									{
-										"key": "TTL",
+										"key": "X-TTL",
 										"value": "5",
-										"description": "Idempotency ttl, if not pass through we use 5 minuts default",
+										"description": "Idempotency ttl, if not pass through we use 5 minutes default",
 										"type": "text"
 									}
 								],
@@ -2455,20 +2455,20 @@
 								"method": "POST",
 								"header": [
 									{
-										"key": "Midaz-ID",
+										"key": "X-Midaz-Id",
 										"value": "{{$randomUUID}}",
 										"type": "text"
 									},
 									{
-										"key": "Idempotency-Key",
+										"key": "X-Idempotency",
 										"value": "key-test",
 										"description": "Idempotency Key, if not pass through we create base on body sha-256",
 										"type": "text"
 									},
 									{
-										"key": "TTL",
+										"key": "X-TTL",
 										"value": "5",
-										"description": "Idempotency ttl, if not pass through we use 5 minuts default",
+										"description": "Idempotency ttl, if not pass through we use 5 minutes default",
 										"type": "text"
 									}
 								],
@@ -2678,7 +2678,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2718,7 +2718,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2748,7 +2748,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2878,7 +2878,7 @@
 						"method": "PATCH",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2920,7 +2920,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -2983,7 +2983,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -3015,7 +3015,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -3078,7 +3078,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -3144,7 +3144,7 @@
 						"method": "PUT",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -3182,7 +3182,7 @@
 								"method": "PUT",
 								"header": [
 									{
-										"key": "Midaz-ID",
+										"key": "X-Midaz-Id",
 										"value": "{{$randomUUID}}",
 										"type": "text",
 										"disabled": true
@@ -3241,7 +3241,7 @@
 									"type": "text"
 								},
 								{
-									"key": "Midaz-Id",
+									"key": "X-Midaz-Id",
 									"value": "b125a033-f4d8-4309-bfdf-1300b051915b",
 									"description": "",
 									"type": "text"
@@ -3270,7 +3270,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -3300,7 +3300,7 @@
 								"method": "GET",
 								"header": [
 									{
-										"key": "Midaz-ID",
+										"key": "X-Midaz-Id",
 										"value": "{{$randomUUID}}",
 										"type": "text",
 										"disabled": true
@@ -3374,7 +3374,7 @@
 						"method": "GET",
 						"header": [
 							{
-								"key": "Midaz-ID",
+								"key": "X-Midaz-Id",
 								"value": "{{$randomUUID}}",
 								"type": "text",
 								"disabled": true
@@ -3442,7 +3442,7 @@
 								"method": "GET",
 								"header": [
 									{
-										"key": "Midaz-ID",
+										"key": "X-Midaz-Id",
 										"value": "{{$randomUUID}}",
 										"type": "text",
 										"disabled": true
