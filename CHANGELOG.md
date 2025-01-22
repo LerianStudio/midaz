@@ -1,3 +1,27 @@
+## [1.46.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.1...v1.46.0-beta.2) (2025-01-22)
+
+
+### Features
+
+* add account_alias and account_external_brl on postman; :sparkles: ([cc20914](https://github.com/LerianStudio/midaz/commit/cc209146430f75c6032e361f83b7b5312ad28e17))
+* add user midaz non root to help to send cpu and mem to grafana; :sparkles: ([e6e30ad](https://github.com/LerianStudio/midaz/commit/e6e30ad0416f6e477ff0b4a1c00f76d294bf3ae3))
+* warning about customize .env variables to fit your environment; add more colors; :sparkles: ([55874b5](https://github.com/LerianStudio/midaz/commit/55874b50eabb591da363d3015b008f61e89b1de9))
+
+
+### Bug Fixes
+
+* add mongo uri variable; add rabbit uri variable; :bug: ([5af9415](https://github.com/LerianStudio/midaz/commit/5af9415ff706cb1820401c8482373df98d27533c))
+* add some normalize to docker :bug: ([b49825d](https://github.com/LerianStudio/midaz/commit/b49825de06567695b5c7feb723e343fa62a638d5))
+* grafana final adjusts to always open asking for login :bug: ([2363b63](https://github.com/LerianStudio/midaz/commit/2363b63c4d3c25ee64f819c6cd2c4108f5bee48c))
+* implements login screen to grafana otel :bug: ([3ce2669](https://github.com/LerianStudio/midaz/commit/3ce2669d078a1ba68f17b8d51a178eae5c6fbcff))
+* remove unused air files :bug: ([6ef5a7f](https://github.com/LerianStudio/midaz/commit/6ef5a7f0782487a3461b81f54bff2c4fbe0b4825))
+* rename personalized midaz headers :bug: ([b891e6e](https://github.com/LerianStudio/midaz/commit/b891e6e6c853c1a766e59616e5ea452e8619849a))
+* rename personalized midaz headers. :bug: ([847e9ff](https://github.com/LerianStudio/midaz/commit/847e9ff84d3535e618003bc0ccd35f03adf183ed))
+* run grafana with anonymous auth disabled :bug: ([44efa74](https://github.com/LerianStudio/midaz/commit/44efa7417bad6fa2e90ad6b16d2a09ff698daa55))
+* update allow sending and receiving fields from accounts :bug: ([821a70d](https://github.com/LerianStudio/midaz/commit/821a70db7e4de425561646be5ee919b3deefbb34))
+* update dependencies by dependabot :bug: ([b822c8d](https://github.com/LerianStudio/midaz/commit/b822c8d0371520cccd4d6782c75c577b6369315a))
+* update name of midaz-full to midaz-stack :bug: ([9c63cf1](https://github.com/LerianStudio/midaz/commit/9c63cf1da9363a2ef7554bad5d0f8ae4548885d8))
+
 ## [1.46.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.45.0...v1.46.0-beta.1) (2025-01-20)
 
 
