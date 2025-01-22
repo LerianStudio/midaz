@@ -36,6 +36,7 @@ type UpdateAccountInput struct {
 	AllowReceiving *bool          `json:"allowReceiving" example:"true"`
 	Alias          *string        `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@person1"`
 	ProductID      *string        `json:"productId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	PortfolioID    *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name UpdateAccountInput
 
