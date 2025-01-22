@@ -40,11 +40,12 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	account := &mmodel.Account{
-		Name:      uai.Name,
-		Status:    uai.Status,
-		Alias:     uai.Alias,
-		ProductID: uai.ProductID,
-		Metadata:  uai.Metadata,
+		Name:        uai.Name,
+		Status:      uai.Status,
+		Alias:       uai.Alias,
+		ProductID:   uai.ProductID,
+		PortfolioID: uai.PortfolioID,
+		Metadata:    uai.Metadata,
 	}
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
