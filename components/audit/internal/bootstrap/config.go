@@ -35,11 +35,13 @@ type Config struct {
 	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
+	MongoURI                string `env:"MONGO_URI"`
 	MongoDBHost             string `env:"MONGO_HOST"`
 	MongoDBName             string `env:"MONGO_NAME"`
 	MongoDBUser             string `env:"MONGO_USER"`
 	MongoDBPassword         string `env:"MONGO_PASSWORD"`
 	MongoDBPort             string `env:"MONGO_PORT"`
+	RabbitURI               string `env:"RABBITMQ_URI"`
 	RabbitMQHost            string `env:"RABBITMQ_HOST"`
 	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
 	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
@@ -79,8 +81,8 @@ func InitServers() *Service {
 		Logger:           logger,
 	}
 
-	rabbitSource := fmt.Sprintf("amqp://%s:%s@%s:%s",
-		cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
+	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
 	rabbitMQConnection := &mrabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
@@ -98,8 +100,8 @@ func InitServers() *Service {
 		Logger:   logger,
 	}
 
-	mongoSource := fmt.Sprintf("mongodb://%s:%s@%s:%s",
-		cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
+	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
+		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
 	mongoAuditConnection := &mmongo.MongoConnection{
 		ConnectionStringSource: mongoSource,

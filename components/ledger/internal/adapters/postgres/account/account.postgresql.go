@@ -679,10 +679,14 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
+	}
 
+	if acc.AllowSending != nil {
 		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.AllowSending)
+	}
 
+	if acc.AllowReceiving != nil {
 		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.AllowReceiving)
 	}
