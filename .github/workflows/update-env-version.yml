@@ -19,8 +19,6 @@ jobs:
   update-env-release:
     name: Run update VERSION in every ENV on components
     runs-on: ubuntu-24.04
-    environment:
-      name: fork-workflows
     steps:
       - uses: actions/create-github-app-token@v1
         id: app-token
