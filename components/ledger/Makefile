@@ -1,9 +1,18 @@
+# Service configuration
 service_name := ledger-service
 bin_dir := ./.bin
 artifacts_dir := ./artifacts
 
+# Use tput if available, fallback to ANSI codes if not
+BLUE := $(shell command -v tput >/dev/null 2>&1 && tput setaf 4 || echo '\033[0;34m')
+NC := $(shell command -v tput >/dev/null 2>&1 && tput sgr0 || echo '\033[0m')
+BOLD := $(shell command -v tput >/dev/null 2>&1 && tput bold || echo '\033[1m')
+RED := $(shell command -v tput >/dev/null 2>&1 && tput setaf 1 || echo '\033[0;31m')
+MAGENTA := $(shell command -v tput >/dev/null 2>&1 && tput setaf 5 || echo '\033[0;35m')
+
 $(shell mkdir -p $(artifacts_dir))
 
+# Docker configuration
 DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
 DOCKER_MIN_VERSION := 20.10.13
 
@@ -18,103 +27,112 @@ DOCKER_CMD := $(shell \
 # Display available commands
 .PHONY: info
 info:
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                                       "
-	@echo "To run a specific command inside the ledger container using make, you can execute:                                                     "
-	@echo "                                                                                                                                       "
-	@echo "make ledger COMMAND=\"any\"                                                                                                            "
-	@echo "                                                                                                                                       "
-	@echo "This command will run the specified command inside the ledger container. Replace \"any\" with the desired command you want to execute. "
-	@echo "                                                                                                                         "
-	@echo "## Docker commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"build\"                                Builds all Docker images defined in docker-compose.yml."
-	@echo "  COMMAND=\"up\"                                   Starts and runs all services defined in docker-compose.yml."
-	@echo "  COMMAND=\"start\"                                Starts existing containers defined in docker-compose.yml without creating them."
-	@echo "  COMMAND=\"stop\"                                 Stops running containers defined in docker-compose.yml without removing them."
-	@echo "  COMMAND=\"down\"                                 Stops and removes containers, networks, and volumes defined in docker-compose.yml."
-	@echo "  COMMAND=\"destroy\"                              Stops and removes containers, networks, and volumes (including named volumes) defined in docker-compose.yml."
-	@echo "  COMMAND=\"restart\"                              Stops and removes containers, networks, and volumes, then starts all services in detached mode."
-	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
-	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the ledger service defined in docker-compose.yml."
-	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "                                                                                                                                       "
-	@echo "## App commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"grpc-ledger-gen\"                      Generate proto files for ledger service."
-	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
-	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
-	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
-	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
-	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                                       "
+	@echo "$(BOLD)Ledger Service Commands$(NC)"
+	@echo ""
+	@echo "$(BOLD)Usage:$(NC)"
+	@echo "make ledger COMMAND=\"<command>\""
+	@echo ""
+	@echo "$(BOLD)Docker Commands:$(NC)"
+	@echo "- make build                         - Build all Docker images"
+	@echo "- make up                           - Start all services in detached mode"
+	@echo "- make start                        - Start existing containers"
+	@echo "- make stop                         - Stop running containers"
+	@echo "- make down                         - Stop and remove containers"
+	@echo "- make destroy                      - Stop and remove containers including volumes"
+	@echo "- make restart                      - Restart all services"
+	@echo "- make logs                         - Show and follow all container logs"
+	@echo "- make logs-api                     - Show and follow ledger service logs"
+	@echo "- make ps                           - List container status"
+	@echo ""
+	@echo "$(BOLD)App Commands:$(NC)"
+	@echo "- make grpc-ledger-gen              - Generate proto files for ledger service"
+	@echo "- make run                          - Run the application"
+	@echo "- make test                         - Run tests"
+	@echo "- make cover-html                   - Generate coverage report"
+	@echo "- make tidy                         - Run go mod tidy"
+	@echo "- make generate-docs                - Generate API documentation"
+	@echo ""
 
 # Docker Compose Commands
 .PHONY: build
 build:
+	@echo "$(BLUE)Building Docker images...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
 .PHONY: up
 up:
+	@echo "$(BLUE)Starting services...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 
 .PHONY: start
 start:
+	@echo "$(BLUE)Starting existing containers...$(NC)"
 	@docker compose -f docker-compose.yml start $(c)
 
 .PHONY: down
 down:
+	@echo "$(BLUE)Stopping and removing containers...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
 
 .PHONY: destroy
 destroy:
+	@echo "$(BLUE)Stopping and removing containers with volumes...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml down -v $(c)
 
 .PHONY: stop
 stop:
+	@echo "$(BLUE)Stopping containers...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
 
 .PHONY: restart
 restart:
-	make stop && \
-    make up
+	@echo "$(BLUE)Restarting services...$(NC)"
+	make stop && make up
 
 .PHONY: logs
 logs:
+	@echo "$(BLUE)Showing container logs...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
 
 .PHONY: logs-api
 logs-api:
+	@echo "$(BLUE)Showing ledger service logs...$(NC)"
 	@docker compose -f docker-compose.yml logs --tail=100 -f ledger
 
 .PHONY: ps
 ps:
+	@echo "$(BLUE)Listing container status...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml ps
 
 # App Commands
 .PHONY: grpc-ledger-gen
 grpc-ledger-gen:
+	@echo "$(BLUE)Generating proto files...$(NC)"
 	@protoc --proto_path=../../pkg/mgrpc --go-grpc_out=../../pkg/mgrpc --go_out=../../pkg/mgrpc ../../pkg/mgrpc/account/account.proto
 
 .PHONY: run
 run:
+	@echo "$(BLUE)Running application...$(NC)"
 	@go run cmd/app/main.go .env
 
 .PHONY: test
 test:
+	@echo "$(BLUE)Running tests...$(NC)"
 	@go test -v ./...
 
 .PHONY: cover-html
 cover-html:
+	@echo "$(BLUE)Generating coverage report...$(NC)"
 	@go tool cover -html=$(artifacts_dir)/coverage.out -o $(artifacts_dir)/coverage.html
 
 .PHONY: tidy
 tidy:
+	@echo "$(BLUE)Running go mod tidy...$(NC)"
 	@go mod tidy
 
 .PHONY: generate-docs
 generate-docs:
+	@echo "$(BLUE)Generating API documentation...$(NC)"
 	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
 	@docker run --rm -v ./:/ledger --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./ledger/api/swagger.json -g openapi-yaml -o ./ledger/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
