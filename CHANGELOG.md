@@ -1,3 +1,10 @@
+## [1.46.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.3...v1.46.0-beta.4) (2025-01-23)
+
+
+### Bug Fixes
+
+* add slice make init to avoid panic and valida len os slice before calculate cursor :bug: ([b67bec7](https://github.com/LerianStudio/midaz/commit/b67bec78ec3e16a11e9e6451f97d3f835d67e10f))
+
 ## [1.46.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.2...v1.46.0-beta.3) (2025-01-23)
 
 
