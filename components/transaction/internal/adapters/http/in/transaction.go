@@ -342,6 +342,14 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.get_transaction.get_operations")
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
 	headerParams.Metadata = &bson.M{}
 
 	tran, err = handler.Query.GetOperationsByTransaction(ctxGetTransaction, organizationID, ledgerID, tran, *headerParams)
@@ -354,7 +362,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	}
 
 	spanGetTransaction.End()
-	
+
 	logger.Infof("Successfully retrieved Transaction with ID: %s", transactionID.String())
 
 	return http.OK(c, tran)
