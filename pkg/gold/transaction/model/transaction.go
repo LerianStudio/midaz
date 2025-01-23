@@ -123,3 +123,8 @@ type Transaction struct {
 	Metadata                 map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 	Send                     Send           `json:"send" validate:"required"`
 } // @name Transaction
+
+// IsEmpty is a func that validate if transaction is Empty.
+func (t Transaction) IsEmpty() bool {
+	return t.Send.Asset == "" && t.Send.Value == 0 && t.Send.Scale == 0
+}
