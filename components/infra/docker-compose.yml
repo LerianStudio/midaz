@@ -126,10 +126,6 @@ services:
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
       - ./grafana/run-grafana.sh:/otel-lgtm/run-grafana.sh
-    command: |
-      sh -c '
-        chmod +x /otel-lgtm/run-grafana.sh && /otel-lgtm/run-grafana.sh
-      '
     networks:
       - infra_network
 

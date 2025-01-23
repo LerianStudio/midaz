@@ -1,3 +1,13 @@
+## [1.46.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.2...v1.46.0-beta.3) (2025-01-23)
+
+
+### Bug Fixes
+
+* add sources, destinations and operations to get transactions; :bug: ([f9afbef](https://github.com/LerianStudio/midaz/commit/f9afbefd72126dd665da782aa9ce794754907248))
+* go lint :bug: ([ee0ea3f](https://github.com/LerianStudio/midaz/commit/ee0ea3f5c6c83041662118a5a9931539cae2e867))
+* remove command to broken grafana :bug: ([6421ab1](https://github.com/LerianStudio/midaz/commit/6421ab16285e7247a62f3c107edc7300cd8e642b))
+* remove from outside metadata validation :bug: ([d9cebc0](https://github.com/LerianStudio/midaz/commit/d9cebc0c4824a24d71229fd22f3341e8ab2fc0b6))
+
 ## [1.46.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.1...v1.46.0-beta.2) (2025-01-22)
 
 

@@ -56,8 +56,53 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 			if data, ok := metadataMap[trans[i].ID]; ok {
 				trans[i].Metadata = data
 			}
+
+			trans[i], err = uc.GetOperationsByTransaction(ctx, organizationID, ledgerID, trans[i], filter)
+			if err != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to get operations to transaction by id", err)
+
+				return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			}
 		}
 	}
 
 	return trans, cur, nil
+}
+
+func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_transactions_get_operations")
+	defer span.End()
+
+	logger.Infof("Retrieving Operations")
+
+	operations, _, err := uc.GetAllOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), filter)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Operations", err)
+
+		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.IDtoUUID(), err.Error())
+
+		return nil, err
+	}
+
+	source := make([]string, 0)
+	destination := make([]string, 0)
+
+	for _, op := range operations {
+		if op.Type == constant.DEBIT {
+			source = append(source, op.AccountAlias)
+		} else {
+			destination = append(destination, op.AccountAlias)
+		}
+	}
+
+	span.End()
+
+	tran.Source = source
+	tran.Destination = destination
+	tran.Operations = operations
+
+	return tran, nil
 }
