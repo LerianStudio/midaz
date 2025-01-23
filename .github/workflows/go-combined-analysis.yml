@@ -137,7 +137,7 @@ jobs:
         run: make set-env
 
       - name: Start Docker Compose Services
-        run: make up
+        run: make all-services COMMAND="up"
 
       - name: Install CLI
         run: cd components/mdz && make install-local && cd -
