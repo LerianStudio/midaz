@@ -96,4 +96,5 @@ var (
 	ErrLockVersionAccountBalance                = errors.New("0086")
 	ErrTransactionIDHasAlreadyParentTransaction = errors.New("0087")
 	ErrTransactionIDIsAlreadyARevert            = errors.New("0088")
+	ErrTransactionCantRevert                    = errors.New("0089")
 )

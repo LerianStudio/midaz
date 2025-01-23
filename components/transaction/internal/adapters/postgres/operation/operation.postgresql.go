@@ -150,7 +150,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		return nil, http.CursorPagination{}, err
 	}
 
-	var operations []*Operation
+	operations := make([]*Operation, 0)
 
 	decodedCursor := http.Cursor{}
 	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
@@ -242,11 +242,14 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 
 	operations = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
 
-	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+	cur := http.CursorPagination{}
+	if len(operations) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-		return nil, http.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
+		}
 	}
 
 	return operations, cur, nil
@@ -642,7 +645,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 		return nil, http.CursorPagination{}, err
 	}
 
-	var operations []*Operation
+	operations := make([]*Operation, 0)
 
 	decodedCursor := http.Cursor{}
 	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
@@ -734,11 +737,14 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 
 	operations = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
 
-	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+	cur := http.CursorPagination{}
+	if len(operations) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-		return nil, http.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
+		}
 	}
 
 	return operations, cur, nil
@@ -758,7 +764,7 @@ func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, 
 		return nil, http.CursorPagination{}, err
 	}
 
-	var operations []*Operation
+	operations := make([]*Operation, 0)
 
 	decodedCursor := http.Cursor{}
 	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
@@ -850,11 +856,14 @@ func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, 
 
 	operations = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
 
-	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+	cur := http.CursorPagination{}
+	if len(operations) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-		return nil, http.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
+		}
 	}
 
 	return operations, cur, nil

@@ -228,7 +228,7 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 		return nil, http.CursorPagination{}, err
 	}
 
-	var assetRates []*AssetRate
+	assetRates := make([]*AssetRate, 0)
 
 	decodedCursor := http.Cursor{}
 	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
@@ -311,11 +311,14 @@ func (r *AssetRatePostgreSQLRepository) FindAllByAssetCodes(ctx context.Context,
 
 	assetRates = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates, filter.Limit, orderDirection)
 
-	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates[0].ID, assetRates[len(assetRates)-1].ID)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+	cur := http.CursorPagination{}
+	if len(assetRates) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, assetRates[0].ID, assetRates[len(assetRates)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-		return nil, http.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
+		}
 	}
 
 	return assetRates, cur, nil
