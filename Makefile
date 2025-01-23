@@ -185,6 +185,15 @@ audit:
 	@echo "$(BLUE)Executing command in audit service...$(NC)"
 	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
 
+.PHONY: up
+up: 
+	@echo "$(BLUE)Starting all services...$(NC)"
+	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
+	@echo "$(BLUE)All services started successfully$(NC)"
+
 .PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
