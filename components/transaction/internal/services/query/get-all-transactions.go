@@ -55,12 +55,14 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 		for i := range trans {
 			if data, ok := metadataMap[trans[i].ID]; ok {
 				trans[i].Metadata = data
-				trans[i], err = uc.GetOperationsByTransaction(ctx, organizationID, ledgerID, trans[i], filter)
-				if err != nil {
-					mopentelemetry.HandleSpanError(&span, "Failed to get operations to transaction by id", err)
 
-					return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(transaction.Transaction{}).Name())
-				}
+			}
+
+			trans[i], err = uc.GetOperationsByTransaction(ctx, organizationID, ledgerID, trans[i], filter)
+			if err != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to get operations to transaction by id", err)
+
+				return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(transaction.Transaction{}).Name())
 			}
 		}
 	}
