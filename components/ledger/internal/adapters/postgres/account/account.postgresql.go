@@ -4,12 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 
 	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -679,10 +680,14 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
+	}
 
+	if acc.AllowSending != nil {
 		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.AllowSending)
+	}
 
+	if acc.AllowReceiving != nil {
 		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.AllowReceiving)
 	}
@@ -695,6 +700,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if !pkg.IsNilOrEmpty(acc.ProductID) {
 		updates = append(updates, "product_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.ProductID)
+	}
+
+	if !pkg.IsNilOrEmpty(acc.PortfolioID) {
+		updates = append(updates, "portfolio_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.PortfolioID)
 	}
 
 	record.UpdatedAt = time.Now()

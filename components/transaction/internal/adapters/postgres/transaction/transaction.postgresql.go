@@ -140,7 +140,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 		return nil, http.CursorPagination{}, err
 	}
 
-	var transactions []*Transaction
+	transactions := make([]*Transaction, 0)
 
 	decodedCursor := http.Cursor{}
 	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
@@ -233,11 +233,14 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 
 	transactions = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions, filter.Limit, orderDirection)
 
-	cur, err := http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions[0].ID, transactions[len(transactions)-1].ID)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+	cur := http.CursorPagination{}
+	if len(transactions) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions[0].ID, transactions[len(transactions)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
 
-		return nil, http.CursorPagination{}, err
+			return nil, http.CursorPagination{}, err
+		}
 	}
 
 	return transactions, cur, nil
@@ -274,7 +277,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	for rows.Next() {
 		var transaction TransactionPostgreSQLModel
-		
+
 		var body string
 
 		if err := rows.Scan(

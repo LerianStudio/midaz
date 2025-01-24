@@ -10,6 +10,10 @@ NC := \033[0m
 BOLD := \033[1m
 RED := \033[31m
 MAGENTA := \033[35m
+YELLOW := \033[33m
+GREEN := \033[32m
+CYAN := \033[36m
+WHITE := \033[37m
 
 DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
 DOCKER_MIN_VERSION := 20.10.13
@@ -145,6 +149,8 @@ check-hooks:
 
 .PHONY: set-env
 set-env:
+	@echo "$(YELLOW)WARNING:$(NC)"
+	@echo "$(YELLOW)Customize .env variables to fit your environment. Default values are for initial setup and may not be secure for production. Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
 	@echo "$(BLUE)Setting up environment files...$(NC)"
 	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
 	cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
