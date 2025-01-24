@@ -1,3 +1,10 @@
+## [1.46.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.4...v1.46.0-beta.5) (2025-01-24)
+
+
+### Bug Fixes
+
+* add PortfolioID to account update functionality :sparkles: :sparkles: :bug: :bug: ([ad04b2b](https://github.com/LerianStudio/midaz/commit/ad04b2bf79d735f0d1fd73c9e545b8e999f72d35))
+
 ## [1.46.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.3...v1.46.0-beta.4) (2025-01-23)
 
 
