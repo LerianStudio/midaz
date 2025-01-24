@@ -5,24 +5,6 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
-    },
-    {
-      "name":"ledger",
-      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
-      "hashing_algorithm":"rabbit_password_hashing_sha256",
-      "tags":"administrator"
-    },
-    {
-      "name":"transaction",
-      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
-      "hashing_algorithm":"rabbit_password_hashing_sha256",
-      "tags":"administrator"
-    },
-    {
-      "name":"audit",
-      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
-      "hashing_algorithm":"rabbit_password_hashing_sha256",
-      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -37,61 +19,18 @@
       "configure": ".*",
       "write": ".*",
       "read": ".*"
-    },
-    {
-      "user": "ledger",
-      "vhost": "/",
-      "configure": ".*",
-      "write": ".*",
-      "read": ".*"
-    },
-    {
-      "user": "transaction",
-      "vhost": "/",
-      "configure": ".*",
-      "write": ".*",
-      "read": ".*"
-    },
-    {
-      "user": "audit",
-      "vhost": "/",
-      "configure": ".*",
-      "write": ".*",
-      "read": ".*"
     }
   ],
   "queues": [
     {
-      "name": "audit_queue",
-      "vhost": "/",
-      "durable": true
-    },
-    {
-      "name": "transaction_operations_queue",
-      "vhost": "/",
-      "durable": true
-    },
-    {
-      "name": "ledger_accounts_queue",
+      "name": "audit-queue-00000000-0000-0000-0000-000000000000",
       "vhost": "/",
       "durable": true
     }
   ],
   "exchanges": [
     {
-      "name": "audit_exchange",
-      "vhost": "/",
-      "type": "direct",
-      "durable": true
-    },
-    {
-      "name": "transaction_operations_exchange",
-      "vhost": "/",
-      "type": "direct",
-      "durable": true
-    },
-    {
-      "name": "ledger_accounts_exchange",
+      "name": "audit-exchange-00000000-0000-0000-0000-000000000000",
       "vhost": "/",
       "type": "direct",
       "durable": true
@@ -99,25 +38,11 @@
   ],
   "bindings": [
     {
-      "source": "audit_exchange",
+      "source": "audit-exchange-00000000-0000-0000-0000-000000000000",
       "vhost": "/",
-      "destination": "audit_queue",
+      "destination": "audit-queue-00000000-0000-0000-0000-000000000000",
       "destination_type": "queue",
-      "routing_key": "audit_key"
-    },
-    {
-      "source": "transaction_operations_exchange",
-      "vhost": "/",
-      "destination": "transaction_operations_queue",
-      "destination_type": "queue",
-      "routing_key": "transaction_operations_key"
-    },
-    {
-      "source": "ledger_accounts_exchange",
-      "vhost": "/",
-      "destination": "ledger_accounts_queue",
-      "destination_type": "queue",
-      "routing_key": "ledger_accounts_key"
+      "routing_key": "audit-key-00000000-0000-0000-0000-000000000000"
     }
   ]
 }
