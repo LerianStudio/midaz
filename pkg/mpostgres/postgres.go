@@ -3,8 +3,11 @@ package mpostgres
 import (
 	"database/sql"
 	"errors"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"go.uber.org/zap"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -13,8 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mlog"
 
 	"github.com/bxcodec/dbresolver/v2"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -68,36 +69,46 @@ func (pc *PostgresConnection) Connect() error {
 		return err
 	}
 
-	primaryURL, err := url.Parse(filepath.ToSlash(migrationsPath))
+	files, err := os.ReadDir(migrationsPath)
 	if err != nil {
-		pc.Logger.Fatal("failed parse url",
-			zap.Error(err))
-
+		pc.Logger.Fatal("failed to read directory", zap.Error(err))
 		return err
 	}
 
-	primaryURL.Scheme = "file"
+	if len(files) != 0 {
+		primaryURL, err := url.Parse(filepath.ToSlash(migrationsPath))
+		if err != nil {
+			pc.Logger.Fatal("failed parse url",
+				zap.Error(err))
 
-	primaryDriver, err := postgres.WithInstance(dbPrimary, &postgres.Config{
-		MultiStatementEnabled: true,
-		DatabaseName:          pc.PrimaryDBName,
-		SchemaName:            "public",
-	})
-	if err != nil {
-		pc.Logger.Fatalf("failed to open connect to database %v", zap.Error(err))
-		return nil
-	}
+			return err
+		}
 
-	m, err := migrate.NewWithDatabaseInstance(primaryURL.String(), pc.PrimaryDBName, primaryDriver)
-	if err != nil {
-		pc.Logger.Fatal("failed to get migrations",
-			zap.Error(err))
+		primaryURL.Scheme = "file"
 
-		return err
-	}
+		primaryDriver, err := postgres.WithInstance(dbPrimary, &postgres.Config{
+			MultiStatementEnabled: true,
+			DatabaseName:          pc.PrimaryDBName,
+			SchemaName:            "public",
+		})
+		if err != nil {
+			pc.Logger.Fatalf("failed to open connect to database %v", zap.Error(err))
+			return nil
+		}
 
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		return err
+		m, err := migrate.NewWithDatabaseInstance(primaryURL.String(), pc.PrimaryDBName, primaryDriver)
+		if err != nil {
+			pc.Logger.Fatal("failed to get migrations",
+				zap.Error(err))
+
+			return err
+		}
+
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+			return err
+		}
+	} else {
+		pc.Logger.Warn("no files found in migrations directory")
 	}
 
 	if err := connectionDB.Ping(); err != nil {
