@@ -53,11 +53,11 @@ info:
 # Docker Compose Commands
 .PHONY: build
 build:
-	@$(DOCKER_CMD) -f docker-compose.yml up --build -d $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
 .PHONY: up
 up:
-	@$(DOCKER_CMD) -f docker-compose.yml up -d $(c)
+	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 
 .PHONY: start
 start:
