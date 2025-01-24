@@ -8,7 +8,6 @@ import (
 // Service is the application glue where we put all top level components to be used.
 type Service struct {
 	*Server
-	*ServerGRPC
 	mlog.Logger
 }
 
@@ -18,6 +17,5 @@ func (app *Service) Run() {
 	pkg.NewLauncher(
 		pkg.WithLogger(app.Logger),
 		pkg.RunApp("HTTP server", app.Server),
-		pkg.RunApp("gRPC server", app.ServerGRPC),
 	).Run()
 }

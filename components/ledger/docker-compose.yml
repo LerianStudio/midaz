@@ -9,7 +9,6 @@ services:
       - .env
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
-      - ${PROTO_PORT}:${PROTO_PORT}
     volumes:
       - .:/usr/src/app
     networks:

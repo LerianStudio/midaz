@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"fmt"
 
-	grpcin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/in"
 	httpin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
@@ -12,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/query"
@@ -21,7 +19,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
-	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mredis"
 	"github.com/LerianStudio/midaz/pkg/mzap"
 )
@@ -57,21 +54,13 @@ type Config struct {
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI               string `env:"RABBITMQ_URI"`
-	RabbitMQHost            string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
-	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`
-	RabbitMQKey             string `env:"RABBITMQ_KEY"`
-	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
 	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
 	RedisHost               string `env:"REDIS_HOST"`
+	RedisDB                 int    `env:"REDIS_DB"`
 	RedisPort               string `env:"REDIS_PORT"`
 	RedisUser               string `env:"REDIS_USER"`
 	RedisPassword           string `env:"REDIS_PASSWORD"`
@@ -130,26 +119,13 @@ func InitServers() *Service {
 		Logger:                 logger,
 	}
 
-	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
-		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
-
-	rabbitMQConnection := &mrabbitmq.RabbitMQConnection{
-		ConnectionStringSource: rabbitSource,
-		Host:                   cfg.RabbitMQHost,
-		Port:                   cfg.RabbitMQPortAMQP,
-		User:                   cfg.RabbitMQUser,
-		Pass:                   cfg.RabbitMQPass,
-		Queue:                  cfg.RabbitMQQueue,
-		Logger:                 logger,
-	}
-
 	redisSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
 
 	redisConnection := &mredis.RedisConnection{
 		Addr:     redisSource,
 		User:     cfg.RedisUser,
 		Password: cfg.RedisPassword,
-		DB:       0,
+		DB:       cfg.RedisDB,
 		Protocol: 3,
 		Logger:   logger,
 	}
@@ -163,9 +139,6 @@ func InitServers() *Service {
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
-	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
-
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	commandUseCase := &command.UseCase{
@@ -176,7 +149,6 @@ func InitServers() *Service {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
-		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
 	}
 
@@ -188,7 +160,6 @@ func InitServers() *Service {
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
 		MetadataRepo:     metadataMongoDBRepository,
-		RabbitMQRepo:     consumerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
 	}
 
@@ -226,13 +197,8 @@ func InitServers() *Service {
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
-	grpcApp := grpcin.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
-
-	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
-
 	return &Service{
-		Server:     serverAPI,
-		ServerGRPC: serverGRPC,
-		Logger:     logger,
+		Server: serverAPI,
+		Logger: logger,
 	}
 }
