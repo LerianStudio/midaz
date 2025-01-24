@@ -44,6 +44,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		Status:         uai.Status,
 		Alias:          uai.Alias,
 		ProductID:      uai.ProductID,
+		PortfolioID:    uai.PortfolioID,
 		AllowSending:   uai.AllowSending,
 		AllowReceiving: uai.AllowReceiving,
 		Metadata:       uai.Metadata,

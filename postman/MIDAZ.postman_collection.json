@@ -1974,7 +1974,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    // \"portfolioId\": {{portfolio_id}},\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
