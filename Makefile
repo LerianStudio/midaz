@@ -12,6 +12,7 @@ NC := $(shell command -v tput >/dev/null 2>&1 && tput sgr0 || echo '\033[0m')
 BOLD := $(shell command -v tput >/dev/null 2>&1 && tput bold || echo '\033[1m')
 RED := $(shell command -v tput >/dev/null 2>&1 && tput setaf 1 || echo '\033[0;31m')
 MAGENTA := $(shell command -v tput >/dev/null 2>&1 && tput setaf 5 || echo '\033[0;35m')
+GREEN := $(shell command -v tput >/dev/null 2>&1 && tput setaf 2 || echo '\033[0;32m')
 
 DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
 DOCKER_MIN_VERSION := 20.10.13
@@ -28,20 +29,83 @@ DOCKER_CMD := $(shell \
 GITHOOKS_PATH := ./.githooks
 GIT_HOOKS_PATH := ./.git/hooks
 
+# Check for required dependencies
+DOCKER_AVAILABLE := $(shell command -v docker >/dev/null 2>&1 && echo 1 || echo 0)
+GO_AVAILABLE := $(shell command -v go >/dev/null 2>&1 && echo 1 || echo 0)
+
+# If Go is available, check if GOPATH is in PATH
+ifeq ($(GO_AVAILABLE),1)
+	GOPATH := $(shell go env GOPATH)
+	PATH_WITH_GOPATH := $(PATH):$(GOPATH)/bin
+	GOLANGCI_LINT_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v golangci-lint >/dev/null 2>&1 && echo 1 || echo 0)
+	GORELEASER_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v goreleaser >/dev/null 2>&1 && echo 1 || echo 0)
+	GOSEC_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v gosec >/dev/null 2>&1 && echo 1 || echo 0)
+else
+	GOLANGCI_LINT_AVAILABLE := 0
+	GORELEASER_AVAILABLE := 0
+	GOSEC_AVAILABLE := 0
+endif
+
+# Installation instructions
+DOCKER_INSTALL_MSG := "Docker is not installed. Visit https://docs.docker.com/get-docker/ to install"
+GO_INSTALL_MSG := "Go is not installed. Visit https://golang.org/doc/install to install"
+GOLANGCI_LINT_INSTALL_MSG := "golangci-lint is not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+GORELEASER_INSTALL_MSG := "goreleaser is not installed. Visit https://goreleaser.com/install/ to install"
+GOSEC_INSTALL_MSG := "gosec is not installed. Run: go install github.com/securego/gosec/v2/cmd/gosec@latest"
+
 .PHONY: help
 help:
 	@echo "$(BOLD)Midaz Project Management Commands$(NC)"
 	@echo ""
+	@echo "$(BOLD)Required Dependencies Status:$(NC)"
+	@if [ $(DOCKER_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ Docker: $(DOCKER_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ Docker$(NC)"; \
+	fi
+	@if [ $(GO_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ Go: $(GO_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ Go$(NC)"; \
+	fi
+	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ golangci-lint: $(GOLANGCI_LINT_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ golangci-lint$(NC)"; \
+	fi
+	@if [ $(GORELEASER_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ goreleaser: $(GORELEASER_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ goreleaser$(NC)"; \
+	fi
+	@if [ $(GOSEC_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ gosec: $(GOSEC_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ gosec$(NC)"; \
+	fi
+	@echo ""
+	@echo "$(BOLD)Available Commands:$(NC)"
+	@echo ""
 	@echo "$(BOLD)Core Commands:$(NC)"
-	@echo "- make test                          - Run tests on all projects"
-	@echo "- make cover                         - Run test coverage"
+	@if [ $(GO_AVAILABLE) -eq 1 ]; then \
+		echo "- make test                          - Run tests on all projects"; \
+		echo "- make cover                         - Run test coverage"; \
+	else \
+		echo "$(RED)Go commands unavailable - install Go first$(NC)"; \
+	fi
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
-	@echo "- make lint                          - Run golangci-lint and performance checks"
-	@echo "- make format                        - Format Go code using gofmt"
-	@echo "- make check-logs                    - Verify error logging in usecases"
-	@echo "- make check-tests                   - Verify test coverage for components"
-	@echo "- make sec                           - Run security checks using gosec"
+	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 1 ]; then \
+		echo "- make lint                          - Run golangci-lint and performance checks"; \
+	fi
+	@if [ $(GO_AVAILABLE) -eq 1 ]; then \
+		echo "- make format                        - Format Go code using gofmt"; \
+		echo "- make check-logs                    - Verify error logging in usecases"; \
+		echo "- make check-tests                   - Verify test coverage for components"; \
+	fi
+	@if [ $(GOSEC_AVAILABLE) -eq 1 ]; then \
+		echo "- make sec                           - Run security checks using gosec"; \
+	fi
 	@echo ""
 	@echo "$(BOLD)Git Hook Commands:$(NC)"
 	@echo "- make setup-git-hooks               - Install and configure git hooks"
@@ -50,40 +114,43 @@ help:
 	@echo "$(BOLD)Setup Commands:$(NC)"
 	@echo "- make set-env                       - Copy .env.example to .env for all components"
 	@echo ""
-	@echo "$(BOLD)Root Commands:$(NC)"
-	@echo "- make build                         - Build all project services"
-	@echo "- make test                          - Run tests on all projects"
-	@echo "- make clean                         - Clean the directory tree of produced artifacts"
-	@echo "- make lint                          - Run static code analysis (lint)"
-	@echo "- make format                        - Run code formatter"
-	@echo "- make check-envs                    - Check if github hooks are installed and secret env on files are not exposed"
-	@echo "- make set-env                       - Run a command to copy all .env.example to .env into respective folders"
-	@echo "- make generate-docs-all             - Run a command to generate swagger docs in ledger and transaction app"
-	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
-	@echo "- make up                            - Start all services with Docker Compose"
-	@echo "- make down                          - Stop all services with Docker Compose"
-	@echo "- make auth COMMAND=<cmd>            - Run command in auth service"
-	@echo "- make infra COMMAND=<cmd>           - Run command in infra service"
-	@echo "- make ledger COMMAND=<cmd>          - Run command in ledger service"
-	@echo "- make transaction COMMAND=<cmd>     - Run command in transaction service"
-	@echo "- make audit COMMAND=<cmd>           - Run command in audit service"
-	@echo "- make all-services COMMAND=<cmd>    - Run command across all services"
-	@echo "- make clean-docker                  - Run command to clean docker"
+	@if [ $(DOCKER_AVAILABLE) -eq 1 ]; then \
+		echo "- make up                            - Start all services"; \
+		echo "- make stop                          - Stop all services containers"; \
+		echo "- make down                          - Remove all services containers"; \
+		echo "- make status                        - Show status of running containers"; \
+		echo "- make mdz-build                     - Build mdz (Midaz CLI) and install it locally"; \
+		echo ""; \
+		echo "- make auth COMMAND=<cmd>            - Run command in auth service"; \
+		echo "- make infra COMMAND=<cmd>           - Run command in infra service"; \
+		echo "- make ledger COMMAND=<cmd>          - Run command in ledger service"; \
+		echo "- make transaction COMMAND=<cmd>     - Run command in transaction service"; \
+		echo "- make audit COMMAND=<cmd>           - Run command in audit service"; \
+		echo "- make mdz COMMAND=<cmd>             - Run command in mdz service"; \
+		echo "- make all-services COMMAND=<cmd>    - Run command across all services"; \
+		echo "- make clean-docker                  - Run command to clean docker"; \
+	else \
+		echo "$(RED)Docker commands unavailable - install Docker first$(NC)"; \
+	fi
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
-	@echo "- make tidy                          - Run go mod tidy"
-	@echo "- make goreleaser                    - Create a release snapshot"
+	@if [ $(GO_AVAILABLE) -eq 1 ]; then \
+		echo "- make tidy                          - Run go mod tidy"; \
+	fi
+	@if [ $(GORELEASER_AVAILABLE) -eq 1 ]; then \
+		echo "- make goreleaser                    - Create a release snapshot"; \
+	fi
 	@echo ""
 
 # Core Commands
 .PHONY: test
 test:
-	@echo "$(BLUE)Running tests...$(NC)"
-	@if ! command -v go >/dev/null 2>&1; then \
-		echo "$(RED)Error: go is not installed$(NC)"; \
+	@if [ $(GO_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)Error: $(GO_INSTALL_MSG)$(NC)"; \
 		exit 1; \
 	fi
+	@echo "$(BLUE)Running tests...$(NC)"
 	go test -v ./... ./...
 
 .PHONY: cover
@@ -99,11 +166,11 @@ cover:
 # Code Quality Commands
 .PHONY: lint
 lint:
-	@echo "$(BLUE)Running linter and performance checks...$(NC)"
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "$(RED)Error: golangci-lint is not installed$(NC)"; \
+	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)Error: $(GOLANGCI_LINT_INSTALL_MSG)$(NC)"; \
 		exit 1; \
 	fi
+	@echo "$(BLUE)Running linter and performance checks...$(NC)"
 	@out=$$(golangci-lint run --fix ./... 2>&1); \
 	out_err=$$?; \
 	perf_out=$$(perfsprint ./... 2>&1); \
@@ -265,22 +332,61 @@ generate-docs-all:
 
 # Service Commands
 .PHONY: up
-up: 
-	@echo "$(BLUE)Starting all services...$(NC)"
+up:
+	@if [ $(DOCKER_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)Error: $(DOCKER_INSTALL_MSG)$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Starting all services containers...$(NC)"
 	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(AUDIT_DIR)/docker-compose.yml up --build -d
 	@echo "$(BLUE)All services started successfully$(NC)"
+
+.PHONY: status
+status:
+	@if [ $(DOCKER_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)Error: $(DOCKER_INSTALL_MSG)$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BOLD)Midaz Services Status:$(NC)"
+	@echo ""
+	@echo "$(BOLD)Auth Service:$(NC)"
+	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+	@echo ""
+	@echo "$(BOLD)Infra Service:$(NC)"
+	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+	@echo ""
+	@echo "$(BOLD)Ledger Service:$(NC)"
+	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+	@echo ""
+	@echo "$(BOLD)Transaction Service:$(NC)"
+	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+	@echo ""
+	@echo "$(BOLD)Audit Service:$(NC)"
+	@$(DOCKER_CMD) -f $(AUDIT_DIR)/docker-compose.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+
+.PHONY: stop
+stop:
+	@echo "$(BLUE)Stopping all services containers...$(NC)"
+	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml stop
+	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml stop
+	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml stop
+	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml stop
+	@$(DOCKER_CMD) -f $(AUDIT_DIR)/docker-compose.yml stop
+	@echo "$(BLUE)All services containers stopped successfully$(NC)"
 
 .PHONY: down
 down:
-	@echo "$(BLUE)Stopping all services...$(NC)"
+	@echo "$(BLUE)Removing all services containers...$(NC)"
 	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml down
 	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml down
 	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml down
 	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml down
-	@echo "$(BLUE)All services stopped successfully$(NC)"
+	@$(DOCKER_CMD) -f $(AUDIT_DIR)/docker-compose.yml down
+	@echo "$(BLUE)All services containers removed successfully$(NC)"
 
 .PHONY: auth
 auth:
@@ -307,6 +413,20 @@ audit:
 	@echo "$(BLUE)Executing command in audit service...$(NC)"
 	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
 
+.PHONY: mdz
+mdz:
+	@echo "$(BLUE)Executing command in mdz service...$(NC)"
+	$(MAKE) -C $(MDZ_DIR) $(COMMAND)
+
+.PHONY: mdz-build
+mdz-build:
+	@echo "$(BLUE)Building mdz (Midaz CLI) and installing it locally...$(NC)"
+	$(MAKE) -C $(MDZ_DIR) build
+	@echo "$(BLUE)Installing mdz (Midaz CLI) locally...$(NC)"
+	@echo "$(BLUE)We need to run this command as root, please enter your password.$(NC)"
+	@echo "$(GREEN)sudo cp -r bin/mdz /usr/local/bin$(NC)"
+	$(MAKE) -C $(MDZ_DIR) install-local
+
 .PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
@@ -314,7 +434,8 @@ all-services:
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
+	$(MAKE) -C $(AUDIT_DIR) $(COMMAND) && \
+	$(MAKE) -C $(MDZ_DIR) $(COMMAND)
 
 .PHONY: clean-docker
 clean-docker:
