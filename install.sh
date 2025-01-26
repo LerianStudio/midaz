@@ -1,164 +1,211 @@
 #!/bin/bash
 
-# Color definitions
-BLUE='\033[0;34m'
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
-BOLD='\033[1m'
+# Function to print step headers
+print_step() {
+    echo -e "\n--------------------------------------------------"
+    echo -e "--- Step $1: $2"
+    echo -e "--------------------------------------------------"
+}
+
+# Function to print error messages
+print_error() {
+    echo -e "ERROR: $1"
+    echo -e "Suggestion: $2"
+}
+
+# Function to print warning messages
+print_warning() {
+    echo -e "WARNING: $1"
+    echo -e "Suggestion: $2"
+}
 
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
-# Function to install gum based on OS
-install_gum() {
-    if command_exists go; then
-        echo -e "${BLUE}Installing gum via Go (no elevated privileges needed)${NC}"
-        go install github.com/charmbracelet/gum@latest
-        return
-    elif [[ "$OSTYPE" == "darwin"* ]]; then
-        echo -e "${BLUE}Installing gum via Homebrew (no elevated privileges needed)${NC}"
-        brew install gum
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Check for different package managers
-        if command_exists nix-env; then
-            echo -e "${BLUE}Installing gum via Nix (no elevated privileges needed)${NC}"
-            nix-env -iA nixpkgs.gum
-        elif command_exists flox; then
-            echo -e "${BLUE}Installing gum via Flox (no elevated privileges needed)${NC}"
-            flox install gum
-        elif command_exists apt; then
-            echo -e "${BLUE}Installing gum via apt. Elevated privileges are needed to:${NC}"
-            echo "- Create system directory in /etc/apt/keyrings"
-            echo "- Write GPG key and repo config to system directories" 
-            echo "- Update package lists and install system packages"
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-            sudo apt update && sudo apt install gum
-        elif command_exists pacman; then
-            echo -e "${BLUE}Installing gum via pacman. Elevated privileges needed:${NC}"
-            echo "- Install packages system-wide"
-            sudo pacman -S gum
-        elif command_exists dnf || command_exists yum; then
-            echo -e "${BLUE}Installing gum via dnf/yum. Elevated privileges needed to:${NC}"
-            echo "- Configure repository"
-            echo "- Import GPG key"
-            echo "- Install packages system-wide"
-            echo '[charm]\nname=Charm\nbaseurl=https://repo.charm.sh/yum/\nenabled=1\ngpgcheck=1\ngpgkey=https://repo.charm.sh/yum/gpg.key' | sudo tee /etc/yum.repos.d/charm.repo
-            sudo rpm --import https://repo.charm.sh/yum/gpg.key
-            if command_exists dnf; then
-                sudo dnf install gum
-            else
-                sudo yum install gum
-            fi
-        elif command_exists zypper; then
-            echo -e "${BLUE}Installing gum via zypper. Elevated privileges needed to:${NC}"
-            echo "- Refresh repositories"
-            echo "- Install packages system-wide"
-            sudo zypper refresh
-            sudo zypper install gum
-        elif command_exists apk; then
-            echo -e "${BLUE}Installing gum via apk. Elevated privileges needed to:${NC}"
-            echo "- Install packages system-wide"
-            sudo apk add gum
-        else
-            echo "No supported package manager found"
-            exit 1
-        fi
-    elif [[ "$OSTYPE" == "msys"* ]] || [[ "$OSTYPE" == "cygwin"* ]]; then
-        # Windows
-        if command_exists winget; then
-            echo -e "${BLUE}Installing gum via winget (admin privileges handled automatically)${NC}"
-            winget install charmbracelet.gum
-        elif command_exists scoop; then
-            echo -e "${BLUE}Installing gum via scoop (no elevated privileges needed)${NC}"
-            scoop install charm-gum
-        elif command_exists choco; then
-            echo -e "${BLUE}Installing gum via Chocolatey (admin privileges handled automatically)${NC}"
-            choco install gum
-        else
-            echo "Please install a package manager (winget, scoop, or chocolatey) first"
-            exit 1
-        fi
-    else
-        echo "Unsupported operating system"
-        exit 1
+# Function to ask for confirmation
+confirm_step() {
+    echo -e "\nThis step will: $1"
+    echo -n "Do you want to proceed? [y/N] "
+    read -r response
+    if [[ ! $response =~ ^[Yy]$ ]]; then
+        echo -e "\nInstallation cancelled by user. Exiting..."
+        exit 0
     fi
 }
 
-# Check for gum and offer to install it
-if ! command_exists gum; then
-    echo -e "${BLUE}${BOLD}Gum is not installed. This tool helps create beautiful interactive CLI workflows.${NC}"
-    echo -e "${BLUE}Would you like to install gum? (y/n)${NC}"
-    read -r install_gum_response
-    if [[ $install_gum_response =~ ^[Yy]$ ]]; then
-        install_gum
-    else
-        echo -e "${RED}This script works best with gum. Exiting...${NC}"
+# Clear screen
+clear 2>/dev/null || cls 2>/dev/null
+
+# Installation Process Start
+cat pkg/shell/logo.txt
+echo -e "\n=============================================="
+echo -e "           MIDAZ INSTALLATION WIZARD           "
+echo -e "==============================================\n"
+
+# Check OS type
+OS="$(uname -s)"
+echo "System Detection:"
+case "${OS}" in
+    Linux*)     
+        if [[ "$(uname -r)" == *microsoft* ]]; then
+            echo "--- Running on Windows Subsystem for Linux (WSL)"
+        else
+            echo "--- Running on Linux"
+        fi
+        ;;
+    Darwin*)    
+        echo "--- Running on macOS"
+        ;;
+    CYGWIN*|MINGW*|MSYS*)
+        echo "--- Running on Windows"
+        ;;
+    *)
+        echo "ERROR: Unsupported operating system: ${OS}"
+        echo "Please contact Lerian's support team on GitHub if you need help with this."
         exit 1
+        ;;
+esac
+
+# Check if git is installed
+if ! command_exists git; then
+    print_error "Git is not installed" "Please install git first to proceed with the installation"
+    exit 1
+fi
+
+# Repository setup and update checks
+if [ ! -d ".git" ] || ! git remote -v 2>/dev/null | grep -q "lerianstudio/midaz"; then
+    print_step "0" "Repository Setup"
+    
+    DEFAULT_DIR="$HOME/Downloads/midaz"
+    
+    echo "Default installation directory: ${DEFAULT_DIR}"
+    echo -n "Would you like to use a different directory? [y/N] "
+    read -r change_dir
+    
+    if [[ $change_dir =~ ^[Yy]$ ]]; then
+        echo -n "Please enter the full path for installation: "
+        read -r INSTALL_DIR
+    else
+        INSTALL_DIR="$DEFAULT_DIR"
+    fi
+    
+    # Create and setup repository
+    mkdir -p "$INSTALL_DIR"
+    echo "Cloning Midaz repository into: ${INSTALL_DIR}"
+    
+    if ! git clone https://github.com/lerianstudio/midaz.git "$INSTALL_DIR"; then
+        print_error "Failed to clone repository" "Check your internet connection and try again"
+        rm -rf "$INSTALL_DIR"
+        exit 1
+    fi
+    
+    cd "$INSTALL_DIR"
+    echo "Repository cloned successfully"
+    echo "Running installation from the cloned repository..."
+    
+    if [ -f "./install.sh" ]; then
+        chmod +x ./install.sh
+        exec ./install.sh
+    else
+        print_error "Installation script not found in repository" "Please check if the repository structure is correct"
+        rm -rf "$INSTALL_DIR"
+        exit 1
+    fi
+    exit 1
+else
+    print_step "0" "Repository Update Check"
+    echo "Checking if repository is up to date..."
+    git remote update >/dev/null 2>&1
+    
+    LOCAL=$(git rev-parse @)
+    REMOTE=$(git rev-parse @{u})
+    
+    if [ "$LOCAL" != "$REMOTE" ]; then
+        print_warning "Repository is not up to date" "Installer can update the repository automatically or you can proceed with the installation"
+        echo -n "Would you like to update automatically? [Y/n] "
+        read -r update_repo
+        
+        if [[ ! $update_repo =~ ^[Nn]$ ]]; then
+            if ! git pull origin main; then
+                print_error "Failed to update repository" "Please update manually or check your internet connection"
+                exit 1
+            fi
+            echo "Repository updated successfully"
+            exec ./install.sh
+        else
+            echo "Continuing with current version..."
+        fi
+    else
+        echo "Repository is up to date"
     fi
 fi
 
-clear
+# Installation Process
+# -------------------
 
-# Welcome message
-gum style --border normal --margin "1" --padding "1" --border-foreground 212 "Welcome to the Midaz Installation Script"
+print_step "1" "System Dependencies Check"
+confirm_step "Check your system for required dependencies using 'make check-dependencies'"
+echo "Checking system dependencies..."
+if ! make check-dependencies; then
+    print_warning "Missing dependencies detected" "Most of these dependencies are required to run local 'make' tuning commands. However, if you already have Docker installed, you can continue with the installation using Docker containers."
+    echo -n "Continue anyway, installing using Docker containers? [y/N] "
+    read -r response
+    [[ ! $response =~ ^[Yy]$ ]] && exit 1
+fi
 
-# Step 1: Check Dependencies
-gum confirm "Would you like to check system dependencies? This will verify if you have all required tools installed." && {
-    echo -e "\n${BLUE}${BOLD}Step 1: Checking Dependencies${NC}"
-    gum spin --spinner dot --title "Checking dependencies..." -- make help
+print_step "2" "Environment Configuration"
+confirm_step "Set up environment files using 'make set-env'"
+echo "Setting up environment files..."
+if ! make set-env; then
+    print_error "Environment setup failed" "Check file permissions and try again"
+    exit 1
+fi
 
-    # Ask to proceed only if there are no critical errors
-    if make help | grep -q "✗"; then
-        echo -e "\n${RED}Some dependencies are missing. Please install them before proceeding.${NC}"
-        gum confirm "Would you like to continue anyway?" || exit 1
+print_step "3" "Services Initialization"
+confirm_step "Start all required services using Docker"
+echo "Starting services..."
+if ! make up; then
+    print_error "Service startup failed" "Check Docker status and logs"
+    exit 1
+fi
+echo "Waiting for services to initialize..."
+sleep 10
+
+print_step "4" "MDZ CLI Installation"
+echo "You can install the Midaz CLI locally or run it directly from the binary folder"
+echo "The binary is already built and available at: components/mdz/bin/mdz"
+echo -n "Would you like to install MDZ CLI locally? This will require elevated permissions. [y/N] "
+read -r response
+if [[ $response =~ ^[Yy]$ ]]; then
+    echo "Installing MDZ CLI..."
+    if ! make mdz-build; then
+        print_error "MDZ CLI installation failed" "Check build logs for details"
+        echo "You can still use MDZ CLI from: components/mdz/bin/mdz"
     fi
-}
+else
+    echo "Skipping MDZ CLI installation. You can find the binary at: components/mdz/bin/mdz"
+fi
 
-# Step 2: Environment Setup
-gum confirm "Would you like to set up environment files? This will create .env files from examples for all services." && {
-    echo -e "\n${BLUE}${BOLD}Step 2: Setting Up Environment Files${NC}"
-    gum spin --spinner dot --title "Setting up environment files..." -- make set-env
-}
-
-# Step 3: Start Services
-gum confirm "Would you like to start all services? This will build and start all Docker containers." && {
-    echo -e "\n${BLUE}${BOLD}Step 3: Starting Services${NC}"
-    gum spin --spinner dot --title "Starting services..." -- make up
-
-    # Wait for services to be ready
-    echo "Waiting for services to be ready..."
-    sleep 10
-}
-
-# Step 4: Build MDZ CLI
-gum confirm "Would you like to build and install the MDZ CLI locally? This will require sudo privileges." && {
-    echo -e "\n${BLUE}${BOLD}Step 4: Building MDZ CLI${NC}"
-    gum spin --spinner dot --title "Building and installing MDZ CLI..." -- make mdz-build
-}
-
-# Step 5: Final Status Check
-echo -e "\n${BLUE}${BOLD}Step 5: Checking Final Status${NC}"
-gum spin --spinner dot --title "Checking service status..." -- make status
+print_step "5" "Final Status Check"
+confirm_step "Verify the installation status of all services"
+echo "Verifying installation..."
+make status
 
 # Installation Complete
-gum style \
-	--border normal \
-	--margin "1" \
-	--padding "1" \
-	--border-foreground 212 \
-	"Installation Complete! 🎉" \
-	"" \
-	"You can use 'make help' to see available commands." \
-	"Use 'make status' to check services status at any time."
+echo -e "\n================================================"
+echo -e "            INSTALLATION COMPLETE! 🎉             "
+echo -e "================================================"
 
-# Optional: Show MDZ CLI help if it was installed
+echo -e "\nAvailable commands:"
+echo "-------------------"
+echo "  make help    - Show all available commands"
+echo "  make status  - Check services status"
+
+# Show MDZ CLI help if installed
 if command_exists mdz; then
-    gum confirm "Would you like to see the MDZ CLI help?" && {
-        mdz --help
-    }
-fi 
+    echo -n "Would you like to view MDZ CLI help? [y/N] "
+    read -r response
+    [[ $response =~ ^[Yy]$ ]] && mdz --help
+fi

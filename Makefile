@@ -13,6 +13,7 @@ BOLD := $(shell command -v tput >/dev/null 2>&1 && tput bold || echo '\033[1m')
 RED := $(shell command -v tput >/dev/null 2>&1 && tput setaf 1 || echo '\033[0;31m')
 MAGENTA := $(shell command -v tput >/dev/null 2>&1 && tput setaf 5 || echo '\033[0;35m')
 GREEN := $(shell command -v tput >/dev/null 2>&1 && tput setaf 2 || echo '\033[0;32m')
+YELLOW := $(shell command -v tput >/dev/null 2>&1 && tput setaf 3 || echo '\033[0;33m')
 
 DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
 DOCKER_MIN_VERSION := 20.10.13
@@ -55,36 +56,9 @@ GOSEC_INSTALL_MSG := "gosec is not installed. Run: go install github.com/secureg
 
 .PHONY: help
 help:
-	@echo "$(BOLD)Midaz Project Management Commands$(NC)"
-	@echo ""
-	@echo "$(BOLD)Required Dependencies Status:$(NC)"
-	@if [ $(DOCKER_AVAILABLE) -eq 0 ]; then \
-		echo "$(RED)✗ Docker: $(DOCKER_INSTALL_MSG)$(NC)"; \
-	else \
-		echo "$(BLUE)✓ Docker$(NC)"; \
-	fi
-	@if [ $(GO_AVAILABLE) -eq 0 ]; then \
-		echo "$(RED)✗ Go: $(GO_INSTALL_MSG)$(NC)"; \
-	else \
-		echo "$(BLUE)✓ Go$(NC)"; \
-	fi
-	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 0 ]; then \
-		echo "$(RED)✗ golangci-lint: $(GOLANGCI_LINT_INSTALL_MSG)$(NC)"; \
-	else \
-		echo "$(BLUE)✓ golangci-lint$(NC)"; \
-	fi
-	@if [ $(GORELEASER_AVAILABLE) -eq 0 ]; then \
-		echo "$(RED)✗ goreleaser: $(GORELEASER_INSTALL_MSG)$(NC)"; \
-	else \
-		echo "$(BLUE)✓ goreleaser$(NC)"; \
-	fi
-	@if [ $(GOSEC_AVAILABLE) -eq 0 ]; then \
-		echo "$(RED)✗ gosec: $(GOSEC_INSTALL_MSG)$(NC)"; \
-	else \
-		echo "$(BLUE)✓ gosec$(NC)"; \
-	fi
-	@echo ""
-	@echo "$(BOLD)Available Commands:$(NC)"
+	@echo "$(BOLD)$(YELLOW)MIDAZ PROJECT MANAGEMENT COMMANDS$(NC)"
+	@echo "$(YELLOW)* midaz is licensed under the apache 2.0 license$(NC)"
+	@echo "$(YELLOW)* visit: https://github.com/lerianstudio/midaz$(NC)"
 	@echo ""
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@if [ $(GO_AVAILABLE) -eq 1 ]; then \
@@ -113,6 +87,7 @@ help:
 	@echo ""
 	@echo "$(BOLD)Setup Commands:$(NC)"
 	@echo "- make set-env                       - Copy .env.example to .env for all components"
+	@echo "- make check-dependencies            - Check status of required dependencies"
 	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
 	@if [ $(DOCKER_AVAILABLE) -eq 1 ]; then \
@@ -142,6 +117,39 @@ help:
 		echo "- make goreleaser                    - Create a release snapshot"; \
 	fi
 	@echo ""
+
+# Check Dependencies
+.PHONY: check-dependencies
+check-dependencies:
+	@echo "$(BOLD)Required Dependencies Status:$(NC)"
+	@if [ $(DOCKER_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ Docker: $(DOCKER_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ Docker$(NC)"; \
+	fi
+	@if [ $(GO_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ Go: $(GO_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ Go$(NC)"; \
+		if ! echo "$(PATH)" | grep -q "$(shell go env GOPATH)/bin"; then \
+			echo "$(RED)⚠ Warning: GOPATH is not in your PATH. Add '$(shell go env GOPATH)/bin' to your PATH to use Go tools properly$(NC)"; \
+		fi; \
+	fi
+	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ golangci-lint: $(GOLANGCI_LINT_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ golangci-lint$(NC)"; \
+	fi
+	@if [ $(GORELEASER_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ goreleaser: $(GORELEASER_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ goreleaser$(NC)"; \
+	fi
+	@if [ $(GOSEC_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ gosec: $(GOSEC_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ gosec$(NC)"; \
+	fi
 
 # Core Commands
 .PHONY: test
@@ -420,12 +428,26 @@ mdz:
 
 .PHONY: mdz-build
 mdz-build:
-	@echo "$(BLUE)Building mdz (Midaz CLI) and installing it locally...$(NC)"
-	$(MAKE) -C $(MDZ_DIR) build
-	@echo "$(BLUE)Installing mdz (Midaz CLI) locally...$(NC)"
-	@echo "$(BLUE)We need to run this command as root, please enter your password.$(NC)"
-	@echo "$(GREEN)sudo cp -r bin/mdz /usr/local/bin$(NC)"
-	$(MAKE) -C $(MDZ_DIR) install-local
+	@if [ -f "$(MDZ_DIR)/bin/mdz" ]; then \
+		echo "$(BLUE)MDZ binary already exists. Do you want to rebuild it? [y/N]$(NC)"; \
+		read -r response; \
+		if [[ $$response =~ ^[Yy]$$ ]]; then \
+			echo "$(BLUE)Rebuilding mdz (Midaz CLI)...$(NC)"; \
+			$(MAKE) -C $(MDZ_DIR) build; \
+		fi; \
+	else \
+		echo "$(BLUE)Building mdz (Midaz CLI)...$(NC)"; \
+		$(MAKE) -C $(MDZ_DIR) build; \
+	fi
+	@echo "$(BLUE)Would you like to install MDZ CLI locally? This will require elevated privileges. [y/N]$(NC)"
+	@read -r response; \
+	if [[ $$response =~ ^[Yy]$$ ]]; then \
+		echo "$(BLUE)Installing mdz (Midaz CLI) locally...$(NC)"; \
+		echo "$(BLUE)We need to run this command as root, please enter your password.$(NC)"; \
+		$(MAKE) -C $(MDZ_DIR) install-local; \
+	else \
+		echo "$(YELLOW)Skipping local installation. You can find the binary at: $(MDZ_DIR)/bin/mdz$(NC)"; \
+	fi
 
 .PHONY: all-services
 all-services:
@@ -450,7 +472,7 @@ tidy:
 .PHONY: goreleaser
 goreleaser:
 	@echo "$(BLUE)Creating release snapshot...$(NC)"
-	goreleaser release --snapshot --skip-publish --rm-dist
+	goreleaser release --snapshot --clean
 
 # Additional Commands (not in help)
 .PHONY: test_integration_cli
