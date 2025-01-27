@@ -5,6 +5,7 @@ go 1.23
 toolchain go1.23.0
 
 require (
+	github.com/FusionAuth/go-client v0.0.0-20241221155813-3c38fd514d84
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1

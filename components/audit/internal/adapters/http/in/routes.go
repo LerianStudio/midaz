@@ -2,6 +2,7 @@ package in
 
 import (
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
+	"github.com/LerianStudio/midaz/pkg/mfusionauth"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -11,7 +12,7 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, th *TrillianHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, fc *mfusionauth.FusionAuthConnection, cc *mcasdoor.CasdoorConnection, th *TrillianHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -20,7 +21,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(http.WithHTTPLogging(http.WithCustomLogger(lg)))
-	jwt := http.NewJWTMiddleware(cc)
+	//jwt := http.NewJWTMiddleware(cc)
+	jwt := http.NewJWTMiddleware(fc)
 
 	// -- Routes --
 

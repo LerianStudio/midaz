@@ -29,6 +29,7 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Post("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))
 	f.Patch("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))
 	f.Get("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.GetAllOrganizations)
+	f.Get("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.GetAllOrganizations)
 	f.Get("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.ParseUUIDPathParameters, oh.GetOrganizationByID)
 	f.Delete("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.ParseUUIDPathParameters, oh.DeleteOrganizationByID)
 

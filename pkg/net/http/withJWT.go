@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"github.com/LerianStudio/midaz/pkg/mfusionauth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -192,17 +193,17 @@ func (p *JWKProvider) Fetch(ctx context.Context) (jwk.Set, error) {
 
 // JWTMiddleware represents a middleware which protects endpoint using JWT tokens.
 type JWTMiddleware struct {
-	connection *mcasdoor.CasdoorConnection
+	connection *mfusionauth.FusionAuthConnection
 	JWK        *JWKProvider
 }
 
 // NewJWTMiddleware create an instance of JWTMiddleware
 // It uses JWK cache duration of 1 hour.
-func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
+func NewJWTMiddleware(fc *mfusionauth.FusionAuthConnection) *JWTMiddleware {
 	c := &JWTMiddleware{
-		connection: cc,
+		connection: fc,
 		JWK: &JWKProvider{
-			URI:           cc.JWKUri,
+			URI:           fc.JWKSUrl,
 			CacheDuration: jwkDefaultDuration,
 		},
 	}

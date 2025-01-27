@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"fmt"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mfusionauth"
 
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/http/in"
@@ -35,6 +36,10 @@ type Config struct {
 	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
 	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
 	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
+	FusionAuthBaseUrl       string `env:"FUSION_AUTH_BASE_URL"`
+	FusionAuthAPIKey        string `env:"FUSION_AUTH_API_KEY"`
+	FusionAuthJWKSUrl       string `env:"FUSION_AUTH_JWKS_URL"`
+	FusionAuthTimeout       string `env:"FUSION_AUTH_TIMEOUT"`
 	MongoURI                string `env:"MONGO_URI"`
 	MongoDBHost             string `env:"MONGO_HOST"`
 	MongoDBName             string `env:"MONGO_NAME"`
@@ -79,6 +84,14 @@ func InitServers() *Service {
 		ApplicationName:  cfg.CasdoorApplicationName,
 		ModelName:        cfg.CasdoorModelName,
 		Logger:           logger,
+	}
+
+	fusionAuthConnection := &mfusionauth.FusionAuthConnection{
+		BaseUrl: cfg.FusionAuthBaseUrl,
+		APIKey:  cfg.FusionAuthAPIKey,
+		JWKSUrl: cfg.FusionAuthJWKSUrl,
+		Timeout: cfg.FusionAuthTimeout,
+		Logger:  logger,
 	}
 
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
@@ -126,7 +139,7 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	app := in.NewRouter(logger, telemetry, casDoorConnection, trillianHandler)
+	app := in.NewRouter(logger, telemetry, fusionAuthConnection, casDoorConnection, trillianHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
