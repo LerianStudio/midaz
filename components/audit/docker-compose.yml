@@ -1,6 +1,8 @@
 services:
   midaz-audit:
     container_name: midaz-audit
+    depends_on:
+      - midaz-audit-server
     restart: always
     build:
       context: ../../

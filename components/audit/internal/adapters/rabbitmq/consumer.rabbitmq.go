@@ -24,6 +24,7 @@ type QueueHandlerFunc func(ctx context.Context, body []byte) error
 type ConsumerRoutes struct {
 	conn   *mrabbitmq.RabbitMQConnection
 	routes map[string]QueueHandlerFunc
+	Queue  string
 	mlog.Logger
 	mopentelemetry.Telemetry
 }
@@ -33,6 +34,7 @@ func NewConsumerRoutes(conn *mrabbitmq.RabbitMQConnection, logger mlog.Logger, t
 	cr := &ConsumerRoutes{
 		conn:      conn,
 		routes:    make(map[string]QueueHandlerFunc),
+		Queue:     conn.Queue,
 		Logger:    logger,
 		Telemetry: *telemetry,
 	}

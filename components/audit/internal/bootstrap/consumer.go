@@ -25,7 +25,7 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *services.Us
 	}
 
 	// Registry handlers for each queue
-	routes.Register("audit_queue", consumer.handleAuditQueue)
+	routes.Register(routes.Queue, consumer.handleAuditQueue)
 
 	return consumer
 }
