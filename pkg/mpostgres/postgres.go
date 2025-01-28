@@ -108,12 +108,11 @@ func (pc *PostgresConnection) Connect() error {
 			return err
 		}
 	} else {
-		pc.Logger.Warn("no files found in migrations directory")
+		pc.Logger.Warn("No files found in migrations to run on database ⚠️ \n")
 	}
 
 	if err := connectionDB.Ping(); err != nil {
-		pc.Logger.Infof("PostgresConnection.Ping %v",
-			zap.Error(err))
+		pc.Logger.Infof("PostgresConnection.Ping %v", zap.Error(err))
 
 		return err
 	}
