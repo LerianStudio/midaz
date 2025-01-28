@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -90,17 +90,17 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 	}
 }
 
-func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) (bool, error) {
+func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*mmodel.Account) (bool, error) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
 
 	ctx, span := tracer.Start(ctx, "redis.lock_balance_version")
 	defer span.End()
 
-	accountsMap := make(map[string]*account.Account)
+	accountsMap := make(map[string]*mmodel.Account)
 	for _, acc := range accounts {
-		accountsMap[acc.Id] = acc
-		accountsMap[acc.Alias] = acc
+		accountsMap[acc.ID] = acc
+		accountsMap[*acc.Alias] = acc
 	}
 
 	for _, key := range keys {

@@ -3,33 +3,49 @@ package query
 import (
 	"context"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+	"reflect"
+	"strings"
 )
 
 // GetAccountsLedger methods responsible to get accounts on ledger by gRpc.
-func (uc *UseCase) GetAccountsLedger(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, input []string) ([]*account.Account, error) {
+func (uc *UseCase) GetAccountsLedger(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, input []string) ([]*mmodel.Account, error) {
 	span := trace.SpanFromContext(ctx)
 
-	var ids []string
+	var uuids []uuid.UUID
+
+	var invalidUUIDs []string
 
 	var aliases []string
 
 	for _, item := range input {
 		if pkg.IsUUID(item) {
-			ids = append(ids, item)
+			parsedUUID, err := uuid.Parse(item)
+
+			if err != nil {
+				invalidUUIDs = append(invalidUUIDs, item)
+				continue
+			} else {
+				uuids = append(uuids, parsedUUID)
+			}
 		} else {
 			aliases = append(aliases, item)
 		}
 	}
 
-	var accounts []*account.Account
+	if len(invalidUUIDs) > 0 {
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, reflect.TypeOf(mmodel.Account{}).Name(), strings.Join(invalidUUIDs, ", "))
+	}
 
-	if len(ids) > 0 {
-		gRPCAccounts, err := uc.AccountGRPCRepo.GetAccountsByIds(ctx, token, organizationID, ledgerID, ids)
+	var accounts []*mmodel.Account
+
+	if len(uuids) > 0 {
+		acc, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, uuids)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get account by ids gRPC on Ledger", err)
 
@@ -38,11 +54,11 @@ func (uc *UseCase) GetAccountsLedger(ctx context.Context, logger mlog.Logger, to
 			return nil, err
 		}
 
-		accounts = append(accounts, gRPCAccounts.GetAccounts()...)
+		accounts = append(accounts, acc...)
 	}
 
 	if len(aliases) > 0 {
-		gRPCAccounts, err := uc.AccountGRPCRepo.GetAccountsByAlias(ctx, token, organizationID, ledgerID, aliases)
+		acc, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get account by alias gRPC on Ledger", err)
 
@@ -51,7 +67,7 @@ func (uc *UseCase) GetAccountsLedger(ctx context.Context, logger mlog.Logger, to
 			return nil, err
 		}
 
-		accounts = append(accounts, gRPCAccounts.GetAccounts()...)
+		accounts = append(accounts, acc...)
 	}
 
 	return accounts, nil

@@ -2,6 +2,7 @@ package command
 
 import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -19,6 +20,9 @@ type UseCase struct {
 
 	// AssetRateRepo provides an abstraction on top of the operation data source.
 	AssetRateRepo assetrate.Repository
+
+	// AccountRepo provides an abstraction on top of the account data source.
+	AccountRepo account.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository

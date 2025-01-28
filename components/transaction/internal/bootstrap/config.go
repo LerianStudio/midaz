@@ -5,6 +5,7 @@ import (
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -147,6 +148,7 @@ func InitServers() *Service {
 		Logger:   logger,
 	}
 
+	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
 	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
@@ -162,6 +164,7 @@ func InitServers() *Service {
 		TransactionRepo: transactionPostgreSQLRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		AccountRepo:     accountPostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
@@ -171,6 +174,7 @@ func InitServers() *Service {
 		TransactionRepo: transactionPostgreSQLRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		AccountRepo:     accountPostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    consumerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,

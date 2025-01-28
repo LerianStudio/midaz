@@ -11,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
@@ -589,7 +588,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to convert accounts from struct to JSON string", err)
 	}
 
-	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, accounts)
+	err = handler.Command.UpdateAccounts(ctxProcessAccounts, *validate, organizationID, ledgerID, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
 
@@ -664,11 +663,11 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 }
 
 // getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, body goldModel.Transaction) ([]*account.Account, error) {
+func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, body goldModel.Transaction) ([]*mmodel.Account, error) {
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
-	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, token, organizationID, ledgerID, validate.Aliases)
+	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get accounts", err)
 
