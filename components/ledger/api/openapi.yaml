@@ -2388,6 +2388,9 @@ components:
         productId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
+        portfolioId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
         status:
           $ref: '#/components/schemas/Status'
       type: object

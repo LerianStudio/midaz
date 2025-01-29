@@ -1,3 +1,41 @@
+## [1.46.0](https://github.com/LerianStudio/midaz/compare/v1.45.0...v1.46.0) (2025-01-24)
+
+
+### Features
+
+* add account_alias and account_external_brl on postman; :sparkles: ([cc20914](https://github.com/LerianStudio/midaz/commit/cc209146430f75c6032e361f83b7b5312ad28e17))
+* add user midaz non root to help to send cpu and mem to grafana; :sparkles: ([e6e30ad](https://github.com/LerianStudio/midaz/commit/e6e30ad0416f6e477ff0b4a1c00f76d294bf3ae3))
+* warning about customize .env variables to fit your environment; add more colors; :sparkles: ([55874b5](https://github.com/LerianStudio/midaz/commit/55874b50eabb591da363d3015b008f61e89b1de9))
+
+
+### Bug Fixes
+
+* add mongo uri variable; add rabbit uri variable; :bug: ([5af9415](https://github.com/LerianStudio/midaz/commit/5af9415ff706cb1820401c8482373df98d27533c))
+* add PortfolioID to account update functionality :sparkles: :sparkles: :bug: :bug: ([ad04b2b](https://github.com/LerianStudio/midaz/commit/ad04b2bf79d735f0d1fd73c9e545b8e999f72d35))
+* add slice make init to avoid panic and valida len os slice before calculate cursor :bug: ([b67bec7](https://github.com/LerianStudio/midaz/commit/b67bec78ec3e16a11e9e6451f97d3f835d67e10f))
+* add some normalize to docker :bug: ([b49825d](https://github.com/LerianStudio/midaz/commit/b49825de06567695b5c7feb723e343fa62a638d5))
+* add sources, destinations and operations to get transactions; :bug: ([f9afbef](https://github.com/LerianStudio/midaz/commit/f9afbefd72126dd665da782aa9ce794754907248))
+* go lint :bug: ([ee0ea3f](https://github.com/LerianStudio/midaz/commit/ee0ea3f5c6c83041662118a5a9931539cae2e867))
+* grafana final adjusts to always open asking for login :bug: ([2363b63](https://github.com/LerianStudio/midaz/commit/2363b63c4d3c25ee64f819c6cd2c4108f5bee48c))
+* implements login screen to grafana otel :bug: ([3ce2669](https://github.com/LerianStudio/midaz/commit/3ce2669d078a1ba68f17b8d51a178eae5c6fbcff))
+* remove command to broken grafana :bug: ([6421ab1](https://github.com/LerianStudio/midaz/commit/6421ab16285e7247a62f3c107edc7300cd8e642b))
+* remove from outside metadata validation :bug: ([d9cebc0](https://github.com/LerianStudio/midaz/commit/d9cebc0c4824a24d71229fd22f3341e8ab2fc0b6))
+* remove unused air files :bug: ([6ef5a7f](https://github.com/LerianStudio/midaz/commit/6ef5a7f0782487a3461b81f54bff2c4fbe0b4825))
+* rename personalized midaz headers :bug: ([b891e6e](https://github.com/LerianStudio/midaz/commit/b891e6e6c853c1a766e59616e5ea452e8619849a))
+* rename personalized midaz headers. :bug: ([847e9ff](https://github.com/LerianStudio/midaz/commit/847e9ff84d3535e618003bc0ccd35f03adf183ed))
+* run grafana with anonymous auth disabled :bug: ([44efa74](https://github.com/LerianStudio/midaz/commit/44efa7417bad6fa2e90ad6b16d2a09ff698daa55))
+* treatment for old transactions without transaction body :bug: ([129f9de](https://github.com/LerianStudio/midaz/commit/129f9de7b0a62903d14738c379b47f4def41c844))
+* update allow sending and receiving fields from accounts :bug: ([821a70d](https://github.com/LerianStudio/midaz/commit/821a70db7e4de425561646be5ee919b3deefbb34))
+* update dependencies by dependabot :bug: ([b822c8d](https://github.com/LerianStudio/midaz/commit/b822c8d0371520cccd4d6782c75c577b6369315a))
+* update name of midaz-full to midaz-stack :bug: ([9c63cf1](https://github.com/LerianStudio/midaz/commit/9c63cf1da9363a2ef7554bad5d0f8ae4548885d8))
+
+## [1.46.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.4...v1.46.0-beta.5) (2025-01-24)
+
+
+### Bug Fixes
+
+* add PortfolioID to account update functionality :sparkles: :sparkles: :bug: :bug: ([ad04b2b](https://github.com/LerianStudio/midaz/commit/ad04b2bf79d735f0d1fd73c9e545b8e999f72d35))
+
 ## [1.46.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.46.0-beta.3...v1.46.0-beta.4) (2025-01-23)
 
 
