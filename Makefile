@@ -160,6 +160,15 @@ set-env:
 	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
+.PHONY: up
+up: 
+	@echo "$(BLUE)Starting all services...$(NC)"
+	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
+	@echo "$(BLUE)All services started successfully$(NC)"
+
 .PHONY: auth
 auth:
 	@echo "$(BLUE)Executing command in auth service...$(NC)"
@@ -184,15 +193,6 @@ transaction:
 audit:
 	@echo "$(BLUE)Executing command in audit service...$(NC)"
 	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
-
-.PHONY: up
-up: 
-	@echo "$(BLUE)Starting all services...$(NC)"
-	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
-	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
-	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml up --build -d
-	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
-	@echo "$(BLUE)All services started successfully$(NC)"
 
 .PHONY: all-services
 all-services:
