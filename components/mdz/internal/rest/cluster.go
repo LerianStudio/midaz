@@ -11,17 +11,17 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
-type product struct {
+type cluster struct {
 	Factory *factory.Factory
 }
 
-func (r *product) Create(organizationID, ledgerID string, inp mmodel.CreateProductInput) (*mmodel.Product, error) {
+func (r *cluster) Create(organizationID, ledgerID string, inp mmodel.CreateClusterInput) (*mmodel.Cluster, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products",
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
@@ -43,16 +43,16 @@ func (r *product) Create(organizationID, ledgerID string, inp mmodel.CreateProdu
 		return nil, err
 	}
 
-	var productResp mmodel.Product
-	if err := json.NewDecoder(resp.Body).Decode(&productResp); err != nil {
+	var clusterResp mmodel.Cluster
+	if err := json.NewDecoder(resp.Body).Decode(&clusterResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &productResp, nil
+	return &clusterResp, nil
 }
 
-func (r *product) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Products, error) {
-	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products",
+func (r *cluster) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Clusters, error) {
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
@@ -78,17 +78,17 @@ func (r *product) Get(organizationID, ledgerID string, limit, page int, sortOrde
 		return nil, err
 	}
 
-	var productsResp mmodel.Products
-	if err := json.NewDecoder(resp.Body).Decode(&productsResp); err != nil {
+	var clustersResp mmodel.Clusters
+	if err := json.NewDecoder(resp.Body).Decode(&clustersResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &productsResp, nil
+	return &clustersResp, nil
 }
 
-func (r *product) GetByID(organizationID, ledgerID, productID string) (*mmodel.Product, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, productID)
+func (r *cluster) GetByID(organizationID, ledgerID, clusterID string) (*mmodel.Cluster, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, clusterID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -108,24 +108,24 @@ func (r *product) GetByID(organizationID, ledgerID, productID string) (*mmodel.P
 		return nil, err
 	}
 
-	var productResp mmodel.Product
-	if err := json.NewDecoder(resp.Body).Decode(&productResp); err != nil {
+	var clusterResp mmodel.Cluster
+	if err := json.NewDecoder(resp.Body).Decode(&clusterResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &productResp, nil
+	return &clusterResp, nil
 }
 
-func (r *product) Update(
-	organizationID, ledgerID, productID string, inp mmodel.UpdateProductInput,
-) (*mmodel.Product, error) {
+func (r *cluster) Update(
+	organizationID, ledgerID, clusterID string, inp mmodel.UpdateClusterInput,
+) (*mmodel.Cluster, error) {
 	jsonData, err := json.Marshal(inp)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, productID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, clusterID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -145,17 +145,17 @@ func (r *product) Update(
 		return nil, err
 	}
 
-	var productResp mmodel.Product
-	if err := json.NewDecoder(resp.Body).Decode(&productResp); err != nil {
+	var clusterResp mmodel.Cluster
+	if err := json.NewDecoder(resp.Body).Decode(&clusterResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
-	return &productResp, nil
+	return &clusterResp, nil
 }
 
-func (r *product) Delete(organizationID, ledgerID, productID string) error {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, productID)
+func (r *cluster) Delete(organizationID, ledgerID, clusterID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters/%s",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, clusterID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {
@@ -179,6 +179,6 @@ func (r *product) Delete(organizationID, ledgerID, productID string) error {
 	return nil
 }
 
-func NewProduct(f *factory.Factory) *product {
-	return &product{f}
+func NewCluster(f *factory.Factory) *cluster {
+	return &cluster{f}
 }

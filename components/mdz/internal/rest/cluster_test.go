@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_product_Create(t *testing.T) {
-	productID := "0193271b-877f-7c98-a5a6-43b664d68982"
+func Test_cluster_Create(t *testing.T) {
+	clusterID := "0193271b-877f-7c98-a5a6-43b664d68982"
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 
-	name := "Product Refined Cotton Chair"
+	name := "Cluster Refined Cotton Chair"
 	code := "ACTIVE"
-	description := ptr.StringPtr("Teste Product")
+	description := ptr.StringPtr("Teste Cluster")
 
 	metadata := map[string]any{
 		"bitcoin": "3g9ofZcD7KRWL44BWdNa3PyM4PfzgqDG5P",
@@ -31,7 +31,7 @@ func Test_product_Create(t *testing.T) {
 		"boolean": true,
 	}
 
-	input := mmodel.CreateProductInput{
+	input := mmodel.CreateClusterInput{
 		Name: name,
 		Status: mmodel.Status{
 			Code:        code,
@@ -40,8 +40,8 @@ func Test_product_Create(t *testing.T) {
 		Metadata: metadata,
 	}
 
-	expectedResult := &mmodel.Product{
-		ID:             productID,
+	expectedResult := &mmodel.Cluster{
+		ID:             clusterID,
 		Name:           name,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
@@ -58,11 +58,11 @@ func Test_product_Create(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products",
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters",
 		URIAPILedger, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPost, uri,
-		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/product_response_create.json"))
+		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/cluster_response_create.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
@@ -71,9 +71,9 @@ func Test_product_Create(t *testing.T) {
 		},
 	}
 
-	productServ := NewProduct(factory)
+	clusterServ := NewCluster(factory)
 
-	result, err := productServ.Create(organizationID, ledgerID, input)
+	result, err := clusterServ.Create(organizationID, ledgerID, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -89,23 +89,23 @@ func Test_product_Create(t *testing.T) {
 	assert.Equal(t, 1, info["POST "+uri])
 }
 
-func Test_product_Get(t *testing.T) {
+func Test_cluster_Get(t *testing.T) {
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
 
 	limit := 2
 	page := 1
 
-	expectedResult := mmodel.Products{
+	expectedResult := mmodel.Clusters{
 		Page:  page,
 		Limit: limit,
-		Items: []mmodel.Product{
+		Items: []mmodel.Cluster{
 			{
 				ID:   "01932727-1b5a-7540-98c0-6521ffe78ce6",
-				Name: "Product Licensed Concrete Hat",
+				Name: "Cluster Licensed Concrete Hat",
 				Status: mmodel.Status{
 					Code:        "ACTIVE",
-					Description: ptr.StringPtr("Teste Product"),
+					Description: ptr.StringPtr("Teste Cluster"),
 				},
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -118,7 +118,7 @@ func Test_product_Get(t *testing.T) {
 				Name: "Toy30 Portfolio",
 				Status: mmodel.Status{
 					Code:        "ACTIVE",
-					Description: ptr.StringPtr("Teste Product"),
+					Description: ptr.StringPtr("Teste Cluster"),
 				},
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -140,11 +140,11 @@ func Test_product_Get(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products?limit=%d&page=%d",
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters?limit=%d&page=%d",
 		URIAPILedger, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
-		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/product_response_list.json"))
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/cluster_response_list.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
@@ -153,9 +153,9 @@ func Test_product_Get(t *testing.T) {
 		},
 	}
 
-	product := NewProduct(factory)
+	cluster := NewCluster(factory)
 
-	result, err := product.Get(organizationID, ledgerID, limit, page, "", "", "")
+	result, err := cluster.Get(organizationID, ledgerID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -172,21 +172,21 @@ func Test_product_Get(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
-func Test_product_GetByID(t *testing.T) {
-	productID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
+func Test_cluster_GetByID(t *testing.T) {
+	clusterID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	expectedResult := &mmodel.Product{
-		ID:             productID,
-		Name:           "Product Licensed Concrete Hat",
+	expectedResult := &mmodel.Cluster{
+		ID:             clusterID,
+		Name:           "Cluster Licensed Concrete Hat",
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
 		Status: mmodel.Status{
 			Code:        "ACTIVE",
-			Description: ptr.StringPtr("Teste Product"),
+			Description: ptr.StringPtr("Teste Cluster"),
 		},
 		CreatedAt: time.Date(2024, 11, 13, 20, 11, 34, 617671000, time.UTC),
 		UpdatedAt: time.Date(2024, 11, 13, 20, 11, 34, 617674000, time.UTC),
@@ -197,11 +197,11 @@ func Test_product_GetByID(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
-		URIAPILedger, organizationID, ledgerID, productID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters/%s",
+		URIAPILedger, organizationID, ledgerID, clusterID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
-		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/product_response_get_by_id.json"))
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/cluster_response_get_by_id.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
@@ -210,9 +210,9 @@ func Test_product_GetByID(t *testing.T) {
 		},
 	}
 
-	product := NewProduct(factory)
+	cluster := NewCluster(factory)
 
-	result, err := product.GetByID(organizationID, ledgerID, productID)
+	result, err := cluster.GetByID(organizationID, ledgerID, clusterID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedResult.ID, result.ID)
@@ -230,13 +230,13 @@ func Test_product_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
-func Test_product_Update(t *testing.T) {
-	productID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
+func Test_cluster_Update(t *testing.T) {
+	clusterID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
-	name := "Product Practical Metal Sausages BLOCKED"
+	name := "Cluster Practical Metal Sausages BLOCKED"
 	statusCode := "BLOCKED"
-	statusDescription := ptr.StringPtr("Teste Product BLOCKED")
+	statusDescription := ptr.StringPtr("Teste Cluster BLOCKED")
 
 	metadata := map[string]any{
 		"bitcoin": "35x7shF9VF1npqiTNjMsytJTRBNAoaAh",
@@ -244,7 +244,7 @@ func Test_product_Update(t *testing.T) {
 		"boolean": true,
 	}
 
-	inp := mmodel.UpdateProductInput{
+	inp := mmodel.UpdateClusterInput{
 		Name: name,
 		Status: mmodel.Status{
 			Code:        statusCode,
@@ -253,8 +253,8 @@ func Test_product_Update(t *testing.T) {
 		Metadata: metadata,
 	}
 
-	expectedResult := &mmodel.Product{
-		ID:   productID,
+	expectedResult := &mmodel.Cluster{
+		ID:   clusterID,
 		Name: name,
 		Status: mmodel.Status{
 			Code:        statusCode,
@@ -269,12 +269,12 @@ func Test_product_Update(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
-		URIAPILedger, organizationID, ledgerID, productID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters/%s",
+		URIAPILedger, organizationID, ledgerID, clusterID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK,
-			"./.fixtures/product_response_update.json"))
+			"./.fixtures/cluster_response_update.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
@@ -283,9 +283,9 @@ func Test_product_Update(t *testing.T) {
 		},
 	}
 
-	product := NewProduct(factory)
+	cluster := NewCluster(factory)
 
-	result, err := product.Update(organizationID, ledgerID, productID, inp)
+	result, err := cluster.Update(organizationID, ledgerID, clusterID, inp)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -299,8 +299,8 @@ func Test_product_Update(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
-func Test_product_Delete(t *testing.T) {
-	productID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
+func Test_cluster_Delete(t *testing.T) {
+	clusterID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -309,8 +309,8 @@ func Test_product_Delete(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/products/%s",
-		URIAPILedger, organizationID, ledgerID, productID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/clusters/%s",
+		URIAPILedger, organizationID, ledgerID, clusterID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -322,9 +322,9 @@ func Test_product_Delete(t *testing.T) {
 		},
 	}
 
-	product := NewProduct(factory)
+	cluster := NewCluster(factory)
 
-	err := product.Delete(organizationID, ledgerID, productID)
+	err := cluster.Delete(organizationID, ledgerID, clusterID)
 
 	assert.NoError(t, err)
 
