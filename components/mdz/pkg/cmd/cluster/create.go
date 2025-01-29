@@ -17,7 +17,7 @@ import (
 
 type factoryClusterCreate struct {
 	factory     *factory.Factory
-	repoProduct repository.Product
+	repoCluster repository.Cluster
 	tuiInput    func(message string) (string, error)
 	flagsCreate
 }

@@ -1,11 +1,11 @@
 {
     "id": "01932727-1b5a-7540-98c0-6521ffe78ce6",
-    "name": "Product Practical Metal Sausages BLOCKED",
+    "name": "Cluster Practical Metal Sausages BLOCKED",
     "ledgerId": "01932715-9f93-7432-90c3-4352bcfe464d",
     "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
     "status": {
         "code": "BLOCKED",
-        "description": "Teste Product BLOCKED"
+        "description": "Teste Cluster BLOCKED"
     },
     "createdAt": "2024-11-13T20:11:34.617671Z",
     "updatedAt": "2024-11-13T20:16:30.48922Z",
