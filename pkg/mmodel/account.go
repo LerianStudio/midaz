@@ -16,7 +16,7 @@ type CreateAccountInput struct {
 	Alias           *string        `json:"alias" validate:"max=100,prohibitedexternalaccountprefix" example:"@person1"`
 	Type            string         `json:"type" validate:"required" example:"creditCard"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
-	ProductID       *string        `json:"productId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	ClusterID       *string        `json:"clusterId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	EntityID        *string        `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
 	Status          Status         `json:"status"`
@@ -35,7 +35,7 @@ type UpdateAccountInput struct {
 	AllowSending   *bool          `json:"allowSending" example:"true"`
 	AllowReceiving *bool          `json:"allowReceiving" example:"true"`
 	Alias          *string        `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@person1"`
-	ProductID      *string        `json:"productId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	ClusterID      *string        `json:"clusterId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	PortfolioID    *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name UpdateAccountInput
@@ -53,7 +53,7 @@ type Account struct {
 	OrganizationID  string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
-	ProductID       *string        `json:"productId" example:"00000000-0000-0000-0000-000000000000"`
+	ClusterID       *string        `json:"clusterId" example:"00000000-0000-0000-0000-000000000000"`
 	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
 	AllowSending    *bool          `json:"allowSending" example:"true"`
@@ -146,8 +146,8 @@ func (e *Account) ToProto() *proto.Account {
 		account.PortfolioId = *e.PortfolioID
 	}
 
-	if e.ProductID != nil {
-		account.ProductId = *e.ProductID
+	if e.ClusterID != nil {
+		account.ClusterId = *e.ClusterID
 	}
 
 	if e.Alias != nil {
