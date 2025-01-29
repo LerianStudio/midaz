@@ -18,7 +18,7 @@ type AccountPostgreSQLModel struct {
 	OrganizationID    string
 	LedgerID          string
 	PortfolioID       *string
-	ProductID         *string
+	ClusterID         *string
 	AvailableBalance  *float64
 	OnHoldBalance     *float64
 	BalanceScale      *float64
