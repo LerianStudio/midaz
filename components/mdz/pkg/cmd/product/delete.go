@@ -11,16 +11,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryProductDelete struct {
+type factoryClusterDelete struct {
 	factory        *factory.Factory
-	repoProduct    repository.Product
+	repoCluster    repository.Cluster
 	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
-	ProductID      string
+	ClusterID      string
 }
 
-func (f *factoryProductDelete) ensureFlagInput(cmd *cobra.Command) error {
+func (f *factoryClusterDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -39,29 +39,29 @@ func (f *factoryProductDelete) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("cluster-id") && len(f.ProductID) < 1 {
+	if !cmd.Flags().Changed("cluster-id") && len(f.ClusterID) < 1 {
 		id, err := f.tuiInput("Enter your cluster-id")
 		if err != nil {
 			return err
 		}
 
-		f.ProductID = id
+		f.ClusterID = id
 	}
 
 	return nil
 }
 
-func (f *factoryProductDelete) runE(cmd *cobra.Command, _ []string) error {
+func (f *factoryClusterDelete) runE(cmd *cobra.Command, _ []string) error {
 	if err := f.ensureFlagInput(cmd); err != nil {
 		return err
 	}
 
-	err := f.repoProduct.Delete(f.OrganizationID, f.LedgerID, f.ProductID)
+	err := f.repoCluster.Delete(f.OrganizationID, f.LedgerID, f.ClusterID)
 	if err != nil {
 		return err
 	}
 
-	output.FormatAndPrint(f.factory, f.ProductID, "Product", output.Deleted)
+	output.FormatAndPrint(f.factory, f.ClusterID, "Product", output.Deleted)
 
 	return nil
 }

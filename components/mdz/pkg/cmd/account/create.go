@@ -117,7 +117,7 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 	}
 
 	if len(f.ClusterID) > 0 {
-		account.ProductID = &f.ProductID
+		account.ClusterID = &f.ClusterID
 	}
 
 	if len(f.PortfolioID) > 0 {
@@ -173,7 +173,7 @@ func (f *factoryAccountCreate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.ParentAccountID, "parent-account-id", "", "Specify the ID of the parent account.")
 	cmd.Flags().StringVar(&f.StatusCode, "status-code", "", "Specify the status code for the organization (e.g., ACTIVE).")
 	cmd.Flags().StringVar(&f.StatusDescription, "status-description", "", "Description of the current status of the ledger.")
-	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the cluster ID.")
+	cmd.Flags().StringVar(&f.ClusterID, "cluster-id", "", "Specify the cluster ID.")
 	cmd.Flags().StringVar(&f.EntityID, "entity-id", "", "Specify the ID of the associated entity.")
 	cmd.Flags().StringVar(&f.AllowSending, "allow-sending", "", "Allow sending assets from this ledger (true/false).")
 	cmd.Flags().StringVar(&f.AllowReceiving, "allow-receiving", "", "Allow receiving assets to this ledger (true/false).")

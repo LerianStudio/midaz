@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_newCmdProductCreate(t *testing.T) {
+func Test_newCmdClusterCreate(t *testing.T) {
 	t.Run("with flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
-		productID := "01931c99-adef-7b98-ad68-72d7e263066a"
+		ClusterID := "01931c99-adef-7b98-ad68-72d7e263066a"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 
@@ -36,12 +36,12 @@ func Test_newCmdProductCreate(t *testing.T) {
 			"chave3": true,
 		}
 
-		orgFactory := factoryProductCreate{
+		orgFactory := factoryClusterCreate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct: mockRepo,
+			repoCluster: mockRepo,
 			tuiInput: func(message string) (string, error) {
 				return name, nil
 			},
@@ -55,7 +55,7 @@ func Test_newCmdProductCreate(t *testing.T) {
 			},
 		}
 
-		cmd := newCmdProductCreate(&orgFactory)
+		cmd := newCmdClusterCreate(&orgFactory)
 		cmd.SetArgs([]string{
 			"--organization-id", organizationID,
 			"--ledger-id", ledgerID,
@@ -65,8 +65,8 @@ func Test_newCmdProductCreate(t *testing.T) {
 			"--metadata", "{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}",
 		})
 
-		result := &mmodel.Product{
-			ID:             productID,
+		result := &mmodel.Cluster{
+			ID:             ClusterID,
 			LedgerID:       ledgerID,
 			OrganizationID: organizationID,
 			Name:           name,
@@ -82,14 +82,14 @@ func Test_newCmdProductCreate(t *testing.T) {
 		assert.NoError(t, err)
 
 		output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-		assert.Contains(t, output, "The Product 01931c99-adef-7b98-ad68-72d7e263066a has been successfully created.")
+		assert.Contains(t, output, "The Cluster 01931c99-adef-7b98-ad68-72d7e263066a has been successfully created.")
 	})
 
 	t.Run("no flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
 		productID := "01931c99-adef-7b98-ad68-72d7e263066a"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"

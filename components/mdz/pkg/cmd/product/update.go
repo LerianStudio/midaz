@@ -1,4 +1,4 @@
-package product
+package Cluster
 
 import (
 	"encoding/json"
@@ -15,9 +15,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryProductUpdate struct {
+type factoryClusterUpdate struct {
 	factory     *factory.Factory
-	repoProduct repository.Product
+	repoCluster repository.Cluster
 	tuiInput    func(message string) (string, error)
 	flagsUpdate
 }
@@ -25,7 +25,7 @@ type factoryProductUpdate struct {
 type flagsUpdate struct {
 	OrganizationID    string
 	LedgerID          string
-	ProductID         string
+	ClusterID         string
 	Name              string
 	StatusCode        string
 	StatusDescription string
@@ -33,7 +33,7 @@ type flagsUpdate struct {
 	JSONFile          string
 }
 
-func (f *factoryProductUpdate) ensureFlagInput(cmd *cobra.Command) error {
+func (f *factoryClusterUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -52,34 +52,34 @@ func (f *factoryProductUpdate) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("cluster-id") && len(f.ProductID) < 1 {
+	if !cmd.Flags().Changed("cluster-id") && len(f.ClusterID) < 1 {
 		id, err := f.tuiInput("Enter your cluster-id")
 		if err != nil {
 			return err
 		}
 
-		f.ProductID = id
+		f.ClusterID = id
 	}
 
 	return nil
 }
 
-func (f *factoryProductUpdate) runE(cmd *cobra.Command, _ []string) error {
-	product := mmodel.UpdateProductInput{}
+func (f *factoryClusterUpdate) runE(cmd *cobra.Command, _ []string) error {
+	Cluster := mmodel.UpdateClusterInput{}
 
 	if err := f.ensureFlagInput(cmd); err != nil {
 		return err
 	}
 
 	if cmd.Flags().Changed("json-file") {
-		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &product)
+		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &Cluster)
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
 				"specification at https://www.json.org/json-en.html")
 		}
 	} else {
-		err := f.UpdateRequestFromFlags(&product)
+		err := f.UpdateRequestFromFlags(&Cluster)
 		if err != nil {
 			return err
 		}

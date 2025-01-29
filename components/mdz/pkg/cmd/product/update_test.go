@@ -1,4 +1,4 @@
-package product
+package Cluster
 
 import (
 	"bytes"
@@ -15,19 +15,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_newCmdProductUpdate(t *testing.T) {
+func Test_newCmdClusterUpdate(t *testing.T) {
 	t.Run("with flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
-		orgFactory := factoryProductUpdate{
+		orgFactory := factoryClusterUpdate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct: mockRepo,
+			repoCluster: mockRepo,
 			tuiInput: func(message string) (string, error) {
 				return "name", nil
 			},
@@ -39,7 +39,7 @@ func Test_newCmdProductUpdate(t *testing.T) {
 			},
 		}
 
-		cmd := newCmdProductUpdate(&orgFactory)
+		cmd := newCmdClusterUpdate(&orgFactory)
 		cmd.SetArgs([]string{
 			"--organization-id", "123",
 			"--ledger-id", "321",
@@ -56,7 +56,7 @@ func Test_newCmdProductUpdate(t *testing.T) {
 			"chave3": true,
 		}
 
-		gotOrg := &mmodel.Product{
+		gotOrg := &mmodel.Cluster{
 			ID:   "412",
 			Name: "Test Organization",
 			Status: mmodel.Status{
@@ -72,21 +72,21 @@ func Test_newCmdProductUpdate(t *testing.T) {
 		assert.NoError(t, err)
 
 		output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-		assert.Contains(t, output, "The Product 412 has been successfully updated.")
+		assert.Contains(t, output, "The Cluster 412 has been successfully updated.")
 	})
 
 	t.Run("no flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
-		orgFactory := factoryProductUpdate{
+		orgFactory := factoryClusterUpdate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct: mockRepo,
+			repoCluster: mockRepo,
 			tuiInput: func(message string) (string, error) {
 				return "name", nil
 			},
