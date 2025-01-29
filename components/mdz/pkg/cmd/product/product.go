@@ -24,17 +24,17 @@ func NewCmdProduct(f *factory.Factory) *cobra.Command {
 		factory: f,
 	}
 	cmd := &cobra.Command{
-		Use:   "product",
-		Short: "Shows details of a specific product.",
+		Use:   "cluster",
+		Short: "Shows details of a specific cluster.",
 		Long: utils.Format(
 			"The describe subcommand provides a detailed view of a specific",
-			"product, including its clustering policies and the rules applied.",
+			"cluster, including its clustering policies and the rules applied.",
 			"Ideal for detailed analysis and monitoring of the settings governing",
-			"the grouping of customers within each product.",
+			"the grouping of customers within each cluster.",
 		),
 		Example: utils.Format(
-			"$ mdz product",
-			"$ mdz product -h",
+			"$ mdz cluster",
+			"$ mdz cluster -h",
 		),
 	}
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Midaz CLI")

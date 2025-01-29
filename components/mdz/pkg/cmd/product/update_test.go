@@ -43,7 +43,7 @@ func Test_newCmdProductUpdate(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--organization-id", "123",
 			"--ledger-id", "321",
-			"--product-id", "412",
+			"--cluster-id", "412",
 			"--name", "Test Organization",
 			"--status-code", "BLOCKED",
 			"--status-description", "Teste BLOCKED Ledger",

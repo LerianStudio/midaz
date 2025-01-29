@@ -35,7 +35,7 @@ func Test_newCmdProductDelete(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--organization-id", "321",
 			"--ledger-id", "123",
-			"--product-id", "444",
+			"--cluster-id", "444",
 		})
 
 		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)

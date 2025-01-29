@@ -47,8 +47,8 @@ func (f *factoryProductDescribe) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("product-id") && len(f.ProductID) < 1 {
-		id, err := f.tuiInput("Enter your product-id")
+	if !cmd.Flags().Changed("cluster-id") && len(f.ProductID) < 1 {
+		id, err := f.tuiInput("Enter your cluster-id")
 		if err != nil {
 			return err
 		}
@@ -142,7 +142,7 @@ func (f *factoryProductDescribe) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.JSON, "json", false, "returns the table in json format")
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.ProductID, "product-id", "", "Specify the product ID to retrieve details")
+	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the cluster ID to retrieve details")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
@@ -165,9 +165,9 @@ func newCmdProductDescribe(f *factoryProductDescribe) *cobra.Command {
 			"better understand its structure.",
 		),
 		Example: utils.Format(
-			"$ mdz product describe --organization-id 12341234 --ledger-id 12312 --product-id 432123",
-			"$ mdz product describe",
-			"$ mdz product describe -h",
+			"$ mdz cluster describe --organization-id 12341234 --ledger-id 12312 --cluster-id 432123",
+			"$ mdz cluster describe",
+			"$ mdz cluster describe -h",
 		),
 		RunE: f.runE,
 	}

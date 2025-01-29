@@ -52,8 +52,8 @@ func (f *factoryProductUpdate) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("product-id") && len(f.ProductID) < 1 {
-		id, err := f.tuiInput("Enter your product-id")
+	if !cmd.Flags().Changed("cluster-id") && len(f.ProductID) < 1 {
+		id, err := f.tuiInput("Enter your cluster-id")
 		if err != nil {
 			return err
 		}
@@ -116,7 +116,7 @@ func (f *factoryProductUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdatePr
 func (f *factoryProductUpdate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.ProductID, "product-id", "", "Specify the portfolio ID")
+	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the portfolio ID")
 	cmd.Flags().StringVar(&f.Name, "name", "", "Legal name of the Product.")
 	cmd.Flags().StringVar(&f.StatusCode, "status-code", "",
 		"code for the organization (e.g., ACTIVE).")
@@ -142,18 +142,18 @@ func newInjectFacUpdate(f *factory.Factory) *factoryProductUpdate {
 func newCmdProductUpdate(f *factoryProductUpdate) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Updates an existing product with new policies.",
+		Short: "Updates an existing cluster with new policies.",
 		Long: utils.Format(
 			"The update subcommand allows you to adjust the policies and settings",
-			"of an existing product. With it, you can modify the clustering rules,",
+			"of an existing cluster. With it, you can modify the clustering rules,",
 			"adapting the grouping of clients according to changes in business",
 			"strategies and needs.",
 		),
 		Example: utils.Format(
-			"$ mdz product update",
-			"$ mdz product update -h",
-			"$ mdz product update --json-file payload.json",
-			"$ cat payload.json | mdz product update --organization-id '1234' --ledger-id '4421' --product-id '45232' --json-file -",
+			"$ mdz cluster update",
+			"$ mdz cluster update -h",
+			"$ mdz cluster update --json-file payload.json",
+			"$ cat payload.json | mdz cluster update --organization-id '1234' --ledger-id '4421' --cluster-id '45232' --json-file -",
 			"$ mdz portfolio update --organization-id '1234' --ledger-id '4421' --portfolio-id '55232' --name 'Gislason LLCT'",
 		),
 		RunE: f.runE,

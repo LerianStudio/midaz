@@ -39,8 +39,8 @@ func (f *factoryProductDelete) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("product-id") && len(f.ProductID) < 1 {
-		id, err := f.tuiInput("Enter your product-id")
+	if !cmd.Flags().Changed("cluster-id") && len(f.ProductID) < 1 {
+		id, err := f.tuiInput("Enter your cluster-id")
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ func (f *factoryProductDelete) runE(cmd *cobra.Command, _ []string) error {
 func (f *factoryProductDelete) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.ProductID, "product-id", "", "Specify the portfolio ID")
+	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the portfolio ID")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
@@ -84,17 +84,17 @@ func newInjectFacDelete(f *factory.Factory) *factoryProductDelete {
 func newCmdProductDelete(f *factoryProductDelete) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Removes an existing product.",
+		Short: "Removes an existing cluster.",
 		Long: utils.Format(
-			"The delete subcommand allows you to delete a product, removing its",
+			"The delete subcommand allows you to delete a cluster, removing its",
 			"settings and clustering rules. It is useful for deactivating obsolete",
 			"clusters or adjusting the organization of products without changing",
 			"the structure of customers.",
 		),
 		Example: utils.Format(
-			"$ mdz product delete --organization-id '1234' --ledger-id '4421' --product-id '55232'",
-			"$ mdz product delete -i 12314",
-			"$ mdz product delete -h",
+			"$ mdz cluster delete --organization-id '1234' --ledger-id '4421' --cluster-id '55232'",
+			"$ mdz cluster delete -i 12314",
+			"$ mdz cluster delete -h",
 		),
 		RunE: f.runE,
 	}

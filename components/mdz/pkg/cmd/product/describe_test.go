@@ -50,7 +50,7 @@ func Test_newCmdProductDescribe(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--ledger-id", ledgerID,
 			"--organization-id", organizationID,
-			"--product-id", portfolioID,
+			"--cluster-id", portfolioID,
 		})
 
 		item := mmodel.Product{

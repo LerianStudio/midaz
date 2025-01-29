@@ -134,29 +134,29 @@ func TestMDZ(t *testing.T) {
 		"--name", fake.FirstName(),
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "product", "create",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "create",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
 		"--name", fake.FirstName(),
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "product", "list",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "list",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
 	))
 
 	productID := getIDListOutput(t, stdout)
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "product", "describe",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "describe",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
-		"--product-id", productID,
+		"--cluster-id", productID,
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "product", "update",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "update",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
-		"--product-id", productID,
+		"--cluster-id", productID,
 		"--name", fake.FirstName(),
 	))
 
@@ -190,7 +190,7 @@ func TestMDZ(t *testing.T) {
 		"--ledger-id", ledgerID,
 		"--portfolio-id", portfolioID,
 		"--account-id", accountID,
-		"--product-id", productID,
+		"--cluster-id", productID,
 		"--name", fake.FirstName(),
 		"--alias", "@wallet_"+fake.FirstName(),
 	))
@@ -199,7 +199,7 @@ func TestMDZ(t *testing.T) {
 	t.Log("ledger ID: ", ledgerID)
 	t.Log("asset ID: ", assetID)
 	t.Log("portfolio ID: ", portfolioID)
-	t.Log("product ID: ", productID)
+	t.Log("cluster ID: ", productID)
 	t.Log("account ID: ", accountID)
 
 	stdout, _ = cmdRun(t, exec.Command("mdz", "account", "delete",
@@ -215,10 +215,10 @@ func TestMDZ(t *testing.T) {
 		"--asset-id", assetID,
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "product", "delete",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "delete",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
-		"--product-id", productID,
+		"--cluster-id", productID,
 	))
 
 	stdout, _ = cmdRun(t, exec.Command("mdz", "portfolio", "delete",

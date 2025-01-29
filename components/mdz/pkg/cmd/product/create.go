@@ -132,18 +132,18 @@ func newInjectFacCreate(f *factory.Factory) *factoryProductCreate {
 func newCmdProductCreate(f *factoryProductCreate) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Creates a new product for clustering customers.",
+		Short: "Creates a new cluster for clustering customers.",
 		Long: utils.Format(
-			"The create subcommand allows you to set up a new product, defining",
+			"The create subcommand allows you to set up a new cluster, defining",
 			"the policies and grouping rules to organize customers according to",
 			"specific characteristics. This feature is useful for establishing",
 			"new clusters and targeting business strategies at specific groups.",
 		),
 		Example: utils.Format(
-			"$ mdz product create",
-			"$ mdz product create -h",
-			"$ mdz product create --json-file payload.json",
-			"$ cat payload.json | mdz product create --json-file -",
+			"$ mdz cluster create",
+			"$ mdz cluster create -h",
+			"$ mdz cluster create --json-file payload.json",
+			"$ cat payload.json | mdz cluster create --json-file -",
 		),
 		RunE: f.runE,
 	}
