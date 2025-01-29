@@ -2167,7 +2167,7 @@ const docTemplate = `{
                     },
                     {
                         "description": "Product",
-                        "name": "product",
+                        "name": "cluster",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -2337,7 +2337,7 @@ const docTemplate = `{
                     },
                     {
                         "description": "Product",
-                        "name": "product",
+                        "name": "cluster",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -2714,7 +2714,7 @@ const docTemplate = `{
             }
         },
         "CreateProductInput": {
-            "description": "CreateProductInput is the input payload to create a product.",
+            "description": "CreateProductInput is the input payload to create a cluster.",
             "type": "object",
             "required": [
                 "name"
@@ -2890,7 +2890,7 @@ const docTemplate = `{
             }
         },
         "Product": {
-            "description": "Product is a struct designed to store product data.",
+            "description": "Product is a struct designed to store cluster data.",
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -3073,7 +3073,7 @@ const docTemplate = `{
             }
         },
         "UpdateProductInput": {
-            "description": "UpdateProductInput is the input payload to update a product.",
+            "description": "UpdateProductInput is the input payload to update a cluster.",
             "type": "object",
             "properties": {
                 "metadata": {

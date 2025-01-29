@@ -41,9 +41,9 @@ type Cluster struct {
 // Clusters struct to return get all.
 //
 // swagger:model Clusters
-// @Description Clusters is the struct designed to return a list of products with pagination.
-type Products struct {
-	Items []Product `json:"items"`
-	Page  int       `json:"page" example:"1"`
-	Limit int       `json:"limit" example:"10"`
-} // @name Products
+// @Description Clusters is the struct designed to return a list of clusters with pagination.
+type Clusters struct {
+	Items []Clusters `json:"items"`
+	Page  int        `json:"page" example:"1"`
+	Limit int        `json:"limit" example:"10"`
+} // @name Clusters

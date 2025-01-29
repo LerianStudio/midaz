@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"context"
@@ -24,30 +24,30 @@ import (
 	"github.com/lib/pq"
 )
 
-// Repository provides an interface for operations related to product entities.
+// Repository provides an interface for operations related to cluster entities.
 //
-//go:generate mockgen --destination=product.mock.go --package=product . Repository
+//go:generate mockgen --destination=cluster.mock.go --package=cluster . Repository
 type Repository interface {
-	Create(ctx context.Context, product *mmodel.Product) (*mmodel.Product, error)
+	Create(ctx context.Context, cluster *mmodel.Cluster) (*mmodel.Cluster, error)
 	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Product, error)
-	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Product, error)
-	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error)
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, product *mmodel.Product) (*mmodel.Product, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Cluster, error)
+	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Cluster, error)
+	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Cluster, error)
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, cluster *mmodel.Cluster) (*mmodel.Cluster, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
-// ProductPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
-type ProductPostgreSQLRepository struct {
+// ClusterPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
+type ClusterPostgreSQLRepository struct {
 	connection *mpostgres.PostgresConnection
 	tableName  string
 }
 
-// NewProductPostgreSQLRepository returns a new instance of ProductPostgreSQLRepository using the given Postgres connection.
-func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPostgreSQLRepository {
-	c := &ProductPostgreSQLRepository{
+// NewClusterPostgreSQLRepository returns a new instance of ClusterPostgreSQLRepository using the given Postgres connection.
+func NewClusterPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ClusterPostgreSQLRepository {
+	c := &ClusterPostgreSQLRepository{
 		connection: pc,
-		tableName:  "product",
+		tableName:  "cluster",
 	}
 
 	_, err := c.connection.GetDB()
@@ -58,11 +58,11 @@ func NewProductPostgreSQLRepository(pc *mpostgres.PostgresConnection) *ProductPo
 	return c
 }
 
-// Create a new product entity into Postgresql and returns it.
-func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmodel.Product) (*mmodel.Product, error) {
+// Create a new cluster entity into Postgresql and returns it.
+func (p *ClusterPostgreSQLRepository) Create(ctx context.Context, cluster *mmodel.Cluster) (*mmodel.Cluster, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.create_product")
+	ctx, span := tracer.Start(ctx, "postgres.create_cluster")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -72,19 +72,19 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmode
 		return nil, err
 	}
 
-	record := &ProductPostgreSQLModel{}
-	record.FromEntity(product)
+	record := &ClusterPostgreSQLModel{}
+	record.FromEntity(cluster)
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "product_repository_input", record)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "cluster_repository_input", record)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert product record from entity to JSON string", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert cluster record from entity to JSON string", err)
 
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, `INSERT INTO product VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+	result, err := db.ExecContext(ctx, `INSERT INTO cluster VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
 		record.ID,
 		record.Name,
 		record.LedgerID,
@@ -100,7 +100,7 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmode
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Cluster{}).Name())
 		}
 
 		return nil, err
@@ -116,9 +116,9 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmode
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Cluster{}).Name())
 
-		mopentelemetry.HandleSpanError(&span, "Failed to create product. Rows affected is 0", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to create cluster. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -126,11 +126,11 @@ func (p *ProductPostgreSQLRepository) Create(ctx context.Context, product *mmode
 	return record.ToEntity(), nil
 }
 
-// FindByName find product from the database using Organization and Ledger id and Name.
-func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
+// FindByName find cluster from the database using Organization and Ledger id and Name.
+func (p *ClusterPostgreSQLRepository) FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_product_by_name")
+	ctx, span := tracer.Start(ctx, "postgres.find_cluster_by_name")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -140,9 +140,9 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 		return false, err
 	}
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_product_by_name.query")
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_cluster_by_name.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
+	rows, err := db.QueryContext(ctx, "SELECT * FROM cluster WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, name)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
@@ -154,9 +154,9 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	spanQuery.End()
 
 	if rows.Next() {
-		err := pkg.ValidateBusinessError(constant.ErrDuplicateProductName, reflect.TypeOf(mmodel.Product{}).Name(), name, ledgerID)
+		err := pkg.ValidateBusinessError(constant.ErrDuplicateClusterName, reflect.TypeOf(mmodel.Cluster{}).Name(), name, ledgerID)
 
-		mopentelemetry.HandleSpanError(&span, "Failed to find product by name", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to find cluster by name", err)
 
 		return true, err
 	}
@@ -164,11 +164,11 @@ func (p *ProductPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	return false, nil
 }
 
-// FindAll retrieves Product entities from the database.
-func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Product, error) {
+// FindAll retrieves Cluster entities from the database.
+func (p *ClusterPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Cluster, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_all_products")
+	ctx, span := tracer.Start(ctx, "postgres.find_all_clusters")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -178,7 +178,7 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	var products []*mmodel.Product
+	var clusters []*mmodel.Cluster
 
 	findAll := squirrel.Select("*").
 		From(p.tableName).
@@ -205,22 +205,22 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Cluster{}).Name())
 	}
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
-		var product ProductPostgreSQLModel
-		if err := rows.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
-			&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
+		var cluster ClusterPostgreSQLModel
+		if err := rows.Scan(&cluster.ID, &cluster.Name, &cluster.LedgerID, &cluster.OrganizationID,
+			&cluster.Status, &cluster.StatusDescription, &cluster.CreatedAt, &cluster.UpdatedAt, &cluster.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
 
-		products = append(products, product.ToEntity())
+		clusters = append(clusters, cluster.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
@@ -229,14 +229,14 @@ func (p *ProductPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		return nil, err
 	}
 
-	return products, nil
+	return clusters, nil
 }
 
-// FindByIDs retrieves Products entities from the database using the provided IDs.
-func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Product, error) {
+// FindByIDs retrieves Clusters entities from the database using the provided IDs.
+func (p *ClusterPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Cluster, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_products_by_ids")
+	ctx, span := tracer.Start(ctx, "postgres.find_clusters_by_ids")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -246,11 +246,11 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	var products []*mmodel.Product
+	var clusters []*mmodel.Cluster
 
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_products_by_ids.query")
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find_clusters_by_ids.query")
 
-	rows, err := db.QueryContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
+	rows, err := db.QueryContext(ctx, "SELECT * FROM cluster WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
@@ -262,15 +262,15 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	spanQuery.End()
 
 	for rows.Next() {
-		var product ProductPostgreSQLModel
-		if err := rows.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
-			&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
+		var cluster ClusterPostgreSQLModel
+		if err := rows.Scan(&cluster.ID, &cluster.Name, &cluster.LedgerID, &cluster.OrganizationID,
+			&cluster.Status, &cluster.StatusDescription, &cluster.CreatedAt, &cluster.UpdatedAt, &cluster.DeletedAt); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
 
-		products = append(products, product.ToEntity())
+		clusters = append(clusters, cluster.ToEntity())
 	}
 
 	if err := rows.Err(); err != nil {
@@ -279,14 +279,14 @@ func (p *ProductPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	return products, nil
+	return clusters, nil
 }
 
-// Find retrieves a Product entity from the database using the provided ID.
-func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error) {
+// Find retrieves a Cluster entity from the database using the provided ID.
+func (p *ClusterPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Cluster, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_product")
+	ctx, span := tracer.Start(ctx, "postgres.find_cluster")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -296,34 +296,34 @@ func (p *ProductPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		return nil, err
 	}
 
-	product := &ProductPostgreSQLModel{}
+	cluster := &ClusterPostgreSQLModel{}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
 
-	row := db.QueryRowContext(ctx, "SELECT * FROM product WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
+	row := db.QueryRowContext(ctx, "SELECT * FROM cluster WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, id)
 
 	spanQuery.End()
 
-	if err := row.Scan(&product.ID, &product.Name, &product.LedgerID, &product.OrganizationID,
-		&product.Status, &product.StatusDescription, &product.CreatedAt, &product.UpdatedAt, &product.DeletedAt); err != nil {
+	if err := row.Scan(&cluster.ID, &cluster.Name, &cluster.LedgerID, &cluster.OrganizationID,
+		&cluster.Status, &cluster.StatusDescription, &cluster.CreatedAt, &cluster.UpdatedAt, &cluster.DeletedAt); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Cluster{}).Name())
 		}
 
 		return nil, err
 	}
 
-	return product.ToEntity(), nil
+	return cluster.ToEntity(), nil
 }
 
-// Update a Product entity into Postgresql and returns the Product updated.
-func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Product) (*mmodel.Product, error) {
+// Update a Cluster entity into Postgresql and returns the Cluster updated.
+func (p *ClusterPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Cluster) (*mmodel.Cluster, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.update_product")
+	ctx, span := tracer.Start(ctx, "postgres.update_cluster")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -333,7 +333,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	record := &ProductPostgreSQLModel{}
+	record := &ClusterPostgreSQLModel{}
 	record.FromEntity(prd)
 
 	var updates []string
@@ -359,7 +359,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
-	query := `UPDATE product SET ` + strings.Join(updates, ", ") +
+	query := `UPDATE cluster SET ` + strings.Join(updates, ", ") +
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
 		` AND id = $` + strconv.Itoa(len(args)) +
@@ -367,9 +367,9 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "product_repository_input", record)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "cluster_repository_input", record)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert product record from entity to JSON string", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert cluster record from entity to JSON string", err)
 
 		return nil, err
 	}
@@ -380,7 +380,7 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Cluster{}).Name())
 		}
 
 		return nil, err
@@ -396,9 +396,9 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Cluster{}).Name())
 
-		mopentelemetry.HandleSpanError(&span, "Failed to update product. Rows affected is 0", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to update cluster. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -406,11 +406,11 @@ func (p *ProductPostgreSQLRepository) Update(ctx context.Context, organizationID
 	return record.ToEntity(), nil
 }
 
-// Delete removes a Product entity from the database using the provided IDs.
-func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+// Delete removes a Cluster entity from the database using the provided IDs.
+func (p *ClusterPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.delete_product")
+	ctx, span := tracer.Start(ctx, "postgres.delete_cluster")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
@@ -422,7 +422,7 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
-	result, err := db.ExecContext(ctx, `UPDATE product SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
+	result, err := db.ExecContext(ctx, `UPDATE cluster SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
@@ -440,9 +440,9 @@ func (p *ProductPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Cluster{}).Name())
 
-		mopentelemetry.HandleSpanError(&span, "Failed to delete product. Rows affected is 0", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to delete cluster. Rows affected is 0", err)
 
 		return err
 	}

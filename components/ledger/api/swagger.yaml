@@ -264,7 +264,7 @@ definitions:
     - name
     type: object
   CreateProductInput:
-    description: CreateProductInput is the input payload to create a product.
+    description: CreateProductInput is the input payload to create a cluster.
     properties:
       metadata:
         additionalProperties: {}
@@ -394,7 +394,7 @@ definitions:
         type: string
     type: object
   Product:
-    description: Product is a struct designed to store product data.
+    description: Product is a struct designed to store cluster data.
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -528,7 +528,7 @@ definitions:
         $ref: '#/definitions/Status'
     type: object
   UpdateProductInput:
-    description: UpdateProductInput is the input payload to update a product.
+    description: UpdateProductInput is the input payload to update a cluster.
     properties:
       metadata:
         additionalProperties: {}
@@ -2001,7 +2001,7 @@ paths:
         type: string
       - description: Product
         in: body
-        name: product
+        name: cluster
         required: true
         schema:
           $ref: '#/definitions/CreateProductInput'
@@ -2117,7 +2117,7 @@ paths:
         type: string
       - description: Product
         in: body
-        name: product
+        name: cluster
         required: true
         schema:
           $ref: '#/definitions/UpdateProductInput'

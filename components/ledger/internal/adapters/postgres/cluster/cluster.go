@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"database/sql"
@@ -8,8 +8,8 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
-// ProductPostgreSQLModel represents the entity Product into SQL context in Database
-type ProductPostgreSQLModel struct {
+// ClusterPostgreSQLModel represents the entity Cluster into SQL context in Database
+type ClusterPostgreSQLModel struct {
 	ID                string
 	Name              string
 	LedgerID          string
@@ -22,14 +22,14 @@ type ProductPostgreSQLModel struct {
 	Metadata          map[string]any
 }
 
-// ToEntity converts an ProductPostgreSQLModel to entity.Product
-func (t *ProductPostgreSQLModel) ToEntity() *mmodel.Product {
+// ToEntity converts an ClusterPostgreSQLModel to entity.Cluster
+func (t *ClusterPostgreSQLModel) ToEntity() *mmodel.Cluster {
 	status := mmodel.Status{
 		Code:        t.Status,
 		Description: t.StatusDescription,
 	}
 
-	product := &mmodel.Product{
+	cluster := &mmodel.Cluster{
 		ID:             t.ID,
 		Name:           t.Name,
 		LedgerID:       t.LedgerID,
@@ -42,27 +42,27 @@ func (t *ProductPostgreSQLModel) ToEntity() *mmodel.Product {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
-		product.DeletedAt = &deletedAtCopy
+		cluster.DeletedAt = &deletedAtCopy
 	}
 
-	return product
+	return cluster
 }
 
-// FromEntity converts an entity.Product to ProductPostgreSQLModel
-func (t *ProductPostgreSQLModel) FromEntity(product *mmodel.Product) {
-	*t = ProductPostgreSQLModel{
+// FromEntity converts an entity.Cluster to ClusterPostgreSQLModel
+func (t *ClusterPostgreSQLModel) FromEntity(cluster *mmodel.Cluster) {
+	*t = ClusterPostgreSQLModel{
 		ID:                pkg.GenerateUUIDv7().String(),
-		Name:              product.Name,
-		LedgerID:          product.LedgerID,
-		OrganizationID:    product.OrganizationID,
-		Status:            product.Status.Code,
-		StatusDescription: product.Status.Description,
-		CreatedAt:         product.CreatedAt,
-		UpdatedAt:         product.UpdatedAt,
+		Name:              cluster.Name,
+		LedgerID:          cluster.LedgerID,
+		OrganizationID:    cluster.OrganizationID,
+		Status:            cluster.Status.Code,
+		StatusDescription: cluster.Status.Description,
+		CreatedAt:         cluster.CreatedAt,
+		UpdatedAt:         cluster.UpdatedAt,
 	}
 
-	if product.DeletedAt != nil {
-		deletedAtCopy := *product.DeletedAt
+	if cluster.DeletedAt != nil {
+		deletedAtCopy := *cluster.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

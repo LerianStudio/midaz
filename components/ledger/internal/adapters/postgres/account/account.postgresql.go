@@ -697,9 +697,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.Alias)
 	}
 
-	if !pkg.IsNilOrEmpty(acc.ProductID) {
-		updates = append(updates, "product_id = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.ProductID)
+	if !pkg.IsNilOrEmpty(acc.ClusterID) {
+		updates = append(updates, "cluster_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.ClusterID)
 	}
 
 	if !pkg.IsNilOrEmpty(acc.PortfolioID) {
@@ -840,7 +840,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ProductID,
+			&acc.ClusterID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,
@@ -911,7 +911,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ProductID,
+			&acc.ClusterID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,

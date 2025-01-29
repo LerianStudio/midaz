@@ -53,12 +53,12 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.GetPortfolioByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.DeletePortfolioByID)
 
-	// Product
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateProductInput), rh.CreateProduct))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateProductInput), rh.UpdateProduct))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, rh.GetAllProducts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, rh.GetProductByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, rh.DeleteProductByID)
+	// Cluster
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateClusterInput), rh.CreateCluster))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateClusterInput), rh.UpdateCluster))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, rh.GetAllClusters)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, rh.GetClusterByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, rh.DeleteClusterByID)
 
 	// Accounts
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))

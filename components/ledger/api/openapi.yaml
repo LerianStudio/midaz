@@ -1585,7 +1585,7 @@ paths:
       summary: Create a Product
       tags:
       - Products
-      x-codegen-request-body-name: product
+      x-codegen-request-body-name: cluster
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}:
     delete:
       description: Delete a Product with the input ID
@@ -1717,7 +1717,7 @@ paths:
       summary: Update a Product
       tags:
       - Products
-      x-codegen-request-body-name: product
+      x-codegen-request-body-name: cluster
 components:
   schemas:
     Account:
@@ -2100,7 +2100,7 @@ components:
       - name
       type: object
     CreateProductInput:
-      description: CreateProductInput is the input payload to create a product.
+      description: CreateProductInput is the input payload to create a cluster.
       example:
         metadata:
           key: '{}'
@@ -2295,7 +2295,7 @@ components:
           type: string
       type: object
     Product:
-      description: Product is a struct designed to store product data.
+      description: Product is a struct designed to store cluster data.
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -2499,7 +2499,7 @@ components:
           $ref: '#/components/schemas/Status'
       type: object
     UpdateProductInput:
-      description: UpdateProductInput is the input payload to update a product.
+      description: UpdateProductInput is the input payload to update a cluster.
       example:
         metadata:
           key: '{}'
