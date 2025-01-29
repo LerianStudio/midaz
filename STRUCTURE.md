@@ -38,7 +38,7 @@ The project is structured into several key directories, each serving specific ro
 │   │   │   │       ├── account
 │   │   │   │       ├── asset
 │   │   │   │       ├── portfolio
-│   │   │   │       └── product
+│   │   │   │       └── cluster
 │   │   │   ├── gen
 │   │   │   │   └── mock
 │   │   │   │       ├── account
@@ -47,7 +47,7 @@ The project is structured into several key directories, each serving specific ro
 │   │   │   │       ├── metadata
 │   │   │   │       ├── organization
 │   │   │   │       ├── portfolio
-│   │   │   │       └── product
+│   │   │   │       └── cluster
 │   │   │   ├── ports
 │   │   │   │   └── http
 │   │   │   └── service

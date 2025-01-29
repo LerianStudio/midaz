@@ -2014,16 +2014,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/products": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters": {
             "get": {
-                "description": "Get all Products with the input metadata or without metadata",
+                "description": "Get all Clusters with the input metadata or without metadata",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Clusters"
                 ],
-                "summary": "Get all Products",
+                "summary": "Get all Clusters",
                 "parameters": [
                     {
                         "type": "string",
@@ -2134,7 +2134,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Clusters"
                 ],
                 "summary": "Create a Product",
                 "parameters": [
@@ -2185,14 +2185,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters/{id}": {
             "get": {
                 "description": "Get a Product with the input ID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Clusters"
                 ],
                 "summary": "Get a Product by ID",
                 "parameters": [
@@ -2243,7 +2243,7 @@ const docTemplate = `{
             "delete": {
                 "description": "Delete a Product with the input ID",
                 "tags": [
-                    "Products"
+                    "Clusters"
                 ],
                 "summary": "Delete a Product by ID",
                 "parameters": [
@@ -2297,7 +2297,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Clusters"
                 ],
                 "summary": "Update a Product",
                 "parameters": [
@@ -2420,7 +2420,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "productId": {
+                "clusteID": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
@@ -2583,7 +2583,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "productId": {
+                "clusteID": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
@@ -2972,7 +2972,7 @@ const docTemplate = `{
                     "maxLength": 256,
                     "example": "My Account Updated"
                 },
-                "productId": {
+                "clusteID": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
