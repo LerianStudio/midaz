@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS product
+CREATE TABLE IF NOT EXISTS cluster
 (
     id                            UUID PRIMARY KEY NOT NULL,
     name                          TEXT,
