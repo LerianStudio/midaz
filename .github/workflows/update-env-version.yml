@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   update-env-release:
+    if: github.event.pull_request.head.repo.fork == false
     name: Run update VERSION in every ENV on components
     runs-on: ubuntu-24.04
     steps:
