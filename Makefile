@@ -132,7 +132,17 @@ check-dependencies:
 	else \
 		echo "$(BLUE)✓ Go$(NC)"; \
 		if ! echo "$(PATH)" | grep -q "$(shell go env GOPATH)/bin"; then \
-			echo "$(RED)⚠ Warning: GOPATH is not in your PATH. Add '$(shell go env GOPATH)/bin' to your PATH to use Go tools properly$(NC)"; \
+			echo "$(RED)⚠ Warning: GOPATH is not in your PATH. Here's how to add it:$(NC)"; \
+			echo "$(RED)For Linux/macOS:$(NC)"; \
+			echo "$(RED)1. Edit ~/.bashrc (bash) or ~/.zshrc (zsh)$(NC)"; \
+			echo "$(RED)2. Add these lines:$(NC)"; \
+			echo "$(RED)   export GOPATH=\$$HOME/go$(NC)"; \
+			echo "$(RED)   export PATH=\$$PATH:\$$GOPATH/bin$(NC)"; \
+			echo "$(RED)3. Run: source ~/.bashrc (or ~/.zshrc)$(NC)"; \
+			echo "$(RED)For Windows:$(NC)"; \
+			echo "$(RED)1. Open System Properties > Advanced > Environment Variables$(NC)"; \
+			echo "$(RED)2. Add GOPATH=%%USERPROFILE%%\\go$(NC)"; \
+			echo "$(RED)3. Add %%GOPATH%%\\bin to PATH$(NC)"; \
 		fi; \
 	fi
 	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 0 ]; then \
@@ -345,6 +355,11 @@ up:
 		echo "$(RED)Error: $(DOCKER_INSTALL_MSG)$(NC)"; \
 		exit 1; \
 	fi
+	@echo "$(BLUE)Checking environment files...$(NC)"
+	@if [ ! -f "$(AUTH_DIR)/.env" ] || [ ! -f "$(INFRA_DIR)/.env" ] || [ ! -f "$(LEDGER_DIR)/.env" ] || [ ! -f "$(TRANSACTION_DIR)/.env" ] || [ ! -f "$(AUDIT_DIR)/.env" ]; then \
+		echo "$(RED)Error: Environment files missing. Run 'make set-env' first$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(BLUE)Starting all services containers...$(NC)"
 	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
@@ -357,6 +372,11 @@ up:
 status:
 	@if [ $(DOCKER_AVAILABLE) -eq 0 ]; then \
 		echo "$(RED)Error: $(DOCKER_INSTALL_MSG)$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Checking environment files...$(NC)"
+	@if [ ! -f "$(AUTH_DIR)/.env" ] || [ ! -f "$(INFRA_DIR)/.env" ] || [ ! -f "$(LEDGER_DIR)/.env" ] || [ ! -f "$(TRANSACTION_DIR)/.env" ] || [ ! -f "$(AUDIT_DIR)/.env" ]; then \
+		echo "$(RED)Error: Environment files missing. Run 'make set-env' first$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(BOLD)Midaz Services Status:$(NC)"
