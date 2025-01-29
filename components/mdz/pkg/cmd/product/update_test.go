@@ -102,7 +102,7 @@ func Test_newCmdClusterUpdate(t *testing.T) {
 			return "412", nil
 		}
 
-		cmd := newCmdProductUpdate(&orgFactory)
+		cmd := newCmdClusterUpdate(&orgFactory)
 		cmd.SetArgs([]string{
 			"--name", "Test Organization",
 			"--status-code", "BLOCKED",
@@ -116,7 +116,7 @@ func Test_newCmdClusterUpdate(t *testing.T) {
 			"chave3": true,
 		}
 
-		gotOrg := &mmodel.Product{
+		gotOrg := &mmodel.Cluster{
 			ID:   "412",
 			Name: "Test Organization",
 			Status: mmodel.Status{
@@ -132,6 +132,6 @@ func Test_newCmdClusterUpdate(t *testing.T) {
 		assert.NoError(t, err)
 
 		output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-		assert.Contains(t, output, "The Product 412 has been successfully updated.")
+		assert.Contains(t, output, "The Cluster 412 has been successfully updated.")
 	})
 }

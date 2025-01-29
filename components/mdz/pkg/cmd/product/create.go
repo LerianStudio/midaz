@@ -15,7 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryProductCreate struct {
+type factoryClusterCreate struct {
 	factory     *factory.Factory
 	repoProduct repository.Product
 	tuiInput    func(message string) (string, error)

@@ -48,7 +48,7 @@ func TestUpdateAccount(t *testing.T) {
 					Code: "active",
 				},
 				Alias:     nil,
-				ProductID: nil,
+				ClusterID: nil,
 				Metadata:  map[string]any{"key": "value"},
 			},
 			mockSetup: func() {
@@ -79,7 +79,7 @@ func TestUpdateAccount(t *testing.T) {
 					Code: "active",
 				},
 				Alias:     nil,
-				ProductID: nil,
+				ClusterID: nil,
 				Metadata:  nil,
 			},
 			mockSetup: func() {
@@ -101,7 +101,7 @@ func TestUpdateAccount(t *testing.T) {
 					Code: "active",
 				},
 				Alias:     nil,
-				ProductID: nil,
+				ClusterID: nil,
 				Metadata:  map[string]any{"key": "value"},
 			},
 			mockSetup: func() {

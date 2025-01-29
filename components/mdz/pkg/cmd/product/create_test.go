@@ -91,7 +91,7 @@ func Test_newCmdClusterCreate(t *testing.T) {
 
 		mockRepo := repository.NewMockCluster(ctrl)
 
-		productID := "01931c99-adef-7b98-ad68-72d7e263066a"
+		ClusterID := "01931c99-adef-7b98-ad68-72d7e263066a"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 

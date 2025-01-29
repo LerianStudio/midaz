@@ -1,4 +1,4 @@
-package product
+package Cluster
 
 import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"

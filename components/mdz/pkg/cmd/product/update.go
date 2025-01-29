@@ -85,12 +85,12 @@ func (f *factoryClusterUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoProduct.Update(f.OrganizationID, f.LedgerID, f.ProductID, product)
+	resp, err := f.repoCluster.Update(f.OrganizationID, f.LedgerID, f.ClusterID, Cluster)
 	if err != nil {
 		return err
 	}
 
-	output.FormatAndPrint(f.factory, resp.ID, "Product", output.Updated)
+	output.FormatAndPrint(f.factory, resp.ID, "Cluster", output.Updated)
 
 	return nil
 }

@@ -227,7 +227,7 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 	type fields struct {
 		OrganizationRepo organization.Repository
 		LedgerRepo       ledger.Repository
-		ProductRepo      cluster.Repository
+		ClusterRepo      cluster.Repository
 		PortfolioRepo    portfolio.Repository
 		AccountRepo      account.Repository
 		AssetRepo        asset.Repository
@@ -255,7 +255,7 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 			uc := &UseCase{
 				OrganizationRepo: tt.fields.OrganizationRepo,
 				LedgerRepo:       tt.fields.LedgerRepo,
-				ProductRepo:      tt.fields.ProductRepo,
+				ClusterRepo:      tt.fields.ClusterRepo,
 				PortfolioRepo:    tt.fields.PortfolioRepo,
 				AccountRepo:      tt.fields.AccountRepo,
 				AssetRepo:        tt.fields.AssetRepo,

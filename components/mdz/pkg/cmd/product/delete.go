@@ -61,7 +61,7 @@ func (f *factoryClusterDelete) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	output.FormatAndPrint(f.factory, f.ClusterID, "Product", output.Deleted)
+	output.FormatAndPrint(f.factory, f.ClusterID, "Cluster", output.Deleted)
 
 	return nil
 }

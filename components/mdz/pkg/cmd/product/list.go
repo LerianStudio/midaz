@@ -1,4 +1,4 @@
-package product
+package Cluster
 
 import (
 	"encoding/json"
