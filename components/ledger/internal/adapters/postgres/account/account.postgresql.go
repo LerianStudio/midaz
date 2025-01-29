@@ -108,7 +108,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.OrganizationID,
 		record.LedgerID,
 		record.PortfolioID,
-		record.ProductID,
+		record.ClusterID,
 		record.AvailableBalance,
 		record.OnHoldBalance,
 		record.BalanceScale,
