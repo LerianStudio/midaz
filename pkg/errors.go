@@ -375,17 +375,17 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Resource Already Deleted",
 			Message:    "The resource you are trying to delete has already been deleted. Ensure you are using the correct ID and try again.",
 		},
-		constant.ErrProductIDInactive: ValidationError{
+		constant.ErrClusterIDInactive: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrProductIDInactive.Error(),
-			Title:      "Product ID Inactive",
-			Message:    "The Product ID you are attempting to use is inactive. Please use another Product ID and try again.",
+			Code:       constant.ErrClusterIDInactive.Error(),
+			Title:      "Cluster ID Inactive",
+			Message:    "The Cluster ID you are attempting to use is inactive. Please use another Cluster ID and try again.",
 		},
-		constant.ErrDuplicateProductName: EntityConflictError{
+		constant.ErrDuplicateClusterName: EntityConflictError{
 			EntityType: entityType,
-			Code:       constant.ErrDuplicateProductName.Error(),
-			Title:      "Duplicate Product Name Error",
-			Message:    fmt.Sprintf("A product with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
+			Code:       constant.ErrDuplicateClusterName.Error(),
+			Title:      "Duplicate Cluster Name Error",
+			Message:    fmt.Sprintf("A cluster with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
 		constant.ErrBalanceRemainingDeletion: UnprocessableOperationError{
 			EntityType: entityType,
@@ -507,11 +507,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Portfolio ID Not Found",
 			Message:    "The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again.",
 		},
-		constant.ErrProductIDNotFound: EntityNotFoundError{
+		constant.ErrClusterIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrProductIDNotFound.Error(),
-			Title:      "Product ID Not Found",
-			Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
+			Code:       constant.ErrClusterIDNotFound.Error(),
+			Title:      "Cluster ID Not Found",
+			Message:    "The provided cluster ID does not exist in our records. Please verify the cluster ID and try again.",
 		},
 		constant.ErrLedgerIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
