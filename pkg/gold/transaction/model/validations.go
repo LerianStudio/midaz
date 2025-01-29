@@ -150,7 +150,7 @@ func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Ac
 					OrganizationId:  acc.OrganizationId,
 					LedgerId:        acc.LedgerId,
 					PortfolioId:     acc.PortfolioId,
-					ProductId:       acc.ProductId,
+					ClusterId:       acc.ClusterId,
 					AssetCode:       acc.AssetCode,
 					Balance:         &balance,
 					Status:          &status,
