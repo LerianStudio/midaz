@@ -27,7 +27,7 @@ message Account {
   string   organization_id = 6;
   string   ledger_id = 7;
   string   portfolio_id = 8;
-  string   product_id = 9;
+  string   cluster_id = 9;
   Balance  balance = 10;
   Status   status = 11;
   bool     allow_sending= 12;
