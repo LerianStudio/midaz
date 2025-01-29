@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS account
     organization_id                 UUID NOT NULL,
     ledger_id                       UUID NOT NULL,
     portfolio_id                    UUID,
-    cluster_idcluster_id                      UUID,
+    cluster_id                      UUID,
     available_balance               NUMERIC NOT NULL,
     on_hold_balance                 NUMERIC NOT NULL,
     balance_scale                   NUMERIC NOT NULL,
