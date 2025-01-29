@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateProduct creates a new product persists data in the repository.
+// CreateProduct creates a new cluster persists data in the repository.
 func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateProductInput) (*mmodel.Product, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
@@ -19,7 +19,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 	ctx, span := tracer.Start(ctx, "command.create_product")
 	defer span.End()
 
-	logger.Infof("Trying to create product: %v", cpi)
+	logger.Infof("Trying to create cluster: %v", cpi)
 
 	var status mmodel.Status
 	if cpi.Status.IsEmpty() || pkg.IsNilOrEmpty(&cpi.Status.Code) {
@@ -44,25 +44,25 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 
 	_, err := uc.ProductRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
-		pkg.NewLoggerFromContext(ctx).Errorf("Error finding product by name: %v", err)
+		pkg.NewLoggerFromContext(ctx).Errorf("Error finding cluster by name: %v", err)
 
 		return nil, err
 	}
 
 	prod, err := uc.ProductRepo.Create(ctx, product)
 	if err != nil {
-		pkg.NewLoggerFromContext(ctx).Errorf("Error creating product: %v", err)
+		pkg.NewLoggerFromContext(ctx).Errorf("Error creating cluster: %v", err)
 
-		logger.Errorf("Error creating product: %v", err)
+		logger.Errorf("Error creating cluster: %v", err)
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Product{}).Name(), prod.ID, cpi.Metadata)
 	if err != nil {
-		pkg.NewLoggerFromContext(ctx).Errorf("Error creating product metadata: %v", err)
+		pkg.NewLoggerFromContext(ctx).Errorf("Error creating cluster metadata: %v", err)
 
-		logger.Errorf("Error creating product metadata: %v", err)
+		logger.Errorf("Error creating cluster metadata: %v", err)
 
 		return nil, err
 	}

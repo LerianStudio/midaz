@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/cluster"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/google/uuid"
 
@@ -18,7 +18,7 @@ func TestDeleteProductByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProductRepo := product.NewMockRepository(ctrl)
+	mockProductRepo := cluster.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		ProductRepo: mockProductRepo,
@@ -35,7 +35,7 @@ func TestDeleteProductByID(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			name: "success - product deleted",
+			name: "success - cluster deleted",
 			setupMocks: func() {
 				mockProductRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, productID).
@@ -45,24 +45,24 @@ func TestDeleteProductByID(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "failure - product not found",
+			name: "failure - cluster not found",
 			setupMocks: func() {
 				mockProductRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, productID).
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
-			expectedErr: errors.New("The provided product ID does not exist in our records. Please verify the product ID and try again."),
+			expectedErr: errors.New("The provided cluster ID does not exist in our records. Please verify the cluster ID and try again."),
 		},
 		{
 			name: "failure - repository error",
 			setupMocks: func() {
 				mockProductRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, productID).
-					Return(errors.New("failed to delete product")).
+					Return(errors.New("failed to delete cluster")).
 					Times(1)
 			},
-			expectedErr: errors.New("failed to delete product"),
+			expectedErr: errors.New("failed to delete cluster"),
 		},
 	}
 

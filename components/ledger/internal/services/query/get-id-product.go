@@ -22,13 +22,13 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 	ctx, span := tracer.Start(ctx, "query.get_product_by_id")
 	defer span.End()
 
-	logger.Infof("Retrieving product for id: %s", id.String())
+	logger.Infof("Retrieving cluster for id: %s", id.String())
 
 	product, err := uc.ProductRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get product on repo by id", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get cluster on repo by id", err)
 
-		logger.Errorf("Error getting product on repo by id: %v", err)
+		logger.Errorf("Error getting cluster on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())
@@ -40,9 +40,9 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 	if product != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Product{}).Name(), id.String())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb product", err)
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb cluster", err)
 
-			logger.Errorf("Error get metadata on mongodb product: %v", err)
+			logger.Errorf("Error get metadata on mongodb cluster: %v", err)
 
 			return nil, err
 		}

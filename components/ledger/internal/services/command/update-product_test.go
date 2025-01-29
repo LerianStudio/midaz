@@ -8,7 +8,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/cluster"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
@@ -20,7 +20,7 @@ func TestUpdateProductByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProductRepo := product.NewMockRepository(ctrl)
+	mockProductRepo := cluster.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
@@ -101,7 +101,7 @@ func TestUpdateProductByID(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:           "Error - Failure to update product",
+			name:           "Error - Failure to update cluster",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			productID:      uuid.New(),

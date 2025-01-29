@@ -8,10 +8,10 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/cluster"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
@@ -156,7 +156,7 @@ func InitServers() *Service {
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	productPostgreSQLRepository := product.NewProductPostgreSQLRepository(postgresConnection)
+	productPostgreSQLRepository := cluster.NewProductPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)

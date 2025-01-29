@@ -8,7 +8,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/cluster"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 
@@ -19,7 +19,7 @@ func TestCreateProduct(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockRepo := product.NewMockRepository(ctrl)
+	mockRepo := cluster.NewMockRepository(ctrl)
 
 	uc := &UseCase{
 		ProductRepo: mockRepo,

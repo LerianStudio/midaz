@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// DeleteProductByID delete a product from the repository by ids.
+// DeleteProductByID delete a cluster from the repository by ids.
 func (uc *UseCase) DeleteProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
@@ -22,12 +22,12 @@ func (uc *UseCase) DeleteProductByID(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.delete_product_by_id")
 	defer span.End()
 
-	logger.Infof("Remove product for id: %s", id.String())
+	logger.Infof("Remove cluster for id: %s", id.String())
 
 	if err := uc.ProductRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to delete product on repo by id", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to delete cluster on repo by id", err)
 
-		logger.Errorf("Error deleting product on repo by id: %v", err)
+		logger.Errorf("Error deleting cluster on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return pkg.ValidateBusinessError(constant.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())

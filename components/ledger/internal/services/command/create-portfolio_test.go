@@ -10,10 +10,10 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/cluster"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg"
@@ -227,7 +227,7 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 	type fields struct {
 		OrganizationRepo organization.Repository
 		LedgerRepo       ledger.Repository
-		ProductRepo      product.Repository
+		ProductRepo      cluster.Repository
 		PortfolioRepo    portfolio.Repository
 		AccountRepo      account.Repository
 		AssetRepo        asset.Repository

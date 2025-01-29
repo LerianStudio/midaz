@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateProductByID update a product from the repository by given id.
+// UpdateProductByID update a cluster from the repository by given id.
 func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdateProductInput) (*mmodel.Product, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
@@ -22,7 +22,7 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 	ctx, span := tracer.Start(ctx, "command.update_product_by_id")
 	defer span.End()
 
-	logger.Infof("Trying to update product: %v", upi)
+	logger.Infof("Trying to update cluster: %v", upi)
 
 	product := &mmodel.Product{
 		Name:   upi.Name,
@@ -31,9 +31,9 @@ func (uc *UseCase) UpdateProductByID(ctx context.Context, organizationID, ledger
 
 	productUpdated, err := uc.ProductRepo.Update(ctx, organizationID, ledgerID, id, product)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update product on repo by id", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to update cluster on repo by id", err)
 
-		logger.Errorf("Error updating product on repo by id: %v", err)
+		logger.Errorf("Error updating cluster on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())
