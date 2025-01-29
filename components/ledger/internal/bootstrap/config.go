@@ -156,7 +156,7 @@ func InitServers() *Service {
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	productPostgreSQLRepository := cluster.NewProductPostgreSQLRepository(postgresConnection)
+	clusterPostgreSQLRepository := cluster.NewClusterPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
@@ -171,7 +171,7 @@ func InitServers() *Service {
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
-		ProductRepo:      productPostgreSQLRepository,
+		ClusterRepo:      clusterPostgreSQLRepository,
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
@@ -183,7 +183,7 @@ func InitServers() *Service {
 	queryUseCase := &query.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
-		ProductRepo:      productPostgreSQLRepository,
+		ClusterRepo:      clusterPostgreSQLRepository,
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
@@ -217,12 +217,12 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	productHandler := &httpin.ProductHandler{
+	clusterHandler := &httpin.ClusterHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	httpApp := httpin.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, clusterHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

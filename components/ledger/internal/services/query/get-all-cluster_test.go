@@ -17,15 +17,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetAllProducts(t *testing.T) {
+func TestGetAllClusters(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProductRepo := cluster.NewMockRepository(ctrl)
+	mockClusterRepo := cluster.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		ProductRepo:  mockProductRepo,
+		ClusterRepo:  mockClusterRepo,
 		MetadataRepo: mockMetadataRepo,
 	}
 
@@ -41,19 +41,19 @@ func TestGetAllProducts(t *testing.T) {
 		filter         http.QueryHeader
 		mockSetup      func()
 		expectErr      bool
-		expectedResult []*mmodel.Product
+		expectedResult []*mmodel.Cluster
 	}{
 		{
-			name:           "Success - Retrieve products with metadata",
+			name:           "Success - Retrieve clusters with metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			filter:         filter,
 			mockSetup: func() {
 				validUUID := uuid.New()
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
-					Return([]*mmodel.Product{
-						{ID: validUUID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}},
+					Return([]*mmodel.Cluster{
+						{ID: validUUID.String(), Name: "Test Cluster", Status: mmodel.Status{Code: "active"}},
 					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -62,17 +62,17 @@ func TestGetAllProducts(t *testing.T) {
 					}, nil)
 			},
 			expectErr: false,
-			expectedResult: []*mmodel.Product{
-				{ID: "valid-uuid", Name: "Test Product", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
+			expectedResult: []*mmodel.Cluster{
+				{ID: "valid-uuid", Name: "Test Cluster", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
 			},
 		},
 		{
-			name:           "Error - No products found",
+			name:           "Error - No clusters found",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
@@ -86,10 +86,10 @@ func TestGetAllProducts(t *testing.T) {
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
 				validUUID := uuid.New()
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
-					Return([]*mmodel.Product{
-						{ID: validUUID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}},
+					Return([]*mmodel.Cluster{
+						{ID: validUUID.String(), Name: "Test Cluster", Status: mmodel.Status{Code: "active"}},
 					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -105,7 +105,7 @@ func TestGetAllProducts(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetAllProducts(ctx, tt.organizationID, tt.ledgerID, tt.filter)
+			result, err := uc.GetAllClusters(ctx, tt.organizationID, tt.ledgerID, tt.filter)
 
 			if tt.expectErr {
 				assert.Error(t, err)

@@ -11,12 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateProduct creates a new cluster persists data in the repository.
-func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateProductInput) (*mmodel.Product, error) {
+// CreateCluster creates a new cluster persists data in the repository.
+func (uc *UseCase) CreateCluster(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateClusterInput) (*mmodel.Cluster, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_product")
+	ctx, span := tracer.Start(ctx, "command.create_cluster")
 	defer span.End()
 
 	logger.Infof("Trying to create cluster: %v", cpi)
@@ -32,7 +32,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 
 	status.Description = cpi.Status.Description
 
-	product := &mmodel.Product{
+	cluster := &mmodel.Cluster{
 		ID:             pkg.GenerateUUIDv7().String(),
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -42,14 +42,14 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 		UpdatedAt:      time.Now(),
 	}
 
-	_, err := uc.ProductRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
+	_, err := uc.ClusterRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
 		pkg.NewLoggerFromContext(ctx).Errorf("Error finding cluster by name: %v", err)
 
 		return nil, err
 	}
 
-	prod, err := uc.ProductRepo.Create(ctx, product)
+	prod, err := uc.ClusterRepo.Create(ctx, cluster)
 	if err != nil {
 		pkg.NewLoggerFromContext(ctx).Errorf("Error creating cluster: %v", err)
 
@@ -58,7 +58,7 @@ func (uc *UseCase) CreateProduct(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
-	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Product{}).Name(), prod.ID, cpi.Metadata)
+	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Cluster{}).Name(), prod.ID, cpi.Metadata)
 	if err != nil {
 		pkg.NewLoggerFromContext(ctx).Errorf("Error creating cluster metadata: %v", err)
 

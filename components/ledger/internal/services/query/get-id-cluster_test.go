@@ -16,15 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetProductByID(t *testing.T) {
+func TestGetClusterByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProductRepo := cluster.NewMockRepository(ctrl)
+	mockClusterRepo := cluster.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		ProductRepo:  mockProductRepo,
+		ClusterRepo:  mockClusterRepo,
 		MetadataRepo: mockMetadataRepo,
 	}
 
@@ -32,40 +32,40 @@ func TestGetProductByID(t *testing.T) {
 		name           string
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
-		productID      uuid.UUID
+		clusterID      uuid.UUID
 		mockSetup      func()
 		expectErr      bool
-		expectedResult *mmodel.Product
+		expectedResult *mmodel.Cluster
 	}{
 		{
 			name:           "Success - Retrieve cluster with metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
+			clusterID:      uuid.New(),
 			mockSetup: func() {
-				productID := uuid.New()
-				mockProductRepo.EXPECT().
+				clusterID := uuid.New()
+				mockClusterRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Product{ID: productID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}}, nil)
+					Return(&mmodel.Cluster{ID: clusterID.String(), Name: "Test Cluster", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"key": "value"}}, nil)
 			},
 			expectErr: false,
-			expectedResult: &mmodel.Product{
+			expectedResult: &mmodel.Cluster{
 				ID:       "valid-uuid",
-				Name:     "Test Product",
+				Name:     "Test Cluster",
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
 		},
 		{
-			name:           "Error - Product not found",
+			name:           "Error - Cluster not found",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
+			clusterID:      uuid.New(),
 			mockSetup: func() {
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
@@ -76,12 +76,12 @@ func TestGetProductByID(t *testing.T) {
 			name:           "Error - Failed to retrieve metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
+			clusterID:      uuid.New(),
 			mockSetup: func() {
-				productID := uuid.New()
-				mockProductRepo.EXPECT().
+				clusterID := uuid.New()
+				mockClusterRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Product{ID: productID.String(), Name: "Test Product", Status: mmodel.Status{Code: "active"}}, nil)
+					Return(&mmodel.Cluster{ID: clusterID.String(), Name: "Test Cluster", Status: mmodel.Status{Code: "active"}}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("metadata retrieval error"))
@@ -96,7 +96,7 @@ func TestGetProductByID(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.GetProductByID(ctx, tt.organizationID, tt.ledgerID, tt.productID)
+			result, err := uc.GetClusterByID(ctx, tt.organizationID, tt.ledgerID, tt.clusterID)
 
 			if tt.expectErr {
 				assert.Error(t, err)

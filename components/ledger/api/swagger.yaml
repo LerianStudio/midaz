@@ -17,6 +17,9 @@ definitions:
         type: string
       balance:
         $ref: '#/definitions/Balance'
+      clusterId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
       createdAt:
         example: "2021-01-01T00:00:00Z"
         type: string
@@ -45,9 +48,6 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       portfolioId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      productId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       status:
@@ -131,6 +131,36 @@ definitions:
         example: 2
         type: number
     type: object
+  Cluster:
+    description: Cluster is a struct designed to store cluster data.
+    properties:
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        example: My Cluster
+        type: string
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      status:
+        $ref: '#/definitions/Status'
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    type: object
   CreateAccountInput:
     description: CreateAccountInput is the input payload to create an account.
     properties:
@@ -148,6 +178,9 @@ definitions:
         example: BRL
         maxLength: 100
         type: string
+      clusterId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
       entityId:
         example: 00000000-0000-0000-0000-000000000000
         maxLength: 256
@@ -163,9 +196,6 @@ definitions:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       portfolioId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      productId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       status:
@@ -198,6 +228,21 @@ definitions:
         type: string
     required:
     - code
+    type: object
+  CreateClusterInput:
+    description: CreateClusterInput is the input payload to create a cluster.
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        example: My Cluster
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/Status'
+    required:
+    - name
     type: object
   CreateLedgerInput:
     description: CreateLedgerInput is the input payload to create a ledger.
@@ -261,21 +306,6 @@ definitions:
         $ref: '#/definitions/Status'
     required:
     - entityId
-    - name
-    type: object
-  CreateProductInput:
-    description: CreateProductInput is the input payload to create a cluster.
-    properties:
-      metadata:
-        additionalProperties: {}
-        type: object
-      name:
-        example: My Product
-        maxLength: 256
-        type: string
-      status:
-        $ref: '#/definitions/Status'
-    required:
     - name
     type: object
   Ledger:
@@ -393,36 +423,6 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         type: string
     type: object
-  Product:
-    description: Product is a struct designed to store cluster data.
-    properties:
-      createdAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      deletedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-      id:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      ledgerId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      metadata:
-        additionalProperties: {}
-        type: object
-      name:
-        example: My Product
-        type: string
-      organizationId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      status:
-        $ref: '#/definitions/Status'
-      updatedAt:
-        example: "2021-01-01T00:00:00Z"
-        type: string
-    type: object
   Status:
     description: Status is the struct designed to store the status data of an entity.
     properties:
@@ -448,15 +448,15 @@ definitions:
       allowSending:
         example: true
         type: boolean
+      clusterId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
       metadata:
         additionalProperties: {}
         type: object
       name:
         example: My Account Updated
         maxLength: 256
-        type: string
-      productId:
-        example: 00000000-0000-0000-0000-000000000000
         type: string
       portfolioId:
         example: 00000000-0000-0000-0000-000000000000
@@ -472,6 +472,19 @@ definitions:
         type: object
       name:
         example: Bitcoin
+        maxLength: 256
+        type: string
+      status:
+        $ref: '#/definitions/Status'
+    type: object
+  UpdateClusterInput:
+    description: UpdateClusterInput is the input payload to update a cluster.
+    properties:
+      metadata:
+        additionalProperties: {}
+        type: object
+      name:
+        example: My Cluster Updated
         maxLength: 256
         type: string
       status:
@@ -522,19 +535,6 @@ definitions:
         type: object
       name:
         example: My Portfolio Updated
-        maxLength: 256
-        type: string
-      status:
-        $ref: '#/definitions/Status'
-    type: object
-  UpdateProductInput:
-    description: UpdateProductInput is the input payload to update a cluster.
-    properties:
-      metadata:
-        additionalProperties: {}
-        type: object
-      name:
-        example: My Product Updated
         maxLength: 256
         type: string
       status:
@@ -1433,6 +1433,235 @@ paths:
       summary: Update an Asset
       tags:
       - Assets
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters:
+    get:
+      description: Get all Clusters with the input metadata or without metadata
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 1
+        description: Page
+        in: query
+        name: page
+        type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        enum:
+        - asc
+        - desc
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                items:
+                  items:
+                    $ref: '#/definitions/Cluster'
+                  type: array
+                limit:
+                  type: integer
+                page:
+                  type: integer
+              type: object
+      summary: Get all Clusters
+      tags:
+      - Clusters
+    post:
+      consumes:
+      - application/json
+      description: Create a Cluster with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Cluster
+        in: body
+        name: cluster
+        required: true
+        schema:
+          $ref: '#/definitions/CreateClusterInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Cluster'
+      summary: Create a Cluster
+      tags:
+      - Clusters
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters/{id}:
+    delete:
+      description: Delete a Cluster with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Cluster ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      summary: Delete a Cluster by ID
+      tags:
+      - Clusters
+    get:
+      description: Get a Cluster with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Cluster ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Cluster'
+      summary: Get a Cluster by ID
+      tags:
+      - Clusters
+    patch:
+      consumes:
+      - application/json
+      description: Update a Cluster with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Cluster ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Cluster
+        in: body
+        name: cluster
+        required: true
+        schema:
+          $ref: '#/definitions/UpdateClusterInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Cluster'
+      summary: Update a Cluster
+      tags:
+      - Clusters
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       description: Get all Portfolios with the input metadata or without metadata
@@ -1902,233 +2131,4 @@ paths:
       summary: Update an Account from Portfolio
       tags:
       - Accounts
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/products:
-    get:
-      description: Get all Products with the input metadata or without metadata
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Metadata
-        in: query
-        name: metadata
-        type: string
-      - default: 10
-        description: Limit
-        in: query
-        name: limit
-        type: integer
-      - default: 1
-        description: Page
-        in: query
-        name: page
-        type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        type: string
-      - description: End Date
-        in: query
-        name: end_date
-        type: string
-      - description: Sort Order
-        enum:
-        - asc
-        - desc
-        in: query
-        name: sort_order
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/Pagination'
-            - properties:
-                items:
-                  items:
-                    $ref: '#/definitions/Product'
-                  type: array
-                limit:
-                  type: integer
-                page:
-                  type: integer
-              type: object
-      summary: Get all Products
-      tags:
-      - Products
-    post:
-      consumes:
-      - application/json
-      description: Create a Product with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Product
-        in: body
-        name: cluster
-        required: true
-        schema:
-          $ref: '#/definitions/CreateProductInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Product'
-      summary: Create a Product
-      tags:
-      - Products
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}:
-    delete:
-      description: Delete a Product with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Product ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-      summary: Delete a Product by ID
-      tags:
-      - Products
-    get:
-      description: Get a Product with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Product ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Product'
-      summary: Get a Product by ID
-      tags:
-      - Products
-    patch:
-      consumes:
-      - application/json
-      description: Update a Product with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Product ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Product
-        in: body
-        name: cluster
-        required: true
-        schema:
-          $ref: '#/definitions/UpdateProductInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Product'
-      summary: Update a Product
-      tags:
-      - Products
 swagger: "2.0"

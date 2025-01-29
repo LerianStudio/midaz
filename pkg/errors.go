@@ -615,11 +615,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Assets Found",
 			Message:    "No assets were found in the search. Please review the search criteria and try again.",
 		},
-		constant.ErrNoProductsFound: EntityNotFoundError{
+		constant.ErrNoClustersFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrNoProductsFound.Error(),
-			Title:      "No Products Found",
-			Message:    "No products were found in the search. Please review the search criteria and try again.",
+			Code:       constant.ErrNoClustersFound.Error(),
+			Title:      "No Clusters Found",
+			Message:    "No clusters were found in the search. Please review the search criteria and try again.",
 		},
 		constant.ErrNoPortfoliosFound: EntityNotFoundError{
 			EntityType: entityType,

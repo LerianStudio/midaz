@@ -14,20 +14,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDeleteProductByID(t *testing.T) {
+func TestDeleteClusterByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProductRepo := cluster.NewMockRepository(ctrl)
+	mockClusterRepo := cluster.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		ProductRepo: mockProductRepo,
+		ClusterRepo: mockClusterRepo,
 	}
 
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	productID := uuid.New()
+	clusterID := uuid.New()
 
 	tests := []struct {
 		name        string
@@ -37,8 +37,8 @@ func TestDeleteProductByID(t *testing.T) {
 		{
 			name: "success - cluster deleted",
 			setupMocks: func() {
-				mockProductRepo.EXPECT().
-					Delete(gomock.Any(), organizationID, ledgerID, productID).
+				mockClusterRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, clusterID).
 					Return(nil).
 					Times(1)
 			},
@@ -47,8 +47,8 @@ func TestDeleteProductByID(t *testing.T) {
 		{
 			name: "failure - cluster not found",
 			setupMocks: func() {
-				mockProductRepo.EXPECT().
-					Delete(gomock.Any(), organizationID, ledgerID, productID).
+				mockClusterRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, clusterID).
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -57,8 +57,8 @@ func TestDeleteProductByID(t *testing.T) {
 		{
 			name: "failure - repository error",
 			setupMocks: func() {
-				mockProductRepo.EXPECT().
-					Delete(gomock.Any(), organizationID, ledgerID, productID).
+				mockClusterRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, clusterID).
 					Return(errors.New("failed to delete cluster")).
 					Times(1)
 			},
@@ -70,7 +70,7 @@ func TestDeleteProductByID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
 
-			err := uc.DeleteProductByID(ctx, organizationID, ledgerID, productID)
+			err := uc.DeleteClusterByID(ctx, organizationID, ledgerID, clusterID)
 
 			if tt.expectedErr != nil {
 				assert.Error(t, err)

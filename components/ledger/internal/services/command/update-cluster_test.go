@@ -16,15 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUpdateProductByID(t *testing.T) {
+func TestUpdateClusterByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockProductRepo := cluster.NewMockRepository(ctrl)
+	mockClusterRepo := cluster.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		ProductRepo:  mockProductRepo,
+		ClusterRepo:  mockClusterRepo,
 		MetadataRepo: mockMetadataRepo,
 	}
 
@@ -32,25 +32,25 @@ func TestUpdateProductByID(t *testing.T) {
 		name           string
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
-		productID      uuid.UUID
-		input          *mmodel.UpdateProductInput
+		clusterID      uuid.UUID
+		input          *mmodel.UpdateClusterInput
 		mockSetup      func()
 		expectErr      bool
 	}{
 		{
-			name:           "Success - Product updated with metadata",
+			name:           "Success - Cluster updated with metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
-			input: &mmodel.UpdateProductInput{
-				Name:     "Updated Product",
+			clusterID:      uuid.New(),
+			input: &mmodel.UpdateClusterInput{
+				Name:     "Updated Cluster",
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
 			mockSetup: func() {
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Product{ID: "123", Name: "Updated Product", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+					Return(&mmodel.Cluster{ID: "123", Name: "Updated Cluster", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
@@ -61,17 +61,17 @@ func TestUpdateProductByID(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:           "Error - Product not found",
+			name:           "Error - Cluster not found",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
-			input: &mmodel.UpdateProductInput{
-				Name:     "Nonexistent Product",
+			clusterID:      uuid.New(),
+			input: &mmodel.UpdateClusterInput{
+				Name:     "Nonexistent Cluster",
 				Status:   mmodel.Status{Code: "inactive"},
 				Metadata: nil,
 			},
 			mockSetup: func() {
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
@@ -81,16 +81,16 @@ func TestUpdateProductByID(t *testing.T) {
 			name:           "Error - Failed to update metadata",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
-			input: &mmodel.UpdateProductInput{
-				Name:     "Product with Metadata Error",
+			clusterID:      uuid.New(),
+			input: &mmodel.UpdateClusterInput{
+				Name:     "Cluster with Metadata Error",
 				Status:   mmodel.Status{Code: "active"},
 				Metadata: map[string]any{"key": "value"},
 			},
 			mockSetup: func() {
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(&mmodel.Product{ID: "123", Name: "Product with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
+					Return(&mmodel.Cluster{ID: "123", Name: "Cluster with Metadata Error", Status: mmodel.Status{Code: "active"}, Metadata: nil}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mongodb.Metadata{Data: map[string]any{"existing_key": "existing_value"}}, nil)
@@ -104,14 +104,14 @@ func TestUpdateProductByID(t *testing.T) {
 			name:           "Error - Failure to update cluster",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
-			productID:      uuid.New(),
-			input: &mmodel.UpdateProductInput{
-				Name:     "Update Failure Product",
+			clusterID:      uuid.New(),
+			input: &mmodel.UpdateClusterInput{
+				Name:     "Update Failure Cluster",
 				Status:   mmodel.Status{Code: "inactive"},
 				Metadata: nil,
 			},
 			mockSetup: func() {
-				mockProductRepo.EXPECT().
+				mockClusterRepo.EXPECT().
 					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("update error"))
 			},
@@ -124,7 +124,7 @@ func TestUpdateProductByID(t *testing.T) {
 			tt.mockSetup()
 
 			ctx := context.Background()
-			result, err := uc.UpdateProductByID(ctx, tt.organizationID, tt.ledgerID, tt.productID, tt.input)
+			result, err := uc.UpdateClusterByID(ctx, tt.organizationID, tt.ledgerID, tt.clusterID, tt.input)
 
 			if tt.expectErr {
 				assert.Error(t, err)

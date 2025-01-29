@@ -14,31 +14,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetProductByID get a Product from the repository by given id.
-func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Product, error) {
+// GetClusterByID get a Cluster from the repository by given id.
+func (uc *UseCase) GetClusterByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Cluster, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_product_by_id")
+	ctx, span := tracer.Start(ctx, "query.get_cluster_by_id")
 	defer span.End()
 
 	logger.Infof("Retrieving cluster for id: %s", id.String())
 
-	product, err := uc.ProductRepo.Find(ctx, organizationID, ledgerID, id)
+	cluster, err := uc.ClusterRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get cluster on repo by id", err)
 
 		logger.Errorf("Error getting cluster on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrProductIDNotFound, reflect.TypeOf(mmodel.Product{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrClusterIDNotFound, reflect.TypeOf(mmodel.Cluster{}).Name())
 		}
 
 		return nil, err
 	}
 
-	if product != nil {
-		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Product{}).Name(), id.String())
+	if cluster != nil {
+		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Cluster{}).Name(), id.String())
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb cluster", err)
 
@@ -48,9 +48,9 @@ func (uc *UseCase) GetProductByID(ctx context.Context, organizationID, ledgerID,
 		}
 
 		if metadata != nil {
-			product.Metadata = metadata.Data
+			cluster.Metadata = metadata.Data
 		}
 	}
 
-	return product, nil
+	return cluster, nil
 }
