@@ -1,4 +1,4 @@
-package Cluster
+package cluster
 
 import (
 	"encoding/json"
@@ -32,8 +32,8 @@ type flagsCreate struct {
 	JSONFile       string
 }
 
-func (f *factoryProductCreate) runE(cmd *cobra.Command, _ []string) error {
-	product := mmodel.CreateProductInput{}
+func (f *factoryClusterCreate) runE(cmd *cobra.Command, _ []string) error {
+	cluster := mmodel.CreateClusterInput{}
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
@@ -54,30 +54,30 @@ func (f *factoryProductCreate) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	if cmd.Flags().Changed("json-file") {
-		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &product)
+		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &cluster)
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
 				"specification at https://www.json.org/json-en.html")
 		}
 	} else {
-		err := f.createRequestFromFlags(&product)
+		err := f.createRequestFromFlags(&cluster)
 		if err != nil {
 			return err
 		}
 	}
 
-	resp, err := f.repoProduct.Create(f.OrganizationID, f.LedgerID, product)
+	resp, err := f.repoCluster.Create(f.OrganizationID, f.LedgerID, cluster)
 	if err != nil {
 		return err
 	}
 
-	output.FormatAndPrint(f.factory, resp.ID, "Product", output.Created)
+	output.FormatAndPrint(f.factory, resp.ID, "Cluster", output.Created)
 
 	return nil
 }
 
-func (f *factoryProductCreate) createRequestFromFlags(portfolio *mmodel.CreateProductInput) error {
+func (f *factoryClusterCreate) createRequestFromFlags(portfolio *mmodel.CreateClusterInput) error {
 	var err error
 
 	portfolio.Name, err = utils.AssignStringField(f.Name, "name", f.tuiInput)
@@ -101,7 +101,7 @@ func (f *factoryProductCreate) createRequestFromFlags(portfolio *mmodel.CreatePr
 	return nil
 }
 
-func (f *factoryProductCreate) setFlags(cmd *cobra.Command) {
+func (f *factoryClusterCreate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID,
 		"organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID,
@@ -115,21 +115,21 @@ func (f *factoryProductCreate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
 		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "",
-		`Path to a JSON file containing the attributes of the Product being 
+		`Path to a JSON file containing the attributes of the Cluster being 
 		created; you can use - for reading from stdin`)
 	cmd.Flags().BoolP("help", "h", false,
 		"Displays more information about the Mdz CLI")
 }
 
-func newInjectFacCreate(f *factory.Factory) *factoryProductCreate {
-	return &factoryProductCreate{
+func newInjectFacCreate(f *factory.Factory) *factoryClusterCreate {
+	return &factoryClusterCreate{
 		factory:     f,
-		repoProduct: rest.NewProduct(f),
+		repoCluster: rest.NewCluster(f),
 		tuiInput:    tui.Input,
 	}
 }
 
-func newCmdProductCreate(f *factoryProductCreate) *cobra.Command {
+func newCmdClusterCreate(f *factoryClusterCreate) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Creates a new cluster for clustering customers.",

@@ -1,4 +1,4 @@
-package Cluster
+package cluster
 
 import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -7,20 +7,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryProduct struct {
+type factoryCluster struct {
 	factory *factory.Factory
 }
 
-func (f *factoryProduct) setCmds(cmd *cobra.Command) {
-	cmd.AddCommand(newCmdProductCreate(newInjectFacCreate(f.factory)))
-	cmd.AddCommand(newCmdProductList(newInjectFacList(f.factory)))
-	cmd.AddCommand(newCmdProductDescribe(newInjectFacDescribe(f.factory)))
-	cmd.AddCommand(newCmdProductUpdate(newInjectFacUpdate(f.factory)))
-	cmd.AddCommand(newCmdProductDelete(newInjectFacDelete(f.factory)))
+func (f *factoryCluster) setCmds(cmd *cobra.Command) {
+	cmd.AddCommand(newCmdClusterCreate(newInjectFacCreate(f.factory)))
+	cmd.AddCommand(newCmdClusterList(newInjectFacList(f.factory)))
+	cmd.AddCommand(newCmdClusterDescribe(newInjectFacDescribe(f.factory)))
+	cmd.AddCommand(newCmdClusterUpdate(newInjectFacUpdate(f.factory)))
+	cmd.AddCommand(newCmdClusterDelete(newInjectFacDelete(f.factory)))
 }
 
-func NewCmdProduct(f *factory.Factory) *cobra.Command {
-	fOrg := factoryProduct{
+func NewCmdCluster(f *factory.Factory) *cobra.Command {
+	fOrg := factoryCluster{
 		factory: f,
 	}
 	cmd := &cobra.Command{

@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"bytes"
@@ -17,23 +17,23 @@ import (
 	"gotest.tools/golden"
 )
 
-func Test_newCmdProductDescribe(t *testing.T) {
+func Test_newCmdClusterDescribe(t *testing.T) {
 	t.Run("happy path informing all the necessary flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		portfolioID := "01931b44-6e33-791a-bfad-27992fa15984"
 
-		ledFactory := factoryProductDescribe{
+		ledFactory := factoryClusterDescribe{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Out:            "",
@@ -46,14 +46,14 @@ func Test_newCmdProductDescribe(t *testing.T) {
 			"chave3": true,
 		}
 
-		cmd := newCmdProductDescribe(&ledFactory)
+		cmd := newCmdClusterDescribe(&ledFactory)
 		cmd.SetArgs([]string{
 			"--ledger-id", ledgerID,
 			"--organization-id", organizationID,
 			"--cluster-id", portfolioID,
 		})
 
-		item := mmodel.Product{
+		item := mmodel.Cluster{
 			ID:             portfolioID,
 			Name:           "2Real",
 			OrganizationID: organizationID,
@@ -81,18 +81,18 @@ func Test_newCmdProductDescribe(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		portfolioID := "01931b44-6e33-791a-bfad-27992fa15984"
 
-		ledFactory := factoryProductDescribe{
+		ledFactory := factoryClusterDescribe{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Out:            "",
@@ -109,10 +109,10 @@ func Test_newCmdProductDescribe(t *testing.T) {
 			return "01933f96-ed04-7c57-be5b-c091388830f8", nil
 		}
 
-		cmd := newCmdProductDescribe(&ledFactory)
+		cmd := newCmdClusterDescribe(&ledFactory)
 		cmd.SetArgs([]string{})
 
-		item := mmodel.Product{
+		item := mmodel.Cluster{
 			ID:             portfolioID,
 			Name:           "2Real",
 			OrganizationID: organizationID,

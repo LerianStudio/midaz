@@ -1,4 +1,4 @@
-package Cluster
+package cluster
 
 import (
 	"bytes"
@@ -17,36 +17,36 @@ import (
 	"gotest.tools/golden"
 )
 
-func Test_newCmdProductList(t *testing.T) {
+func Test_newCmdClusterList(t *testing.T) {
 	t.Run("with flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 
-		ledFactory := factoryProductList{
+		ledFactory := factoryClusterList{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 		}
 
-		cmd := newCmdProductList(&ledFactory)
+		cmd := newCmdClusterList(&ledFactory)
 		cmd.SetArgs([]string{
 			"--organization-id", organizationID,
 			"--ledger-id", ledgerID,
 		})
 
-		list := &mmodel.Products{
+		list := &mmodel.Clusters{
 			Page:  1,
 			Limit: 2,
-			Items: []mmodel.Product{
+			Items: []mmodel.Cluster{
 				{
 					ID:   "01930365-4d46-7a09-a503-b932714f85af",
 					Name: "2Real",
@@ -102,17 +102,17 @@ func Test_newCmdProductList(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 
-		ledFactory := factoryProductList{
+		ledFactory := factoryClusterList{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 		}
@@ -121,13 +121,13 @@ func Test_newCmdProductList(t *testing.T) {
 			return "1234", nil
 		}
 
-		cmd := newCmdProductList(&ledFactory)
+		cmd := newCmdClusterList(&ledFactory)
 		cmd.SetArgs([]string{})
 
-		list := &mmodel.Products{
+		list := &mmodel.Clusters{
 			Page:  1,
 			Limit: 2,
-			Items: []mmodel.Product{
+			Items: []mmodel.Cluster{
 				{
 					ID:   "01930365-4d46-7a09-a503-b932714f85af",
 					Name: "2Real",
@@ -183,17 +183,17 @@ func Test_newCmdProductList(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 
-		ledFactory := factoryProductList{
+		ledFactory := factoryClusterList{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 		}
@@ -202,13 +202,13 @@ func Test_newCmdProductList(t *testing.T) {
 			return "1234", nil
 		}
 
-		cmd := newCmdProductList(&ledFactory)
+		cmd := newCmdClusterList(&ledFactory)
 		cmd.SetArgs([]string{"--start-date", "2023-11-01", "--end-date", "2023-11-10"})
 
-		list := &mmodel.Products{
+		list := &mmodel.Clusters{
 			Page:  1,
 			Limit: 2,
-			Items: []mmodel.Product{
+			Items: []mmodel.Cluster{
 				{
 					ID:   "01930365-4d46-7a09-a503-b932714f85af",
 					Name: "2Real",

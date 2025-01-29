@@ -66,29 +66,29 @@ func (f *factoryClusterDelete) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryProductDelete) setFlags(cmd *cobra.Command) {
+func (f *factoryClusterDelete) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the portfolio ID")
+	cmd.Flags().StringVar(&f.ClusterID, "cluster-id", "", "Specify the portfolio ID")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
-func newInjectFacDelete(f *factory.Factory) *factoryProductDelete {
-	return &factoryProductDelete{
+func newInjectFacDelete(f *factory.Factory) *factoryClusterDelete {
+	return &factoryClusterDelete{
 		factory:     f,
-		repoProduct: rest.NewProduct(f),
+		repoCluster: rest.NewCluster(f),
 		tuiInput:    tui.Input,
 	}
 }
 
-func newCmdProductDelete(f *factoryProductDelete) *cobra.Command {
+func newCmdClusterDelete(f *factoryClusterDelete) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Removes an existing cluster.",
 		Long: utils.Format(
 			"The delete subcommand allows you to delete a cluster, removing its",
 			"settings and clustering rules. It is useful for deactivating obsolete",
-			"clusters or adjusting the organization of products without changing",
+			"clusters or adjusting the organization of clusters without changing",
 			"the structure of customers.",
 		),
 		Example: utils.Format(

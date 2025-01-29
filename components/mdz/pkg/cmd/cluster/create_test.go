@@ -105,12 +105,12 @@ func Test_newCmdClusterCreate(t *testing.T) {
 			"chave3": true,
 		}
 
-		orgFactory := factoryProductCreate{
+		orgFactory := factoryClusterCreate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct: mockRepo,
+			repoCluster: mockRepo,
 			tuiInput: func(message string) (string, error) {
 				return name, nil
 			},
@@ -128,7 +128,7 @@ func Test_newCmdClusterCreate(t *testing.T) {
 			return "123", nil
 		}
 
-		cmd := newCmdProductCreate(&orgFactory)
+		cmd := newCmdClusterCreate(&orgFactory)
 		cmd.SetArgs([]string{
 			"--name", name,
 			"--status-code", code,
@@ -136,8 +136,8 @@ func Test_newCmdClusterCreate(t *testing.T) {
 			"--metadata", "{\"chave1\": \"valor1\", \"chave2\": 2, \"chave3\": true}",
 		})
 
-		result := &mmodel.Product{
-			ID:             productID,
+		result := &mmodel.Cluster{
+			ID:             clusterID,
 			LedgerID:       ledgerID,
 			OrganizationID: organizationID,
 			Name:           name,
@@ -153,6 +153,6 @@ func Test_newCmdClusterCreate(t *testing.T) {
 		assert.NoError(t, err)
 
 		output := orgFactory.factory.IOStreams.Out.(*bytes.Buffer).String()
-		assert.Contains(t, output, "The Product 01931c99-adef-7b98-ad68-72d7e263066a has been successfully created.")
+		assert.Contains(t, output, "The Cluster 01931c99-adef-7b98-ad68-72d7e263066a has been successfully created.")
 	})
 }

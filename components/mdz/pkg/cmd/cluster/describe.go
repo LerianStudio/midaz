@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"encoding/json"
@@ -17,18 +17,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryProductDescribe struct {
+type factoryClusterDescribe struct {
 	factory        *factory.Factory
-	repoProduct    repository.Product
+	repoCluster    repository.Cluster
 	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
-	ProductID      string
+	ClusterID      string
 	Out            string
 	JSON           bool
 }
 
-func (f *factoryProductDescribe) ensureFlagInput(cmd *cobra.Command) error {
+func (f *factoryClusterDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -47,32 +47,32 @@ func (f *factoryProductDescribe) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("cluster-id") && len(f.ProductID) < 1 {
+	if !cmd.Flags().Changed("cluster-id") && len(f.ClusterID) < 1 {
 		id, err := f.tuiInput("Enter your cluster-id")
 		if err != nil {
 			return err
 		}
 
-		f.ProductID = id
+		f.ClusterID = id
 	}
 
 	return nil
 }
 
-func (f *factoryProductDescribe) runE(cmd *cobra.Command, _ []string) error {
+func (f *factoryClusterDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if err := f.ensureFlagInput(cmd); err != nil {
 		return err
 	}
 
-	asset, err := f.repoProduct.GetByID(f.OrganizationID, f.LedgerID, f.ProductID)
+	asset, err := f.repoCluster.GetByID(f.OrganizationID, f.LedgerID, f.ClusterID)
 	if err != nil {
 		return err
 	}
 
-	return f.outputProduct(cmd, asset)
+	return f.outputCluster(cmd, asset)
 }
 
-func (f *factoryProductDescribe) outputProduct(cmd *cobra.Command, asset *mmodel.Product) error {
+func (f *factoryClusterDescribe) outputCluster(cmd *cobra.Command, asset *mmodel.Cluster) error {
 	if f.JSON || cmd.Flags().Changed("out") {
 		b, err := json.Marshal(asset)
 		if err != nil {
@@ -104,7 +104,7 @@ func (f *factoryProductDescribe) outputProduct(cmd *cobra.Command, asset *mmodel
 	return nil
 }
 
-func (f *factoryProductDescribe) describePrint(asset *mmodel.Product) {
+func (f *factoryClusterDescribe) describePrint(asset *mmodel.Cluster) {
 	tbl := table.New("FIELDS", "VALUES")
 
 	if !f.factory.NoColor {
@@ -137,24 +137,24 @@ func (f *factoryProductDescribe) describePrint(asset *mmodel.Product) {
 	tbl.Print()
 }
 
-func (f *factoryProductDescribe) setFlags(cmd *cobra.Command) {
+func (f *factoryClusterDescribe) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.Out, "out", "", "Exports the output to the given <file_path/file_name.ext>")
 	cmd.Flags().BoolVar(&f.JSON, "json", false, "returns the table in json format")
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the cluster ID to retrieve details")
+	cmd.Flags().StringVar(&f.ClusterID, "cluster-id", "", "Specify the cluster ID to retrieve details")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
-func newInjectFacDescribe(f *factory.Factory) *factoryProductDescribe {
-	return &factoryProductDescribe{
+func newInjectFacDescribe(f *factory.Factory) *factoryClusterDescribe {
+	return &factoryClusterDescribe{
 		factory:     f,
-		repoProduct: rest.NewProduct(f),
+		repoCluster: rest.NewCluster(f),
 		tuiInput:    tui.Input,
 	}
 }
 
-func newCmdProductDescribe(f *factoryProductDescribe) *cobra.Command {
+func newCmdClusterDescribe(f *factoryClusterDescribe) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "describe",
 		Short: "Shows details of a specific portfolio.",

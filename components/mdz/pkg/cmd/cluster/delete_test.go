@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"bytes"
@@ -13,25 +13,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_newCmdProductDelete(t *testing.T) {
+func Test_newCmdClusterDelete(t *testing.T) {
 	t.Run("with flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
-		factory := factoryProductDelete{
+		factory := factoryClusterDelete{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: "321",
 			LedgerID:       "123",
-			ProductID:      "444",
+			ClusterID:      "444",
 		}
 
-		cmd := newCmdProductDelete(&factory)
+		cmd := newCmdClusterDelete(&factory)
 		cmd.SetArgs([]string{
 			"--organization-id", "321",
 			"--ledger-id", "123",
@@ -44,31 +44,31 @@ func Test_newCmdProductDelete(t *testing.T) {
 		assert.NoError(t, err)
 
 		output := factory.factory.IOStreams.Out.(*bytes.Buffer).String()
-		assert.Contains(t, output, "The Product 444 has been successfully deleted.")
+		assert.Contains(t, output, "The Cluster 444 has been successfully deleted.")
 	})
 
 	t.Run("no flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
-		mockRepo := repository.NewMockProduct(ctrl)
+		mockRepo := repository.NewMockCluster(ctrl)
 
-		factory := factoryProductDelete{
+		factory := factoryClusterDelete{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
 				Out: &bytes.Buffer{},
 				Err: &bytes.Buffer{},
 			}},
-			repoProduct:    mockRepo,
+			repoCluster:    mockRepo,
 			OrganizationID: "321",
 			LedgerID:       "123",
-			ProductID:      "444",
+			ClusterID:      "444",
 		}
 
 		factory.tuiInput = func(message string) (string, error) {
 			return "444", nil
 		}
 
-		cmd := newCmdProductDelete(&factory)
+		cmd := newCmdClusterDelete(&factory)
 		cmd.SetArgs([]string{})
 
 		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
@@ -77,6 +77,6 @@ func Test_newCmdProductDelete(t *testing.T) {
 		assert.NoError(t, err)
 
 		output := factory.factory.IOStreams.Out.(*bytes.Buffer).String()
-		assert.Contains(t, output, "The Product 444 has been successfully deleted.")
+		assert.Contains(t, output, "The Cluster 444 has been successfully deleted.")
 	})
 }

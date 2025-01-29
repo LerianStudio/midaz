@@ -1,4 +1,4 @@
-package Cluster
+package cluster
 
 import (
 	"encoding/json"
@@ -15,9 +15,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type factoryProductList struct {
+type factoryClusterList struct {
 	factory        *factory.Factory
-	repoProduct    repository.Product
+	repoCluster    repository.Cluster
 	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
@@ -29,7 +29,7 @@ type factoryProductList struct {
 	JSON           bool
 }
 
-func (f *factoryProductList) runE(cmd *cobra.Command, _ []string) error {
+func (f *factoryClusterList) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -60,7 +60,7 @@ func (f *factoryProductList) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	portfolios, err := f.repoProduct.Get(f.OrganizationID, f.LedgerID, f.Limit, f.Page,
+	portfolios, err := f.repoCluster.Get(f.OrganizationID, f.LedgerID, f.Limit, f.Page,
 		f.SortOrder, f.StartDate, f.EndDate)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (f *factoryProductList) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryProductList) setFlags(cmd *cobra.Command) {
+func (f *factoryClusterList) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID.")
 	cmd.Flags().BoolVar(&f.JSON, "json", false, "returns the table in json format")
@@ -125,20 +125,20 @@ func (f *factoryProductList) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
-func newInjectFacList(f *factory.Factory) *factoryProductList {
-	return &factoryProductList{
+func newInjectFacList(f *factory.Factory) *factoryClusterList {
+	return &factoryClusterList{
 		factory:     f,
-		repoProduct: rest.NewProduct(f),
+		repoCluster: rest.NewCluster(f),
 		tuiInput:    tui.Input,
 	}
 }
 
-func newCmdProductList(f *factoryProductList) *cobra.Command {
+func newCmdClusterList(f *factoryClusterList) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "Lists all registered products.",
+		Short: "Lists all registered clusters.",
 		Long: utils.Format(
-			"The list subcommand displays all the products created, with details",
+			"The list subcommand displays all the clusters created, with details",
 			"of the policies and clustering rules applied. It's a quick way to",
 			"view existing clusters and monitor the policies associated with",
 			"each cluster.",

@@ -1,4 +1,4 @@
-package Cluster
+package cluster
 
 import (
 	"encoding/json"
@@ -95,7 +95,7 @@ func (f *factoryClusterUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryProductUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdateProductInput) error {
+func (f *factoryClusterUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdateClusterInput) error {
 	portfolio.Name = f.Name
 	portfolio.Status.Code = f.StatusCode
 
@@ -113,11 +113,11 @@ func (f *factoryProductUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdatePr
 	return nil
 }
 
-func (f *factoryProductUpdate) setFlags(cmd *cobra.Command) {
+func (f *factoryClusterUpdate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.ProductID, "cluster-id", "", "Specify the portfolio ID")
-	cmd.Flags().StringVar(&f.Name, "name", "", "Legal name of the Product.")
+	cmd.Flags().StringVar(&f.ClusterID, "cluster-id", "", "Specify the portfolio ID")
+	cmd.Flags().StringVar(&f.Name, "name", "", "Legal name of the Cluster.")
 	cmd.Flags().StringVar(&f.StatusCode, "status-code", "",
 		"code for the organization (e.g., ACTIVE).")
 	cmd.Flags().StringVar(&f.StatusDescription, "status-description", "",
@@ -131,15 +131,15 @@ func (f *factoryProductUpdate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
-func newInjectFacUpdate(f *factory.Factory) *factoryProductUpdate {
-	return &factoryProductUpdate{
+func newInjectFacUpdate(f *factory.Factory) *factoryClusterUpdate {
+	return &factoryClusterUpdate{
 		factory:     f,
-		repoProduct: rest.NewProduct(f),
+		repoCluster: rest.NewCluster(f),
 		tuiInput:    tui.Input,
 	}
 }
 
-func newCmdProductUpdate(f *factoryProductUpdate) *cobra.Command {
+func newCmdClusterUpdate(f *factoryClusterUpdate) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Updates an existing cluster with new policies.",
