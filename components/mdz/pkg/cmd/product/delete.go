@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"

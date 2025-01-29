@@ -32,7 +32,7 @@ type flagsUpdate struct {
 	StatusCode        string
 	StatusDescription string
 	Alias             string
-	ProductID         string
+	ClusterID         string
 	AllowSending      string
 	AllowReceiving    string
 	Metadata          string
@@ -140,8 +140,8 @@ func (f *factoryAccountUpdate) UpdateRequestFromFlags(account *mmodel.UpdateAcco
 		account.Alias = &f.Alias
 	}
 
-	if len(f.ProductID) > 0 {
-		account.ProductID = &f.ProductID
+	if len(f.ClusterID) > 0 {
+		account.ClusterID = &f.ClusterID
 	}
 
 	var metadata map[string]any

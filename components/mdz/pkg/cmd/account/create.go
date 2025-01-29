@@ -32,7 +32,7 @@ type flagsCreate struct {
 	Alias             string
 	Type              string
 	ParentAccountID   string
-	ProductID         string
+	ClusterID         string
 	EntityID          string
 	StatusCode        string
 	StatusDescription string
@@ -116,7 +116,7 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 		account.ParentAccountID = &f.ParentAccountID
 	}
 
-	if len(f.ProductID) > 0 {
+	if len(f.ClusterID) > 0 {
 		account.ProductID = &f.ProductID
 	}
 

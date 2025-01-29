@@ -1,4 +1,4 @@
-package product
+package cluster
 
 import (
 	"bytes"
