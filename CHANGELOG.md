@@ -1,3 +1,5 @@
+## [1.47.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.47.0-beta.1...v1.47.0-beta.2) (2025-01-30)
+
 ## [1.47.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.46.0...v1.47.0-beta.1) (2025-01-29)
 
 
