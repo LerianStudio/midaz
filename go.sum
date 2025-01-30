@@ -31,6 +31,8 @@ github.com/bxcodec/dbresolver/v2 v2.2.0 h1:3Xg5Cw64khndjnWYiadP1mL1XU8eVxtkqcDad
 github.com/bxcodec/dbresolver/v2 v2.2.0/go.mod h1:xWb3HT8vrWUnoLVA7KQ+IcD9RvnzfRBqOkO9rKsg1rQ=
 github.com/casdoor/casdoor-go-sdk v1.3.0 h1:iUZKsrNUkhtAoyitFIFw3e6TchctAdoxmVgLDtNAgpc=
 github.com/casdoor/casdoor-go-sdk v1.3.0/go.mod h1:cMnkCQJgMYpgAlgEx8reSt1AVaDIQLcJ1zk5pzBaz+4=
+github.com/catenacyber/perfsprint v0.7.1 h1:PGW5G/Kxn+YrN04cRAZKC+ZuvlVwolYMrIyyTJ/rMmc=
+github.com/catenacyber/perfsprint v0.7.1/go.mod h1:/wclWYompEyjUD2FuIIDVKNkqz7IgBIWXIH3V0Zol50=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
 github.com/cenkalti/backoff/v4 v4.3.0/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

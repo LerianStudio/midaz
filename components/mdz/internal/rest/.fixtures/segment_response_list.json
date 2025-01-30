@@ -1,0 +1,37 @@
+{
+    "items": [
+        {
+            "id": "01932727-1b5a-7540-98c0-6521ffe78ce6",
+            "name": "Segment Licensed Concrete Hat",
+            "ledgerId": "01932715-9f93-7432-90c3-4352bcfe464d",
+            "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Segment"
+            },
+            "createdAt": "2024-11-13T20:11:34.617671Z",
+            "updatedAt": "2024-11-13T20:11:34.617674Z",
+            "deletedAt": null
+        },
+        {
+            "id": "0193271b-877f-7c98-a5a6-43b664d68982",
+            "name": "Segment Refined Cotton Chair",
+            "ledgerId": "01932715-9f93-7432-90c3-4352bcfe464d",
+            "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Teste Segment"
+            },
+            "createdAt": "2024-11-13T19:58:55.868976Z",
+            "updatedAt": "2024-11-13T19:58:55.868979Z",
+            "deletedAt": null,
+            "metadata": {
+                "bitcoin": "3g9ofZcD7KRWL44BWdNa3PyM4PfzgqDG5P",
+                "chave": "metadata_chave",
+                "boolean": true
+            }
+        }
+    ],
+    "page": 1,
+    "limit": 5
+}

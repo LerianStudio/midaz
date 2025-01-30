@@ -375,17 +375,17 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Resource Already Deleted",
 			Message:    "The resource you are trying to delete has already been deleted. Ensure you are using the correct ID and try again.",
 		},
-		constant.ErrClusterIDInactive: ValidationError{
+		constant.ErrSegmentIDInactive: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrClusterIDInactive.Error(),
-			Title:      "Cluster ID Inactive",
-			Message:    "The Cluster ID you are attempting to use is inactive. Please use another Cluster ID and try again.",
+			Code:       constant.ErrSegmentIDInactive.Error(),
+			Title:      "Segment ID Inactive",
+			Message:    "The Segment ID you are attempting to use is inactive. Please use another Segment ID and try again.",
 		},
-		constant.ErrDuplicateClusterName: EntityConflictError{
+		constant.ErrDuplicateSegmentName: EntityConflictError{
 			EntityType: entityType,
-			Code:       constant.ErrDuplicateClusterName.Error(),
-			Title:      "Duplicate Cluster Name Error",
-			Message:    fmt.Sprintf("A cluster with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
+			Code:       constant.ErrDuplicateSegmentName.Error(),
+			Title:      "Duplicate Segment Name Error",
+			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
 		constant.ErrBalanceRemainingDeletion: UnprocessableOperationError{
 			EntityType: entityType,
@@ -507,11 +507,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Portfolio ID Not Found",
 			Message:    "The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again.",
 		},
-		constant.ErrClusterIDNotFound: EntityNotFoundError{
+		constant.ErrSegmentIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrClusterIDNotFound.Error(),
-			Title:      "Cluster ID Not Found",
-			Message:    "The provided cluster ID does not exist in our records. Please verify the cluster ID and try again.",
+			Code:       constant.ErrSegmentIDNotFound.Error(),
+			Title:      "Segment ID Not Found",
+			Message:    "The provided segment ID does not exist in our records. Please verify the segment ID and try again.",
 		},
 		constant.ErrLedgerIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -615,11 +615,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Assets Found",
 			Message:    "No assets were found in the search. Please review the search criteria and try again.",
 		},
-		constant.ErrNoClustersFound: EntityNotFoundError{
+		constant.ErrNoSegmentsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrNoClustersFound.Error(),
-			Title:      "No Clusters Found",
-			Message:    "No clusters were found in the search. Please review the search criteria and try again.",
+			Code:       constant.ErrNoSegmentsFound.Error(),
+			Title:      "No Segments Found",
+			Message:    "No segments were found in the search. Please review the search criteria and try again.",
 		},
 		constant.ErrNoPortfoliosFound: EntityNotFoundError{
 			EntityType: entityType,

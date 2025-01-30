@@ -32,7 +32,7 @@ type flagsUpdate struct {
 	StatusCode        string
 	StatusDescription string
 	Alias             string
-	ClusterID         string
+	SegmentID         string
 	AllowSending      string
 	AllowReceiving    string
 	Metadata          string
@@ -140,8 +140,8 @@ func (f *factoryAccountUpdate) UpdateRequestFromFlags(account *mmodel.UpdateAcco
 		account.Alias = &f.Alias
 	}
 
-	if len(f.ClusterID) > 0 {
-		account.ClusterID = &f.ClusterID
+	if len(f.SegmentID) > 0 {
+		account.SegmentID = &f.SegmentID
 	}
 
 	var metadata map[string]any
@@ -169,7 +169,7 @@ func (f *factoryAccountUpdate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.AllowReceiving, "allow-receiving", "", "Allow receiving assets to this ledger (true/false).")
 	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}",
 		"Metadata in JSON format, ex: '{\"key1\": \"value\", \"key2\": 123}'")
-	cmd.Flags().StringVar(&f.ClusterID, "cluster-id", "", "Specify the cluster ID.")
+	cmd.Flags().StringVar(&f.SegmentID, "segment-id", "", "Specify the segment ID.")
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "Path to a JSON file containing "+
 		"the attributes of the Organization being Updated; you can use - for reading from stdin")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")

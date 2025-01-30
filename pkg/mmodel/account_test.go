@@ -87,7 +87,7 @@ func TestAccount_ToProto(t *testing.T) {
 				DeletedAt:      timeDel,
 				EntityID:       ptr.StringPtr("EntityID"),
 				PortfolioID:    ptr.StringPtr("PortfolioID"),
-				ClusterID:      ptr.StringPtr("ClusterID"),
+				SegmentID:      ptr.StringPtr("SegmentID"),
 				Alias:          ptr.StringPtr("Alias"),
 			},
 			expected: &proto.Account{

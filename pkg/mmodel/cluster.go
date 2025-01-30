@@ -2,33 +2,33 @@ package mmodel
 
 import "time"
 
-// CreateClusterInput is a struct design to encapsulate request create payload data.
+// CreateSegmentInput is a struct design to encapsulate request create payload data.
 //
-// swagger:model CreateClusterInput
-// @Description CreateClusterInput is the input payload to create a cluster.
-type CreateClusterInput struct {
-	Name     string         `json:"name" validate:"required,max=256" example:"My Cluster"`
+// swagger:model CreateSegmentInput
+// @Description CreateSegmentInput is the input payload to create a segment.
+type CreateSegmentInput struct {
+	Name     string         `json:"name" validate:"required,max=256" example:"My Segment"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name CreateClusterInput
+} // @name CreateSegmentInput
 
-// UpdateClusterInput is a struct design to encapsulate request update payload data.
+// UpdateSegmentInput is a struct design to encapsulate request update payload data.
 //
-// swagger:model UpdateClusterInput
-// @Description UpdateClusterInput is the input payload to update a cluster.
-type UpdateClusterInput struct {
-	Name     string         `json:"name" validate:"max=256" example:"My Cluster Updated"`
+// swagger:model UpdateSegmentInput
+// @Description UpdateSegmentInput is the input payload to update a segment.
+type UpdateSegmentInput struct {
+	Name     string         `json:"name" validate:"max=256" example:"My Segment Updated"`
 	Status   Status         `json:"status"`
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-} // @name UpdateClusterInput
+} // @name UpdateSegmentInput
 
-// Cluster is a struct designed to encapsulate payload data.
+// Segment is a struct designed to encapsulate payload data.
 //
-// swagger:model Cluster
-// @Description Cluster is a struct designed to store cluster data.
-type Cluster struct {
+// swagger:model Segment
+// @Description Segment is a struct designed to store segment data.
+type Segment struct {
 	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	Name           string         `json:"name" example:"My Cluster"`
+	Name           string         `json:"name" example:"My Segment"`
 	LedgerID       string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
 	Status         Status         `json:"status"`
@@ -36,14 +36,14 @@ type Cluster struct {
 	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
-} // @name Cluster
+} // @name Segment
 
-// Clusters struct to return get all.
+// Segments struct to return get all.
 //
-// swagger:model Clusters
-// @Description Clusters is the struct designed to return a list of clusters with pagination.
-type Clusters struct {
-	Items []Cluster `json:"items"`
+// swagger:model Segments
+// @Description Segments is the struct designed to return a list of segments with pagination.
+type Segments struct {
+	Items []Segment `json:"items"`
 	Page  int       `json:"page" example:"1"`
 	Limit int       `json:"limit" example:"10"`
-} // @name Clusters
+} // @name Segments

@@ -17,7 +17,7 @@ definitions:
         type: string
       balance:
         $ref: '#/definitions/Balance'
-      clusterId:
+      segmentId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       createdAt:
@@ -131,8 +131,8 @@ definitions:
         example: 2
         type: number
     type: object
-  Cluster:
-    description: Cluster is a struct designed to store cluster data.
+  Segment:
+    description: Segment is a struct designed to store segment data.
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -150,7 +150,7 @@ definitions:
         additionalProperties: {}
         type: object
       name:
-        example: My Cluster
+        example: My Segment
         type: string
       organizationId:
         example: 00000000-0000-0000-0000-000000000000
@@ -178,7 +178,7 @@ definitions:
         example: BRL
         maxLength: 100
         type: string
-      clusterId:
+      segmentId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       entityId:
@@ -229,8 +229,8 @@ definitions:
     required:
     - code
     type: object
-  CreateClusterInput:
-    description: CreateClusterInput is the input payload to create a cluster.
+  CreateSegmentInput:
+    description: CreateSegmentInput is the input payload to create a segment.
     properties:
       metadata:
         additionalProperties: {}
@@ -478,7 +478,7 @@ definitions:
         $ref: '#/definitions/Status'
     type: object
   UpdateClusterInput:
-    description: UpdateClusterInput is the input payload to update a cluster.
+    description: UpdateClusterInput is the input payload to update a segment.
     properties:
       metadata:
         additionalProperties: {}
@@ -1532,7 +1532,7 @@ paths:
         type: string
       - description: Cluster
         in: body
-        name: cluster
+        name: segment
         required: true
         schema:
           $ref: '#/definitions/CreateClusterInput'
@@ -1648,7 +1648,7 @@ paths:
         type: string
       - description: Cluster
         in: body
-        name: cluster
+        name: segment
         required: true
         schema:
           $ref: '#/definitions/UpdateClusterInput'

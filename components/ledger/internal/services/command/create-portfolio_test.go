@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/segment"
 	"reflect"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/cluster"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
@@ -227,7 +227,7 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 	type fields struct {
 		OrganizationRepo organization.Repository
 		LedgerRepo       ledger.Repository
-		ClusterRepo      cluster.Repository
+		SegmentRepo      segment.Repository
 		PortfolioRepo    portfolio.Repository
 		AccountRepo      account.Repository
 		AssetRepo        asset.Repository
@@ -255,7 +255,7 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 			uc := &UseCase{
 				OrganizationRepo: tt.fields.OrganizationRepo,
 				LedgerRepo:       tt.fields.LedgerRepo,
-				ClusterRepo:      tt.fields.ClusterRepo,
+				SegmentRepo:      tt.fields.SegmentRepo,
 				PortfolioRepo:    tt.fields.PortfolioRepo,
 				AccountRepo:      tt.fields.AccountRepo,
 				AssetRepo:        tt.fields.AssetRepo,

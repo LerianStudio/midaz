@@ -134,29 +134,29 @@ func TestMDZ(t *testing.T) {
 		"--name", fake.FirstName(),
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "create",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "segment", "create",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
 		"--name", fake.FirstName(),
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "list",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "segment", "list",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
 	))
 
-	clusterID := getIDListOutput(t, stdout)
+	segmentID := getIDListOutput(t, stdout)
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "describe",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "segment", "describe",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
-		"--cluster-id", clusterID,
+		"--segment-id", segmentID,
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "update",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "segment", "update",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
-		"--cluster-id", clusterID,
+		"--segment-id", segmentID,
 		"--name", fake.FirstName(),
 	))
 
@@ -164,6 +164,7 @@ func TestMDZ(t *testing.T) {
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
 		"--portfolio-id", portfolioID,
+		"--segment-id", segmentID,
 		"--name", fake.FirstName(),
 		"--asset-code", "BRL",
 		"--type", "creditCard",
@@ -190,7 +191,7 @@ func TestMDZ(t *testing.T) {
 		"--ledger-id", ledgerID,
 		"--portfolio-id", portfolioID,
 		"--account-id", accountID,
-		"--cluster-id", clusterID,
+		"--segment-id", segmentID,
 		"--name", fake.FirstName(),
 		"--alias", "@wallet_"+fake.FirstName(),
 	))
@@ -199,7 +200,7 @@ func TestMDZ(t *testing.T) {
 	t.Log("ledger ID: ", ledgerID)
 	t.Log("asset ID: ", assetID)
 	t.Log("portfolio ID: ", portfolioID)
-	t.Log("cluster ID: ", clusterID)
+	t.Log("segment ID: ", segmentID)
 	t.Log("account ID: ", accountID)
 
 	stdout, _ = cmdRun(t, exec.Command("mdz", "account", "delete",
@@ -215,10 +216,10 @@ func TestMDZ(t *testing.T) {
 		"--asset-id", assetID,
 	))
 
-	stdout, _ = cmdRun(t, exec.Command("mdz", "cluster", "delete",
+	stdout, _ = cmdRun(t, exec.Command("mdz", "segment", "delete",
 		"--organization-id", organizationID,
 		"--ledger-id", ledgerID,
-		"--cluster-id", clusterID,
+		"--segment-id", segmentID,
 	))
 
 	stdout, _ = cmdRun(t, exec.Command("mdz", "portfolio", "delete",

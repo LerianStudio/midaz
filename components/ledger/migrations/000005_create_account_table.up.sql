@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS account
     organization_id                 UUID NOT NULL,
     ledger_id                       UUID NOT NULL,
     portfolio_id                    UUID,
-    cluster_id                      UUID,
+    segment_id                      UUID,
     available_balance               NUMERIC NOT NULL,
     on_hold_balance                 NUMERIC NOT NULL,
     balance_scale                   NUMERIC NOT NULL,
@@ -26,5 +26,5 @@ CREATE TABLE IF NOT EXISTS account
     FOREIGN KEY (organization_id)   REFERENCES organization (id),
     FOREIGN KEY (ledger_id)         REFERENCES ledger (id),
     FOREIGN KEY (portfolio_id)      REFERENCES portfolio (id),
-    FOREIGN KEY (cluster_id)        REFERENCES cluster (id)
+    FOREIGN KEY (segment_id)        REFERENCES segment (id)
 );

@@ -18,7 +18,7 @@ type AccountPostgreSQLModel struct {
 	OrganizationID    string
 	LedgerID          string
 	PortfolioID       *string
-	ClusterID         *string
+	SegmentID         *string
 	AvailableBalance  *float64
 	OnHoldBalance     *float64
 	BalanceScale      *float64
@@ -57,7 +57,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		OrganizationID:  t.OrganizationID,
 		LedgerID:        t.LedgerID,
 		PortfolioID:     t.PortfolioID,
-		ClusterID:       t.ClusterID,
+		SegmentID:       t.SegmentID,
 		Balance:         balance,
 		Status:          status,
 		AllowSending:    &t.AllowSending,
@@ -88,7 +88,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		AssetCode:         account.AssetCode,
 		OrganizationID:    account.OrganizationID,
 		LedgerID:          account.LedgerID,
-		ClusterID:         account.ClusterID,
+		SegmentID:         account.SegmentID,
 		AvailableBalance:  account.Balance.Available,
 		OnHoldBalance:     account.Balance.OnHold,
 		BalanceScale:      account.Balance.Scale,

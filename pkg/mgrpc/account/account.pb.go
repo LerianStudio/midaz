@@ -198,7 +198,7 @@ type Account struct {
 	OrganizationId  string    `protobuf:"bytes,6,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
 	LedgerId        string    `protobuf:"bytes,7,opt,name=ledger_id,json=ledgerId,proto3" json:"ledger_id,omitempty"`
 	PortfolioId     string    `protobuf:"bytes,8,opt,name=portfolio_id,json=portfolioId,proto3" json:"portfolio_id,omitempty"`
-	ClusterId       string    `protobuf:"bytes,9,opt,name=cluster_id,json=clusterId,proto3" json:"cluster_id,omitempty"`
+	SegmentId       string    `protobuf:"bytes,9,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	Balance         *Balance  `protobuf:"bytes,10,opt,name=balance,proto3" json:"balance,omitempty"`
 	Status          *Status   `protobuf:"bytes,11,opt,name=status,proto3" json:"status,omitempty"`
 	AllowSending    bool      `protobuf:"varint,12,opt,name=allow_sending,json=allowSending,proto3" json:"allow_sending,omitempty"`
@@ -300,9 +300,9 @@ func (x *Account) GetPortfolioId() string {
 	return ""
 }
 
-func (x *Account) GetClusterId() string {
+func (x *Account) GetSegmentId() string {
 	if x != nil {
-		return x.ClusterId
+		return x.SegmentId
 	}
 	return ""
 }

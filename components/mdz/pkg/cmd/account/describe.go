@@ -133,8 +133,8 @@ func (f *factoryAccountDescribe) describePrint(account *mmodel.Account) {
 		tbl.AddRow("Entity ID:", *account.EntityID)
 	}
 
-	if account.ClusterID != nil {
-		tbl.AddRow("Cluster ID:", *account.ClusterID)
+	if account.SegmentID != nil {
+		tbl.AddRow("Segment ID:", *account.SegmentID)
 	}
 
 	if account.ParentAccountID != nil {

@@ -1333,7 +1333,7 @@
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
                 "description": "Get all Clusters with the input metadata or without metadata",
                 "produces": [

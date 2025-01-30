@@ -23,11 +23,11 @@ func ValidatePGError(pgErr *pgconn.PgError, entityType string) error {
 		return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, entityType)
 	case "account_portfolio_id_fkey":
 		return pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, entityType)
-	case "account_cluster_id_fkey":
-		return pkg.ValidateBusinessError(constant.ErrClusterIDNotFound, entityType)
-	case "account_ledger_id_fkey", "portfolio_ledger_id_fkey", "asset_ledger_id_fkey", "cluster_ledger_id_fkey":
+	case "account_segment_id_fkey":
+		return pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, entityType)
+	case "account_ledger_id_fkey", "portfolio_ledger_id_fkey", "asset_ledger_id_fkey", "segment_ledger_id_fkey":
 		return pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, entityType)
-	case "account_organization_id_fkey", "ledger_organization_id_fkey", "asset_organization_id_fkey", "portfolio_organization_id_fkey", "cluster_organization_id_fkey":
+	case "account_organization_id_fkey", "ledger_organization_id_fkey", "asset_organization_id_fkey", "portfolio_organization_id_fkey", "segment_organization_id_fkey":
 		return pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, entityType)
 	default:
 		return pgErr

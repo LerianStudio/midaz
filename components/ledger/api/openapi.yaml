@@ -1074,7 +1074,7 @@ paths:
       summary: Create a Cluster
       tags:
       - Clusters
-      x-codegen-request-body-name: cluster
+      x-codegen-request-body-name: segment
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters/{id}:
     delete:
       description: Delete a Cluster with the input ID
@@ -1206,7 +1206,7 @@ paths:
       summary: Update a Cluster
       tags:
       - Clusters
-      x-codegen-request-body-name: cluster
+      x-codegen-request-body-name: segment
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       description: Get all Portfolios with the input metadata or without metadata
@@ -1906,7 +1906,7 @@ components:
           type: number
       type: object
     Cluster:
-      description: Cluster is a struct designed to store cluster data.
+      description: Cluster is a struct designed to store segment data.
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -2045,7 +2045,7 @@ components:
       - code
       type: object
     CreateClusterInput:
-      description: CreateClusterInput is the input payload to create a cluster.
+      description: CreateClusterInput is the input payload to create a segment.
       example:
         metadata:
           key: '{}'
@@ -2417,7 +2417,7 @@ components:
           $ref: '#/components/schemas/Status'
       type: object
     UpdateClusterInput:
-      description: UpdateClusterInput is the input payload to update a cluster.
+      description: UpdateClusterInput is the input payload to update a segment.
       example:
         metadata:
           key: '{}'

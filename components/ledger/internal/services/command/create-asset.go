@@ -127,7 +127,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			OrganizationID:  organizationID.String(),
 			LedgerID:        ledgerID.String(),
 			ParentAccountID: nil,
-			ClusterID:       nil,
+			SegmentID:       nil,
 			PortfolioID:     nil,
 			EntityID:        nil,
 			Balance:         aBalance,

@@ -108,7 +108,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.OrganizationID,
 		record.LedgerID,
 		record.PortfolioID,
-		record.ClusterID,
+		record.SegmentID,
 		record.AvailableBalance,
 		record.OnHoldBalance,
 		record.BalanceScale,
@@ -217,7 +217,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ID,
+			&acc.SegmentID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,
@@ -291,7 +291,7 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.OrganizationID,
 		&acc.LedgerID,
 		&acc.PortfolioID,
-		&acc.ID,
+		&acc.SegmentID,
 		&acc.AvailableBalance,
 		&acc.OnHoldBalance,
 		&acc.BalanceScale,
@@ -360,7 +360,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.OrganizationID,
 		&acc.LedgerID,
 		&acc.PortfolioID,
-		&acc.ID,
+		&acc.SegmentID,
 		&acc.AvailableBalance,
 		&acc.OnHoldBalance,
 		&acc.BalanceScale,
@@ -429,7 +429,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.OrganizationID,
 		&acc.LedgerID,
 		&acc.PortfolioID,
-		&acc.ID,
+		&acc.SegmentID,
 		&acc.AvailableBalance,
 		&acc.OnHoldBalance,
 		&acc.BalanceScale,
@@ -544,7 +544,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ID,
+			&acc.SegmentID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,
@@ -616,7 +616,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ID,
+			&acc.SegmentID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,
@@ -697,9 +697,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.Alias)
 	}
 
-	if !pkg.IsNilOrEmpty(acc.ClusterID) {
-		updates = append(updates, "cluster_id = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.ClusterID)
+	if !pkg.IsNilOrEmpty(acc.SegmentID) {
+		updates = append(updates, "segment_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.SegmentID)
 	}
 
 	if !pkg.IsNilOrEmpty(acc.PortfolioID) {
@@ -840,7 +840,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ClusterID,
+			&acc.SegmentID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,
@@ -911,7 +911,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.OrganizationID,
 			&acc.LedgerID,
 			&acc.PortfolioID,
-			&acc.ClusterID,
+			&acc.SegmentID,
 			&acc.AvailableBalance,
 			&acc.OnHoldBalance,
 			&acc.BalanceScale,

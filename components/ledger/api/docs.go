@@ -1339,7 +1339,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
                 "description": "Get all Clusters with the input metadata or without metadata",
                 "produces": [
@@ -1492,7 +1492,7 @@ const docTemplate = `{
                     },
                     {
                         "description": "Cluster",
-                        "name": "cluster",
+                        "name": "segment",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -1662,7 +1662,7 @@ const docTemplate = `{
                     },
                     {
                         "description": "Cluster",
-                        "name": "cluster",
+                        "name": "segment",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -2536,7 +2536,7 @@ const docTemplate = `{
             }
         },
         "Cluster": {
-            "description": "Cluster is a struct designed to store cluster data.",
+            "description": "Cluster is a struct designed to store segment data.",
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2668,7 +2668,7 @@ const docTemplate = `{
             }
         },
         "CreateClusterInput": {
-            "description": "CreateClusterInput is the input payload to create a cluster.",
+            "description": "CreateClusterInput is the input payload to create a segment.",
             "type": "object",
             "required": [
                 "name"
@@ -3004,7 +3004,7 @@ const docTemplate = `{
             }
         },
         "UpdateClusterInput": {
-            "description": "UpdateClusterInput is the input payload to update a cluster.",
+            "description": "UpdateClusterInput is the input payload to update a segment.",
             "type": "object",
             "properties": {
                 "metadata": {

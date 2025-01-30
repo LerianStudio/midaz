@@ -106,7 +106,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		Name:            cai.Name,
 		Type:            cai.Type,
 		ParentAccountID: cai.ParentAccountID,
-		ClusterID:       cai.ClusterID,
+		SegmentID:       cai.SegmentID,
 		OrganizationID:  organizationID.String(),
 		PortfolioID:     cai.PortfolioID,
 		LedgerID:        ledgerID.String(),

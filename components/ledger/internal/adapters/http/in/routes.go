@@ -14,7 +14,7 @@ import (
 )
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, ch *ClusterHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -53,12 +53,12 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.GetPortfolioByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.DeletePortfolioByID)
 
-	// Cluster
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateClusterInput), ch.CreateCluster))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateClusterInput), ch.UpdateCluster))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, ch.GetAllClusters)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, ch.GetClusterByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/clusters/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("cluster"), http.ParseUUIDPathParameters, ch.DeleteClusterByID)
+	// Segment
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.GetAllSegments)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.GetSegmentByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.DeleteSegmentByID)
 
 	// Accounts
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))
