@@ -668,7 +668,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
-	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, token, organizationID, ledgerID, validate.Aliases)
+	accounts, err := handler.Query.GetAccountsCache(ctx, token, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get accounts", err)
 

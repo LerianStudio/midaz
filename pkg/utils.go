@@ -296,3 +296,9 @@ func LockVersionInternalKey(organizationID, ledgerID uuid.UUID, key, version str
 
 	return lockVersionInternalKey
 }
+
+func LockAccount(organizationID, ledgerID uuid.UUID, account string) string {
+	lockInternalKey := "account:" + InternalKey(organizationID, ledgerID, account)
+
+	return lockInternalKey
+}

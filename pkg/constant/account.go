@@ -8,4 +8,5 @@ const (
 	LockRetry                         = 100
 	RedisTimesRetry                   = 3
 	CheckAndReleaseLock               = 200
+	TimeToSetAccountsInRedis          = 300 //5 minutes
 )

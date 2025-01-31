@@ -84,7 +84,7 @@ func (mr *MockRedisRepositoryMockRecorder) Incr(arg0, arg1 any) *gomock.Call {
 }
 
 // Set mocks base method.
-func (m *MockRedisRepository) Set(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) error {
+func (m *MockRedisRepository) Set(arg0 context.Context, arg1 string, arg2 any, arg3 time.Duration) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Set", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
