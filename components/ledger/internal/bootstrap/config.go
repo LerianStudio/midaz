@@ -11,7 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/product"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/ledger/internal/services/command"
@@ -156,7 +156,7 @@ func InitServers() *Service {
 
 	organizationPostgreSQLRepository := organization.NewOrganizationPostgreSQLRepository(postgresConnection)
 	ledgerPostgreSQLRepository := ledger.NewLedgerPostgreSQLRepository(postgresConnection)
-	productPostgreSQLRepository := product.NewProductPostgreSQLRepository(postgresConnection)
+	segmentPostgreSQLRepository := segment.NewSegmentPostgreSQLRepository(postgresConnection)
 	portfolioPostgreSQLRepository := portfolio.NewPortfolioPostgreSQLRepository(postgresConnection)
 	accountPostgreSQLRepository := account.NewAccountPostgreSQLRepository(postgresConnection)
 	assetPostgreSQLRepository := asset.NewAssetPostgreSQLRepository(postgresConnection)
@@ -171,7 +171,7 @@ func InitServers() *Service {
 	commandUseCase := &command.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
-		ProductRepo:      productPostgreSQLRepository,
+		SegmentRepo:      segmentPostgreSQLRepository,
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
@@ -183,7 +183,7 @@ func InitServers() *Service {
 	queryUseCase := &query.UseCase{
 		OrganizationRepo: organizationPostgreSQLRepository,
 		LedgerRepo:       ledgerPostgreSQLRepository,
-		ProductRepo:      productPostgreSQLRepository,
+		SegmentRepo:      segmentPostgreSQLRepository,
 		PortfolioRepo:    portfolioPostgreSQLRepository,
 		AccountRepo:      accountPostgreSQLRepository,
 		AssetRepo:        assetPostgreSQLRepository,
@@ -217,12 +217,12 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	productHandler := &httpin.ProductHandler{
+	segmentHandler := &httpin.SegmentHandler{
 		Command: commandUseCase,
 		Query:   queryUseCase,
 	}
 
-	httpApp := httpin.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, productHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

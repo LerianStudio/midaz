@@ -6,7 +6,7 @@ var UUIDPathParameters = []string{
 	"ledger_id",
 	"asset_id",
 	"portfolio_id",
-	"product_id",
+	"segment_id",
 	"account_id",
 	"transaction_id",
 	"operation_id",

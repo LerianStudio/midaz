@@ -1509,10 +1509,10 @@
 			]
 		},
 		{
-			"name": "Products",
+			"name": "Segments",
 			"item": [
 				{
-					"name": "Products",
+					"name": "Segments",
 					"event": [
 						{
 							"listen": "test",
@@ -1520,9 +1520,9 @@
 								"exec": [
 									"const jsonData = JSON.parse(responseBody);",
 									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"product_id before: \" + pm.collectionVariables.get(\"product_id\"));",
-									"    pm.collectionVariables.set(\"product_id\", jsonData.id);",
-									"    console.log(\"product_id after: \" + pm.collectionVariables.get(\"product_id\"));",
+									"    console.log(\"segment_id before: \" + pm.collectionVariables.get(\"segment_id\"));",
+									"    pm.collectionVariables.set(\"segment_id\", jsonData.id);",
+									"    console.log(\"segment_id after: \" + pm.collectionVariables.get(\"segment_id\"));",
 									"}"
 								],
 								"type": "text/javascript",
@@ -1542,7 +1542,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Product {{$randomProductName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Product Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Segment {{$randomProductName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Segment Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1550,7 +1550,7 @@
 							}
 						},
 						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products",
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments",
 							"host": [
 								"{{url_ledger}}"
 							],
@@ -1560,14 +1560,14 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"products"
+								"segments"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Products",
+					"name": "Segments",
 					"event": [
 						{
 							"listen": "test",
@@ -1592,7 +1592,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Product {{$randomProductName}} BLOCKED\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Product\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"Segment {{$randomProductName}} BLOCKED\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Segment\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1600,7 +1600,7 @@
 							}
 						},
 						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products/{{product_id}}",
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments/{{segment_id}}",
 							"host": [
 								"{{url_ledger}}"
 							],
@@ -1610,15 +1610,15 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"products",
-								"{{product_id}}"
+								"segments",
+								"{{segment_id}}"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Products",
+					"name": "Segments",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -1637,7 +1637,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products?limit=5&page=1",
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments?limit=5&page=1",
 							"host": [
 								"{{url_ledger}}"
 							],
@@ -1647,7 +1647,7 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"products"
+								"segments"
 							],
 							"query": [
 								{
@@ -1690,7 +1690,7 @@
 					"response": []
 				},
 				{
-					"name": "Products by Id",
+					"name": "Segments by Id",
 					"protocolProfileBehavior": {
 						"disableBodyPruning": true
 					},
@@ -1709,7 +1709,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products/{{product_id}}",
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments/{{segment_id}}",
 							"host": [
 								"{{url_ledger}}"
 							],
@@ -1719,15 +1719,15 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"products",
-								"{{product_id}}"
+								"segments",
+								"{{segment_id}}"
 							]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Products",
+					"name": "Segments",
 					"request": {
 						"method": "DELETE",
 						"header": [
@@ -1743,7 +1743,7 @@
 							"formdata": []
 						},
 						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/products/{{product_id}}",
+							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments/{{segment_id}}",
 							"host": [
 								"{{url_ledger}}"
 							],
@@ -1753,8 +1753,8 @@
 								"{{organization_id}}",
 								"ledgers",
 								"{{ledger_id}}",
-								"products",
-								"{{product_id}}"
+								"segments",
+								"{{segment_id}}"
 							]
 						}
 					},
@@ -1805,7 +1805,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"segmentId\": \"{{segment_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1871,7 +1871,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"portfolioId\": \"{{portfolio_id}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"portfolioId\": \"{{portfolio_id}}\",\n    \"segmentId\": \"{{segment_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1921,7 +1921,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"segmentId\": \"{{segment_id}}\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1974,7 +1974,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"productId\": \"{{product_id}}\",\n    // \"portfolioId\": {{portfolio_id}},\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"alias\": \"Wallet {{$randomBankAccount}}\",\n    \"segmentId\": \"{{segment_id}}\",\n    // \"portfolioId\": {{portfolio_id}},\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3689,7 +3689,7 @@
 			"type": "default"
 		},
 		{
-			"key": "product_id",
+			"key": "segment_id",
 			"value": "",
 			"type": "default"
 		},

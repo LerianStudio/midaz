@@ -47,7 +47,7 @@ definitions:
       portfolioId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
-      productId:
+      segmentId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       status:
@@ -165,7 +165,7 @@ definitions:
       portfolioId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
-      productId:
+      segmentId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       status:
@@ -263,14 +263,14 @@ definitions:
     - entityId
     - name
     type: object
-  CreateProductInput:
-    description: CreateProductInput is the input payload to create a product.
+  CreateSegmentInput:
+    description: CreateSegmentInput is the input payload to create a segment.
     properties:
       metadata:
         additionalProperties: {}
         type: object
       name:
-        example: My Product
+        example: My Segment
         maxLength: 256
         type: string
       status:
@@ -393,8 +393,8 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         type: string
     type: object
-  Product:
-    description: Product is a struct designed to store product data.
+  Segment:
+    description: Segment is a struct designed to store segment data.
     properties:
       createdAt:
         example: "2021-01-01T00:00:00Z"
@@ -412,7 +412,7 @@ definitions:
         additionalProperties: {}
         type: object
       name:
-        example: My Product
+        example: My Segment
         type: string
       organizationId:
         example: 00000000-0000-0000-0000-000000000000
@@ -455,10 +455,10 @@ definitions:
         example: My Account Updated
         maxLength: 256
         type: string
-      productId:
+      portfolioId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
-      portfolioId:
+      segmentId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       status:
@@ -527,14 +527,14 @@ definitions:
       status:
         $ref: '#/definitions/Status'
     type: object
-  UpdateProductInput:
-    description: UpdateProductInput is the input payload to update a product.
+  UpdateSegmentInput:
+    description: UpdateSegmentInput is the input payload to update a segment.
     properties:
       metadata:
         additionalProperties: {}
         type: object
       name:
-        example: My Product Updated
+        example: My Segment Updated
         maxLength: 256
         type: string
       status:
@@ -1902,9 +1902,9 @@ paths:
       summary: Update an Account from Portfolio
       tags:
       - Accounts
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/products:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
-      description: Get all Products with the input metadata or without metadata
+      description: Get all Segments with the input metadata or without metadata
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1965,20 +1965,20 @@ paths:
             - properties:
                 items:
                   items:
-                    $ref: '#/definitions/Product'
+                    $ref: '#/definitions/Segment'
                   type: array
                 limit:
                   type: integer
                 page:
                   type: integer
               type: object
-      summary: Get all Products
+      summary: Get all Segments
       tags:
-      - Products
+      - Segments
     post:
       consumes:
       - application/json
-      description: Create a Product with the input payload
+      description: Create a Segment with the input payload
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1999,25 +1999,25 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: Product
+      - description: Segment
         in: body
-        name: product
+        name: segment
         required: true
         schema:
-          $ref: '#/definitions/CreateProductInput'
+          $ref: '#/definitions/CreateSegmentInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Product'
-      summary: Create a Product
+            $ref: '#/definitions/Segment'
+      summary: Create a Segment
       tags:
-      - Products
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}:
+      - Segments
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
-      description: Delete a Product with the input ID
+      description: Delete a Segment with the input ID
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -2038,7 +2038,7 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: Product ID
+      - description: Segment ID
         in: path
         name: id
         required: true
@@ -2046,11 +2046,11 @@ paths:
       responses:
         "204":
           description: No Content
-      summary: Delete a Product by ID
+      summary: Delete a Segment by ID
       tags:
-      - Products
+      - Segments
     get:
-      description: Get a Product with the input ID
+      description: Get a Segment with the input ID
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -2071,7 +2071,7 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: Product ID
+      - description: Segment ID
         in: path
         name: id
         required: true
@@ -2082,14 +2082,14 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Product'
-      summary: Get a Product by ID
+            $ref: '#/definitions/Segment'
+      summary: Get a Segment by ID
       tags:
-      - Products
+      - Segments
     patch:
       consumes:
       - application/json
-      description: Update a Product with the input payload
+      description: Update a Segment with the input payload
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -2110,25 +2110,25 @@ paths:
         name: ledger_id
         required: true
         type: string
-      - description: Product ID
+      - description: Segment ID
         in: path
         name: id
         required: true
         type: string
-      - description: Product
+      - description: Segment
         in: body
-        name: product
+        name: segment
         required: true
         schema:
-          $ref: '#/definitions/UpdateProductInput'
+          $ref: '#/definitions/UpdateSegmentInput'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/Product'
-      summary: Update a Product
+            $ref: '#/definitions/Segment'
+      summary: Update a Segment
       tags:
-      - Products
+      - Segments
 swagger: "2.0"

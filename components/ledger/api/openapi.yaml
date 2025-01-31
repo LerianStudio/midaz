@@ -1470,9 +1470,9 @@ paths:
       tags:
       - Accounts
       x-codegen-request-body-name: account
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/products:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
-      description: Get all Products with the input metadata or without metadata
+      description: Get all Segments with the input metadata or without metadata
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1539,11 +1539,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/inline_response_200_6'
           description: OK
-      summary: Get all Products
+      summary: Get all Segments
       tags:
-      - Products
+      - Segments
     post:
-      description: Create a Product with the input payload
+      description: Create a Segment with the input payload
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1572,23 +1572,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateProductInput'
-        description: Product
+              $ref: '#/components/schemas/CreateSegmentInput'
+        description: Segment
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Product'
+                $ref: '#/components/schemas/Segment'
           description: OK
-      summary: Create a Product
+      summary: Create a Segment
       tags:
-      - Products
-      x-codegen-request-body-name: product
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}:
+      - Segments
+      x-codegen-request-body-name: segment
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
-      description: Delete a Product with the input ID
+      description: Delete a Segment with the input ID
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1613,7 +1613,7 @@ paths:
         required: true
         schema:
           type: string
-      - description: Product ID
+      - description: Segment ID
         in: path
         name: id
         required: true
@@ -1623,11 +1623,11 @@ paths:
         "204":
           content: {}
           description: No Content
-      summary: Delete a Product by ID
+      summary: Delete a Segment by ID
       tags:
-      - Products
+      - Segments
     get:
-      description: Get a Product with the input ID
+      description: Get a Segment with the input ID
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1652,7 +1652,7 @@ paths:
         required: true
         schema:
           type: string
-      - description: Product ID
+      - description: Segment ID
         in: path
         name: id
         required: true
@@ -1663,13 +1663,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Product'
+                $ref: '#/components/schemas/Segment'
           description: OK
-      summary: Get a Product by ID
+      summary: Get a Segment by ID
       tags:
-      - Products
+      - Segments
     patch:
-      description: Update a Product with the input payload
+      description: Update a Segment with the input payload
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -1694,7 +1694,7 @@ paths:
         required: true
         schema:
           type: string
-      - description: Product ID
+      - description: Segment ID
         in: path
         name: id
         required: true
@@ -1704,20 +1704,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateProductInput'
-        description: Product
+              $ref: '#/components/schemas/UpdateSegmentInput'
+        description: Segment
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Product'
+                $ref: '#/components/schemas/Segment'
           description: OK
-      summary: Update a Product
+      summary: Update a Segment
       tags:
-      - Products
-      x-codegen-request-body-name: product
+      - Segments
+      x-codegen-request-body-name: segment
 components:
   schemas:
     Account:
@@ -1726,7 +1726,6 @@ components:
         metadata:
           key: '{}'
         assetCode: BRL
-        productId: 00000000-0000-0000-0000-000000000000
         allowReceiving: true
         entityId: 00000000-0000-0000-0000-000000000000
         allowSending: true
@@ -1741,6 +1740,7 @@ components:
           onHold: 500.0
           available: 1500.0
           scale: 2.0
+        segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account
         alias: '@person1'
         id: 00000000-0000-0000-0000-000000000000
@@ -1794,7 +1794,7 @@ components:
         portfolioId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
-        productId:
+        segmentId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -1913,8 +1913,8 @@ components:
           key: '{}'
         assetCode: BRL
         portfolioId: 00000000-0000-0000-0000-000000000000
-        productId: 00000000-0000-0000-0000-000000000000
         allowReceiving: true
+        segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account
         alias: '@person1'
         entityId: 00000000-0000-0000-0000-000000000000
@@ -1956,7 +1956,7 @@ components:
         portfolioId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
-        productId:
+        segmentId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -2099,12 +2099,12 @@ components:
       - entityId
       - name
       type: object
-    CreateProductInput:
-      description: CreateProductInput is the input payload to create a product.
+    CreateSegmentInput:
+      description: CreateSegmentInput is the input payload to create a segment.
       example:
         metadata:
           key: '{}'
-        name: My Product
+        name: My Segment
         status:
           code: ACTIVE
           description: Active status
@@ -2114,7 +2114,7 @@ components:
             type: object
           type: object
         name:
-          example: My Product
+          example: My Segment
           maxLength: 256
           type: string
         status:
@@ -2294,8 +2294,8 @@ components:
           example: 2021-01-01T00:00:00Z
           type: string
       type: object
-    Product:
-      description: Product is a struct designed to store product data.
+    Segment:
+      description: Segment is a struct designed to store segment data.
       example:
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -2303,7 +2303,7 @@ components:
         deletedAt: 2021-01-01T00:00:00Z
         metadata:
           key: '{}'
-        name: My Product
+        name: My Segment
         id: 00000000-0000-0000-0000-000000000000
         status:
           code: ACTIVE
@@ -2327,7 +2327,7 @@ components:
             type: object
           type: object
         name:
-          example: My Product
+          example: My Segment
           type: string
         organizationId:
           example: 00000000-0000-0000-0000-000000000000
@@ -2358,8 +2358,9 @@ components:
       example:
         metadata:
           key: '{}'
-        productId: 00000000-0000-0000-0000-000000000000
+        portfolioId: 00000000-0000-0000-0000-000000000000
         allowReceiving: true
+        segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account Updated
         alias: '@person1'
         allowSending: true
@@ -2385,10 +2386,10 @@ components:
           example: My Account Updated
           maxLength: 256
           type: string
-        productId:
+        portfolioId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
-        portfolioId:
+        segmentId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -2498,12 +2499,12 @@ components:
         status:
           $ref: '#/components/schemas/Status'
       type: object
-    UpdateProductInput:
-      description: UpdateProductInput is the input payload to update a product.
+    UpdateSegmentInput:
+      description: UpdateSegmentInput is the input payload to update a segment.
       example:
         metadata:
           key: '{}'
-        name: My Product Updated
+        name: My Segment Updated
         status:
           code: ACTIVE
           description: Active status
@@ -2513,7 +2514,7 @@ components:
             type: object
           type: object
         name:
-          example: My Product Updated
+          example: My Segment Updated
           maxLength: 256
           type: string
         status:
@@ -2641,7 +2642,6 @@ components:
         - metadata:
             key: '{}'
           assetCode: BRL
-          productId: 00000000-0000-0000-0000-000000000000
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
@@ -2656,6 +2656,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2666,7 +2667,6 @@ components:
         - metadata:
             key: '{}'
           assetCode: BRL
-          productId: 00000000-0000-0000-0000-000000000000
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
@@ -2681,6 +2681,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2812,7 +2813,6 @@ components:
         - metadata:
             key: '{}'
           assetCode: BRL
-          productId: 00000000-0000-0000-0000-000000000000
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
@@ -2827,6 +2827,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2837,7 +2838,6 @@ components:
         - metadata:
             key: '{}'
           assetCode: BRL
-          productId: 00000000-0000-0000-0000-000000000000
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
@@ -2852,6 +2852,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2884,7 +2885,7 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
-          name: My Product
+          name: My Segment
           id: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
@@ -2896,7 +2897,7 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
-          name: My Product
+          name: My Segment
           id: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
@@ -2907,7 +2908,7 @@ components:
           $ref: '#/components/schemas/Pagination'
         items:
           items:
-            $ref: '#/components/schemas/Product'
+            $ref: '#/components/schemas/Segment'
           type: array
         limit:
           type: integer

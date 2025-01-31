@@ -14,7 +14,7 @@ import (
 )
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, rh *ProductHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -53,12 +53,12 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.GetPortfolioByID)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.DeletePortfolioByID)
 
-	// Product
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateProductInput), rh.CreateProduct))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateProductInput), rh.UpdateProduct))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, rh.GetAllProducts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, rh.GetProductByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/products/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("product"), http.ParseUUIDPathParameters, rh.DeleteProductByID)
+	// Segment
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.GetAllSegments)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.GetSegmentByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.DeleteSegmentByID)
 
 	// Accounts
 	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))
