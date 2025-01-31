@@ -959,254 +959,6 @@ paths:
       tags:
       - Assets
       x-codegen-request-body-name: asset
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters:
-    get:
-      description: Get all Clusters with the input metadata or without metadata
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Metadata
-        in: query
-        name: metadata
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Page
-        in: query
-        name: page
-        schema:
-          default: 1
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_4'
-          description: OK
-      summary: Get all Clusters
-      tags:
-      - Clusters
-    post:
-      description: Create a Cluster with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateClusterInput'
-        description: Cluster
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cluster'
-          description: OK
-      summary: Create a Cluster
-      tags:
-      - Clusters
-      x-codegen-request-body-name: segment
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/clusters/{id}:
-    delete:
-      description: Delete a Cluster with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Cluster ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          content: {}
-          description: No Content
-      summary: Delete a Cluster by ID
-      tags:
-      - Clusters
-    get:
-      description: Get a Cluster with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Cluster ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cluster'
-          description: OK
-      summary: Get a Cluster by ID
-      tags:
-      - Clusters
-    patch:
-      description: Update a Cluster with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Cluster ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateClusterInput'
-        description: Cluster
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cluster'
-          description: OK
-      summary: Update a Cluster
-      tags:
-      - Clusters
-      x-codegen-request-body-name: segment
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
       description: Get all Portfolios with the input metadata or without metadata
@@ -1274,7 +1026,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_5'
+                $ref: '#/components/schemas/inline_response_200_4'
           description: OK
       summary: Get all Portfolios
       tags:
@@ -1501,7 +1253,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_6'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
       summary: Get all Accounts from Portfolio
       tags:
@@ -1718,6 +1470,254 @@ paths:
       tags:
       - Accounts
       x-codegen-request-body-name: account
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
+    get:
+      description: Get all Segments with the input metadata or without metadata
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Metadata
+        in: query
+        name: metadata
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Page
+        in: query
+        name: page
+        schema:
+          default: 1
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          enum:
+          - asc
+          - desc
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_6'
+          description: OK
+      summary: Get all Segments
+      tags:
+      - Segments
+    post:
+      description: Create a Segment with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSegmentInput'
+        description: Segment
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+          description: OK
+      summary: Create a Segment
+      tags:
+      - Segments
+      x-codegen-request-body-name: segment
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
+    delete:
+      description: Delete a Segment with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Segment ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          content: {}
+          description: No Content
+      summary: Delete a Segment by ID
+      tags:
+      - Segments
+    get:
+      description: Get a Segment with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Segment ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+          description: OK
+      summary: Get a Segment by ID
+      tags:
+      - Segments
+    patch:
+      description: Update a Segment with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: Midaz-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Segment ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSegmentInput'
+        description: Segment
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Segment'
+          description: OK
+      summary: Update a Segment
+      tags:
+      - Segments
+      x-codegen-request-body-name: segment
 components:
   schemas:
     Account:
@@ -1729,7 +1729,6 @@ components:
         allowReceiving: true
         entityId: 00000000-0000-0000-0000-000000000000
         allowSending: true
-        clusterId: 00000000-0000-0000-0000-000000000000
         type: creditCard
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -1741,6 +1740,7 @@ components:
           onHold: 500.0
           available: 1500.0
           scale: 2.0
+        segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account
         alias: '@person1'
         id: 00000000-0000-0000-0000-000000000000
@@ -1763,9 +1763,6 @@ components:
           type: string
         balance:
           $ref: '#/components/schemas/Balance'
-        clusterId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
         createdAt:
           example: 2021-01-01T00:00:00Z
           type: string
@@ -1795,6 +1792,9 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         portfolioId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -1905,50 +1905,6 @@ components:
           example: 2.0
           type: number
       type: object
-    Cluster:
-      description: Cluster is a struct designed to store segment data.
-      example:
-        ledgerId: 00000000-0000-0000-0000-000000000000
-        organizationId: 00000000-0000-0000-0000-000000000000
-        createdAt: 2021-01-01T00:00:00Z
-        deletedAt: 2021-01-01T00:00:00Z
-        metadata:
-          key: '{}'
-        name: My Cluster
-        id: 00000000-0000-0000-0000-000000000000
-        status:
-          code: ACTIVE
-          description: Active status
-        updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        createdAt:
-          example: 2021-01-01T00:00:00Z
-          type: string
-        deletedAt:
-          example: 2021-01-01T00:00:00Z
-          type: string
-        id:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        ledgerId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        metadata:
-          additionalProperties:
-            type: object
-          type: object
-        name:
-          example: My Cluster
-          type: string
-        organizationId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        status:
-          $ref: '#/components/schemas/Status'
-        updatedAt:
-          example: 2021-01-01T00:00:00Z
-          type: string
-      type: object
     CreateAccountInput:
       description: CreateAccountInput is the input payload to create an account.
       example:
@@ -1958,11 +1914,11 @@ components:
         assetCode: BRL
         portfolioId: 00000000-0000-0000-0000-000000000000
         allowReceiving: true
+        segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account
         alias: '@person1'
         entityId: 00000000-0000-0000-0000-000000000000
         allowSending: true
-        clusterId: 00000000-0000-0000-0000-000000000000
         type: creditCard
         status:
           code: ACTIVE
@@ -1982,9 +1938,6 @@ components:
           example: BRL
           maxLength: 100
           type: string
-        clusterId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
         entityId:
           example: 00000000-0000-0000-0000-000000000000
           maxLength: 256
@@ -2001,6 +1954,9 @@ components:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         portfolioId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -2043,29 +1999,6 @@ components:
           type: string
       required:
       - code
-      type: object
-    CreateClusterInput:
-      description: CreateClusterInput is the input payload to create a segment.
-      example:
-        metadata:
-          key: '{}'
-        name: My Cluster
-        status:
-          code: ACTIVE
-          description: Active status
-      properties:
-        metadata:
-          additionalProperties:
-            type: object
-          type: object
-        name:
-          example: My Cluster
-          maxLength: 256
-          type: string
-        status:
-          $ref: '#/components/schemas/Status'
-      required:
-      - name
       type: object
     CreateLedgerInput:
       description: CreateLedgerInput is the input payload to create a ledger.
@@ -2164,6 +2097,29 @@ components:
           $ref: '#/components/schemas/Status'
       required:
       - entityId
+      - name
+      type: object
+    CreateSegmentInput:
+      description: CreateSegmentInput is the input payload to create a segment.
+      example:
+        metadata:
+          key: '{}'
+        name: My Segment
+        status:
+          code: ACTIVE
+          description: Active status
+      properties:
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          example: My Segment
+          maxLength: 256
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+      required:
       - name
       type: object
     Ledger:
@@ -2338,6 +2294,50 @@ components:
           example: 2021-01-01T00:00:00Z
           type: string
       type: object
+    Segment:
+      description: Segment is a struct designed to store segment data.
+      example:
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        metadata:
+          key: '{}'
+        name: My Segment
+        id: 00000000-0000-0000-0000-000000000000
+        status:
+          code: ACTIVE
+          description: Active status
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          example: My Segment
+          type: string
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      type: object
     Status:
       description: Status is the struct designed to store the status data of an entity.
       example:
@@ -2360,10 +2360,10 @@ components:
           key: '{}'
         portfolioId: 00000000-0000-0000-0000-000000000000
         allowReceiving: true
+        segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account Updated
         alias: '@person1'
         allowSending: true
-        clusterId: 00000000-0000-0000-0000-000000000000
         status:
           code: ACTIVE
           description: Active status
@@ -2378,9 +2378,6 @@ components:
         allowSending:
           example: true
           type: boolean
-        clusterId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
         metadata:
           additionalProperties:
             type: object
@@ -2390,6 +2387,9 @@ components:
           maxLength: 256
           type: string
         portfolioId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        segmentId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -2411,27 +2411,6 @@ components:
           type: object
         name:
           example: Bitcoin
-          maxLength: 256
-          type: string
-        status:
-          $ref: '#/components/schemas/Status'
-      type: object
-    UpdateClusterInput:
-      description: UpdateClusterInput is the input payload to update a segment.
-      example:
-        metadata:
-          key: '{}'
-        name: My Cluster Updated
-        status:
-          code: ACTIVE
-          description: Active status
-      properties:
-        metadata:
-          additionalProperties:
-            type: object
-          type: object
-        name:
-          example: My Cluster Updated
           maxLength: 256
           type: string
         status:
@@ -2515,6 +2494,27 @@ components:
           type: object
         name:
           example: My Portfolio Updated
+          maxLength: 256
+          type: string
+        status:
+          $ref: '#/components/schemas/Status'
+      type: object
+    UpdateSegmentInput:
+      description: UpdateSegmentInput is the input payload to update a segment.
+      example:
+        metadata:
+          key: '{}'
+        name: My Segment Updated
+        status:
+          code: ACTIVE
+          description: Active status
+      properties:
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        name:
+          example: My Segment Updated
           maxLength: 256
           type: string
         status:
@@ -2645,7 +2645,6 @@ components:
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
-          clusterId: 00000000-0000-0000-0000-000000000000
           type: creditCard
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2657,6 +2656,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2670,7 +2670,6 @@ components:
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
-          clusterId: 00000000-0000-0000-0000-000000000000
           type: creditCard
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2682,6 +2681,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2769,53 +2769,6 @@ components:
           deletedAt: 2021-01-01T00:00:00Z
           metadata:
             key: '{}'
-          name: My Cluster
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-        - ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
-          name: My Cluster
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Cluster'
-          type: array
-        limit:
-          type: integer
-        page:
-          type: integer
-      type: object
-    inline_response_200_5:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        limit: 0
-        page: 6
-        items:
-        - ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          metadata:
-            key: '{}'
           name: My Portfolio
           entityId: 00000000-0000-0000-0000-000000000000
           id: 00000000-0000-0000-0000-000000000000
@@ -2848,7 +2801,7 @@ components:
         page:
           type: integer
       type: object
-    inline_response_200_6:
+    inline_response_200_5:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
@@ -2863,7 +2816,6 @@ components:
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
-          clusterId: 00000000-0000-0000-0000-000000000000
           type: creditCard
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2875,6 +2827,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2888,7 +2841,6 @@ components:
           allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
           allowSending: true
-          clusterId: 00000000-0000-0000-0000-000000000000
           type: creditCard
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2900,6 +2852,7 @@ components:
             onHold: 500.0
             available: 1500.0
             scale: 2.0
+          segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
@@ -2914,5 +2867,52 @@ components:
           items:
             $ref: '#/components/schemas/Account'
           type: array
+      type: object
+    inline_response_200_6:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        limit: 0
+        page: 6
+        items:
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          name: My Segment
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+        - ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          metadata:
+            key: '{}'
+          name: My Segment
+          id: 00000000-0000-0000-0000-000000000000
+          status:
+            code: ACTIVE
+            description: Active status
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/Segment'
+          type: array
+        limit:
+          type: integer
+        page:
+          type: integer
       type: object
 x-original-swagger-version: "2.0"
