@@ -11,12 +11,11 @@ package out
 
 import (
 	context "context"
-	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 
 	account "github.com/LerianStudio/midaz/pkg/mgrpc/account"
-
 	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockRepository is a mock of Repository interface.
@@ -73,12 +72,9 @@ func (mr *MockRepositoryMockRecorder) GetAccountsByIds(arg0, arg1, arg2, arg3, a
 }
 
 // UpdateAccounts mocks base method.
-func (m *MockRepository) UpdateAccounts(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []*account.Account) (*account.AccountsResponse, error) {
+func (m *MockRepository) UpdateAccounts(arg0 context.Context, arg1 string, arg2, arg3 uuid.UUID, arg4 []*account.Account) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAccounts", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(*account.AccountsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	m.ctrl.Call(m, "UpdateAccounts", arg0, arg1, arg2, arg3, arg4)
 }
 
 // UpdateAccounts indicates an expected call of UpdateAccounts.
