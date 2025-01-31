@@ -13,7 +13,7 @@ import (
 //
 //go:generate mockgen --destination=redis.mock.go --package=redis . RedisRepository
 type RedisRepository interface {
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
@@ -37,7 +37,7 @@ func NewConsumerRedis(rc *mredis.RedisConnection) *RedisConsumerRepository {
 	return r
 }
 
-func (rr *RedisConsumerRepository) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 

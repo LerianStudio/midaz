@@ -589,7 +589,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to convert accounts from struct to JSON string", err)
 	}
 
-	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, accounts)
+	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, hash, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
 
@@ -668,7 +668,7 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	span := trace.SpanFromContext(ctx)
 	defer span.End()
 
-	accounts, err := handler.Query.GetAccountsCache(ctx, token, organizationID, ledgerID, validate.Aliases)
+	accounts, err := handler.Query.GetAccountsCache(ctx, logger, token, organizationID, ledgerID, validate.Aliases)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get accounts", err)
 

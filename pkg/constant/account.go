@@ -5,8 +5,8 @@ const (
 	ExternalAccountType               = "external"
 	TimeSetLock                       = 1
 	TimeSetLockBalance                = 5
-	LockRetry                         = 100
+	LockRetry                         = 50
 	RedisTimesRetry                   = 3
-	CheckAndReleaseLock               = 200
+	CheckAndReleaseLock               = 50
 	TimeToSetAccountsInRedis          = 300 //5 minutes
 )

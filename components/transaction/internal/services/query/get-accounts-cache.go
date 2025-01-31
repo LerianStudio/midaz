@@ -7,17 +7,16 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func (uc *UseCase) GetAccountsCache(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, input []string) ([]*account.Account, error) {
-	logger := pkg.NewLoggerFromContext(context.Background())
-	tracer := pkg.NewTracerFromContext(context.Background())
-
-	ctx, span := tracer.Start(ctx, "query.get_accounts_cache")
-	defer span.End()
+// GetAccountsCache retrieves cached account data from Redis and fetches missing accounts from the ledger if necessary.
+func (uc *UseCase) GetAccountsCache(ctx context.Context, logger mlog.Logger, token string, organizationID, ledgerID uuid.UUID, input []string) ([]*account.Account, error) {
+	span := trace.SpanFromContext(ctx)
 
 	allAccounts := make([]*account.Account, 0)
 
@@ -51,13 +50,14 @@ func (uc *UseCase) GetAccountsCache(ctx context.Context, token string, organizat
 			return nil, err
 		}
 
-		uc.SetAccountsInCache(ctx, organizationID, ledgerID, accounts)
+		uc.SetAccountsInCache(ctx, logger, organizationID, ledgerID, accounts)
 		allAccounts = append(allAccounts, accounts...)
 	}
 
 	return allAccounts, nil
 }
 
+// filterMissingAccounts identifies accounts missing in the provided accountsMap and returns a slice of these missing account IDs.
 func filterMissingAccounts(accounts []string, accountsMap map[string]string) []string {
 	var missing []string
 
@@ -70,19 +70,32 @@ func filterMissingAccounts(accounts []string, accountsMap map[string]string) []s
 	return missing
 }
 
-func (uc *UseCase) SetAccountsInCache(ctx context.Context, organizationID, ledgerID uuid.UUID, accounts []*account.Account) {
-	logger := pkg.NewLoggerFromContext(context.Background())
-	tracer := pkg.NewTracerFromContext(context.Background())
-
-	ctx, span := tracer.Start(ctx, "query.set_accounts_in_cache")
-	defer span.End()
+// SetAccountsInCache caches account data for a given organization and ledger to improve retrieval performance.
+func (uc *UseCase) SetAccountsInCache(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, accounts []*account.Account) {
+	span := trace.SpanFromContext(ctx)
 
 	for _, acc := range accounts {
-		lockAccount := pkg.LockAccount(organizationID, ledgerID, acc.GetAlias())
+		am, err := json.Marshal(acc)
+		if err != nil {
+			logger.Warnf("Error marshaling account: %v", err)
+		}
 
-		err := uc.RedisRepo.Set(ctx, lockAccount, acc, constant.TimeToSetAccountsInRedis)
-		if !errors.Is(err, redis.Nil) {
+		jsonAccount := string(am)
+
+		aliasLockAccount := pkg.LockAccount(organizationID, ledgerID, acc.GetAlias())
+
+		err = uc.RedisRepo.Set(ctx, aliasLockAccount, jsonAccount, constant.TimeToSetAccountsInRedis)
+		if err != nil && !errors.Is(err, redis.Nil) {
 			mopentelemetry.HandleSpanError(&span, "Error setting account in cache", err)
+
+			logger.Errorf("Error setting account by alias in cache: %v", err)
+		}
+
+		idLockAccount := pkg.LockAccount(organizationID, ledgerID, acc.GetId())
+
+		err = uc.RedisRepo.Set(ctx, idLockAccount, jsonAccount, constant.TimeToSetAccountsInRedis)
+		if err != nil && !errors.Is(err, redis.Nil) {
+			mopentelemetry.HandleSpanError(&span, "Error setting account by id in cache", err)
 
 			logger.Errorf("Error setting account in cache: %v", err)
 		}
