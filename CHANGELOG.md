@@ -1,3 +1,13 @@
+## [1.47.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.47.0-beta.2...v1.47.0-beta.3) (2025-01-31)
+
+
+### Bug Fixes
+
+* midaz test :bug: ([46f6111](https://github.com/LerianStudio/midaz/commit/46f6111e9d47a5be4e176c4dea91eef34a6c9807))
+* update docs,  swagger and open apis files; :bug: ([768a857](https://github.com/LerianStudio/midaz/commit/768a857995538ae7876c0f4da24c5781e756d16b))
+* update go mod and sum; :bug: ([ecdec76](https://github.com/LerianStudio/midaz/commit/ecdec7648bcd5eb6c865868775f2c2a411f4b7ae))
+* update libs in go mod and go sum; :bug: ([c83e52a](https://github.com/LerianStudio/midaz/commit/c83e52a8c13c2baad585d289013d4a476a080dc4))
+
 ## [1.47.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.47.0-beta.1...v1.47.0-beta.2) (2025-01-30)
 
 ## [1.47.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.46.0...v1.47.0-beta.1) (2025-01-29)
