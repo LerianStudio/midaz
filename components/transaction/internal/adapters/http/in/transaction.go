@@ -589,21 +589,31 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to convert accounts from struct to JSON string", err)
 	}
 
-	TransactionStatus := constant.APPROVED
-
 	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, hash, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
 
+		ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.update_accounts.update_transaction_status")
+		_, er := handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
+
+		if er != nil {
+			mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
+
+			logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
+
+			return http.WithError(c, er)
+		}
+
+		spanUpdateTransactionStatus.End()
 		logger.Errorf("Failed to update Accounts with ID: %s, Error: %s", tran.ID, err.Error())
 
-		TransactionStatus = constant.DECLINED
+		return http.WithError(c, err)
 	}
 
 	spanUpdateAccounts.End()
 
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
-	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), TransactionStatus)
+	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
