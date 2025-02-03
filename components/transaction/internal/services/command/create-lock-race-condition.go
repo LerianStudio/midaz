@@ -62,7 +62,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 			return
 		}
 
-		time.Sleep(constant.CheckAndReleaseLock)
+		time.Sleep(constant.CheckAndReleaseLockBalance)
 	}
 }
 
@@ -109,7 +109,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 
 			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
 
-			isSuccess, err := uc.RedisRepo.SetNX(ctx, internalKey, "0", constant.TimeSetLockBalance)
+			isSuccess, err := uc.RedisRepo.SetNX(ctx, internalKey, "0", constant.SetLockBalance)
 			if err != nil {
 				mopentelemetry.HandleSpanError(&span, "Failed to lock Account balance version: ", err)
 
