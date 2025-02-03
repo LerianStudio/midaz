@@ -589,45 +589,25 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to convert accounts from struct to JSON string", err)
 	}
 
+	TransactionStatus := constant.APPROVED
+
 	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, hash, accounts)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+		logger.Errorf("Failed to update Accounts with ID: %s, Error: %s", tran.ID, err.Error())
 
-		spanReleaseLock.End()
-
-		ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.update_accounts.update_transaction_status")
-		_, er := handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
-
-		if er != nil {
-			mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
-
-			logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-			return http.WithError(c, er)
-		}
-
-		spanUpdateTransactionStatus.End()
-
-		return http.WithError(c, err)
+		TransactionStatus = constant.DECLINED
 	}
 
 	spanUpdateAccounts.End()
 
 	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
-	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
-
+	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), TransactionStatus)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
 
 		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
 
 		return http.WithError(c, err)
 	}
@@ -652,11 +632,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	tran.Operations = operations
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
-
-	_, spanReleaseLock := tracer.Start(ctx, "handler.create_transaction.delete_race_condition")
-	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-	spanReleaseLock.End()
 
 	go handler.logTransaction(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
