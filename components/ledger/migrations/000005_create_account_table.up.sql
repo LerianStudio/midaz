@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS account
     FOREIGN KEY (product_id)        REFERENCES product (id)
 );
 
-CREATE INDEX idx_update_accounts
-    ON accounts (id, organization_id, ledger_id, version, deleted_at);
+CREATE INDEX idx_update_account ON account (id, organization_id, ledger_id, version, deleted_at);
 
-REINDEX INDEX idx_update_accounts;
+REINDEX INDEX idx_update_account;
