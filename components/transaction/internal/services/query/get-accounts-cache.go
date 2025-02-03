@@ -26,7 +26,7 @@ func (uc *UseCase) GetAccountsCache(ctx context.Context, logger mlog.Logger, tok
 
 		val, err := uc.RedisRepo.Get(ctx, lockAccount)
 		if !errors.Is(err, redis.Nil) {
-			logger.Warnf("Error getting account from redis: %v", err)
+			logger.Warnf("Warning getting account from redis: %v", err)
 		}
 
 		if !pkg.IsNilOrEmpty(&val) {

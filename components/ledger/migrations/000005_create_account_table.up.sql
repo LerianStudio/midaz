@@ -28,3 +28,8 @@ CREATE TABLE IF NOT EXISTS account
     FOREIGN KEY (portfolio_id)      REFERENCES portfolio (id),
     FOREIGN KEY (product_id)        REFERENCES product (id)
 );
+
+CREATE INDEX idx_update_accounts
+    ON accounts (id, organization_id, ledger_id, version, deleted_at);
+
+REINDEX INDEX idx_update_accounts;
