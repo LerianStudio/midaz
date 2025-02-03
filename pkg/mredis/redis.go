@@ -4,11 +4,12 @@ import (
 	"context"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mlog"
 )
 
-const RedisTTL = 300
+const RedisTTL = 5 * time.Minute
 
 // RedisConnection is a hub which deal with redis connections.
 type RedisConnection struct {

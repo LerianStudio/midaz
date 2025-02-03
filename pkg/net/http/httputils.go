@@ -206,12 +206,11 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	ikey := c.Get(idempotencyKey)
 	iTTL := c.Get(idempotencyTTL)
 
-	t, err := strconv.Atoi(iTTL)
-	if err != nil {
-		t = mredis.RedisTTL
-	}
+	ttl := mredis.RedisTTL
 
-	ttl := time.Duration(t)
+	if t, err := strconv.Atoi(iTTL); err == nil {
+		ttl = time.Duration(t) * time.Minute
+	}
 
 	return ikey, ttl
 }

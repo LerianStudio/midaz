@@ -51,9 +51,9 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 		return err
 	}
 
-	logger.Infof("value of ttl: %v", ttl*time.Second)
+	logger.Infof("value of ttl: %v", ttl)
 
-	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
+	err = rds.Set(ctx, key, value, ttl).Err()
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
@@ -77,9 +77,9 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 		return false, err
 	}
 
-	logger.Infof("value of ttl: %v", ttl*time.Second)
+	logger.Infof("value of ttl: %v", ttl)
 
-	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
+	isLocked, err := rds.SetNX(ctx, key, value, ttl).Result()
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 

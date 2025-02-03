@@ -1,12 +1,14 @@
 package constant
 
+import "time"
+
 const (
-	DefaultExternalAccountAliasPrefix = "@external/"
-	ExternalAccountType               = "external"
-	TimeSetLock                       = 1
-	TimeSetLockBalance                = 5
-	LockRetry                         = 50
-	RedisTimesRetry                   = 3
-	CheckAndReleaseLock               = 50
-	TimeToSetAccountsInRedis          = 300 //5 minutes
+	DefaultExternalAccountAliasPrefix       = "@external/"
+	ExternalAccountType                     = "external"
+	RedisTimesRetry                   int64 = 3
+	TimeSetLock                             = 10 * time.Millisecond
+	TimeSetLockBalance                      = 15 * time.Millisecond
+	LockRetry                               = 20 * time.Millisecond
+	CheckAndReleaseLock                     = 25 * time.Millisecond
+	TimeToSetAccountsInRedis                = 5 * time.Minute
 )

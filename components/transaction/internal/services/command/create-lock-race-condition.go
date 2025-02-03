@@ -62,7 +62,7 @@ func (uc *UseCase) checkAndReleaseLock(ctx context.Context, wg *sync.WaitGroup, 
 			return
 		}
 
-		time.Sleep(constant.CheckAndReleaseLock * time.Millisecond)
+		time.Sleep(constant.CheckAndReleaseLock)
 	}
 }
 
@@ -135,7 +135,7 @@ func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledge
 			}
 
 			if !isSuccess {
-				time.Sleep(constant.LockRetry * time.Millisecond)
+				time.Sleep(constant.LockRetry)
 
 				logger.Infof("Lock already exists for key, get Accounts again: %v", internalKey)
 
