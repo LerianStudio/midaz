@@ -16,14 +16,14 @@ import (
 // NewRouterGRPC registers routes to the grpc.
 func NewRouterGRPC(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, cuc *command.UseCase, quc *query.UseCase) *grpc.Server {
 	tlMid := http.NewTelemetryMiddleware(tl)
-	//jwt := http.NewJWTMiddleware(cc)
+	jwt := http.NewJWTMiddleware(cc)
 
 	server := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			tlMid.WithTelemetryInterceptor(tl),
 			http.WithGrpcLogging(http.WithCustomLogger(lg)),
-			//jwt.ProtectGrpc(),
-			//jwt.WithPermissionGrpc(),
+			jwt.ProtectGrpc(),
+			jwt.WithPermissionGrpc(),
 			tlMid.EndTracingSpansInterceptor(),
 		),
 	)

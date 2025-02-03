@@ -54,14 +54,14 @@ func (uc *UseCase) UpdateAccounts(ctx context.Context, logger mlog.Logger, valid
 
 	uc.UpsertAccountsInCache(ctx, organizationID, ledgerID, validate, hash, accountsToUpdate)
 
-	//uc.AccountGRPCRepo.UpdateAccounts(ctx, token, organizationID, ledgerID, accountsToUpdate)
-	//if err != nil {
-	//	mopentelemetry.HandleSpanError(&span, "Failed to update accounts gRPC on Ledger", err)
-	//
-	//	logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
-	//
-	//	return err
-	//}
+	_, err = uc.AccountGRPCRepo.UpdateAccounts(ctx, token, organizationID, ledgerID, accountsToUpdate)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update accounts gRPC on Ledger", err)
+
+		logger.Error("Failed to update accounts gRPC on Ledger", err.Error())
+
+		return err
+	}
 
 	return nil
 }

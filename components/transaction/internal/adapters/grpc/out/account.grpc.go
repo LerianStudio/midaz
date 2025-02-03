@@ -17,7 +17,7 @@ import (
 type Repository interface {
 	GetAccountsByIds(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, ids []string) (*proto.AccountsResponse, error)
 	GetAccountsByAlias(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, aliases []string) (*proto.AccountsResponse, error)
-	UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) //(*proto.AccountsResponse, error)
+	UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error)
 }
 
 // AccountGRPCRepository is a gRPC implementation of the account.proto
@@ -130,7 +130,7 @@ func (a *AccountGRPCRepository) GetAccountsByAlias(ctx context.Context, token st
 }
 
 // UpdateAccounts update a grpc accounts on ledger.
-func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) { //(*proto.AccountsResponse, error) {
+func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string, organizationID, ledgerID uuid.UUID, accounts []*proto.Account) (*proto.AccountsResponse, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "grpc.update_accounts")
@@ -140,7 +140,7 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get new client", err)
 
-		//return nil, err
+		return nil, err
 	}
 
 	client := proto.NewAccountProtoClient(conn)
@@ -157,19 +157,19 @@ func (a *AccountGRPCRepository) UpdateAccounts(ctx context.Context, token string
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to convert accountsRequest from proto struct to JSON string", err)
 
-		//return nil, err
+		return nil, err
 	}
 
 	ctx = a.conn.ContextMetadataInjection(ctx, token)
 
-	_, _ = client.UpdateAccounts(ctx, accountsRequest)
-	//if err != nil {
-	//	mopentelemetry.HandleSpanError(&spanClientReq, "Failed to update accounts", err)
-	//
-	//	return nil, err
-	//}
-	//
-	//spanClientReq.End()
-	//
-	//return accountsResponse, nil
+	_, err = client.UpdateAccounts(ctx, accountsRequest)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanClientReq, "Failed to update accounts", err)
+
+		return nil, err
+	}
+
+	spanClientReq.End()
+
+	return nil, nil
 }
