@@ -91,6 +91,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 				&model.OnHold,
 				&model.Scale,
 				&model.Version,
+				&model.AcceptNegative,
 				&model.CreatedAt,
 				&model.UpdatedAt,
 				&model.DeletedAt,
