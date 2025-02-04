@@ -41,10 +41,12 @@ ifeq ($(GO_AVAILABLE),1)
 	GOLANGCI_LINT_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v golangci-lint >/dev/null 2>&1 && echo 1 || echo 0)
 	GORELEASER_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v goreleaser >/dev/null 2>&1 && echo 1 || echo 0)
 	GOSEC_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v gosec >/dev/null 2>&1 && echo 1 || echo 0)
+	PERFSPRINT_AVAILABLE := $(shell PATH="$(PATH_WITH_GOPATH)" command -v perfsprint >/dev/null 2>&1 && echo 1 || echo 0)
 else
 	GOLANGCI_LINT_AVAILABLE := 0
 	GORELEASER_AVAILABLE := 0
 	GOSEC_AVAILABLE := 0
+	PERFSPRINT_AVAILABLE := 0
 endif
 
 # Installation instructions
@@ -53,6 +55,7 @@ GO_INSTALL_MSG := "Go is not installed. Visit https://golang.org/doc/install to 
 GOLANGCI_LINT_INSTALL_MSG := "golangci-lint is not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
 GORELEASER_INSTALL_MSG := "goreleaser is not installed. Visit https://goreleaser.com/install/ to install"
 GOSEC_INSTALL_MSG := "gosec is not installed. Run: go install github.com/securego/gosec/v2/cmd/gosec@latest"
+PERFSPRINT_INSTALL_MSG := "perfsprint is not installed. Run: go install github.com/sagikazarmark/perfsprint@latest"
 
 .PHONY: help
 help:
@@ -69,7 +72,7 @@ help:
 	fi
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
-	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 1 ]; then \
+	@if [ $(GOLANGCI_LINT_AVAILABLE) -eq 1 ] && [ $(PERFSPRINT_AVAILABLE) -eq 1 ]; then \
 		echo "- make lint                          - Run golangci-lint and performance checks"; \
 	fi
 	@if [ $(GO_AVAILABLE) -eq 1 ]; then \
@@ -160,6 +163,11 @@ check-dependencies:
 	else \
 		echo "$(BLUE)✓ gosec$(NC)"; \
 	fi
+	@if [ $(PERFSPRINT_AVAILABLE) -eq 0 ]; then \
+		echo "$(RED)✗ perfsprint: $(PERFSPRINT_INSTALL_MSG)$(NC)"; \
+	else \
+		echo "$(BLUE)✓ perfsprint$(NC)"; \
+	fi
 
 # Core Commands
 .PHONY: test
@@ -213,7 +221,7 @@ format:
 		exit 1; \
 	fi
 	@gofmt -w ./
-	@echo "$(BLUE)All go files formatted$(NC)"
+	@echo "$(BLUE)All go files formatted$(NC)"a
 
 .PHONY: check-logs
 check-logs:
