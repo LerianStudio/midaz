@@ -10,6 +10,7 @@ type BalancePostgreSQLModel struct {
 	Alias          *string
 	LedgerID       string
 	OrganizationID string
+	AssetCode      string
 	Available      *float64
 	OnHold         *float64
 	Scale          *float64

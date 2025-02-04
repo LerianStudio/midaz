@@ -86,6 +86,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 				&model.Alias,
 				&model.LedgerID,
 				&model.OrganizationID,
+				&model.AssetCode,
 				&model.Available,
 				&model.OnHold,
 				&model.Scale,
@@ -164,7 +165,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	if commitErr := tx.Commit(); commitErr != nil {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		mopentelemetry.HandleSpanError(&span, "Failed to commit accounts", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to commit balances", err)
 
 		return commitErr
 	}
