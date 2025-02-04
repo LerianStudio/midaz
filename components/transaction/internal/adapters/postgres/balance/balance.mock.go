@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	model "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -41,7 +42,7 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []*BalancePostgreSQLModel) error {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 model.Responses) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
@@ -22,7 +23,7 @@ import (
 //
 //go:generate mockgen --destination=balance.mock.go --package=balance . Repository
 type Repository interface {
-	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*BalancePostgreSQLModel) error
+	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses) error
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -46,7 +47,7 @@ func NewBalancePostgreSQLRepository(pc *mpostgres.PostgresConnection) *BalancePo
 	return c
 }
 
-func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, balances []*BalancePostgreSQLModel) error {
+func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_balances")
@@ -68,17 +69,17 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	var wg sync.WaitGroup
 
-	errChan := make(chan error, len(balances))
+	errChan := make(chan error, len(validate.Aliases))
 
-	for _, balance := range balances {
+	for _, alias := range validate.Aliases {
 		wg.Add(1)
 
-		go func(b *BalancePostgreSQLModel) {
+		go func() {
 			defer wg.Done()
 
 			query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL FOR UPDATE"
 
-			row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, b.Alias)
+			row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, alias)
 
 			var model BalancePostgreSQLModel
 			err = row.Scan(
@@ -98,11 +99,25 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 			)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					errChan <- fmt.Errorf("registro não encontrado para ID %s", b.ID)
+					errChan <- fmt.Errorf("registro não encontrado para alias %s", alias)
 					return
 				}
 				errChan <- fmt.Errorf("erro no select for update: %w", err)
 				return
+			}
+
+			var newModel Balance
+			if _, exists := validate.From[alias]; exists {
+				newModel = OperateAmounts(validate.From[alias], model.FromEntity(), constant.DEBIT)
+			}
+
+			if _, exists := validate.To[alias]; exists {
+				newModel = OperateAmounts(validate.To[alias], model.FromEntity(), constant.CREDIT)
+			}
+
+			if newModel.IsEmpty() {
+				err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+				errChan <- err
 			}
 
 			var updates []string
@@ -110,20 +125,20 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 			var args []any
 
 			updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
-			args = append(args, b.Available)
+			args = append(args, newModel.Available)
 
 			updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
-			args = append(args, b.OnHold)
+			args = append(args, newModel.OnHold)
 
 			updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-			args = append(args, b.Scale)
+			args = append(args, newModel.Scale)
 
 			updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-			version := b.Version + 1
+			version := newModel.Version + 1
 			args = append(args, version)
 
 			updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-			args = append(args, time.Now(), organizationID, ledgerID, b.Alias, b.Version)
+			args = append(args, time.Now(), organizationID, ledgerID, alias, newModel.Version)
 
 			queryUpdate := `UPDATE account SET ` + strings.Join(updates, ", ") +
 				` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
@@ -146,7 +161,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 				errChan <- err
 			}
 
-		}(balance)
+		}()
 	}
 
 	wg.Wait()

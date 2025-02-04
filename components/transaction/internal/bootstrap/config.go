@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
@@ -161,6 +162,7 @@ func InitServers() *Service {
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
 	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
+	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
@@ -176,6 +178,7 @@ func InitServers() *Service {
 		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
@@ -186,6 +189,7 @@ func InitServers() *Service {
 		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    consumerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,

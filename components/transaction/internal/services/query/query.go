@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
@@ -23,6 +24,9 @@ type UseCase struct {
 
 	// AssetRateRepo provides an abstraction on top of the operation data source.
 	AssetRateRepo assetrate.Repository
+
+	// BalanceRepo provides an abstraction on top of the balance data source.
+	BalanceRepo balance.Repository
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository
