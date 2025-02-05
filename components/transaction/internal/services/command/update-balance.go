@@ -7,5 +7,5 @@ import (
 )
 
 func (uc *UseCase) UpdateBalance(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses) error {
-
+	return nil
 }

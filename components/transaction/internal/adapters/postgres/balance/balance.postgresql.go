@@ -23,6 +23,7 @@ import (
 //
 //go:generate mockgen --destination=balance.mock.go --package=balance . Repository
 type Repository interface {
+	Create(ctx context.Context, balance *Balance) error
 	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses) error
 }
 
@@ -45,6 +46,72 @@ func NewBalancePostgreSQLRepository(pc *mpostgres.PostgresConnection) *BalancePo
 	}
 
 	return c
+}
+
+func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *Balance) error {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.create_balances")
+	defer span.End()
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+	}
+
+	record := &BalancePostgreSQLModel{}
+	record.FromEntity(balance)
+
+	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
+
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "balance_repository_input", record)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert balance record from entity to JSON string", err)
+
+		return err
+	}
+
+	result, err := db.ExecContext(ctx, `INSERT INTO balance VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+		record.ID,
+		record.OrganizationID,
+		record.LedgerID,
+		record.AccountID,
+		record.Alias,
+		record.AssetCode,
+		record.Available,
+		record.OnHold,
+		record.Scale,
+		record.Version,
+		record.AccountType,
+		record.AllowSending,
+		record.AllowReceiving,
+		record.CreatedAt,
+		record.UpdatedAt,
+		record.DeletedAt,
+	)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+
+		return err
+	}
+
+	spanExec.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	if rowsAffected == 0 {
+		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Balance{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to create balance. Rows affected is 0", err)
+
+		return err
+	}
+
+	return nil
 }
 
 func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses) error {
@@ -92,7 +159,6 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 				&model.OnHold,
 				&model.Scale,
 				&model.Version,
-				&model.AcceptNegative,
 				&model.CreatedAt,
 				&model.UpdatedAt,
 				&model.DeletedAt,
@@ -107,18 +173,6 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 			}
 
 			var newModel Balance
-			if _, exists := validate.From[alias]; exists {
-				newModel = OperateAmounts(validate.From[alias], model.FromEntity(), constant.DEBIT)
-			}
-
-			if _, exists := validate.To[alias]; exists {
-				newModel = OperateAmounts(validate.To[alias], model.FromEntity(), constant.CREDIT)
-			}
-
-			if newModel.IsEmpty() {
-				err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-				errChan <- err
-			}
 
 			var updates []string
 

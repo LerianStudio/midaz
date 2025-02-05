@@ -2,22 +2,23 @@ package balance
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	gold "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"time"
 )
 
 type BalancePostgreSQLModel struct {
 	ID             string
-	Alias          *string
-	LedgerID       string
 	OrganizationID string
+	LedgerID       string
+	AccountID      string
+	Alias          string
 	AssetCode      string
-	Available      *float64
-	OnHold         *float64
-	Scale          *float64
+	Available      int64
+	OnHold         int64
+	Scale          int64
 	Version        int64
-	AcceptNegative bool
+	AccountType    string
+	AllowSending   bool
+	AllowReceiving bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      sql.NullTime
@@ -25,110 +26,67 @@ type BalancePostgreSQLModel struct {
 
 type Balance struct {
 	ID             string
-	Alias          *string
-	LedgerID       string
 	OrganizationID string
+	LedgerID       string
+	AccountID      string
+	Alias          string
 	AssetCode      string
-	Available      *float64
-	OnHold         *float64
-	Scale          *float64
+	Available      int64
+	OnHold         int64
+	Scale          int64
 	Version        int64
-	AcceptNegative bool
+	AccountType    string
+	AllowSending   bool
+	AllowReceiving bool
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      *time.Time
 }
 
-func (b *Balance) ToEntity() *BalancePostgreSQLModel {
-
-	balance := &BalancePostgreSQLModel{
-		ID:             b.ID,
-		Alias:          b.Alias,
-		LedgerID:       b.LedgerID,
-		OrganizationID: b.OrganizationID,
-		AssetCode:      b.AssetCode,
-		Available:      b.Available,
-		OnHold:         b.OnHold,
-		Scale:          b.Scale,
-		Version:        b.Version,
-		AcceptNegative: b.AcceptNegative,
-		CreatedAt:      b.CreatedAt,
-		UpdatedAt:      b.UpdatedAt,
-	}
-
-	if b.DeletedAt != nil {
-		deletedAtCopy := *b.DeletedAt
-		balance.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
-	}
-
-	return balance
-}
-
-func (b *BalancePostgreSQLModel) FromEntity() *Balance {
-	balance := &Balance{
-		ID:             b.ID,
-		Alias:          b.Alias,
-		LedgerID:       b.LedgerID,
-		OrganizationID: b.OrganizationID,
-		AssetCode:      b.AssetCode,
-		Available:      b.Available,
-		OnHold:         b.OnHold,
-		Scale:          b.Scale,
-		Version:        b.Version,
-		AcceptNegative: b.AcceptNegative,
-		CreatedAt:      b.CreatedAt,
-		UpdatedAt:      b.UpdatedAt,
-	}
-
-	return balance
-}
-
-// OperateAmounts Function to sum or sub two amounts and normalize the scale
-func OperateAmounts(amount gold.Amount, balance *Balance, operation string) Balance {
-	var (
-		scale float64
-		total float64
-	)
-
-	switch operation {
-	case constant.DEBIT:
-		if int(*balance.Scale) < amount.Scale {
-			v0 := gold.Scale(int(*balance.Available), int(*balance.Scale), amount.Scale)
-			total = v0 - float64(amount.Value)
-			scale = float64(amount.Scale)
-		} else {
-			v0 := gold.Scale(amount.Value, amount.Scale, int(*balance.Scale))
-			total = *balance.Available - v0
-			scale = *balance.Scale
-		}
-	default:
-		if int(*balance.Scale) < amount.Scale {
-			v0 := gold.Scale(int(*balance.Available), int(*balance.Scale), amount.Scale)
-			total = v0 + float64(amount.Value)
-			scale = float64(amount.Scale)
-		} else {
-			v0 := gold.Scale(amount.Value, amount.Scale, int(*balance.Scale))
-			total = *balance.Available + v0
-			scale = *balance.Scale
-		}
-	}
-
-	return Balance{
+func (b *BalancePostgreSQLModel) FromEntity(balance *Balance) {
+	*b = BalancePostgreSQLModel{
 		ID:             balance.ID,
-		Alias:          balance.Alias,
-		LedgerID:       balance.LedgerID,
 		OrganizationID: balance.OrganizationID,
+		LedgerID:       balance.LedgerID,
+		AccountID:      balance.AccountID,
+		Alias:          balance.Alias,
 		AssetCode:      balance.AssetCode,
-		Available:      &total,
+		Available:      balance.Available,
 		OnHold:         balance.OnHold,
-		Scale:          &scale,
+		Scale:          balance.Scale,
 		Version:        balance.Version,
-		AcceptNegative: balance.AcceptNegative,
+		AccountType:    balance.AccountType,
+		AllowSending:   balance.AllowSending,
+		AllowReceiving: balance.AllowReceiving,
 		CreatedAt:      balance.CreatedAt,
 		UpdatedAt:      balance.UpdatedAt,
 	}
+
+	if balance.DeletedAt != nil {
+		deletedAtCopy := *balance.DeletedAt
+		b.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
+	}
+
 }
 
-func (b *Balance) IsEmpty() bool {
-	return b.Available == nil && b.OnHold == nil && b.Scale == nil
+func (b *BalancePostgreSQLModel) ToEntity() *Balance {
+	balance := &Balance{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Scale:          b.Scale,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   b.AllowSending,
+		AllowReceiving: b.AllowReceiving,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+	}
+
+	return balance
 }

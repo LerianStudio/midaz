@@ -2,7 +2,6 @@ package in
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -13,18 +12,14 @@ import (
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/trace"
-	"os"
-	"reflect"
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.opentelemetry.io/otel/trace"
+	"reflect"
 )
 
 // TransactionHandler struct that handle transaction
@@ -658,7 +653,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanReleaseLock.End()
 
-	go handler.logTransaction(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
 }
@@ -698,55 +693,4 @@ func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, l
 	}
 
 	return accounts, nil
-}
-
-// logTransaction creates a message representing a transaction log and sends to auditing exchange
-func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
-	defer spanLogTransaction.End()
-
-	if !isAuditLogEnabled() {
-		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
-		return
-	}
-
-	queueData := make([]mmodel.QueueData, 0)
-
-	for _, o := range operations {
-		oLog := o.ToLog()
-
-		marshal, err := json.Marshal(oLog)
-		if err != nil {
-			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
-		}
-
-		queueData = append(queueData, mmodel.QueueData{
-			ID:    uuid.MustParse(o.ID),
-			Value: marshal,
-		})
-	}
-
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AuditID:        transactionID,
-		QueueData:      queueData,
-	}
-
-	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
-		ctxLogTransaction,
-		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
-		os.Getenv("RABBITMQ_AUDIT_KEY"),
-		queueMessage,
-	); err != nil {
-		logger.Fatalf("Failed to send message: %s", err.Error())
-	}
-}
-
-func isAuditLogEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
-	return envValue != "false"
 }

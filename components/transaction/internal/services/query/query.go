@@ -7,7 +7,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 )
 
@@ -30,9 +29,6 @@ type UseCase struct {
 
 	// MetadataRepo provides an abstraction on top of the metadata data source.
 	MetadataRepo mongodb.Repository
-
-	// RabbitMQRepo provides an abstraction on top of the producer rabbitmq.
-	RabbitMQRepo rabbitmq.ConsumerRepository
 
 	// RedisRepo provides an abstraction on top of the redis consumer.
 	RedisRepo redis.RedisRepository

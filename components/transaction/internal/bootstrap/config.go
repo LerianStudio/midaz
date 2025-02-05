@@ -167,7 +167,7 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, logger, telemetry)
 
 	accountGRPCRepository := out.NewAccountGRPC(grpcConnection)
 
@@ -191,7 +191,6 @@ func InitServers() *Service {
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
-		RabbitMQRepo:    consumerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
 	}
 
@@ -210,12 +209,15 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
+
 	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server: server,
-		Logger: logger,
+		Server:             server,
+		MultiQueueConsumer: multiQueueConsumer,
+		Logger:             logger,
 	}
 }
