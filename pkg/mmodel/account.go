@@ -1,6 +1,7 @@
 package mmodel
 
 import (
+	"github.com/google/uuid"
 	"time"
 
 	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
@@ -58,6 +59,11 @@ type Account struct {
 	Metadata        map[string]any `json:"metadata,omitempty"`
 } // @name Account
 
+// IDtoUUID is a func that convert UUID string to uuid.UUID
+func (a *Account) IDtoUUID() uuid.UUID {
+	return uuid.MustParse(a.ID)
+}
+
 // Balance structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Balance
@@ -84,55 +90,55 @@ type Accounts struct {
 } // @name Accounts
 
 // ToProto converts entity Account to a response protobuf proto
-func (e *Account) ToProto() *proto.Account {
+func (a *Account) ToProto() *proto.Account {
 	status := proto.Status{
-		Code: e.Status.Code,
+		Code: a.Status.Code,
 	}
 
-	if e.Status.Description != nil {
-		status.Description = *e.Status.Description
+	if a.Status.Description != nil {
+		status.Description = *a.Status.Description
 	}
 
 	account := &proto.Account{
-		Id:             e.ID,
-		Name:           e.Name,
-		AssetCode:      e.AssetCode,
-		OrganizationId: e.OrganizationID,
-		LedgerId:       e.LedgerID,
+		Id:             a.ID,
+		Name:           a.Name,
+		AssetCode:      a.AssetCode,
+		OrganizationId: a.OrganizationID,
+		LedgerId:       a.LedgerID,
 		Status:         &status,
-		Type:           e.Type,
+		Type:           a.Type,
 	}
 
-	if e.ParentAccountID != nil {
-		account.ParentAccountId = *e.ParentAccountID
+	if a.ParentAccountID != nil {
+		account.ParentAccountId = *a.ParentAccountID
 	}
 
-	if e.DeletedAt != nil {
-		account.DeletedAt = e.DeletedAt.String()
+	if a.DeletedAt != nil {
+		account.DeletedAt = a.DeletedAt.String()
 	}
 
-	if !e.UpdatedAt.IsZero() {
-		account.UpdatedAt = e.UpdatedAt.String()
+	if !a.UpdatedAt.IsZero() {
+		account.UpdatedAt = a.UpdatedAt.String()
 	}
 
-	if !e.CreatedAt.IsZero() {
-		account.CreatedAt = e.CreatedAt.String()
+	if !a.CreatedAt.IsZero() {
+		account.CreatedAt = a.CreatedAt.String()
 	}
 
-	if e.EntityID != nil {
-		account.EntityId = *e.EntityID
+	if a.EntityID != nil {
+		account.EntityId = *a.EntityID
 	}
 
-	if e.PortfolioID != nil {
-		account.PortfolioId = *e.PortfolioID
+	if a.PortfolioID != nil {
+		account.PortfolioId = *a.PortfolioID
 	}
 
-	if e.SegmentID != nil {
-		account.SegmentId = *e.SegmentID
+	if a.SegmentID != nil {
+		account.SegmentId = *a.SegmentID
 	}
 
-	if e.Alias != nil {
-		account.Alias = *e.Alias
+	if a.Alias != nil {
+		account.Alias = *a.Alias
 	}
 
 	return account

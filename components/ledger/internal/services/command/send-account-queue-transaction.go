@@ -33,6 +33,7 @@ func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organization
 	queueMessage := mmodel.Queue{
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
+		AccountID:      account.IDtoUUID(),
 		QueueData:      queueData,
 	}
 
