@@ -32,7 +32,6 @@ type Config struct {
 	EnvName                 string `env:"ENV_NAME"`
 	LogLevel                string `env:"LOG_LEVEL"`
 	ServerAddress           string `env:"SERVER_ADDRESS"`
-	ProtoAddress            string `env:"PROTO_ADDRESS"`
 	PrimaryDBHost           string `env:"DB_HOST"`
 	PrimaryDBUser           string `env:"DB_USER"`
 	PrimaryDBPassword       string `env:"DB_PASSWORD"`
