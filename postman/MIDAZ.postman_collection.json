@@ -3414,8 +3414,13 @@
 		},
 		{
 			"key": "url_transaction",
-			"value": "http://127.0.0.1:3002",
+			"value": "http://127.0.0.1:3001",
 			"type": "default"
+		},
+		{
+			"key": "url_audit",
+			"value": "http://127.0.0.1:3002",
+			"type": "string"
 		},
 		{
 			"key": "organization_id",
@@ -3474,6 +3479,11 @@
 		},
 		{
 			"key": "parent_transaction_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "audit_id",
 			"value": "",
 			"type": "string"
 		}
