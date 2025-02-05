@@ -9,8 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-
 	"github.com/google/uuid"
 )
 
@@ -35,13 +33,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	status := uc.determineStatus(cai)
-	balanceValue := float64(0)
-
-	balance := mmodel.Balance{
-		Available: &balanceValue,
-		OnHold:    &balanceValue,
-		Scale:     &balanceValue,
-	}
 
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
@@ -91,14 +82,6 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 	}
 
-	if cai.AllowReceiving == nil {
-		cai.AllowReceiving = mpointers.Bool(true)
-	}
-
-	if cai.AllowSending == nil {
-		cai.AllowSending = mpointers.Bool(true)
-	}
-
 	account := &mmodel.Account{
 		ID:              pkg.GenerateUUIDv7().String(),
 		AssetCode:       cai.AssetCode,
@@ -111,10 +94,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		PortfolioID:     cai.PortfolioID,
 		LedgerID:        ledgerID.String(),
 		EntityID:        cai.EntityID,
-		Balance:         balance,
 		Status:          status,
-		AllowSending:    cai.AllowSending,
-		AllowReceiving:  cai.AllowReceiving,
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}

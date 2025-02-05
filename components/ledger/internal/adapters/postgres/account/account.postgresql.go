@@ -109,16 +109,10 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.LedgerID,
 		record.PortfolioID,
 		record.SegmentID,
-		record.AvailableBalance,
-		record.OnHoldBalance,
-		record.BalanceScale,
 		record.Status,
 		record.StatusDescription,
-		record.AllowSending,
-		record.AllowReceiving,
 		record.Alias,
 		record.Type,
-		record.Version,
 		record.CreatedAt,
 		record.UpdatedAt,
 		record.DeletedAt,
@@ -218,16 +212,10 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.LedgerID,
 			&acc.PortfolioID,
 			&acc.SegmentID,
-			&acc.AvailableBalance,
-			&acc.OnHoldBalance,
-			&acc.BalanceScale,
 			&acc.Status,
 			&acc.StatusDescription,
-			&acc.AllowSending,
-			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
-			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -292,16 +280,10 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.LedgerID,
 		&acc.PortfolioID,
 		&acc.SegmentID,
-		&acc.AvailableBalance,
-		&acc.OnHoldBalance,
-		&acc.BalanceScale,
 		&acc.Status,
 		&acc.StatusDescription,
-		&acc.AllowSending,
-		&acc.AllowReceiving,
 		&acc.Alias,
 		&acc.Type,
-		&acc.Version,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
@@ -361,16 +343,10 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.LedgerID,
 		&acc.PortfolioID,
 		&acc.SegmentID,
-		&acc.AvailableBalance,
-		&acc.OnHoldBalance,
-		&acc.BalanceScale,
 		&acc.Status,
 		&acc.StatusDescription,
-		&acc.AllowSending,
-		&acc.AllowReceiving,
 		&acc.Alias,
 		&acc.Type,
-		&acc.Version,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
@@ -430,16 +406,10 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.LedgerID,
 		&acc.PortfolioID,
 		&acc.SegmentID,
-		&acc.AvailableBalance,
-		&acc.OnHoldBalance,
-		&acc.BalanceScale,
 		&acc.Status,
 		&acc.StatusDescription,
-		&acc.AllowSending,
-		&acc.AllowReceiving,
 		&acc.Alias,
 		&acc.Type,
-		&acc.Version,
 		&acc.CreatedAt,
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
@@ -545,16 +515,10 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.LedgerID,
 			&acc.PortfolioID,
 			&acc.SegmentID,
-			&acc.AvailableBalance,
-			&acc.OnHoldBalance,
-			&acc.BalanceScale,
 			&acc.Status,
 			&acc.StatusDescription,
-			&acc.AllowSending,
-			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
-			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -617,16 +581,10 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.LedgerID,
 			&acc.PortfolioID,
 			&acc.SegmentID,
-			&acc.AvailableBalance,
-			&acc.OnHoldBalance,
-			&acc.BalanceScale,
 			&acc.Status,
 			&acc.StatusDescription,
-			&acc.AllowSending,
-			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
-			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -680,16 +638,6 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.StatusDescription)
-	}
-
-	if acc.AllowSending != nil {
-		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AllowSending)
-	}
-
-	if acc.AllowReceiving != nil {
-		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AllowReceiving)
 	}
 
 	if !pkg.IsNilOrEmpty(acc.Alias) {
@@ -841,16 +789,10 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.LedgerID,
 			&acc.PortfolioID,
 			&acc.SegmentID,
-			&acc.AvailableBalance,
-			&acc.OnHoldBalance,
-			&acc.BalanceScale,
 			&acc.Status,
 			&acc.StatusDescription,
-			&acc.AllowSending,
-			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
-			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -912,16 +854,10 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.LedgerID,
 			&acc.PortfolioID,
 			&acc.SegmentID,
-			&acc.AvailableBalance,
-			&acc.OnHoldBalance,
-			&acc.BalanceScale,
 			&acc.Status,
 			&acc.StatusDescription,
-			&acc.AllowSending,
-			&acc.AllowReceiving,
 			&acc.Alias,
 			&acc.Type,
-			&acc.Version,
 			&acc.CreatedAt,
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
@@ -963,17 +899,6 @@ func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, org
 	var updates []string
 
 	var args []any
-
-	if !acc.Balance.IsEmpty() {
-		updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.AvailableBalance)
-
-		updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.OnHoldBalance)
-
-		updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, record.BalanceScale)
-	}
 
 	record.UpdatedAt = time.Now()
 

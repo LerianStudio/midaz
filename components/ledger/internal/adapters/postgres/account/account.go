@@ -19,16 +19,10 @@ type AccountPostgreSQLModel struct {
 	LedgerID          string
 	PortfolioID       *string
 	SegmentID         *string
-	AvailableBalance  *float64
-	OnHoldBalance     *float64
-	BalanceScale      *float64
 	Status            string
 	StatusDescription *string
-	AllowSending      bool
-	AllowReceiving    bool
 	Alias             *string
 	Type              string
-	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	DeletedAt         sql.NullTime
@@ -42,12 +36,6 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		Description: t.StatusDescription,
 	}
 
-	balance := mmodel.Balance{
-		Available: t.AvailableBalance,
-		OnHold:    t.OnHoldBalance,
-		Scale:     t.BalanceScale,
-	}
-
 	acc := &mmodel.Account{
 		ID:              t.ID,
 		Name:            t.Name,
@@ -58,13 +46,9 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		LedgerID:        t.LedgerID,
 		PortfolioID:     t.PortfolioID,
 		SegmentID:       t.SegmentID,
-		Balance:         balance,
 		Status:          status,
-		AllowSending:    &t.AllowSending,
-		AllowReceiving:  &t.AllowReceiving,
 		Alias:           t.Alias,
 		Type:            t.Type,
-		Version:         t.Version,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
@@ -89,24 +73,12 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		OrganizationID:    account.OrganizationID,
 		LedgerID:          account.LedgerID,
 		SegmentID:         account.SegmentID,
-		AvailableBalance:  account.Balance.Available,
-		OnHoldBalance:     account.Balance.OnHold,
-		BalanceScale:      account.Balance.Scale,
 		Status:            account.Status.Code,
 		StatusDescription: account.Status.Description,
 		Alias:             account.Alias,
 		Type:              account.Type,
-		Version:           account.Version,
 		CreatedAt:         account.CreatedAt,
 		UpdatedAt:         account.UpdatedAt,
-	}
-
-	if account.AllowSending != nil {
-		t.AllowSending = *account.AllowSending
-	}
-
-	if account.AllowReceiving != nil {
-		t.AllowReceiving = *account.AllowReceiving
 	}
 
 	if !pkg.IsNilOrEmpty(account.PortfolioID) {

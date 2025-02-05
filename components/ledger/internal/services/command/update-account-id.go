@@ -25,9 +25,7 @@ func (uc *UseCase) UpdateAccountByID(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to update account by id: %v", id)
 
-	acc := &mmodel.Account{
-		Balance: *balance,
-	}
+	acc := &mmodel.Account{}
 
 	accountUpdated, err := uc.AccountRepo.UpdateAccountByID(ctx, organizationID, ledgerID, id, acc)
 	if err != nil {

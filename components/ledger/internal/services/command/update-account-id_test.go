@@ -46,11 +46,6 @@ func TestUpdateAccountByID(t *testing.T) {
 			setupMocks: func() {
 				updatedAccount := &mmodel.Account{
 					ID: accountID.String(),
-					Balance: mmodel.Balance{
-						Available: ptr.Float64Ptr(100.0),
-						OnHold:    ptr.Float64Ptr(10.0),
-						Scale:     ptr.Float64Ptr(0.01),
-					},
 				}
 
 				mockAccountRepo.EXPECT().
@@ -61,11 +56,6 @@ func TestUpdateAccountByID(t *testing.T) {
 			expectedErr: nil,
 			expectedAcct: &mmodel.Account{
 				ID: accountID.String(),
-				Balance: mmodel.Balance{
-					Available: ptr.Float64Ptr(100.0),
-					OnHold:    ptr.Float64Ptr(10.0),
-					Scale:     ptr.Float64Ptr(0.01),
-				},
 			},
 		},
 		{
@@ -116,7 +106,6 @@ func TestUpdateAccountByID(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.expectedAcct.ID, result.ID)
-				assert.Equal(t, tt.expectedAcct.Balance, result.Balance)
 			}
 		})
 	}

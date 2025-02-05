@@ -16,8 +16,6 @@ import (
 	// "github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,11 +39,9 @@ func TestCreateAccount(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	createAccountInput := &mmodel.CreateAccountInput{
-		Name:           "Test Account",
-		Type:           "deposit",
-		AssetCode:      "USD",
-		AllowReceiving: mpointers.Bool(true),
-		AllowSending:   mpointers.Bool(true),
+		Name:      "Test Account",
+		Type:      "deposit",
+		AssetCode: "USD",
 	}
 
 	t.Run("success", func(t *testing.T) {
@@ -101,11 +97,9 @@ func TestCreateAccount2(t *testing.T) {
 		{
 			name: "success",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Test Account",
-				Type:           "deposit",
-				AssetCode:      "USD",
-				AllowReceiving: mpointers.Bool(true),
-				AllowSending:   mpointers.Bool(true),
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "USD",
 			},
 			mockSetup: func() {
 				mockAssetRepo.EXPECT().
@@ -131,11 +125,9 @@ func TestCreateAccount2(t *testing.T) {
 		{
 			name: "asset not found",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Test Account",
-				Type:           "deposit",
-				AssetCode:      "XYZ",
-				AllowReceiving: mpointers.Bool(true),
-				AllowSending:   mpointers.Bool(true),
+				Name:      "Test Account",
+				Type:      "deposit",
+				AssetCode: "XYZ",
 			},
 			mockSetup: func() {
 				mockAssetRepo.EXPECT().
@@ -149,11 +141,9 @@ func TestCreateAccount2(t *testing.T) {
 		{
 			name: "invalid account type",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Invalid Account",
-				Type:           "invalidType",
-				AssetCode:      "USD",
-				AllowReceiving: mpointers.Bool(true),
-				AllowSending:   mpointers.Bool(true),
+				Name:      "Invalid Account",
+				Type:      "invalidType",
+				AssetCode: "USD",
 			},
 			mockSetup:    func() {},
 			expectedErr:  errors.New("0066 - The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type."),
@@ -162,11 +152,9 @@ func TestCreateAccount2(t *testing.T) {
 		{
 			name: "error creating account",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Error Account",
-				Type:           "deposit",
-				AssetCode:      "USD",
-				AllowReceiving: mpointers.Bool(true),
-				AllowSending:   mpointers.Bool(true),
+				Name:      "Error Account",
+				Type:      "deposit",
+				AssetCode: "USD",
 			},
 			mockSetup: func() {
 				mockAssetRepo.EXPECT().

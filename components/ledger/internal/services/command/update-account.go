@@ -24,10 +24,6 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to update account: %v", uai)
 
-	if pkg.IsNilOrEmpty(uai.Alias) {
-		uai.Alias = nil
-	}
-
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
@@ -40,14 +36,11 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	account := &mmodel.Account{
-		Name:           uai.Name,
-		Status:         uai.Status,
-		Alias:          uai.Alias,
-		SegmentID:      uai.SegmentID,
-		PortfolioID:    uai.PortfolioID,
-		AllowSending:   uai.AllowSending,
-		AllowReceiving: uai.AllowReceiving,
-		Metadata:       uai.Metadata,
+		Name:        uai.Name,
+		Status:      uai.Status,
+		SegmentID:   uai.SegmentID,
+		PortfolioID: uai.PortfolioID,
+		Metadata:    uai.Metadata,
 	}
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
