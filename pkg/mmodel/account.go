@@ -62,21 +62,6 @@ func (a *Account) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(a.ID)
 }
 
-// Balance structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Balance
-// @Description Balance is the struct designed to represent the account balance.
-type Balance struct {
-	Available *float64 `json:"available" example:"1500"`
-	OnHold    *float64 `json:"onHold" example:"500"`
-	Scale     *float64 `json:"scale" example:"2"`
-} // @name Balance
-
-// IsEmpty method that set empty or nil in fields
-func (b Balance) IsEmpty() bool {
-	return b.Available == nil && b.OnHold == nil && b.Scale == nil
-}
-
 // Accounts struct to return get all.
 //
 // swagger:model Accounts
