@@ -128,7 +128,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			UpdatedAt: time.Now(),
 		}
 
-		_, err = uc.AccountRepo.Create(ctx, eAccount)
+		acc, err := uc.AccountRepo.Create(ctx, eAccount)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to create asset external account", err)
 
@@ -138,6 +138,9 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		}
 
 		logger.Infof("External account created for asset %s with alias %s", cii.Code, aAlias)
+
+		logger.Infof("Sending external account to transaction queue...")
+		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
 	}
 
 	return inst, nil

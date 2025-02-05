@@ -119,6 +119,9 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	acc.Metadata = metadata
 
+	logger.Infof("Sending account to transaction queue...")
+	uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+
 	return acc, nil
 }
 
