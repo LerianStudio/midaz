@@ -65,19 +65,8 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccount))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAllAccounts)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAccountByID)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias",
-		jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAccountByAlias)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAccountByAlias)
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.DeleteAccountByID)
-	// Will be deprecated in the future. Use "POST /v1/organizations/:organization_id/ledgers/:ledger_id/accounts" instead.
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccountFromPortfolio))
-	// Will be deprecated in the future. Use "PATCH /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id" instead.
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccountFromPortfolio))
-	// Will be deprecated in the future. Use "GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts" instead.
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAllAccountsByIDFromPortfolio)
-	// Will be deprecated in the future. Use "GET /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id" instead.
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAccountByIDFromPortfolio)
-	// Will be deprecated in the future. Use "DELETE /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id" instead.
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.DeleteAccountByIDFromPortfolio)
 
 	// Health
 	f.Get("/health", http.Ping)
