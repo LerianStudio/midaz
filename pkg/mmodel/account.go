@@ -3,8 +3,6 @@ package mmodel
 import (
 	"github.com/google/uuid"
 	"time"
-
-	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 )
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
@@ -88,58 +86,3 @@ type Accounts struct {
 	Page  int       `json:"page" example:"1"`
 	Limit int       `json:"limit" example:"10"`
 } // @name Accounts
-
-// ToProto converts entity Account to a response protobuf proto
-func (a *Account) ToProto() *proto.Account {
-	status := proto.Status{
-		Code: a.Status.Code,
-	}
-
-	if a.Status.Description != nil {
-		status.Description = *a.Status.Description
-	}
-
-	account := &proto.Account{
-		Id:             a.ID,
-		Name:           a.Name,
-		AssetCode:      a.AssetCode,
-		OrganizationId: a.OrganizationID,
-		LedgerId:       a.LedgerID,
-		Status:         &status,
-		Type:           a.Type,
-	}
-
-	if a.ParentAccountID != nil {
-		account.ParentAccountId = *a.ParentAccountID
-	}
-
-	if a.DeletedAt != nil {
-		account.DeletedAt = a.DeletedAt.String()
-	}
-
-	if !a.UpdatedAt.IsZero() {
-		account.UpdatedAt = a.UpdatedAt.String()
-	}
-
-	if !a.CreatedAt.IsZero() {
-		account.CreatedAt = a.CreatedAt.String()
-	}
-
-	if a.EntityID != nil {
-		account.EntityId = *a.EntityID
-	}
-
-	if a.PortfolioID != nil {
-		account.PortfolioId = *a.PortfolioID
-	}
-
-	if a.SegmentID != nil {
-		account.SegmentId = *a.SegmentID
-	}
-
-	if a.Alias != nil {
-		account.Alias = *a.Alias
-	}
-
-	return account
-}

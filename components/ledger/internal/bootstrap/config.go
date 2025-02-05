@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"fmt"
 
-	grpcin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/grpc/in"
 	httpin "github.com/LerianStudio/midaz/components/ledger/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
@@ -226,13 +225,8 @@ func InitServers() *Service {
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
-	grpcApp := grpcin.NewRouterGRPC(logger, telemetry, casDoorConnection, commandUseCase, queryUseCase)
-
-	serverGRPC := NewServerGRPC(cfg, grpcApp, logger, telemetry)
-
 	return &Service{
-		Server:     serverAPI,
-		ServerGRPC: serverGRPC,
-		Logger:     logger,
+		Server: serverAPI,
+		Logger: logger,
 	}
 }

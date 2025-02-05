@@ -13,7 +13,6 @@ import (
 	context "context"
 	reflect "reflect"
 
-	account "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
@@ -220,33 +219,4 @@ func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 uuid.UUID, arg3
 func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4, arg5)
-}
-
-// UpdateAccountByID mocks base method.
-func (m *MockRepository) UpdateAccountByID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 *mmodel.Account) (*mmodel.Account, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAccountByID", arg0, arg1, arg2, arg3, arg4)
-	ret0, _ := ret[0].(*mmodel.Account)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateAccountByID indicates an expected call of UpdateAccountByID.
-func (mr *MockRepositoryMockRecorder) UpdateAccountByID(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccountByID", reflect.TypeOf((*MockRepository)(nil).UpdateAccountByID), arg0, arg1, arg2, arg3, arg4)
-}
-
-// UpdateAccounts mocks base method.
-func (m *MockRepository) UpdateAccounts(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []*account.Account) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAccounts", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateAccounts indicates an expected call of UpdateAccounts.
-func (mr *MockRepositoryMockRecorder) UpdateAccounts(arg0, arg1, arg2, arg3 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccounts", reflect.TypeOf((*MockRepository)(nil).UpdateAccounts), arg0, arg1, arg2, arg3)
 }

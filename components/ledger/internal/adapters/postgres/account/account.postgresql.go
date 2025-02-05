@@ -7,21 +7,16 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
-
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-	"github.com/LerianStudio/midaz/pkg/net/http"
 
 	"github.com/LerianStudio/midaz/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
-
+	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -44,8 +39,6 @@ type Repository interface {
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
-	UpdateAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
-	UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, acc []*account.Account) error
 }
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
@@ -877,176 +870,4 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	}
 
 	return accounts, nil
-}
-
-// UpdateAccountByID an update Account entity by ID only into Postgresql and returns the Account updated.
-func (r *AccountPostgreSQLRepository) UpdateAccountByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.update_account_by_id")
-	defer span.End()
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		return nil, err
-	}
-
-	record := &AccountPostgreSQLModel{}
-	record.FromEntity(acc)
-
-	var updates []string
-
-	var args []any
-
-	record.UpdatedAt = time.Now()
-
-	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
-
-	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-		` AND id = $` + strconv.Itoa(len(args)) +
-		` AND deleted_at IS NULL`
-
-	ctx, spanExec := tracer.Start(ctx, "postgres.update_account_by_id.exec")
-
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
-
-		return nil, err
-	}
-
-	result, err := db.ExecContext(ctx, query, args...)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
-
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
-		}
-
-		return nil, err
-	}
-
-	spanExec.End()
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
-
-		return nil, err
-	}
-
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
-		mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
-}
-
-// UpdateAccounts an update all Accounts entity by ID only into Postgresql.
-func (r *AccountPostgreSQLRepository) UpdateAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, accounts []*account.Account) error {
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.update_accounts")
-	defer span.End()
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		return err
-	}
-
-	tx, err := db.Begin()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to init transaction", err)
-
-		return err
-	}
-
-	var wg sync.WaitGroup
-
-	errChan := make(chan error, len(accounts))
-
-	for _, acc := range accounts {
-		wg.Add(1)
-
-		go func(acc *account.Account) {
-			defer wg.Done()
-
-			var updates []string
-
-			var args []any
-
-			updates = append(updates, "available_balance = $"+strconv.Itoa(len(args)+1))
-			args = append(args, acc.Balance.Available)
-
-			updates = append(updates, "on_hold_balance = $"+strconv.Itoa(len(args)+1))
-			args = append(args, acc.Balance.OnHold)
-
-			updates = append(updates, "balance_scale = $"+strconv.Itoa(len(args)+1))
-			args = append(args, acc.Balance.Scale)
-
-			updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-			version := acc.Version + 1
-			args = append(args, version)
-
-			updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-			args = append(args, time.Now(), organizationID, ledgerID, acc.Id, acc.Version)
-
-			query := `UPDATE account SET ` + strings.Join(updates, ", ") +
-				` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
-				` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
-				` AND id = $` + strconv.Itoa(len(args)-1) +
-				` AND version = $` + strconv.Itoa(len(args)) +
-				` AND deleted_at IS NULL`
-
-			result, err := tx.ExecContext(ctx, query, args...)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			rowsAffected, err := result.RowsAffected()
-			if err != nil || rowsAffected == 0 {
-				if err == nil {
-					err = sql.ErrNoRows
-				}
-				errChan <- err
-			}
-		}(acc)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	for err := range errChan {
-		if err != nil {
-			rollbackErr := tx.Rollback()
-			if rollbackErr != nil {
-				return rollbackErr
-			}
-
-			return err
-		}
-	}
-
-	if commitErr := tx.Commit(); commitErr != nil {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
-		mopentelemetry.HandleSpanError(&span, "Failed to commit accounts", err)
-
-		return commitErr
-	}
-
-	return nil
 }

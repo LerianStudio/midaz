@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
-	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 )
 
 func TestAccount_ToProto(t *testing.T) {
@@ -14,9 +13,8 @@ func TestAccount_ToProto(t *testing.T) {
 	var timeDel *time.Time = &tm
 
 	tests := []struct {
-		name     string
-		account  *Account
-		expected *proto.Account
+		name    string
+		account *Account
 	}{
 		{
 			name: "normal case",
@@ -33,25 +31,6 @@ func TestAccount_ToProto(t *testing.T) {
 				Type:      "type-1",
 				UpdatedAt: time.Now(),
 				CreatedAt: time.Now(),
-			},
-			expected: &proto.Account{
-				Id:             "1",
-				Name:           "Account 1",
-				AssetCode:      "USD",
-				OrganizationId: "org-123",
-				LedgerId:       "ledger-456",
-				Balance: &proto.Balance{
-					Available: 100,
-					OnHold:    200,
-					Scale:     2,
-				},
-				Status: &proto.Status{
-					Code:        "1",
-					Description: "Some description",
-				},
-				AllowSending:   true,
-				AllowReceiving: true,
-				Type:           "type-1",
 			},
 		},
 		{
@@ -76,31 +55,12 @@ func TestAccount_ToProto(t *testing.T) {
 				SegmentID:   ptr.StringPtr("SegmentID"),
 				Alias:       ptr.StringPtr("Alias"),
 			},
-			expected: &proto.Account{
-				Id:             "1",
-				Name:           "Account 1",
-				AssetCode:      "USD",
-				OrganizationId: "org-123",
-				LedgerId:       "ledger-456",
-				Balance: &proto.Balance{
-					Available: 100,
-					OnHold:    200,
-					Scale:     2,
-				},
-				Status: &proto.Status{
-					Code:        "1",
-					Description: "Some description",
-				},
-				AllowSending:   true,
-				AllowReceiving: true,
-				Type:           "type-1",
-			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.account.ToProto()
+			result := tt.account
 			t.Log(result)
 		})
 	}
