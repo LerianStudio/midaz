@@ -9,8 +9,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-
 	"github.com/google/uuid"
 )
 
@@ -110,14 +108,6 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if len(account) == 0 {
 		logger.Infof("Creating external account for asset: %s", cii.Code)
 
-		balanceValue := float64(0)
-
-		aBalance := mmodel.Balance{
-			Available: &balanceValue,
-			OnHold:    &balanceValue,
-			Scale:     &balanceValue,
-		}
-
 		eAccount := &mmodel.Account{
 			ID:              pkg.GenerateUUIDv7().String(),
 			AssetCode:       cii.Code,
@@ -130,15 +120,12 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			SegmentID:       nil,
 			PortfolioID:     nil,
 			EntityID:        nil,
-			Balance:         aBalance,
 			Status: mmodel.Status{
 				Code:        "external",
 				Description: &aStatusDescription,
 			},
-			AllowSending:   mpointers.Bool(true),
-			AllowReceiving: mpointers.Bool(true),
-			CreatedAt:      time.Now(),
-			UpdatedAt:      time.Now(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
 		}
 
 		_, err = uc.AccountRepo.Create(ctx, eAccount)
