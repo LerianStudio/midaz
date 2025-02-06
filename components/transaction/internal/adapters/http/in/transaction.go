@@ -576,19 +576,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanCreateOperation.End()
 
-	//ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.create_transaction.get_transaction")
-	//
-	//tran, err = handler.Query.GetTransactionByID(ctxGetTransaction, organizationID, ledgerID, tran.IDtoUUID())
-	//if err != nil {
-	//	mopentelemetry.HandleSpanError(&spanGetTransaction, "Failed to retrieve transaction", err)
-	//
-	//	logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-	//
-	//	return http.WithError(c, err)
-	//}
-	//
-	//spanGetTransaction.End()
-
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
 	tran.Operations = operations

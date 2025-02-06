@@ -43,8 +43,6 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// Operations
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetAllOperationsByAccount)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetOperationByAccount)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetAllOperationsByPortfolio)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetOperationByPortfolio)
 
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))
 

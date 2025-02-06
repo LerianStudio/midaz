@@ -93,7 +93,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					Amount:          amount,
 					Balance:         balance,
 					BalanceAfter:    balanceAfter,
-					PortfolioID:     &blc.ID,
+					BalanceID:       blc.ID,
 					AccountID:       blc.AccountID,
 					AccountAlias:    blc.Alias,
 					OrganizationID:  blc.OrganizationID,

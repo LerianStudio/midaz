@@ -2052,7 +2052,7 @@
 									},
 									{
 										"key": "X-Idempotency",
-										"value": "key-teste",
+										"value": "{{$randomUUID}}",
 										"description": "Idempotency Key, if not pass through we create base on body sha-256",
 										"type": "text"
 									},
@@ -2741,101 +2741,6 @@
 								"{{ledger_id}}",
 								"accounts",
 								"{{account_id}}",
-								"operations",
-								"{{operation_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Portofolios -> Operations",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Midaz-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/operations",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios",
-								"{{portfolio_id}}",
-								"operations"
-							],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "cursor",
-									"value": null,
-									"description": "Cursor Pagination",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Portfolios -> Operation by id",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Midaz-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}/operations/{{operation_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios",
-								"{{portfolio_id}}",
 								"operations",
 								"{{operation_id}}"
 							]
