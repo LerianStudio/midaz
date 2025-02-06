@@ -13,7 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	model "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -42,7 +42,7 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(arg0 context.Context, arg1 *Balance) error {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *mmodel.Balance) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -55,8 +55,38 @@ func (mr *MockRepositoryMockRecorder) Create(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1)
 }
 
+// ListByAccountIDs mocks base method.
+func (m *MockRepository) ListByAccountIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByAccountIDs", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByAccountIDs indicates an expected call of ListByAccountIDs.
+func (mr *MockRepositoryMockRecorder) ListByAccountIDs(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAccountIDs", reflect.TypeOf((*MockRepository)(nil).ListByAccountIDs), arg0, arg1, arg2, arg3)
+}
+
+// ListByAliases mocks base method.
+func (m *MockRepository) ListByAliases(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []string) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByAliases", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByAliases indicates an expected call of ListByAliases.
+func (mr *MockRepositoryMockRecorder) ListByAliases(arg0, arg1, arg2, arg3 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliases", reflect.TypeOf((*MockRepository)(nil).ListByAliases), arg0, arg1, arg2, arg3)
+}
+
 // Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 model.Responses) error {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []*mmodel.Balance) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)

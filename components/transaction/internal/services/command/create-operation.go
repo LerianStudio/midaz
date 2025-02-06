@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"reflect"
 	"time"
 
@@ -10,13 +11,12 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
-func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Account, transactionID string, dsl *goldModel.Transaction, validate goldModel.Responses, result chan []*operation.Operation, err chan error) {
+func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balance, transactionID string, dsl *goldModel.Transaction, validate goldModel.Responses, result chan []*operation.Operation, err chan error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -31,40 +31,44 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 	fromTo = append(fromTo, dsl.Send.Source.From...)
 	fromTo = append(fromTo, dsl.Send.Distribute.To...)
 
-	for _, acc := range accounts {
+	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].Account == acc.Id || fromTo[i].Account == acc.Alias {
-				logger.Infof("Creating operation for account id: %s", acc.Id)
+			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+				logger.Infof("Creating operation for account id: %s", blc.ID)
+
+				a := float64(blc.Available)
+				oh := float64(blc.OnHold)
+				s := float64(blc.Scale)
 
 				balance := operation.Balance{
-					Available: &acc.Balance.Available,
-					OnHold:    &acc.Balance.OnHold,
-					Scale:     &acc.Balance.Scale,
+					Available: &a,
+					OnHold:    &oh,
+					Scale:     &s,
 				}
 
-				amt, bat, er := goldModel.ValidateFromToOperation(fromTo[i], validate, acc)
+				amt, bat, er := goldModel.ValidateFromToOperation(fromTo[i], validate, blc)
 				if er != nil {
 					mopentelemetry.HandleSpanError(&span, "Failed to validate operation", er)
 
 					err <- er
 				}
 
-				v := float64(amt.Value)
-				s := float64(amt.Scale)
+				amtv := float64(amt.Value)
+				amts := float64(amt.Scale)
 
 				amount := operation.Amount{
-					Amount: &v,
-					Scale:  &s,
+					Amount: &amtv,
+					Scale:  &amts,
 				}
 
-				ba := float64(bat.Available)
-				boh := float64(bat.OnHold)
-				bs := float64(bat.Scale)
+				bata := float64(bat.Available)
+				batoh := float64(bat.OnHold)
+				bats := float64(bat.Scale)
 
 				balanceAfter := operation.Balance{
-					Available: &ba,
-					OnHold:    &boh,
-					Scale:     &bs,
+					Available: &bata,
+					OnHold:    &batoh,
+					Scale:     &bats,
 				}
 
 				description := fromTo[i].Description
@@ -89,11 +93,11 @@ func (uc *UseCase) CreateOperation(ctx context.Context, accounts []*account.Acco
 					Amount:          amount,
 					Balance:         balance,
 					BalanceAfter:    balanceAfter,
-					AccountID:       acc.Id,
-					AccountAlias:    acc.Alias,
-					PortfolioID:     &acc.PortfolioId,
-					OrganizationID:  acc.OrganizationId,
-					LedgerID:        acc.LedgerId,
+					PortfolioID:     &blc.ID,
+					AccountID:       blc.AccountID,
+					AccountAlias:    blc.Alias,
+					OrganizationID:  blc.OrganizationID,
+					LedgerID:        blc.LedgerID,
 					CreatedAt:       time.Now(),
 					UpdatedAt:       time.Now(),
 				}

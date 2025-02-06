@@ -35,7 +35,7 @@ func (mq *MultiQueueConsumer) Run(l *pkg.Launcher) error {
 	return mq.consumerRoutes.RunConsumers()
 }
 
-// handlerBalanceQueue processes messages from the audit queue, unmarshals the JSON, and creates logs in the system.
+// handlerBalanceQueue processes messages from the audit queue, unmarshal the JSON, and creates logs in the system.
 // It uses context for logging and tracing, and handles errors during unmarshalling or log creation.
 func (mq *MultiQueueConsumer) handlerBalanceQueue(ctx context.Context, body []byte) error {
 	logger := pkg.NewLoggerFromContext(ctx)

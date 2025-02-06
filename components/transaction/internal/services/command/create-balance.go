@@ -3,7 +3,6 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
@@ -29,7 +28,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			return err
 		}
 
-		b := &balance.Balance{
+		b := &mmodel.Balance{
 			ID:             pkg.GenerateUUIDv7().String(),
 			Alias:          *account.Alias,
 			OrganizationID: account.OrganizationID,

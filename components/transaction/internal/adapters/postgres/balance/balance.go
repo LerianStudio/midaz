@@ -2,9 +2,11 @@ package balance
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
 )
 
+// BalancePostgreSQLModel represents the entity Balance into SQL context in Database
 type BalancePostgreSQLModel struct {
 	ID             string
 	OrganizationID string
@@ -24,26 +26,8 @@ type BalancePostgreSQLModel struct {
 	DeletedAt      sql.NullTime
 }
 
-type Balance struct {
-	ID             string
-	OrganizationID string
-	LedgerID       string
-	AccountID      string
-	Alias          string
-	AssetCode      string
-	Available      int64
-	OnHold         int64
-	Scale          int64
-	Version        int64
-	AccountType    string
-	AllowSending   bool
-	AllowReceiving bool
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	DeletedAt      *time.Time
-}
-
-func (b *BalancePostgreSQLModel) FromEntity(balance *Balance) {
+// FromEntity converts a request entity Balance to BalancePostgreSQLModel
+func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 	*b = BalancePostgreSQLModel{
 		ID:             balance.ID,
 		OrganizationID: balance.OrganizationID,
@@ -69,8 +53,9 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *Balance) {
 
 }
 
-func (b *BalancePostgreSQLModel) ToEntity() *Balance {
-	balance := &Balance{
+// ToEntity converts an BalancePostgreSQLModel to a response entity Balance
+func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
+	balance := &mmodel.Balance{
 		ID:             b.ID,
 		OrganizationID: b.OrganizationID,
 		LedgerID:       b.LedgerID,

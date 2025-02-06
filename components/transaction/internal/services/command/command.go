@@ -1,7 +1,6 @@
 package command
 
 import (
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
@@ -15,9 +14,6 @@ import (
 type UseCase struct {
 	// TransactionRepo provides an abstraction on top of the transaction data source.
 	TransactionRepo transaction.Repository
-
-	// AccountGRPCRepo provides an abstraction on top of the account grpc.
-	AccountGRPCRepo out.Repository
 
 	// OperationRepo provides an abstraction on top of the operation data source.
 	OperationRepo operation.Repository

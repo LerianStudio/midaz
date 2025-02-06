@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -90,22 +90,22 @@ func (uc *UseCase) DeleteLocks(ctx context.Context, organizationID, ledgerID uui
 	}
 }
 
-func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, accounts []*account.Account) (bool, error) {
+func (uc *UseCase) LockBalanceVersion(ctx context.Context, organizationID, ledgerID uuid.UUID, keys []string, balances []*mmodel.Balance) (bool, error) {
 	logger := pkg.NewLoggerFromContext(context.Background())
 	tracer := pkg.NewTracerFromContext(context.Background())
 
 	ctx, span := tracer.Start(ctx, "redis.lock_balance_version")
 	defer span.End()
 
-	accountsMap := make(map[string]*account.Account)
-	for _, acc := range accounts {
-		accountsMap[acc.Id] = acc
-		accountsMap[acc.Alias] = acc
+	balancesMap := make(map[string]*mmodel.Balance)
+	for _, balance := range balances {
+		balancesMap[balance.ID] = balance
+		balancesMap[balance.Alias] = balance
 	}
 
 	for _, key := range keys {
-		if acc, exists := accountsMap[key]; exists {
-			internalKey := pkg.LockVersionInternalKey(organizationID, ledgerID, key, strconv.FormatInt(acc.Version, 10))
+		if blc, exists := balancesMap[key]; exists {
+			internalKey := pkg.LockVersionInternalKey(organizationID, ledgerID, key, strconv.FormatInt(blc.Version, 10))
 
 			logger.Infof("Account balance version releasing lock on redis: %v", internalKey)
 

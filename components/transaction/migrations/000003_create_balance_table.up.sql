@@ -17,8 +17,11 @@ CREATE TABLE IF NOT EXISTS balance (
   deleted_at                          TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_update_balance_alias ON balance (id, organization_id, ledger_id, alias);
-REINDEX INDEX idx_update_balance_alias;
+CREATE INDEX idx_balance_id ON balance (organization_id, ledger_id, id);
+REINDEX INDEX idx_balance_id;
 
-CREATE INDEX idx_update_balance_account_id ON balance (id, organization_id, ledger_id, account_id);
-REINDEX INDEX idx_update_balance_account_id;
+CREATE INDEX idx_balance_alias ON balance (organization_id, ledger_id, alias);
+REINDEX INDEX idx_balance_alias;
+
+CREATE INDEX idx_balance_account_id ON balance (organization_id, ledger_id, account_id);
+REINDEX INDEX idx_balance_account_id;
