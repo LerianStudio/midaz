@@ -14,14 +14,14 @@ type OperationPostgreSQLModel struct {
 	Description           string
 	Type                  string
 	AssetCode             string
-	Amount                *float64
-	AmountScale           *float64
-	AvailableBalance      *float64
-	BalanceScale          *float64
-	OnHoldBalance         *float64
-	AvailableBalanceAfter *float64
-	OnHoldBalanceAfter    *float64
-	BalanceScaleAfter     *float64
+	Amount                *int64
+	AmountScale           *int64
+	AvailableBalance      *int64
+	BalanceScale          *int64
+	OnHoldBalance         *int64
+	AvailableBalanceAfter *int64
+	OnHoldBalanceAfter    *int64
+	BalanceScaleAfter     *int64
 	Status                string
 	StatusDescription     *string
 	AccountID             string
@@ -55,8 +55,8 @@ func (s Status) IsEmpty() bool {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Amount *float64 `json:"amount" example:"1500"`
-	Scale  *float64 `json:"scale" example:"2"`
+	Amount *int64 `json:"amount" example:"1500"`
+	Scale  *int64 `json:"scale" example:"2"`
 } // @name Amount
 
 // IsEmpty method that set empty or nil in fields
@@ -69,9 +69,9 @@ func (a Amount) IsEmpty() bool {
 // swagger:model Balance
 // @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
-	Available *float64 `json:"available" example:"1500"`
-	OnHold    *float64 `json:"onHold" example:"500"`
-	Scale     *float64 `json:"scale" example:"2"`
+	Available *int64 `json:"available" example:"1500"`
+	OnHold    *int64 `json:"onHold" example:"500"`
+	Scale     *int64 `json:"scale" example:"2"`
 } // @name Balance
 
 // IsEmpty method that set empty or nil in fields

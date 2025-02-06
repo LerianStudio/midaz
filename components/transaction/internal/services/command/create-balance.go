@@ -15,7 +15,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	ctx, span := tracer.Start(ctx, "command.create_balance")
 	defer span.End()
 
-	logger.Infof("Initializing the create balance: %v", data)
+	logger.Infof("Initializing the create balance for account id: %v", data.AccountID)
 
 	for _, item := range data.QueueData {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())

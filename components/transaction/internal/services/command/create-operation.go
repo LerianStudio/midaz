@@ -36,14 +36,10 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
-				a := float64(blc.Available)
-				oh := float64(blc.OnHold)
-				s := float64(blc.Scale)
-
 				balance := operation.Balance{
-					Available: &a,
-					OnHold:    &oh,
-					Scale:     &s,
+					Available: &blc.Available,
+					OnHold:    &blc.OnHold,
+					Scale:     &blc.Scale,
 				}
 
 				amt, bat, er := goldModel.ValidateFromToOperation(fromTo[i], validate, blc)
@@ -53,22 +49,15 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					err <- er
 				}
 
-				amtv := float64(amt.Value)
-				amts := float64(amt.Scale)
-
 				amount := operation.Amount{
-					Amount: &amtv,
-					Scale:  &amts,
+					Amount: &amt.Value,
+					Scale:  &amt.Scale,
 				}
 
-				bata := float64(bat.Available)
-				batoh := float64(bat.OnHold)
-				bats := float64(bat.Scale)
-
 				balanceAfter := operation.Balance{
-					Available: &bata,
-					OnHold:    &batoh,
-					Scale:     &bats,
+					Available: &bat.Available,
+					OnHold:    &bat.OnHold,
+					Scale:     &bat.Scale,
 				}
 
 				description := fromTo[i].Description

@@ -14,29 +14,20 @@ import (
 func (uc *UseCase) UpdateBalances(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, validate goldModel.Responses, balances []*mmodel.Balance) error {
 	span := trace.SpanFromContext(ctx)
 
-	e := make(chan error)
 	result := make(chan []*mmodel.Balance)
 
 	var balancesToUpdate []*mmodel.Balance
 
-	go goldModel.UpdateBalances(constant.DEBIT, validate.From, balances, result, e)
+	go goldModel.UpdateBalances(constant.DEBIT, validate.From, balances, result)
 	select {
 	case r := <-result:
 		balancesToUpdate = append(balancesToUpdate, r...)
-	case err := <-e:
-		mopentelemetry.HandleSpanError(&span, "Failed to update debit balances", err)
-
-		return err
 	}
 
-	go goldModel.UpdateBalances(constant.CREDIT, validate.To, balances, result, e)
+	go goldModel.UpdateBalances(constant.CREDIT, validate.To, balances, result)
 	select {
 	case r := <-result:
 		balancesToUpdate = append(balancesToUpdate, r...)
-	case err := <-e:
-		mopentelemetry.HandleSpanError(&span, "Failed to update credit balances", err)
-
-		return err
 	}
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload_grpc_update_balances", balancesToUpdate)

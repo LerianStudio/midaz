@@ -38,9 +38,9 @@ func validateBalance(balance *mmodel.Balance, dsl Transaction, from map[string]A
 		for _, f := range dsl.Send.Source.From {
 			if balance.ID == key || balance.Alias == key {
 				blc := Balance{
-					Scale:     int(balance.Scale),
-					Available: int(balance.Available),
-					OnHold:    int(balance.OnHold),
+					Scale:     balance.Scale,
+					Available: balance.Available,
+					OnHold:    balance.OnHold,
 				}
 
 				ba := OperateBalances(from[f.Account], blc, constant.DEBIT)
@@ -103,9 +103,9 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *mmodel.Bala
 
 	if ft.IsFrom {
 		blc := Balance{
-			Scale:     int(balance.Scale),
-			Available: int(balance.Available),
-			OnHold:    int(balance.OnHold),
+			Scale:     balance.Scale,
+			Available: balance.Available,
+			OnHold:    balance.OnHold,
 		}
 
 		ba := OperateBalances(validate.From[ft.Account], blc, constant.DEBIT)
@@ -122,9 +122,9 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *mmodel.Bala
 		balanceAfter = ba
 	} else {
 		blc := Balance{
-			Scale:     int(balance.Scale),
-			Available: int(balance.Available),
-			OnHold:    int(balance.OnHold),
+			Scale:     balance.Scale,
+			Available: balance.Available,
+			OnHold:    balance.OnHold,
 		}
 
 		ba := OperateBalances(validate.To[ft.Account], blc, constant.CREDIT)
@@ -140,7 +140,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *mmodel.Bala
 }
 
 // UpdateBalances function with some updates values in balances and
-func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmodel.Balance, result chan []*mmodel.Balance, e chan error) {
+func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmodel.Balance, result chan []*mmodel.Balance) {
 	newBalances := make([]*mmodel.Balance, 0)
 
 	for _, balance := range balances {
@@ -148,9 +148,9 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 			if balance.ID == key || balance.Alias == key {
 
 				blc := Balance{
-					Scale:     int(balance.Scale),
-					Available: int(balance.Available),
-					OnHold:    int(balance.OnHold),
+					Scale:     balance.Scale,
+					Available: balance.Available,
+					OnHold:    balance.OnHold,
 				}
 
 				b := OperateBalances(fromTo[key], blc, operation)
@@ -161,9 +161,9 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 					OrganizationID: balance.OrganizationID,
 					LedgerID:       balance.LedgerID,
 					AssetCode:      balance.AssetCode,
-					Available:      int64(b.Available),
-					Scale:          int64(b.Scale),
-					OnHold:         int64(b.OnHold),
+					Available:      b.Available,
+					Scale:          b.Scale,
+					OnHold:         b.OnHold,
 					AllowSending:   balance.AllowSending,
 					AllowReceiving: balance.AllowReceiving,
 					AccountType:    balance.AccountType,
@@ -183,25 +183,25 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 }
 
 // Scale func scale: (V * 10^ (S0-S1))
-func Scale(v, s0, s1 int) int {
-	return int(float64(v) * math.Pow10(s1-s0))
+func Scale(v, s0, s1 int64) int64 {
+	return int64(float64(v) * math.Pow10(int(s1)-int(s0)))
 }
 
 // UndoScale Function to undo the scale calculation
-func UndoScale(v float64, s int) int {
-	return int(v * math.Pow10(s))
+func UndoScale(v float64, s int64) int64 {
+	return int64(v * math.Pow10(int(s)))
 }
 
 // FindScale Function to find the scale for any value of a value
-func FindScale(asset string, v float64, s int) Amount {
+func FindScale(asset string, v float64, s int64) Amount {
 	valueString := big.NewFloat(v).String()
 	parts := strings.Split(valueString, ".")
 
 	scale := s
-	value := int(v)
+	value := int64(v)
 
 	if len(parts) > 1 {
-		scale = len(parts[1])
+		scale = int64(len(parts[1]))
 		value = UndoScale(v, scale)
 
 		if parts[1] != "0" {
@@ -224,7 +224,7 @@ func normalize(total, amount, remaining *Amount) {
 		if total.Value != 0 {
 			v0 := Scale(total.Value, total.Scale, amount.Scale)
 
-			total.Value = int(v0) + amount.Value
+			total.Value = v0 + amount.Value
 		} else {
 			total.Value += amount.Value
 		}
@@ -234,9 +234,9 @@ func normalize(total, amount, remaining *Amount) {
 		if total.Value != 0 {
 			v0 := Scale(amount.Value, amount.Scale, total.Scale)
 
-			total.Value += int(v0)
+			total.Value += v0
 
-			amount.Value = int(v0)
+			amount.Value = v0
 			amount.Scale = total.Scale
 		} else {
 			total.Value += amount.Value
@@ -247,20 +247,20 @@ func normalize(total, amount, remaining *Amount) {
 	if remaining.Scale < amount.Scale {
 		v0 := Scale(remaining.Value, remaining.Scale, amount.Scale)
 
-		remaining.Value = int(v0) - amount.Value
+		remaining.Value = v0 - amount.Value
 		remaining.Scale = amount.Scale
 	} else {
 		v0 := Scale(amount.Value, amount.Scale, remaining.Scale)
 
-		remaining.Value -= int(v0)
+		remaining.Value -= v0
 	}
 }
 
 // OperateBalances Function to sum or sub two balances and normalize the scale
 func OperateBalances(amount Amount, balance Balance, operation string) Balance {
 	var (
-		scale int
-		total int
+		scale int64
+		total int64
 	)
 
 	switch operation {
@@ -270,33 +270,33 @@ func OperateBalances(amount Amount, balance Balance, operation string) Balance {
 			total = v0 - amount.Value
 			scale = amount.Scale
 		} else {
-			v0 := Scale(amount.Value, amount.Scale, int(balance.Scale))
+			v0 := Scale(amount.Value, amount.Scale, balance.Scale)
 			total = balance.Available - v0
 			scale = balance.Scale
 		}
 	default:
-		if int(balance.Scale) < amount.Scale {
-			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
+		if balance.Scale < amount.Scale {
+			v0 := Scale(balance.Available, balance.Scale, amount.Scale)
 			total = v0 + amount.Value
 			scale = amount.Scale
 		} else {
-			v0 := Scale(amount.Value, amount.Scale, int(balance.Scale))
+			v0 := Scale(amount.Value, amount.Scale, balance.Scale)
 			total = balance.Available + v0
 			scale = balance.Scale
 		}
 	}
 
 	blc := Balance{
-		Available: int(total),
-		OnHold:    int(balance.OnHold),
-		Scale:     int(scale),
+		Available: total,
+		OnHold:    balance.OnHold,
+		Scale:     scale,
 	}
 
 	return blc
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
-func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]Amount, sd chan []string) {
+func calculateTotal(fromTos []FromTo, send Send, t chan int64, ft chan map[string]Amount, sd chan []string) {
 	fmto := make(map[string]Amount)
 	scdt := make([]string, 0)
 
@@ -351,7 +351,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 
 	ttl := total.Value
 	if total.Scale > send.Scale {
-		ttl = int(Scale(total.Value, total.Scale, send.Scale))
+		ttl = Scale(total.Value, total.Scale, send.Scale)
 	}
 
 	t <- ttl
@@ -372,11 +372,11 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	}
 
 	var (
-		sourcesTotal      int
-		destinationsTotal int
+		sourcesTotal      int64
+		destinationsTotal int64
 	)
 
-	t := make(chan int)
+	t := make(chan int64)
 	ft := make(chan map[string]Amount)
 	sd := make(chan []string)
 

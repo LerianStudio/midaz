@@ -117,8 +117,8 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(model.Source)
 	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(model.Distribute)
 
-	value, _ := strconv.Atoi(val)
-	scale, _ := strconv.Atoi(scl)
+	value, _ := strconv.ParseInt(val, 10, 64)
+	scale, _ := strconv.ParseInt(scl, 10, 64)
 
 	return model.Send{
 		Asset:      asset,
@@ -168,8 +168,8 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
 	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 
-	value, _ := strconv.Atoi(val)
-	scale, _ := strconv.Atoi(scl)
+	value, _ := strconv.ParseInt(val, 10, 64)
+	scale, _ := strconv.ParseInt(scl, 10, 64)
 
 	return model.Rate{
 		From:       from,
@@ -189,8 +189,8 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
 	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
 
-	value, _ := strconv.Atoi(val)
-	scale, _ := strconv.Atoi(scl)
+	value, _ := strconv.ParseInt(val, 10, 64)
+	scale, _ := strconv.ParseInt(scl, 10, 64)
 
 	return model.Amount{
 		Asset: asset,
@@ -200,7 +200,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 }
 
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
-	percentage, _ := strconv.Atoi(v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string))
+	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string), 10, 64)
 
 	return model.Share{
 		Percentage:             percentage,
@@ -209,8 +209,8 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 }
 
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
-	percentage, _ := strconv.Atoi(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string))
-	percentageOfPercentage, _ := strconv.Atoi(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string))
+	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string), 10, 64)
+	percentageOfPercentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string), 10, 64)
 
 	return model.Share{
 		Percentage:             percentage,
