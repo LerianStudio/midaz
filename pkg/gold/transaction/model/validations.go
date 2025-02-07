@@ -10,8 +10,8 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 )
 
-// ValidateAccounts function with some validates in accounts and DSL operations
-func ValidateAccounts(transaction Transaction, validate Responses, balances []*mmodel.Balance) error {
+// ValidateBalancesRules function with some validates in accounts and DSL operations
+func ValidateBalancesRules(transaction Transaction, validate Responses, balances []*mmodel.Balance) error {
 	if len(balances) != (len(validate.From) + len(validate.To)) {
 		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
 	}

@@ -1,6 +1,7 @@
 package in
 
 import (
+	"context"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -10,6 +11,7 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -511,7 +513,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	spanGetBalances.End()
 
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
-	err = goldModel.ValidateAccounts(parserDSL, *validate, balances)
+	err = goldModel.ValidateBalancesRules(parserDSL, *validate, balances)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
@@ -520,21 +522,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateBalances.End()
 
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "handler.create_transaction.update_balances")
-
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_handler_update_balances", balances)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-	}
-
-	err = handler.Command.UpdateBalances(ctxProcessBalances, logger, organizationID, ledgerID, *validate, balances)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update accounts", err)
-
-		return http.WithError(c, err)
-	}
-
-	spanUpdateBalances.End()
+	go handler.UpdateBalanceAsync(ctx, organizationID, ledgerID, validate, balances)
 
 	ctxCreateTransaction, spanCreateTransaction := tracer.Start(ctx, "handler.create_transaction.create_transaction")
 
@@ -586,4 +574,31 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
+}
+
+// UpdateBalanceAsync is a function that update balances async
+func (handler *TransactionHandler) UpdateBalanceAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, balances []*mmodel.Balance) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	_, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
+	defer spanLogTransaction.End()
+
+	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "handler.create_transaction.update_balances")
+
+	err := mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_handler_update_balances", balances)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
+
+		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
+	}
+
+	err = handler.Command.UpdateBalances(ctxProcessBalances, logger, organizationID, ledgerID, *validate, balances)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update accounts", err)
+
+		logger.Errorf("Failed to update accounts: %v", err.Error())
+	}
+
+	spanUpdateBalances.End()
 }
