@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -218,7 +219,14 @@ func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
 // ProtectHTTP protects any endpoint using JWT tokens.
 func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		l := pkg.NewLoggerFromContext(c.UserContext())
+		ctx := c.UserContext()
+
+		tracer := pkg.NewTracerFromContext(ctx)
+
+		_, spanProtectHTTP := tracer.Start(ctx, "fiber.protect_http")
+		defer spanProtectHTTP.End()
+
+		l := pkg.NewLoggerFromContext(ctx)
 		l.Info("JWTMiddleware:ProtectHTTP")
 
 		l.Info("Read token from header")
@@ -228,8 +236,9 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 		if pkg.IsNilOrEmpty(&tokenString) {
 			msg := errors.Wrap(errors.New("token not found in context"), "No token found in context")
 			l.Error(msg.Error())
-
 			err := pkg.ValidateBusinessError(cn.ErrTokenMissing, "JWT Token")
+
+			mopentelemetry.HandleSpanError(&spanProtectHTTP, "No token found in context", err)
 
 			return WithError(c, err)
 		}
@@ -243,6 +252,8 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 
 			err := pkg.ValidateBusinessError(cn.ErrJWKFetch, "JWT Token")
 
+			mopentelemetry.HandleSpanError(&spanProtectHTTP, "JWT Token", err)
+
 			return WithError(c, err)
 		}
 
@@ -253,11 +264,15 @@ func (jwtm *JWTMiddleware) ProtectHTTP() fiber.Handler {
 
 			err := pkg.ValidateBusinessError(cn.ErrInvalidToken, "JWT Token")
 
+			mopentelemetry.HandleSpanError(&spanProtectHTTP, "JWT Token", err)
+
 			return WithError(c, err)
 		}
 
 		l.Info("Token ok")
-		c.Locals(string(TokenContextValue("token")), token)
+		c.Locals(TokenContextValue("token"), token)
+
+		spanProtectHTTP.End()
 
 		return c.Next()
 	}
@@ -305,7 +320,14 @@ func (jwtm *JWTMiddleware) WithScope(scopes []string) fiber.Handler {
 // WithPermissionHTTP verify if a requester has the required permission to access an endpoint.
 func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		l := pkg.NewLoggerFromContext(c.UserContext())
+		ctx := c.UserContext()
+
+		tracer := pkg.NewTracerFromContext(ctx)
+
+		_, spanWithPermissionHTTP := tracer.Start(ctx, "fiber.with_permission_http")
+		defer spanWithPermissionHTTP.End()
+
+		l := pkg.NewLoggerFromContext(ctx)
 		l.Info("JWTMiddleware:WithPermissionHTTP")
 
 		client, err := jwtm.connection.GetClient()
@@ -324,6 +346,8 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 			l.Error(msg.Error())
 
 			err = pkg.ValidateBusinessError(cn.ErrInvalidToken, "JWT Token")
+
+			mopentelemetry.HandleSpanError(&spanWithPermissionHTTP, "JWT Token", err)
 
 			return WithError(c, err)
 		}
@@ -344,6 +368,8 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 
 			err = pkg.ValidateBusinessError(cn.ErrPermissionEnforcement, "JWT Token")
 
+			mopentelemetry.HandleSpanError(&spanWithPermissionHTTP, "JWT Token", err)
+
 			return WithError(c, err)
 		}
 
@@ -354,6 +380,8 @@ func (jwtm *JWTMiddleware) WithPermissionHTTP(resource string) fiber.Handler {
 		l.Info("Unauthorized")
 
 		err = pkg.ValidateBusinessError(cn.ErrInsufficientPrivileges, "JWT Token")
+
+		mopentelemetry.HandleSpanError(&spanWithPermissionHTTP, "JWT Token", err)
 
 		return WithError(c, err)
 	}
