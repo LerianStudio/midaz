@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg"
@@ -244,18 +246,14 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		local finalBalance = OperateBalances(amount, balance, operation)
 		
 		if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
-		  return "0018"
+		  return redis.error_reply("0018")
 		end
 		
 		local finalBalanceEncoded = cjson.encode(finalBalance)
 		redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
 
-		if balance.Available == 0 then
-			local balanceEncoded = cjson.encode(balance)
-			return balanceEncoded
-		else
-			return finalBalanceEncoded
-		end
+		local balanceEncoded = cjson.encode(balance)
+		return balanceEncoded
 	`)
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -280,9 +278,13 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed incr by float on redis", err)
+		mopentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 
-		logger.Errorf("Failed to incr by float on redis: %v", err)
+		logger.Errorf("Failed run lua script on redis: %v", err)
+
+		if strings.Contains(err.Error(), constant.ErrInsufficientFunds.Error()) {
+			return nil, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
+		}
 
 		return nil, err
 	}

@@ -56,18 +56,25 @@ func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organiza
 		balances = append(balances, balancesByAliases...)
 	}
 
-	newBalances := make([]*mmodel.Balance, 0)
 	if len(balances) != 0 {
-		newBalances = uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
+		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
+
+			logger.Error("Failed to get balances and update on redis", err.Error())
+
+			return nil, err
+		}
+
 		if len(newBalances) != 0 {
 			return newBalances, nil
 		}
 	}
 
-	return nil, nil
+	return balances, nil
 }
 
-func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, balances []*mmodel.Balance) []*mmodel.Balance {
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, balances []*mmodel.Balance) ([]*mmodel.Balance, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -99,12 +106,16 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 
 		b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, amount, operation)
 		if err != nil {
-			logger.Error(err)
+			mopentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
+
+			logger.Error("Failed to lock balance", err)
+
+			return nil, err
 		}
 
 		newBalances = append(newBalances, b)
 
 	}
 
-	return newBalances
+	return newBalances, nil
 }
