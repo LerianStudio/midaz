@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
@@ -11,14 +13,14 @@ import (
 )
 
 // GetBalances methods responsible to get balances.
-func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, input []string) ([]*mmodel.Balance, error) {
+func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses) ([]*mmodel.Balance, error) {
 	span := trace.SpanFromContext(ctx)
 
 	var ids []uuid.UUID
 
 	var aliases []string
 
-	for _, item := range input {
+	for _, item := range validate.Aliases {
 		if pkg.IsUUID(item) {
 			ids = append(ids, uuid.MustParse(item))
 		} else {
@@ -26,7 +28,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organiza
 		}
 	}
 
-	var balances []*mmodel.Balance
+	balances := make([]*mmodel.Balance, 0)
 
 	if len(ids) > 0 {
 		balancesByIDs, err := uc.BalanceRepo.ListByAccountIDs(ctx, organizationID, ledgerID, ids)
@@ -54,5 +56,55 @@ func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organiza
 		balances = append(balances, balancesByAliases...)
 	}
 
-	return balances, nil
+	newBalances := make([]*mmodel.Balance, 0)
+	if len(balances) != 0 {
+		newBalances = uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
+		if len(newBalances) != 0 {
+			return newBalances, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, balances []*mmodel.Balance) []*mmodel.Balance {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.get_account_and_lock")
+	defer span.End()
+
+	newBalances := make([]*mmodel.Balance, 0)
+
+	for _, balance := range balances {
+		internalKey := pkg.LockInternalKey(organizationID, ledgerID, balance.Alias)
+
+		operation := constant.CREDIT
+
+		amount := goldModel.Amount{}
+		if from, exists := validate.From[balance.Alias]; exists {
+			amount = goldModel.Amount{
+				Asset: from.Asset,
+				Value: from.Value,
+				Scale: from.Scale,
+			}
+			operation = constant.DEBIT
+		}
+
+		if to, exists := validate.To[balance.Alias]; exists {
+			amount = to
+		}
+
+		logger.Infof("Getting internal key: %s", internalKey)
+
+		b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, amount, operation)
+		if err != nil {
+			logger.Error(err)
+		}
+
+		newBalances = append(newBalances, b)
+
+	}
+
+	return newBalances
 }

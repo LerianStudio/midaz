@@ -2,6 +2,12 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/redis/go-redis/v9"
+	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg"
@@ -18,6 +24,7 @@ type RedisRepository interface {
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
+	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount goldModel.Amount, operation string) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
@@ -155,4 +162,154 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	}
 
 	return rds.Incr(ctx, key).Val()
+}
+
+func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount goldModel.Amount, operation string) (*mmodel.Balance, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.Lock_balance")
+	defer span.End()
+
+	script := redis.NewScript(`
+		local function Scale(v, s0, s1)
+		  local result = v *  math.pow(10, s1 - s0)
+		  if result >= 0 then
+		  	return math.floor(result)
+		  else
+		  	return math.ceil(result)
+		  end
+		end
+		
+		local function OperateBalances(amount, balance, operation)
+		  local scale = 0
+		  local total = 0
+		
+		  if operation == "DEBIT" then
+			  if balance.Scale < amount.Scale then
+				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
+				total = v0 - amount.Available
+				scale = amount.Scale
+			  else
+				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
+				total = balance.Available - v0
+				scale = balance.Scale
+			  end
+		  else
+			  if balance.Scale < amount.Scale then
+				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
+				total = v0 + amount.Available
+				scale = amount.Scale
+			  else
+				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
+				total = balance.Available + v0
+				scale = balance.Scale
+			  end
+		  end
+		
+		  return {
+			Available = total,
+			OnHold = balance.OnHold,
+			Scale = scale,
+			AccountType = balance.AccountType
+		  }
+		end
+		
+		local ttl = 3600        
+		local key = KEYS[1]
+		
+		local amount = {
+		  Asset = ARGV[1],
+		  Available = tonumber(ARGV[2]),
+		  Scale = tonumber(ARGV[3])
+		}
+	
+		local balance = {
+		  Available = tonumber(ARGV[4]),
+		  OnHold = tonumber(ARGV[5]),
+		  Scale = tonumber(ARGV[6]),
+		  AccountType = ARGV[7]
+		}
+		
+		local operation = ARGV[8]
+		
+		local currentValue = redis.call("GET", key)
+		if not currentValue then
+		  local balanceEncoded = cjson.encode(balance)
+		  redis.call("SET", key, balanceEncoded, "EX", ttl)
+		else
+		  balance = cjson.decode(currentValue)
+		end
+		
+		local finalBalance = OperateBalances(amount, balance, operation)
+		
+		if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
+		  return "0018"
+		end
+		
+		local finalBalanceEncoded = cjson.encode(finalBalance)
+		redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
+
+		if balance.Available == 0 then
+			local balanceEncoded = cjson.encode(balance)
+			return balanceEncoded
+		else
+			return finalBalanceEncoded
+		end
+	`)
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to get redis: %v", err)
+
+		return nil, err
+	}
+
+	args := []interface{}{
+		amount.Asset,
+		strconv.FormatInt(amount.Value, 10),
+		strconv.FormatInt(amount.Scale, 10),
+		strconv.FormatInt(balance.Available, 10),
+		strconv.FormatInt(balance.OnHold, 10),
+		strconv.FormatInt(balance.Scale, 10),
+		balance.AccountType,
+		operation,
+	}
+
+	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed incr by float on redis", err)
+
+		logger.Errorf("Failed to incr by float on redis: %v", err)
+
+		return nil, err
+	}
+
+	logger.Infof("result: %v", result)
+
+	balanceJSON, ok := result.(string)
+	if !ok {
+		err = errors.New("result of redis isn't a string")
+
+		logger.Fatalf("Error: %v", err)
+
+		return nil, err
+	}
+
+	var b mmodel.Balance
+	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+
+		logger.Fatalf("Error to Deserialization json: %v", err)
+
+		return nil, err
+	}
+
+	balance.Available = b.Available
+	balance.OnHold = b.OnHold
+	balance.Scale = b.Scale
+
+	return &balance, nil
 }

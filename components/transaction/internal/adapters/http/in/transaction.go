@@ -1,7 +1,6 @@
 package in
 
 import (
-	"context"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -11,14 +10,12 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/trace"
 	"reflect"
 )
 
@@ -502,15 +499,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateDSL.End()
 
-	_, spanRaceCondition := tracer.Start(ctx, "handler.create_transaction.race_condition")
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	handler.Command.AllKeysUnlocked(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-	spanRaceCondition.End()
-
-	ctxGetBalances, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
-
-	balances, err := handler.getBalancesAndValidate(ctxGetBalances, logger, hash, organizationID, ledgerID, validate, parserDSL)
+	balances, err := handler.Query.GetBalances(ctx, logger, organizationID, ledgerID, validate)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
@@ -518,6 +509,16 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	}
 
 	spanGetBalances.End()
+
+	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+	err = goldModel.ValidateAccounts(parserDSL, *validate, balances)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
+
+		return http.WithError(c, err)
+	}
+
+	spanValidateBalances.End()
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "handler.create_transaction.update_balances")
 
@@ -585,41 +586,4 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
-}
-
-// getBalancesAndValidate is a function that split aliases and accounts ids, call the properly function and return Balances
-func (handler *TransactionHandler) getBalancesAndValidate(ctx context.Context, logger mlog.Logger, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, body goldModel.Transaction) ([]*mmodel.Balance, error) {
-	span := trace.SpanFromContext(ctx)
-	defer span.End()
-
-	accounts, err := handler.Query.GetBalances(ctx, logger, organizationID, ledgerID, validate.Aliases)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get balances", err)
-
-		return nil, err
-	}
-
-	err = goldModel.ValidateAccounts(body, *validate, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate balances", err)
-
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		return nil, err
-	}
-
-	searchAgain, err := handler.Command.LockBalanceVersion(ctx, organizationID, ledgerID, validate.Aliases, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get balances by alias on database", err)
-
-		logger.Error("Failed to get balances by alias on database", err.Error())
-
-		return nil, err
-	}
-
-	if searchAgain {
-		return handler.getBalancesAndValidate(ctx, logger, hash, organizationID, ledgerID, validate, body)
-	}
-
-	return accounts, nil
 }
