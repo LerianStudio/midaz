@@ -3,13 +3,14 @@ package pkg
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 	"math"
 	"os/exec"
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -204,46 +205,35 @@ func (r *Syscmd) ExecCmd(name string, arg ...string) ([]byte, error) {
 }
 
 // GetCPUUsage get the current CPU usage
-func GetCPUUsage(ctx context.Context, exc SyscmdI) int64 {
+func GetCPUUsage(ctx context.Context) int64 {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := exc.ExecCmd("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
+	out, err := cpu.Percent(5*time.Millisecond, false)
 	if err != nil {
-		fmt.Println("Error executing command:", err)
-		return 0
-	}
-
-	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
-
-	usage, err := strconv.ParseFloat(usageStr, 64)
-	if err != nil {
-		logger.Errorf("Error parsing CPU usage: %v", err)
+		logger.Warnf("Errot to get cpu use: %v", err)
 
 		return 0
 	}
 
-	return int64(usage)
+	if len(out) > 0 {
+		return int64(out[0])
+	}
+
+	return 0
 }
 
 // GetMemUsage get the current memory usage
-func GetMemUsage(ctx context.Context, exc SyscmdI) int64 {
+func GetMemUsage(ctx context.Context) int64 {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := exc.ExecCmd("sh", "-c", "free | grep Mem | awk '{print $3/$2 * 100.0}'")
+	out, err := mem.VirtualMemory()
 	if err != nil {
-		return 0
-	}
-
-	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
-
-	usage, err := strconv.ParseFloat(usageStr, 64)
-	if err != nil {
-		logger.Errorf("Error parsing memory usage: %v", err)
+		logger.Warnf("Error to get info memory: %v", err)
 
 		return 0
 	}
 
-	return int64(usage)
+	return int64(out.UsedPercent)
 }
 
 // GetMapNumKinds get the map of numeric kinds to use in validations and conversions.
