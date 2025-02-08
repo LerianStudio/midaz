@@ -3,8 +3,6 @@ package account
 import (
 	"encoding/json"
 	"errors"
-	"strconv"
-
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -36,8 +34,6 @@ type flagsCreate struct {
 	EntityID          string
 	StatusCode        string
 	StatusDescription string
-	AllowSending      string
-	AllowReceiving    string
 	Metadata          string
 	JSONFile          string
 }
@@ -134,24 +130,6 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 		account.Status.Description = &f.StatusDescription
 	}
 
-	if len(f.AllowSending) > 0 {
-		allowSend, err := strconv.ParseBool(f.AllowSending)
-		if err != nil {
-			return err
-		}
-
-		account.AllowSending = &allowSend
-	}
-
-	if len(f.AllowReceiving) > 0 {
-		allowReceive, err := strconv.ParseBool(f.AllowReceiving)
-		if err != nil {
-			return err
-		}
-
-		account.AllowReceiving = &allowReceive
-	}
-
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
@@ -175,8 +153,6 @@ func (f *factoryAccountCreate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.StatusDescription, "status-description", "", "Description of the current status of the ledger.")
 	cmd.Flags().StringVar(&f.SegmentID, "segment-id", "", "Specify the segment ID.")
 	cmd.Flags().StringVar(&f.EntityID, "entity-id", "", "Specify the ID of the associated entity.")
-	cmd.Flags().StringVar(&f.AllowSending, "allow-sending", "", "Allow sending assets from this ledger (true/false).")
-	cmd.Flags().StringVar(&f.AllowReceiving, "allow-receiving", "", "Allow receiving assets to this ledger (true/false).")
 	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}", "Metadata in JSON format, e.g., '{\"key1\": \"value\", \"key2\": 123}'.")
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "Path to a JSON file containing account attributes, or '-' for stdin.")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")

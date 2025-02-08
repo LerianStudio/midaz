@@ -513,6 +513,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	spanGetBalances.End()
 
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+
 	err = goldModel.ValidateBalancesRules(parserDSL, *validate, balances)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)

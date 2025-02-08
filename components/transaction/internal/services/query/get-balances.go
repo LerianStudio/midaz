@@ -114,7 +114,6 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		}
 
 		newBalances = append(newBalances, b)
-
 	}
 
 	return newBalances, nil

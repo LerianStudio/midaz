@@ -50,7 +50,6 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		deletedAtCopy := *balance.DeletedAt
 		b.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
-
 }
 
 // ToEntity converts an BalancePostgreSQLModel to a response entity Balance

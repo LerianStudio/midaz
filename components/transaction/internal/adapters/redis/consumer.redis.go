@@ -173,6 +173,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	ctx, span := tracer.Start(ctx, "redis.Lock_balance")
 	defer span.End()
 
+	//nolint:dupword
 	script := redis.NewScript(`
 		local function Scale(v, s0, s1)
 		  local result = v *  math.pow(10, s1 - s0)
@@ -265,7 +266,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		return nil, err
 	}
 
-	args := []interface{}{
+	args := []any{
 		amount.Asset,
 		strconv.FormatInt(amount.Value, 10),
 		strconv.FormatInt(amount.Scale, 10),

@@ -146,7 +146,6 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 	for _, balance := range balances {
 		for key := range fromTo {
 			if balance.ID == key || balance.Alias == key {
-
 				blc := Balance{
 					Scale:     balance.Scale,
 					Available: balance.Available,

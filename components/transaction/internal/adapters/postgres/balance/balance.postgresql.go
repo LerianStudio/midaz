@@ -53,6 +53,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 
 	ctx, span := tracer.Start(ctx, "postgres.create_balances")
 	defer span.End()
+
 	db, err := r.connection.GetDB()
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
@@ -279,7 +280,6 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	}
 
 	for _, blc := range balances {
-
 		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL FOR UPDATE"
 
 		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID)
@@ -303,6 +303,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
 		)
+
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				logger.Errorf("registro não encontrado para ID %s", blc.ID)
@@ -353,6 +354,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			if err == nil {
 				err = sql.ErrNoRows
 			}
+
 			logger.Errorf("Err on rows affected: %v", err)
 
 			return err

@@ -227,6 +227,7 @@ func GetMemUsage(ctx context.Context, memGauge metric.Int64Gauge) {
 	logger := NewLoggerFromContext(ctx)
 
 	var percentageMem int64 = 0
+	
 	out, err := mem.VirtualMemory()
 	if err != nil {
 		logger.Warnf("Error to get info memory: %v", err)

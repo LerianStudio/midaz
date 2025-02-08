@@ -19,16 +19,12 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, logger mlog.Logger, organ
 	var balancesToUpdate []*mmodel.Balance
 
 	go goldModel.UpdateBalances(constant.DEBIT, validate.From, balances, result)
-	select {
-	case r := <-result:
-		balancesToUpdate = append(balancesToUpdate, r...)
-	}
+	rDebit := <-result
+	balancesToUpdate = append(balancesToUpdate, rDebit...)
 
 	go goldModel.UpdateBalances(constant.CREDIT, validate.To, balances, result)
-	select {
-	case r := <-result:
-		balancesToUpdate = append(balancesToUpdate, r...)
-	}
+	rCredit := <-result
+	balancesToUpdate = append(balancesToUpdate, rCredit...)
 
 	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload_grpc_update_balances", balancesToUpdate)
 	if err != nil {

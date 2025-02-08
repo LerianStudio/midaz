@@ -21,6 +21,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
 
 		var account mmodel.Account
+
 		err := json.Unmarshal(item.Value, &account)
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
