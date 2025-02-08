@@ -125,21 +125,19 @@ func (tm *TelemetryMiddleware) EndTracingSpansInterceptor() grpc.UnaryServerInte
 }
 
 func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
-	cpuUsage := pkg.GetCPUUsage(ctx)
 	cpuGauge, err := otel.Meter(tm.ServiceName).Int64Gauge("system.cpu.usage", metric.WithUnit("percentage"))
 	if err != nil {
 		return err
 	}
 
-	cpuGauge.Record(ctx, cpuUsage)
+	go pkg.GetCPUUsage(ctx, cpuGauge)
 
-	memUsage := pkg.GetMemUsage(ctx)
 	memGauge, err := otel.Meter(tm.ServiceName).Int64Gauge("system.mem.usage", metric.WithUnit("percentage"))
 	if err != nil {
 		return err
 	}
 
-	memGauge.Record(ctx, memUsage)
+	go pkg.GetMemUsage(ctx, memGauge)
 
 	return nil
 }

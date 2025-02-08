@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/shirou/gopsutil/cpu"
 	"github.com/shirou/gopsutil/mem"
+	"go.opentelemetry.io/otel/metric"
 	"math"
 	"os/exec"
 	"reflect"
@@ -205,35 +206,35 @@ func (r *Syscmd) ExecCmd(name string, arg ...string) ([]byte, error) {
 }
 
 // GetCPUUsage get the current CPU usage
-func GetCPUUsage(ctx context.Context) int64 {
+func GetCPUUsage(ctx context.Context, cpuGauge metric.Int64Gauge) {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := cpu.Percent(5*time.Millisecond, false)
+	out, err := cpu.Percent(100*time.Millisecond, false)
 	if err != nil {
 		logger.Warnf("Errot to get cpu use: %v", err)
-
-		return 0
 	}
 
+	var percentageCPU int64 = 0
 	if len(out) > 0 {
-		return int64(out[0])
+		percentageCPU = int64(out[0])
 	}
 
-	return 0
+	cpuGauge.Record(ctx, percentageCPU)
 }
 
 // GetMemUsage get the current memory usage
-func GetMemUsage(ctx context.Context) int64 {
+func GetMemUsage(ctx context.Context, memGauge metric.Int64Gauge) {
 	logger := NewLoggerFromContext(ctx)
 
+	var percentageMem int64 = 0
 	out, err := mem.VirtualMemory()
 	if err != nil {
 		logger.Warnf("Error to get info memory: %v", err)
-
-		return 0
+	} else {
+		percentageMem = int64(out.UsedPercent)
 	}
 
-	return int64(out.UsedPercent)
+	memGauge.Record(ctx, percentageMem)
 }
 
 // GetMapNumKinds get the map of numeric kinds to use in validations and conversions.
