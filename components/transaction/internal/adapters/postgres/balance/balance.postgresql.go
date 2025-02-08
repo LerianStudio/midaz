@@ -24,7 +24,7 @@ type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) error
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
-	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -256,8 +256,8 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 	return balances, nil
 }
 
-// Update a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+// SelectForUpdate a Balance entity into Postgresql.
+func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 	logger := pkg.NewLoggerFromContext(ctx)
 

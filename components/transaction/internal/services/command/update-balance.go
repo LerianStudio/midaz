@@ -37,7 +37,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, logger mlog.Logger, organ
 		return err
 	}
 
-	err = uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balancesToUpdate)
+	err = uc.BalanceRepo.SelectForUpdate(ctx, organizationID, ledgerID, balancesToUpdate)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update balances on database", err)
 

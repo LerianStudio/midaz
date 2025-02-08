@@ -85,16 +85,16 @@ func (mr *MockRepositoryMockRecorder) ListByAliases(arg0, arg1, arg2, arg3 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliases", reflect.TypeOf((*MockRepository)(nil).ListByAliases), arg0, arg1, arg2, arg3)
 }
 
-// Update mocks base method.
-func (m *MockRepository) Update(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []*mmodel.Balance) error {
+// SelectForUpdate mocks base method.
+func (m *MockRepository) SelectForUpdate(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []*mmodel.Balance) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "SelectForUpdate", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3 any) *gomock.Call {
+// SelectForUpdate indicates an expected call of SelectForUpdate.
+func (mr *MockRepositoryMockRecorder) SelectForUpdate(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectForUpdate", reflect.TypeOf((*MockRepository)(nil).SelectForUpdate), arg0, arg1, arg2, arg3)
 }
