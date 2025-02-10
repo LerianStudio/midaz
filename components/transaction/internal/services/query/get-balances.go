@@ -56,7 +56,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organiza
 		balances = append(balances, balancesByAliases...)
 	}
 
-	if len(balances) != 0 {
+	if len(balances) > 1 {
 		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
