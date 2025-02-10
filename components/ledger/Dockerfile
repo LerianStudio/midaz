@@ -17,6 +17,6 @@ COPY --from=builder /app /app
 # Copy the migrations directory.
 COPY --from=builder /ledger-app/components/ledger/migrations /components/ledger/migrations
 
-EXPOSE 3000 3001
+EXPOSE 3000
 
 ENTRYPOINT ["/app"]

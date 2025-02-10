@@ -17,6 +17,6 @@ COPY --from=builder /app /app
 # Copy the migrations directory.
 COPY --from=builder /transaction-app/components/transaction/migrations /components/transaction/migrations
 
-EXPOSE 3002
+EXPOSE 3001
 
 ENTRYPOINT ["/app"]
