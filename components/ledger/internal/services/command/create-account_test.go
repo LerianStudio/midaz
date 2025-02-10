@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"testing"
 	"time"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/google/uuid"
-
-	// "github.com/LerianStudio/midaz/components/ledger/internal/adapters/postgres/account"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -28,11 +27,13 @@ func TestCreateAccount(t *testing.T) {
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:     mockAssetRepo,
 		PortfolioRepo: mockPortfolioRepo,
 		AccountRepo:   mockAccountRepo,
+		RabbitMQRepo:  mockRabbitMQ,
 	}
 
 	ctx := context.Background()
@@ -62,10 +63,15 @@ func TestCreateAccount(t *testing.T) {
 			}, nil).
 			Times(1)
 
-		account, err := uc.CreateAccount(ctx, organizationID, ledgerID, createAccountInput)
+		mockRabbitMQ.EXPECT().
+			ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil, nil).
+			Times(1)
+
+		acc, err := uc.CreateAccount(ctx, organizationID, ledgerID, createAccountInput)
 		assert.NoError(t, err)
-		assert.NotNil(t, account)
-		assert.Equal(t, createAccountInput.AssetCode, account.AssetCode)
+		assert.NotNil(t, acc)
+		assert.Equal(t, createAccountInput.AssetCode, acc.AssetCode)
 	})
 }
 
@@ -76,11 +82,13 @@ func TestCreateAccount2(t *testing.T) {
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockPortfolioRepo := portfolio.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
 
 	uc := &UseCase{
 		AssetRepo:     mockAssetRepo,
 		PortfolioRepo: mockPortfolioRepo,
 		AccountRepo:   mockAccountRepo,
+		RabbitMQRepo:  mockRabbitMQ,
 	}
 
 	ctx := context.Background()
@@ -117,6 +125,11 @@ func TestCreateAccount2(t *testing.T) {
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					}, nil).
+					Times(1)
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).
 					Times(1)
 			},
 			expectedErr:  nil,
