@@ -1,3 +1,24 @@
+## [1.47.0](https://github.com/LerianStudio/midaz/compare/v1.46.0...v1.47.0) (2025-02-10)
+
+
+### Bug Fixes
+
+* add env workflows ([902fc29](https://github.com/LerianStudio/midaz/commit/902fc294bc35bb16dca76435be6939ad17f0e558))
+* change make up to make all-services COMMAND="up" ([10ecb01](https://github.com/LerianStudio/midaz/commit/10ecb01efbdc14952592df89b86432fd3422cc24))
+* change this job to don't run if came from a fork. ([abb0628](https://github.com/LerianStudio/midaz/commit/abb0628d210017923713ec0f62cb3e08867c4911))
+* change this job to don't run this step if came for a fork. ([7a6714b](https://github.com/LerianStudio/midaz/commit/7a6714b1dc11f5e2c3a41754c70ad93d8632fe42))
+* midaz test :bug: ([46f6111](https://github.com/LerianStudio/midaz/commit/46f6111e9d47a5be4e176c4dea91eef34a6c9807))
+* remove env fork-workflows ([290630b](https://github.com/LerianStudio/midaz/commit/290630ba3c6de8310d35b342eed6ea86ad2485fb))
+* remove make up from general make; ([64590ea](https://github.com/LerianStudio/midaz/commit/64590eade120d5b1c69f2eaaf03fbd5a6098fb18))
+* revert pull_request ([cee4228](https://github.com/LerianStudio/midaz/commit/cee42285a3264fa93bfa8a21f109a89f9ac1fcf9))
+* rollback all changes ([4cf665b](https://github.com/LerianStudio/midaz/commit/4cf665bc1a4405c83057129eca40d23cff08e4ec))
+* rollback commands; ([79f1525](https://github.com/LerianStudio/midaz/commit/79f1525fb127bf1f7e27f09c8f6778829664d2d2))
+* rollback first change ([fe3e296](https://github.com/LerianStudio/midaz/commit/fe3e296796339d2c07debd9bf653a1dc21c8c252))
+* test pull_request_target to try to run action on midaz principal context ([38be5d9](https://github.com/LerianStudio/midaz/commit/38be5d95569f37bc8f163b51396f74570cc8e158))
+* update docs,  swagger and open apis files; :bug: ([768a857](https://github.com/LerianStudio/midaz/commit/768a857995538ae7876c0f4da24c5781e756d16b))
+* update go mod and sum; :bug: ([ecdec76](https://github.com/LerianStudio/midaz/commit/ecdec7648bcd5eb6c865868775f2c2a411f4b7ae))
+* update libs in go mod and go sum; :bug: ([c83e52a](https://github.com/LerianStudio/midaz/commit/c83e52a8c13c2baad585d289013d4a476a080dc4))
+
 ## [1.47.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.47.0-beta.2...v1.47.0-beta.3) (2025-01-31)
 
 
