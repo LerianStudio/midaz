@@ -23,6 +23,6 @@ USER $USER
 
 COPY --from=builder /app /app
 
-EXPOSE 3005
+EXPOSE 3002
 
 ENTRYPOINT ["/app"]
