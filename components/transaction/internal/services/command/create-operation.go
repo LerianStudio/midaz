@@ -23,7 +23,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	ctx, span := tracer.Start(ctx, "command.create_operation")
 	defer span.End()
 
-	logger.Infof("Trying to create new oeprations")
+	logger.Infof("Trying to create new operations")
 
 	var operations []*operation.Operation
 
