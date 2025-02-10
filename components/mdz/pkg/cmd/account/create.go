@@ -82,7 +82,7 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoAccount.Create(f.OrganizationID, f.LedgerID, f.PortfolioID, account)
+	resp, err := f.repoAccount.Create(f.OrganizationID, f.LedgerID, account)
 	if err != nil {
 		return err
 	}

@@ -96,7 +96,7 @@ func (f *factoryAccountUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoAccount.Update(f.OrganizationID, f.LedgerID, f.PortfolioID, f.AccountID, account)
+	resp, err := f.repoAccount.Update(f.OrganizationID, f.LedgerID, f.AccountID, account)
 	if err != nil {
 		return err
 	}
