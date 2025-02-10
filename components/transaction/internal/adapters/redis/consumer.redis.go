@@ -3,7 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -290,18 +290,23 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		return nil, err
 	}
 
-	logger.Infof("result: %v", result)
+	logger.Infof("result: %T", result)
 
-	balanceJSON, ok := result.(string)
-	if !ok {
-		err = errors.New("result of redis isn't a string")
+	var b mmodel.Balance
 
-		logger.Fatalf("Error: %v", err)
+	var balanceJSON string
+	switch v := result.(type) {
+	case string:
+		balanceJSON = v
+	case []byte:
+		balanceJSON = string(v)
+	default:
+		err = fmt.Errorf("unexpected result type from Redis: %T", result)
+		logger.Warnf("Warning: %v", err)
 
 		return nil, err
 	}
 
-	var b mmodel.Balance
 	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
 

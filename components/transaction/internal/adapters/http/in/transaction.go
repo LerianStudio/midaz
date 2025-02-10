@@ -507,6 +507,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
+		logger.Errorf("Failed to get balances: %v", err.Error())
+
 		return http.WithError(c, err)
 	}
 
