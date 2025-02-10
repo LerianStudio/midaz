@@ -2014,16 +2014,16 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/products": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
-                "description": "Get all Products with the input metadata or without metadata",
+                "description": "Get all Segments with the input metadata or without metadata",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Segments"
                 ],
-                "summary": "Get all Products",
+                "summary": "Get all Segments",
                 "parameters": [
                     {
                         "type": "string",
@@ -2109,7 +2109,7 @@ const docTemplate = `{
                                         "items": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/Product"
+                                                "$ref": "#/definitions/Segment"
                                             }
                                         },
                                         "limit": {
@@ -2126,7 +2126,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a Product with the input payload",
+                "description": "Create a Segment with the input payload",
                 "consumes": [
                     "application/json"
                 ],
@@ -2134,9 +2134,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Segments"
                 ],
-                "summary": "Create a Product",
+                "summary": "Create a Segment",
                 "parameters": [
                     {
                         "type": "string",
@@ -2166,12 +2166,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Product",
-                        "name": "product",
+                        "description": "Segment",
+                        "name": "segment",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/CreateProductInput"
+                            "$ref": "#/definitions/CreateSegmentInput"
                         }
                     }
                 ],
@@ -2179,22 +2179,22 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Product"
+                            "$ref": "#/definitions/Segment"
                         }
                     }
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/products/{id}": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
             "get": {
-                "description": "Get a Product with the input ID",
+                "description": "Get a Segment with the input ID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Segments"
                 ],
-                "summary": "Get a Product by ID",
+                "summary": "Get a Segment by ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -2225,7 +2225,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Product ID",
+                        "description": "Segment ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2235,17 +2235,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Product"
+                            "$ref": "#/definitions/Segment"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete a Product with the input ID",
+                "description": "Delete a Segment with the input ID",
                 "tags": [
-                    "Products"
+                    "Segments"
                 ],
-                "summary": "Delete a Product by ID",
+                "summary": "Delete a Segment by ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -2276,7 +2276,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Product ID",
+                        "description": "Segment ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -2289,7 +2289,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Update a Product with the input payload",
+                "description": "Update a Segment with the input payload",
                 "consumes": [
                     "application/json"
                 ],
@@ -2297,9 +2297,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Products"
+                    "Segments"
                 ],
-                "summary": "Update a Product",
+                "summary": "Update a Segment",
                 "parameters": [
                     {
                         "type": "string",
@@ -2330,18 +2330,18 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Product ID",
+                        "description": "Segment ID",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Product",
-                        "name": "product",
+                        "description": "Segment",
+                        "name": "segment",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/UpdateProductInput"
+                            "$ref": "#/definitions/UpdateSegmentInput"
                         }
                     }
                 ],
@@ -2349,7 +2349,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/Product"
+                            "$ref": "#/definitions/Segment"
                         }
                     }
                 }
@@ -2420,7 +2420,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "productId": {
+                "segmentId": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
@@ -2583,7 +2583,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "productId": {
+                "segmentId": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
@@ -2713,8 +2713,8 @@ const docTemplate = `{
                 }
             }
         },
-        "CreateProductInput": {
-            "description": "CreateProductInput is the input payload to create a product.",
+        "CreateSegmentInput": {
+            "description": "CreateSegmentInput is the input payload to create a segment.",
             "type": "object",
             "required": [
                 "name"
@@ -2727,7 +2727,7 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "maxLength": 256,
-                    "example": "My Product"
+                    "example": "My Segment"
                 },
                 "status": {
                     "$ref": "#/definitions/Status"
@@ -2889,8 +2889,8 @@ const docTemplate = `{
                 }
             }
         },
-        "Product": {
-            "description": "Product is a struct designed to store product data.",
+        "Segment": {
+            "description": "Segment is a struct designed to store segment data.",
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -2915,7 +2915,7 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string",
-                    "example": "My Product"
+                    "example": "My Segment"
                 },
                 "organizationId": {
                     "type": "string",
@@ -2972,11 +2972,11 @@ const docTemplate = `{
                     "maxLength": 256,
                     "example": "My Account Updated"
                 },
-                "productId": {
+                "portfolioId": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
-                "portfolioId": {
+                "segmentId": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
@@ -3072,8 +3072,8 @@ const docTemplate = `{
                 }
             }
         },
-        "UpdateProductInput": {
-            "description": "UpdateProductInput is the input payload to update a product.",
+        "UpdateSegmentInput": {
+            "description": "UpdateSegmentInput is the input payload to update a segment.",
             "type": "object",
             "properties": {
                 "metadata": {
@@ -3083,7 +3083,7 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "maxLength": 256,
-                    "example": "My Product Updated"
+                    "example": "My Segment Updated"
                 },
                 "status": {
                     "$ref": "#/definitions/Status"

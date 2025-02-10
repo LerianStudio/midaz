@@ -10,7 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/portfolio"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/product"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/segment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -31,7 +31,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(ledger.NewCmdLedger(f.factory))
 	cmd.AddCommand(asset.NewCmdAsset(f.factory))
 	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
-	cmd.AddCommand(product.NewCmdProduct(f.factory))
+	cmd.AddCommand(segment.NewCmdSegment(f.factory))
 	cmd.AddCommand(account.NewCmdAccount(f.factory))
 	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }

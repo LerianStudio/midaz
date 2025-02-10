@@ -2,6 +2,10 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /transaction-app
 
+COPY go.mod go.sum ./
+
+RUN go mod download
+
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/transaction/cmd/app/main.go

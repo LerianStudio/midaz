@@ -1,0 +1,63 @@
+package query
+
+import (
+	"context"
+	"errors"
+	"reflect"
+
+	"github.com/LerianStudio/midaz/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+
+	"github.com/google/uuid"
+)
+
+// GetAllSegments fetch all Segment from the repository
+func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_all_segments")
+	defer span.End()
+
+	logger.Infof("Retrieving segments")
+
+	segments, err := uc.SegmentRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get segments on repo", err)
+
+		logger.Errorf("Error getting segments on repo: %v", err)
+
+		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			return nil, pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		}
+
+		return nil, err
+	}
+
+	if segments != nil {
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
+
+			return nil, pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
+		}
+
+		metadataMap := make(map[string]map[string]any, len(metadata))
+
+		for _, meta := range metadata {
+			metadataMap[meta.EntityID] = meta.Data
+		}
+
+		for i := range segments {
+			if data, ok := metadataMap[segments[i].ID]; ok {
+				segments[i].Metadata = data
+			}
+		}
+	}
+
+	return segments, nil
+}

@@ -375,17 +375,17 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Resource Already Deleted",
 			Message:    "The resource you are trying to delete has already been deleted. Ensure you are using the correct ID and try again.",
 		},
-		constant.ErrProductIDInactive: ValidationError{
+		constant.ErrSegmentIDInactive: ValidationError{
 			EntityType: entityType,
-			Code:       constant.ErrProductIDInactive.Error(),
-			Title:      "Product ID Inactive",
-			Message:    "The Product ID you are attempting to use is inactive. Please use another Product ID and try again.",
+			Code:       constant.ErrSegmentIDInactive.Error(),
+			Title:      "Segment ID Inactive",
+			Message:    "The Segment ID you are attempting to use is inactive. Please use another Segment ID and try again.",
 		},
-		constant.ErrDuplicateProductName: EntityConflictError{
+		constant.ErrDuplicateSegmentName: EntityConflictError{
 			EntityType: entityType,
-			Code:       constant.ErrDuplicateProductName.Error(),
-			Title:      "Duplicate Product Name Error",
-			Message:    fmt.Sprintf("A product with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
+			Code:       constant.ErrDuplicateSegmentName.Error(),
+			Title:      "Duplicate Segment Name Error",
+			Message:    fmt.Sprintf("A segment with the name %v already exists for this ledger ID %v. Please try again with a different ledger or name.", args...),
 		},
 		constant.ErrBalanceRemainingDeletion: UnprocessableOperationError{
 			EntityType: entityType,
@@ -507,11 +507,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Portfolio ID Not Found",
 			Message:    "The provided portfolio ID does not exist in our records. Please verify the portfolio ID and try again.",
 		},
-		constant.ErrProductIDNotFound: EntityNotFoundError{
+		constant.ErrSegmentIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrProductIDNotFound.Error(),
-			Title:      "Product ID Not Found",
-			Message:    "The provided product ID does not exist in our records. Please verify the product ID and try again.",
+			Code:       constant.ErrSegmentIDNotFound.Error(),
+			Title:      "Segment ID Not Found",
+			Message:    "The provided segment ID does not exist in our records. Please verify the segment ID and try again.",
 		},
 		constant.ErrLedgerIDNotFound: EntityNotFoundError{
 			EntityType: entityType,
@@ -615,11 +615,11 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "No Assets Found",
 			Message:    "No assets were found in the search. Please review the search criteria and try again.",
 		},
-		constant.ErrNoProductsFound: EntityNotFoundError{
+		constant.ErrNoSegmentsFound: EntityNotFoundError{
 			EntityType: entityType,
-			Code:       constant.ErrNoProductsFound.Error(),
-			Title:      "No Products Found",
-			Message:    "No products were found in the search. Please review the search criteria and try again.",
+			Code:       constant.ErrNoSegmentsFound.Error(),
+			Title:      "No Segments Found",
+			Message:    "No segments were found in the search. Please review the search criteria and try again.",
 		},
 		constant.ErrNoPortfoliosFound: EntityNotFoundError{
 			EntityType: entityType,

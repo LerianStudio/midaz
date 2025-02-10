@@ -1,0 +1,18 @@
+{
+    "id": "0193271b-877f-7c98-a5a6-43b664d68982",
+    "name": "Segment Refined Cotton Chair",
+    "ledgerId": "01932715-9f93-7432-90c3-4352bcfe464d",
+    "organizationId": "01931b04-964a-7caa-a422-c29a95387c00",
+    "status": {
+        "code": "ACTIVE",
+        "description": "Teste Segment"
+    },
+    "createdAt": "2024-11-13T19:58:55.868976395Z",
+    "updatedAt": "2024-11-13T19:58:55.868979258Z",
+    "deletedAt": null,
+    "metadata": {
+        "bitcoin": "3g9ofZcD7KRWL44BWdNa3PyM4PfzgqDG5P",
+        "chave": "metadata_chave",
+        "boolean": true
+    }
+}
