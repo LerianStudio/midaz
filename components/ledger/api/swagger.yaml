@@ -6,17 +6,9 @@ definitions:
       alias:
         example: '@person1'
         type: string
-      allowReceiving:
-        example: true
-        type: boolean
-      allowSending:
-        example: true
-        type: boolean
       assetCode:
         example: BRL
         type: string
-      balance:
-        $ref: '#/definitions/Balance'
       createdAt:
         example: "2021-01-01T00:00:00Z"
         type: string
@@ -118,19 +110,6 @@ definitions:
         example: "2021-01-01T00:00:00Z"
         type: string
     type: object
-  Balance:
-    description: Balance is the struct designed to represent the account balance.
-    properties:
-      available:
-        example: 1500
-        type: number
-      onHold:
-        example: 500
-        type: number
-      scale:
-        example: 2
-        type: number
-    type: object
   CreateAccountInput:
     description: CreateAccountInput is the input payload to create an account.
     properties:
@@ -138,12 +117,6 @@ definitions:
         example: '@person1'
         maxLength: 100
         type: string
-      allowReceiving:
-        example: true
-        type: boolean
-      allowSending:
-        example: true
-        type: boolean
       assetCode:
         example: BRL
         maxLength: 100
@@ -174,6 +147,7 @@ definitions:
         example: creditCard
         type: string
     required:
+    - alias
     - assetCode
     - type
     type: object
@@ -438,16 +412,6 @@ definitions:
   UpdateAccountInput:
     description: UpdateAccountInput is the input payload to update an account.
     properties:
-      alias:
-        example: '@person1'
-        maxLength: 100
-        type: string
-      allowReceiving:
-        example: true
-        type: boolean
-      allowSending:
-        example: true
-        type: boolean
       metadata:
         additionalProperties: {}
         type: object
@@ -1662,246 +1626,6 @@ paths:
       summary: Update a Portfolio
       tags:
       - Portfolios
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts:
-    get:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Get all Accounts instead. ##
-        ---
-        Get all Accounts with the input metadata or without metadata from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - description: Metadata
-        in: query
-        name: metadata
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/Pagination'
-            - properties:
-                items:
-                  items:
-                    $ref: '#/definitions/Account'
-                  type: array
-              type: object
-      summary: Get all Accounts from Portfolio
-      tags:
-      - Accounts
-    post:
-      consumes:
-      - application/json
-      description: |-
-        ## This endpoint will be deprecated soon. Use Create an Account instead. ##
-        ---
-        Create an Account with the input payload from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - description: Account
-        in: body
-        name: account
-        required: true
-        schema:
-          $ref: '#/definitions/CreateAccountInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Account'
-      summary: Create an Account from Portfolio
-      tags:
-      - Accounts
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id}:
-    delete:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Delete an Account by ID instead. ##
-        ---
-        Delete an Account with the input ID from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - description: Account ID
-        in: path
-        name: id
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-      summary: Delete an Account by ID from Portfolio
-      tags:
-      - Accounts
-    get:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##
-        ---
-        Get an Account with the input ID from a Portfolio.
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - description: Account ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Account'
-      summary: Get an Account by ID from Portfolio
-      tags:
-      - Accounts
-    patch:
-      consumes:
-      - application/json
-      description: |-
-        ## This endpoint will be deprecated soon. Use Update an Account instead. ##
-        ---
-        Update an Account with the input payload from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - description: Account ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Account
-        in: body
-        name: account
-        required: true
-        schema:
-          $ref: '#/definitions/UpdateAccountInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Account'
-      summary: Update an Account from Portfolio
-      tags:
-      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       description: Get all Segments with the input metadata or without metadata

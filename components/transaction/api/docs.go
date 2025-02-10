@@ -439,184 +439,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations": {
-            "get": {
-                "description": "Get all Operations with the input ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Operations"
-                ],
-                "summary": "Get all Operations by portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "Limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start Date",
-                        "name": "start_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End Date",
-                        "name": "end_date",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "asc",
-                            "desc"
-                        ],
-                        "type": "string",
-                        "description": "Sort Order",
-                        "name": "sort_order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor",
-                        "name": "cursor",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/Pagination"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "items": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/Operation"
-                                            }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}": {
-            "get": {
-                "description": "Get an Operation with the input ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Operations"
-                ],
-                "summary": "Get an Operation by portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Operation ID",
-                        "name": "operation_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/Operation"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
             "get": {
                 "description": "Get all Transactions with the input metadata or without metadata",
@@ -1192,15 +1014,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "available": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 1500
                 },
                 "onHold": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 500
                 },
                 "scale": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 2
                 }
             }
@@ -1362,6 +1184,10 @@ const docTemplate = `{
                 "balanceAfter": {
                     "$ref": "#/definitions/Balance"
                 },
+                "balanceId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "chartOfAccounts": {
                     "type": "string",
                     "example": "1000"
@@ -1391,10 +1217,6 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "organizationId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "portfolioId": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
