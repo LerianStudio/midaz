@@ -2,7 +2,6 @@ package in
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -11,20 +10,15 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/trace"
-	"os"
-	"reflect"
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"reflect"
 )
 
 // TransactionHandler struct that handle transaction
@@ -507,29 +501,31 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateDSL.End()
 
-	_, spanRaceCondition := tracer.Start(ctx, "handler.create_transaction.race_condition")
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	handler.Command.AllKeysUnlocked(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-	spanRaceCondition.End()
-
-	ctxGetAccounts, spanGetAccounts := tracer.Start(ctx, "handler.create_transaction.get_accounts")
-
-	token := http.GetTokenHeader(c)
-
-	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, hash, organizationID, ledgerID, validate, parserDSL)
+	balances, err := handler.Query.GetBalances(ctx, logger, organizationID, ledgerID, validate)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanGetAccounts, "Failed to get accounts", err)
+		mopentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
+		logger.Errorf("Failed to get balances: %v", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	spanGetAccounts.End()
+	spanGetBalances.End()
+
+	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
+
+	err = goldModel.ValidateBalancesRules(ctx, parserDSL, *validate, balances)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
+
+		return http.WithError(c, err)
+	}
+
+	spanValidateBalances.End()
+
+	go handler.UpdateBalanceAsync(ctx, organizationID, ledgerID, validate, balances)
 
 	ctxCreateTransaction, spanCreateTransaction := tracer.Start(ctx, "handler.create_transaction.create_transaction")
 
@@ -546,11 +542,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 		logger.Error("Failed to create transaction", err.Error())
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
 		return http.WithError(c, err)
 	}
 
@@ -563,7 +554,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	ctxCreateOperation, spanCreateOperation := tracer.Start(ctx, "handler.create_transaction.create_operation")
 
-	go handler.Command.CreateOperation(ctxCreateOperation, accounts, tran.ID, &parserDSL, *validate, result, e)
+	go handler.Command.CreateOperation(ctxCreateOperation, balances, tran.ID, &parserDSL, *validate, result, e)
 	select {
 	case ops := <-result:
 		operations = append(operations, ops...)
@@ -572,80 +563,10 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 		logger.Error("Failed to create operations: ", err.Error())
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
 		return http.WithError(c, err)
 	}
 
 	spanCreateOperation.End()
-
-	ctxProcessAccounts, spanUpdateAccounts := tracer.Start(ctx, "handler.create_transaction.update_accounts")
-
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateAccounts, "payload_handler_update_accounts", accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to convert accounts from struct to JSON string", err)
-	}
-
-	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
-
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
-		ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.update_accounts.update_transaction_status")
-		_, er := handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
-
-		if er != nil {
-			mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
-
-			logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-			return http.WithError(c, er)
-		}
-
-		spanUpdateTransactionStatus.End()
-
-		return http.WithError(c, err)
-	}
-
-	spanUpdateAccounts.End()
-
-	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
-	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
-
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
-
-		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
-		return http.WithError(c, err)
-	}
-
-	spanUpdateTransactionStatus.End()
-
-	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.create_transaction.get_transaction")
-
-	tran, err = handler.Query.GetTransactionByID(ctxGetTransaction, organizationID, ledgerID, tran.IDtoUUID())
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanGetTransaction, "Failed to retrieve transaction", err)
-
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	spanGetTransaction.End()
 
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
@@ -653,100 +574,34 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
 
-	_, spanReleaseLock := tracer.Start(ctx, "handler.create_transaction.delete_race_condition")
-	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-	spanReleaseLock.End()
-
-	go handler.logTransaction(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
 }
 
-// getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, body goldModel.Transaction) ([]*account.Account, error) {
-	span := trace.SpanFromContext(ctx)
-	defer span.End()
-
-	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, token, organizationID, ledgerID, validate.Aliases)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get accounts", err)
-
-		return nil, err
-	}
-
-	err = goldModel.ValidateAccounts(body, *validate, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate accounts", err)
-
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		return nil, err
-	}
-
-	searchAgain, err := handler.Command.LockBalanceVersion(ctx, organizationID, ledgerID, validate.Aliases, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get account by alias gRPC on Ledger", err)
-
-		logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
-
-		return nil, err
-	}
-
-	if searchAgain {
-		return handler.getAccountsAndValidate(ctx, logger, token, hash, organizationID, ledgerID, validate, body)
-	}
-
-	return accounts, nil
-}
-
-// logTransaction creates a message representing a transaction log and sends to auditing exchange
-func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
+// UpdateBalanceAsync is a function that update balances async
+func (handler *TransactionHandler) UpdateBalanceAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, balances []*mmodel.Balance) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
+	_, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
 	defer spanLogTransaction.End()
 
-	if !isAuditLogEnabled() {
-		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
-		return
+	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "handler.create_transaction.update_balances")
+
+	err := mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_handler_update_balances", balances)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
+
+		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
 	}
 
-	queueData := make([]mmodel.QueueData, 0)
+	err = handler.Command.UpdateBalances(ctxProcessBalances, logger, organizationID, ledgerID, *validate, balances)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update accounts", err)
 
-	for _, o := range operations {
-		oLog := o.ToLog()
-
-		marshal, err := json.Marshal(oLog)
-		if err != nil {
-			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
-		}
-
-		queueData = append(queueData, mmodel.QueueData{
-			ID:    uuid.MustParse(o.ID),
-			Value: marshal,
-		})
+		logger.Errorf("Failed to update accounts: %v", err.Error())
 	}
 
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AuditID:        transactionID,
-		QueueData:      queueData,
-	}
-
-	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
-		ctxLogTransaction,
-		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
-		os.Getenv("RABBITMQ_AUDIT_KEY"),
-		queueMessage,
-	); err != nil {
-		logger.Fatalf("Failed to send message: %s", err.Error())
-	}
-}
-
-func isAuditLogEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
-	return envValue != "false"
+	spanUpdateBalances.End()
 }

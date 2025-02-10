@@ -73,7 +73,7 @@ func Test_newCmdAccountDescribe(t *testing.T) {
 			Metadata:  metadata,
 		}
 
-		mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&item, nil)
 
 		err := cmd.Execute()
@@ -132,7 +132,7 @@ func Test_newCmdAccountDescribe(t *testing.T) {
 			Metadata:  metadata,
 		}
 
-		mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		mockRepo.EXPECT().GetByID(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(&item, nil)
 
 		err := cmd.Execute()

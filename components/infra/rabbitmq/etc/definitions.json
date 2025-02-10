@@ -67,7 +67,7 @@
       "durable": true
     },
     {
-      "name": "transaction_operations_queue",
+      "name": "transaction_balance_queue",
       "vhost": "/",
       "durable": true
     },
@@ -85,7 +85,7 @@
       "durable": true
     },
     {
-      "name": "transaction_operations_exchange",
+      "name": "transaction_balance_exchange",
       "vhost": "/",
       "type": "direct",
       "durable": true
@@ -106,11 +106,11 @@
       "routing_key": "audit_key"
     },
     {
-      "source": "transaction_operations_exchange",
+      "source": "transaction_balance_exchange",
       "vhost": "/",
-      "destination": "transaction_operations_queue",
+      "destination": "transaction_balance_queue",
       "destination_type": "queue",
-      "routing_key": "transaction_operations_key"
+      "routing_key": "transaction_balance_key"
     },
     {
       "source": "ledger_accounts_exchange",

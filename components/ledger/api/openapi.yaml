@@ -1207,269 +1207,6 @@ paths:
       tags:
       - Portfolios
       x-codegen-request-body-name: portfolio
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts:
-    get:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Get all Accounts instead. ##
-        ---
-        Get all Accounts with the input metadata or without metadata from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Metadata
-        in: query
-        name: metadata
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_5'
-          description: OK
-      summary: Get all Accounts from Portfolio
-      tags:
-      - Accounts
-    post:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Create an Account instead. ##
-        ---
-        Create an Account with the input payload from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateAccountInput'
-        description: Account
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
-          description: OK
-      summary: Create an Account from Portfolio
-      tags:
-      - Accounts
-      x-codegen-request-body-name: account
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id}:
-    delete:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Delete an Account by ID instead. ##
-        ---
-        Delete an Account with the input ID from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Account ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          content: {}
-          description: No Content
-      summary: Delete an Account by ID from Portfolio
-      tags:
-      - Accounts
-    get:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##
-        ---
-        Get an Account with the input ID from a Portfolio.
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Account ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
-          description: OK
-      summary: Get an Account by ID from Portfolio
-      tags:
-      - Accounts
-    patch:
-      description: |-
-        ## This endpoint will be deprecated soon. Use Update an Account instead. ##
-        ---
-        Update an Account with the input payload from a Portfolio
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Account ID
-        in: path
-        name: id
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateAccountInput'
-        description: Account
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Account'
-          description: OK
-      summary: Update an Account from Portfolio
-      tags:
-      - Accounts
-      x-codegen-request-body-name: account
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
       description: Get all Segments with the input metadata or without metadata
@@ -1537,7 +1274,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_6'
+                $ref: '#/components/schemas/inline_response_200_5'
           description: OK
       summary: Get all Segments
       tags:
@@ -1726,9 +1463,7 @@ components:
         metadata:
           key: '{}'
         assetCode: BRL
-        allowReceiving: true
         entityId: 00000000-0000-0000-0000-000000000000
-        allowSending: true
         type: creditCard
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
@@ -1736,10 +1471,6 @@ components:
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
         portfolioId: 00000000-0000-0000-0000-000000000000
-        balance:
-          onHold: 500.0
-          available: 1500.0
-          scale: 2.0
         segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account
         alias: '@person1'
@@ -1752,17 +1483,9 @@ components:
         alias:
           example: '@person1'
           type: string
-        allowReceiving:
-          example: true
-          type: boolean
-        allowSending:
-          example: true
-          type: boolean
         assetCode:
           example: BRL
           type: string
-        balance:
-          $ref: '#/components/schemas/Balance'
         createdAt:
           example: 2021-01-01T00:00:00Z
           type: string
@@ -1888,23 +1611,6 @@ components:
           example: 2021-01-01T00:00:00Z
           type: string
       type: object
-    Balance:
-      description: Balance is the struct designed to represent the account balance.
-      example:
-        onHold: 500.0
-        available: 1500.0
-        scale: 2.0
-      properties:
-        available:
-          example: 1500.0
-          type: number
-        onHold:
-          example: 500.0
-          type: number
-        scale:
-          example: 2.0
-          type: number
-      type: object
     CreateAccountInput:
       description: CreateAccountInput is the input payload to create an account.
       example:
@@ -1913,12 +1619,10 @@ components:
           key: '{}'
         assetCode: BRL
         portfolioId: 00000000-0000-0000-0000-000000000000
-        allowReceiving: true
         segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account
         alias: '@person1'
         entityId: 00000000-0000-0000-0000-000000000000
-        allowSending: true
         type: creditCard
         status:
           code: ACTIVE
@@ -1928,12 +1632,6 @@ components:
           example: '@person1'
           maxLength: 100
           type: string
-        allowReceiving:
-          example: true
-          type: boolean
-        allowSending:
-          example: true
-          type: boolean
         assetCode:
           example: BRL
           maxLength: 100
@@ -1965,6 +1663,7 @@ components:
           example: creditCard
           type: string
       required:
+      - alias
       - assetCode
       - type
       type: object
@@ -2359,25 +2058,12 @@ components:
         metadata:
           key: '{}'
         portfolioId: 00000000-0000-0000-0000-000000000000
-        allowReceiving: true
         segmentId: 00000000-0000-0000-0000-000000000000
         name: My Account Updated
-        alias: '@person1'
-        allowSending: true
         status:
           code: ACTIVE
           description: Active status
       properties:
-        alias:
-          example: '@person1'
-          maxLength: 100
-          type: string
-        allowReceiving:
-          example: true
-          type: boolean
-        allowSending:
-          example: true
-          type: boolean
         metadata:
           additionalProperties:
             type: object
@@ -2642,9 +2328,7 @@ components:
         - metadata:
             key: '{}'
           assetCode: BRL
-          allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
-          allowSending: true
           type: creditCard
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2652,10 +2336,6 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
           segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
@@ -2667,9 +2347,7 @@ components:
         - metadata:
             key: '{}'
           assetCode: BRL
-          allowReceiving: true
           entityId: 00000000-0000-0000-0000-000000000000
-          allowSending: true
           type: creditCard
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
@@ -2677,10 +2355,6 @@ components:
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
           portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
           segmentId: 00000000-0000-0000-0000-000000000000
           name: My Account
           alias: '@person1'
@@ -2802,73 +2476,6 @@ components:
           type: integer
       type: object
     inline_response_200_5:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        items:
-        - metadata:
-            key: '{}'
-          assetCode: BRL
-          allowReceiving: true
-          entityId: 00000000-0000-0000-0000-000000000000
-          allowSending: true
-          type: creditCard
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          parentAccountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          segmentId: 00000000-0000-0000-0000-000000000000
-          name: My Account
-          alias: '@person1'
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-        - metadata:
-            key: '{}'
-          assetCode: BRL
-          allowReceiving: true
-          entityId: 00000000-0000-0000-0000-000000000000
-          allowSending: true
-          type: creditCard
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          parentAccountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          segmentId: 00000000-0000-0000-0000-000000000000
-          name: My Account
-          alias: '@person1'
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Account'
-          type: array
-      type: object
-    inline_response_200_6:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==

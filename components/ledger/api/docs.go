@@ -1680,340 +1680,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts": {
-            "get": {
-                "description": "## This endpoint will be deprecated soon. Use Get all Accounts instead. ##\n---\nGet all Accounts with the input metadata or without metadata from a Portfolio",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Accounts"
-                ],
-                "summary": "Get all Accounts from Portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Metadata",
-                        "name": "metadata",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/Pagination"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "items": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/Account"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "## This endpoint will be deprecated soon. Use Create an Account instead. ##\n---\nCreate an Account with the input payload from a Portfolio",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Accounts"
-                ],
-                "summary": "Create an Account from Portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Account",
-                        "name": "account",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/CreateAccountInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/Account"
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/accounts/{id}": {
-            "get": {
-                "description": "## This endpoint will be deprecated soon. Use Get an Account by ID instead. ##\n---\nGet an Account with the input ID from a Portfolio.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Accounts"
-                ],
-                "summary": "Get an Account by ID from Portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Account ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/Account"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "description": "## This endpoint will be deprecated soon. Use Delete an Account by ID instead. ##\n---\nDelete an Account with the input ID from a Portfolio",
-                "tags": [
-                    "Accounts"
-                ],
-                "summary": "Delete an Account by ID from Portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Account ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            },
-            "patch": {
-                "description": "## This endpoint will be deprecated soon. Use Update an Account instead. ##\n---\nUpdate an Account with the input payload from a Portfolio",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Accounts"
-                ],
-                "summary": "Update an Account from Portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Account ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Account",
-                        "name": "account",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/UpdateAccountInput"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/Account"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
                 "description": "Get all Segments with the input metadata or without metadata",
@@ -2365,20 +2031,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "@person1"
                 },
-                "allowReceiving": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "allowSending": {
-                    "type": "boolean",
-                    "example": true
-                },
                 "assetCode": {
                     "type": "string",
                     "example": "BRL"
-                },
-                "balance": {
-                    "$ref": "#/definitions/Balance"
                 },
                 "createdAt": {
                     "type": "string",
@@ -2517,28 +2172,11 @@ const docTemplate = `{
                 }
             }
         },
-        "Balance": {
-            "description": "Balance is the struct designed to represent the account balance.",
-            "type": "object",
-            "properties": {
-                "available": {
-                    "type": "number",
-                    "example": 1500
-                },
-                "onHold": {
-                    "type": "number",
-                    "example": 500
-                },
-                "scale": {
-                    "type": "number",
-                    "example": 2
-                }
-            }
-        },
         "CreateAccountInput": {
             "description": "CreateAccountInput is the input payload to create an account.",
             "type": "object",
             "required": [
+                "alias",
                 "assetCode",
                 "type"
             ],
@@ -2547,14 +2185,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "example": "@person1"
-                },
-                "allowReceiving": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "allowSending": {
-                    "type": "boolean",
-                    "example": true
                 },
                 "assetCode": {
                     "type": "string",
@@ -2950,19 +2580,6 @@ const docTemplate = `{
             "description": "UpdateAccountInput is the input payload to update an account.",
             "type": "object",
             "properties": {
-                "alias": {
-                    "type": "string",
-                    "maxLength": 100,
-                    "example": "@person1"
-                },
-                "allowReceiving": {
-                    "type": "boolean",
-                    "example": true
-                },
-                "allowSending": {
-                    "type": "boolean",
-                    "example": true
-                },
                 "metadata": {
                     "type": "object",
                     "additionalProperties": {}

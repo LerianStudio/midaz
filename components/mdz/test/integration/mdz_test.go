@@ -193,7 +193,6 @@ func TestMDZ(t *testing.T) {
 		"--account-id", accountID,
 		"--segment-id", segmentID,
 		"--name", fake.FirstName(),
-		"--alias", "@wallet_"+fake.FirstName(),
 	))
 
 	t.Log("organization ID: ", organizationID)

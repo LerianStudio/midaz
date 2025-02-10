@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/components/ledger/internal/adapters/rabbitmq"
 	"testing"
 	"time"
 
@@ -23,15 +24,22 @@ func TestCreateAsset(t *testing.T) {
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockRabbitMQ := rabbitmq.NewMockProducerRepository(ctrl)
 
 	uc := &UseCase{
-		AssetRepo:   mockAssetRepo,
-		AccountRepo: mockAccountRepo,
+		AssetRepo:    mockAssetRepo,
+		AccountRepo:  mockAccountRepo,
+		RabbitMQRepo: mockRabbitMQ,
 	}
 
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
+	createAccountInput := &mmodel.CreateAccountInput{
+		Name:      "Test Account",
+		Type:      "deposit",
+		AssetCode: "USD",
+	}
 
 	tests := []struct {
 		name        string
@@ -78,7 +86,19 @@ func TestCreateAsset(t *testing.T) {
 
 				mockAccountRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					Return(&mmodel.Account{}, nil).
+					Return(&mmodel.Account{
+						ID:        uuid.New().String(),
+						AssetCode: createAccountInput.AssetCode,
+						Name:      createAccountInput.Name,
+						Type:      createAccountInput.Type,
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					}, nil).
+					Times(1)
+
+				mockRabbitMQ.EXPECT().
+					ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, nil).
 					Times(1)
 			},
 			expectedErr: nil,

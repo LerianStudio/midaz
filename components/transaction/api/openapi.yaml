@@ -300,127 +300,6 @@ paths:
       summary: Get an AssetRate by External ID
       tags:
       - Asset Rates
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
-    get:
-      description: Get all Operations with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_2'
-          description: OK
-      summary: Get all Operations by portfolio
-      tags:
-      - Operations
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}:
-    get:
-      description: Get an Operation with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Operation ID
-        in: path
-        name: operation_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Operation'
-          description: OK
-      summary: Get an Operation by portfolio
-      tags:
-      - Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata
@@ -482,7 +361,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_3'
+                $ref: '#/components/schemas/inline_response_200_2'
           description: OK
       summary: Get all Transactions
       tags:
@@ -859,19 +738,19 @@ components:
     Balance:
       description: Balance is the struct designed to represent the account balance.
       example:
-        onHold: 500.0
-        available: 1500.0
-        scale: 2.0
+        onHold: 500
+        available: 1500
+        scale: 2
       properties:
         available:
-          example: 1500.0
-          type: number
+          example: 1500
+          type: integer
         onHold:
-          example: 500.0
-          type: number
+          example: 500
+          type: integer
         scale:
-          example: 2.0
-          type: number
+          example: 2
+          type: integer
       type: object
     CreateAssetRateInput:
       description: CreateAssetRateInput is the input payload to create an asset rate.
@@ -1164,16 +1043,16 @@ components:
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        portfolioId: 00000000-0000-0000-0000-000000000000
         balance:
-          onHold: 500.0
-          available: 1500.0
-          scale: 2.0
+          onHold: 500
+          available: 1500
+          scale: 2
         balanceAfter:
-          onHold: 500.0
-          available: 1500.0
-          scale: 2.0
+          onHold: 500
+          available: 1500
+          scale: 2
         id: 00000000-0000-0000-0000-000000000000
+        balanceId: 00000000-0000-0000-0000-000000000000
         status:
           code: ACTIVE
           description: Active status
@@ -1194,6 +1073,9 @@ components:
           $ref: '#/components/schemas/Balance'
         balanceAfter:
           $ref: '#/components/schemas/Balance'
+        balanceId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
         chartOfAccounts:
           example: "1000"
           type: string
@@ -1217,9 +1099,6 @@ components:
             type: object
           type: object
         organizationId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        portfolioId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -1531,16 +1410,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1562,16 +1441,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1705,16 +1584,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1736,16 +1615,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1829,94 +1708,6 @@ components:
         prev_cursor: prev_cursor
         next_cursor: next_cursor
         limit: 0
-        items:
-        - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            value: 1000
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: creditCard
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            value: 1000
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: creditCard
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Operation'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_3:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
         page: '{}'
         items:
         - template: Transaction template
@@ -1954,16 +1745,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status
@@ -1985,16 +1776,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status
@@ -2039,16 +1830,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status
@@ -2070,16 +1861,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status

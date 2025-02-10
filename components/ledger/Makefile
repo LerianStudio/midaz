@@ -93,10 +93,6 @@ ps:
 	@$(DOCKER_CMD) -f docker-compose.yml ps
 
 # App Commands
-.PHONY: grpc-ledger-gen
-grpc-ledger-gen:
-	@protoc --proto_path=../../pkg/mgrpc --go-grpc_out=../../pkg/mgrpc --go_out=../../pkg/mgrpc ../../pkg/mgrpc/account/account.proto
-
 .PHONY: run
 run:
 	@go run cmd/app/main.go .env

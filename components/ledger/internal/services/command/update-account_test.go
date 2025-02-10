@@ -47,7 +47,6 @@ func TestUpdateAccount(t *testing.T) {
 				Status: mmodel.Status{
 					Code: "active",
 				},
-				Alias:     nil,
 				SegmentID: nil,
 				Metadata:  map[string]any{"key": "value"},
 			},
@@ -78,7 +77,6 @@ func TestUpdateAccount(t *testing.T) {
 				Status: mmodel.Status{
 					Code: "active",
 				},
-				Alias:     nil,
 				SegmentID: nil,
 				Metadata:  nil,
 			},
@@ -100,7 +98,6 @@ func TestUpdateAccount(t *testing.T) {
 				Status: mmodel.Status{
 					Code: "active",
 				},
-				Alias:     nil,
 				SegmentID: nil,
 				Metadata:  map[string]any{"key": "value"},
 			},

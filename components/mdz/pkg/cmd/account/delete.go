@@ -66,7 +66,7 @@ func (f *factoryAccountDelete) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	err := f.repoAccount.Delete(f.OrganizationID, f.LedgerID, f.PortfolioID, f.AccountID)
+	err := f.repoAccount.Delete(f.OrganizationID, f.LedgerID, f.AccountID)
 	if err != nil {
 		return err
 	}

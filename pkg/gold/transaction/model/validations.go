@@ -1,46 +1,77 @@
 package model
 
 import (
+	"context"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"math"
 	"math/big"
 	"strings"
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	a "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 )
 
-// ValidateAccounts function with some validates in accounts and DSL operations
-func ValidateAccounts(transaction Transaction, validate Responses, accounts []*a.Account) error {
-	if len(accounts) != (len(validate.From) + len(validate.To)) {
-		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
+// ValidateBalancesRules function with some validates in accounts and DSL operations
+func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*mmodel.Balance) error {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	_, spanValidateBalances := tracer.Start(ctx, "validations.validate_balances_rules")
+
+	if len(balances) != (len(validate.From) + len(validate.To)) {
+		err := pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
+
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_balances_rules", err)
+
+		return err
 	}
 
-	for _, acc := range accounts {
-		if err := validateFromAccounts(acc, validate.From, validate.Asset); err != nil {
+	for _, balance := range balances {
+		if err := validateFromBalances(balance, validate.From, validate.Asset); err != nil {
+			mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_from_balances_", err)
+
+			logger.Errorf("validations.validate_from_balances_err: %s", err)
+
 			return err
 		}
 
-		if err := validateToAccounts(acc, validate.To, validate.Asset); err != nil {
+		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
+			mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_to_balances_", err)
+
+			logger.Errorf("validations.validate_to_balances_err: %s", err)
+
 			return err
 		}
 
-		if err := validateBalance(transaction, validate.From, acc); err != nil {
+		if err := validateBalance(balance, transaction, validate.From); err != nil {
+			mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_to_balances_", err)
+
+			logger.Errorf("validations.validate_balances_err: %s", err)
+
 			return err
 		}
 	}
+
+	spanValidateBalances.End()
 
 	return nil
 }
 
-func validateBalance(dsl Transaction, from map[string]Amount, acc *a.Account) error {
+func validateBalance(balance *mmodel.Balance, dsl Transaction, from map[string]Amount) error {
 	for key := range from {
 		for _, f := range dsl.Send.Source.From {
-			if acc.Id == key || acc.Alias == key {
-				ba := OperateAmounts(from[f.Account], acc.Balance, constant.DEBIT)
+			if balance.ID == key || balance.Alias == key {
+				blc := Balance{
+					Scale:     balance.Scale,
+					Available: balance.Available,
+					OnHold:    balance.OnHold,
+				}
 
-				if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
-					return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", acc.Alias)
+				ba := OperateBalances(from[f.Account], blc, constant.DEBIT)
+
+				if ba.Available < 0 && balance.AccountType != constant.ExternalAccountType {
+					return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateBalance", balance.Alias)
 				}
 			}
 		}
@@ -49,19 +80,19 @@ func validateBalance(dsl Transaction, from map[string]Amount, acc *a.Account) er
 	return nil
 }
 
-func validateFromAccounts(acc *a.Account, from map[string]Amount, asset string) error {
+func validateFromBalances(balance *mmodel.Balance, from map[string]Amount, asset string) error {
 	for key := range from {
-		if acc.Id == key || acc.Alias == key {
-			if acc.AssetCode != asset {
+		if balance.ID == key || balance.Alias == key {
+			if balance.AssetCode != asset {
 				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
 
-			if !acc.AllowSending {
+			if !balance.AllowSending {
 				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateFromAccounts")
 			}
 
-			if acc.Balance.Available <= 0 && acc.Type != constant.ExternalAccountType {
-				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateFromAccounts", acc.Alias)
+			if balance.Available <= 0 && balance.AccountType != constant.ExternalAccountType {
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateFromAccounts", balance.Alias)
 			}
 		}
 	}
@@ -69,19 +100,19 @@ func validateFromAccounts(acc *a.Account, from map[string]Amount, asset string) 
 	return nil
 }
 
-func validateToAccounts(acc *a.Account, to map[string]Amount, asset string) error {
+func validateToBalances(balance *mmodel.Balance, to map[string]Amount, asset string) error {
 	for key := range to {
-		if acc.Id == key || acc.Alias == key {
-			if acc.AssetCode != asset {
+		if balance.ID == key || balance.Alias == key {
+			if balance.AssetCode != asset {
 				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
 
-			if !acc.AllowReceiving {
+			if !balance.AllowReceiving {
 				return pkg.ValidateBusinessError(constant.ErrAccountStatusTransactionRestriction, "validateToAccounts")
 			}
 
-			if acc.Balance.Available > 0 && acc.Type == constant.ExternalAccountType {
-				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", acc.Alias)
+			if balance.Available > 0 && balance.AccountType == constant.ExternalAccountType {
+				return pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "validateToAccounts", balance.Alias)
 			}
 		}
 	}
@@ -89,17 +120,23 @@ func validateToAccounts(acc *a.Account, to map[string]Amount, asset string) erro
 	return nil
 }
 
-// ValidateFromToOperation func that validate operate balance amount
-func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amount, Balance, error) {
+// ValidateFromToOperation func that validate operate balance
+func ValidateFromToOperation(ft FromTo, validate Responses, balance *mmodel.Balance) (Amount, Balance, error) {
 	amount := Amount{}
 
 	balanceAfter := Balance{}
 
 	if ft.IsFrom {
-		ba := OperateAmounts(validate.From[ft.Account], acc.Balance, constant.DEBIT)
+		blc := Balance{
+			Scale:     balance.Scale,
+			Available: balance.Available,
+			OnHold:    balance.OnHold,
+		}
 
-		if ba.Available < 0 && acc.Type != constant.ExternalAccountType {
-			return amount, balanceAfter, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", acc.Alias)
+		ba := OperateBalances(validate.From[ft.Account], blc, constant.DEBIT)
+
+		if ba.Available < 0 && balance.AccountType != constant.ExternalAccountType {
+			return amount, balanceAfter, pkg.ValidateBusinessError(constant.ErrInsufficientFunds, "ValidateFromToOperation", balance.Alias)
 		}
 
 		amount = Amount{
@@ -109,7 +146,13 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 
 		balanceAfter = ba
 	} else {
-		ba := OperateAmounts(validate.To[ft.Account], acc.Balance, constant.CREDIT)
+		blc := Balance{
+			Scale:     balance.Scale,
+			Available: balance.Available,
+			OnHold:    balance.OnHold,
+		}
+
+		ba := OperateBalances(validate.To[ft.Account], blc, constant.CREDIT)
 		amount = Amount{
 			Value: validate.To[ft.Account].Value,
 			Scale: validate.To[ft.Account].Scale,
@@ -121,77 +164,68 @@ func ValidateFromToOperation(ft FromTo, validate Responses, acc *a.Account) (Amo
 	return amount, balanceAfter, nil
 }
 
-// UpdateAccounts function with some updates values in accounts and
-func UpdateAccounts(operation string, fromTo map[string]Amount, accounts []*a.Account, result chan []*a.Account, e chan error) {
-	accs := make([]*a.Account, 0)
+// UpdateBalances function with some updates values in balances and
+func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmodel.Balance, result chan []*mmodel.Balance) {
+	newBalances := make([]*mmodel.Balance, 0)
 
-	for _, acc := range accounts {
+	for _, balance := range balances {
 		for key := range fromTo {
-			if acc.Id == key || acc.Alias == key {
-				b := OperateAmounts(fromTo[key], acc.Balance, operation)
-
-				balance := a.Balance{
-					Available: float64(b.Available),
-					Scale:     float64(b.Scale),
-					OnHold:    float64(b.OnHold),
+			if balance.ID == key || balance.Alias == key {
+				blc := Balance{
+					Scale:     balance.Scale,
+					Available: balance.Available,
+					OnHold:    balance.OnHold,
 				}
 
-				status := a.Status{
-					Code:        acc.Status.Code,
-					Description: acc.Status.Description,
+				b := OperateBalances(fromTo[key], blc, operation)
+
+				ac := mmodel.Balance{
+					ID:             balance.ID,
+					Alias:          balance.Alias,
+					OrganizationID: balance.OrganizationID,
+					LedgerID:       balance.LedgerID,
+					AssetCode:      balance.AssetCode,
+					Available:      b.Available,
+					Scale:          b.Scale,
+					OnHold:         b.OnHold,
+					AllowSending:   balance.AllowSending,
+					AllowReceiving: balance.AllowReceiving,
+					AccountType:    balance.AccountType,
+					Version:        balance.Version,
+					CreatedAt:      balance.CreatedAt,
+					UpdatedAt:      balance.UpdatedAt,
 				}
 
-				ac := a.Account{
-					Id:              acc.Id,
-					Alias:           acc.Alias,
-					Name:            acc.Name,
-					ParentAccountId: acc.ParentAccountId,
-					EntityId:        acc.EntityId,
-					OrganizationId:  acc.OrganizationId,
-					LedgerId:        acc.LedgerId,
-					PortfolioId:     acc.PortfolioId,
-					SegmentId:       acc.SegmentId,
-					AssetCode:       acc.AssetCode,
-					Balance:         &balance,
-					Status:          &status,
-					AllowSending:    acc.AllowSending,
-					AllowReceiving:  acc.AllowReceiving,
-					Type:            acc.Type,
-					Version:         acc.Version,
-					CreatedAt:       acc.CreatedAt,
-					UpdatedAt:       acc.UpdatedAt,
-				}
-
-				accs = append(accs, &ac)
+				newBalances = append(newBalances, &ac)
 
 				break
 			}
 		}
 	}
 
-	result <- accs
+	result <- newBalances
 }
 
 // Scale func scale: (V * 10^ (S0-S1))
-func Scale(v, s0, s1 int) float64 {
-	return float64(v) * math.Pow10(s1-s0)
+func Scale(v, s0, s1 int64) int64 {
+	return int64(float64(v) * math.Pow(10, float64(s1)-float64(s0)))
 }
 
 // UndoScale Function to undo the scale calculation
-func UndoScale(v float64, s int) int {
-	return int(v * math.Pow10(s))
+func UndoScale(v float64, s int64) int64 {
+	return int64(v * math.Pow(10, float64(s)))
 }
 
 // FindScale Function to find the scale for any value of a value
-func FindScale(asset string, v float64, s int) Amount {
+func FindScale(asset string, v float64, s int64) Amount {
 	valueString := big.NewFloat(v).String()
 	parts := strings.Split(valueString, ".")
 
 	scale := s
-	value := int(v)
+	value := int64(v)
 
 	if len(parts) > 1 {
-		scale = len(parts[1])
+		scale = int64(len(parts[1]))
 		value = UndoScale(v, scale)
 
 		if parts[1] != "0" {
@@ -214,7 +248,7 @@ func normalize(total, amount, remaining *Amount) {
 		if total.Value != 0 {
 			v0 := Scale(total.Value, total.Scale, amount.Scale)
 
-			total.Value = int(v0) + amount.Value
+			total.Value = v0 + amount.Value
 		} else {
 			total.Value += amount.Value
 		}
@@ -224,9 +258,9 @@ func normalize(total, amount, remaining *Amount) {
 		if total.Value != 0 {
 			v0 := Scale(amount.Value, amount.Scale, total.Scale)
 
-			total.Value += int(v0)
+			total.Value += v0
 
-			amount.Value = int(v0)
+			amount.Value = v0
 			amount.Scale = total.Scale
 		} else {
 			total.Value += amount.Value
@@ -237,56 +271,56 @@ func normalize(total, amount, remaining *Amount) {
 	if remaining.Scale < amount.Scale {
 		v0 := Scale(remaining.Value, remaining.Scale, amount.Scale)
 
-		remaining.Value = int(v0) - amount.Value
+		remaining.Value = v0 - amount.Value
 		remaining.Scale = amount.Scale
 	} else {
 		v0 := Scale(amount.Value, amount.Scale, remaining.Scale)
 
-		remaining.Value -= int(v0)
+		remaining.Value -= v0
 	}
 }
 
-// OperateAmounts Function to sum or sub two amounts and normalize the scale
-func OperateAmounts(amount Amount, balance *a.Balance, operation string) Balance {
+// OperateBalances Function to sum or sub two balances and normalize the scale
+func OperateBalances(amount Amount, balance Balance, operation string) Balance {
 	var (
-		scale float64
-		total float64
+		scale int64
+		total int64
 	)
 
 	switch operation {
 	case constant.DEBIT:
-		if int(balance.Scale) < amount.Scale {
-			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
-			total = v0 - float64(amount.Value)
-			scale = float64(amount.Scale)
+		if balance.Scale < amount.Scale {
+			v0 := Scale(balance.Available, balance.Scale, amount.Scale)
+			total = v0 - amount.Value
+			scale = amount.Scale
 		} else {
-			v0 := Scale(amount.Value, amount.Scale, int(balance.Scale))
+			v0 := Scale(amount.Value, amount.Scale, balance.Scale)
 			total = balance.Available - v0
 			scale = balance.Scale
 		}
 	default:
-		if int(balance.Scale) < amount.Scale {
-			v0 := Scale(int(balance.Available), int(balance.Scale), amount.Scale)
-			total = v0 + float64(amount.Value)
-			scale = float64(amount.Scale)
+		if balance.Scale < amount.Scale {
+			v0 := Scale(balance.Available, balance.Scale, amount.Scale)
+			total = v0 + amount.Value
+			scale = amount.Scale
 		} else {
-			v0 := Scale(amount.Value, amount.Scale, int(balance.Scale))
+			v0 := Scale(amount.Value, amount.Scale, balance.Scale)
 			total = balance.Available + v0
 			scale = balance.Scale
 		}
 	}
 
 	blc := Balance{
-		Available: int(total),
-		OnHold:    int(balance.OnHold),
-		Scale:     int(scale),
+		Available: total,
+		OnHold:    balance.OnHold,
+		Scale:     scale,
 	}
 
 	return blc
 }
 
 // calculateTotal Calculate total for sources/destinations based on shares, amounts and remains
-func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]Amount, sd chan []string) {
+func calculateTotal(fromTos []FromTo, send Send, t chan int64, ft chan map[string]Amount, sd chan []string) {
 	fmto := make(map[string]Amount)
 	scdt := make([]string, 0)
 
@@ -341,7 +375,7 @@ func calculateTotal(fromTos []FromTo, send Send, t chan int, ft chan map[string]
 
 	ttl := total.Value
 	if total.Scale > send.Scale {
-		ttl = int(Scale(total.Value, total.Scale, send.Scale))
+		ttl = Scale(total.Value, total.Scale, send.Scale)
 	}
 
 	t <- ttl
@@ -362,11 +396,11 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	}
 
 	var (
-		sourcesTotal      int
-		destinationsTotal int
+		sourcesTotal      int64
+		destinationsTotal int64
 	)
 
-	t := make(chan int)
+	t := make(chan int64)
 	ft := make(chan map[string]Amount)
 	sd := make(chan []string)
 
@@ -381,6 +415,18 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	response.To = <-ft
 	response.Destinations = <-sd
 	response.Aliases = append(response.Aliases, response.Destinations...)
+
+	for _, source := range response.Sources {
+		if _, ok := response.To[source]; ok {
+			return nil, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		}
+	}
+
+	for _, destination := range response.Destinations {
+		if _, ok := response.From[destination]; ok {
+			return nil, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		}
+	}
 
 	if math.Abs(float64(response.Total)-float64(sourcesTotal)) != 0 {
 		return nil, pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")

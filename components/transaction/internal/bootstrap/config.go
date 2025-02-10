@@ -2,11 +2,10 @@ package bootstrap
 
 import (
 	"fmt"
-
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
@@ -15,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
-	"github.com/LerianStudio/midaz/pkg/mgrpc"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
@@ -47,8 +45,6 @@ type Config struct {
 	MongoDBUser             string `env:"MONGO_USER"`
 	MongoDBPassword         string `env:"MONGO_PASSWORD"`
 	MongoDBPort             string `env:"MONGO_PORT"`
-	LedgerGRPCAddr          string `env:"LEDGER_GRPC_ADDR"`
-	LedgerGRPCPort          string `env:"LEDGER_GRPC_PORT"`
 	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
 	CasdoorClientID         string `env:"CASDOOR_CLIENT_ID"`
 	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
@@ -127,13 +123,6 @@ func InitServers() *Service {
 		Logger:                 logger,
 	}
 
-	grpcSource := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
-
-	grpcConnection := &mgrpc.GRPCConnection{
-		Addr:   grpcSource,
-		Logger: logger,
-	}
-
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -161,21 +150,20 @@ func InitServers() *Service {
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
 	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
+	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
-
-	accountGRPCRepository := out.NewAccountGRPC(grpcConnection)
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, logger, telemetry)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
-		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
@@ -183,11 +171,10 @@ func InitServers() *Service {
 
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
-		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
-		RabbitMQRepo:    consumerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
 	}
 
@@ -206,12 +193,15 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
+
 	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server: server,
-		Logger: logger,
+		Server:             server,
+		MultiQueueConsumer: multiQueueConsumer,
+		Logger:             logger,
 	}
 }

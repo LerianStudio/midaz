@@ -25,7 +25,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	logger.Infof("Trying to create new transaction")
 
-	description := constant.CREATED
+	description := constant.APPROVED
 	status := transaction.Status{
 		Code:        description,
 		Description: &description,

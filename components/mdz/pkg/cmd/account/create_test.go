@@ -89,7 +89,7 @@ func Test_newCmdAccountCreate(t *testing.T) {
 			Metadata: metadata,
 		}
 
-		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(result, nil)
+		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(result, nil)
 		err := cmd.Execute()
 		assert.NoError(t, err)
 
@@ -171,7 +171,7 @@ func Test_newCmdAccountCreate(t *testing.T) {
 			Metadata: metadata,
 		}
 
-		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(result, nil)
+		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(result, nil)
 
 		err := cmd.Execute()
 		assert.NoError(t, err)
