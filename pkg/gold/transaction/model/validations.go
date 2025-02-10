@@ -1,7 +1,9 @@
 package model
 
 import (
+	"context"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"math"
 	"math/big"
 	"strings"
@@ -11,24 +13,47 @@ import (
 )
 
 // ValidateBalancesRules function with some validates in accounts and DSL operations
-func ValidateBalancesRules(transaction Transaction, validate Responses, balances []*mmodel.Balance) error {
+func ValidateBalancesRules(ctx context.Context, transaction Transaction, validate Responses, balances []*mmodel.Balance) error {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	_, spanValidateBalances := tracer.Start(ctx, "validations.validate_balances_rules")
+
 	if len(balances) != (len(validate.From) + len(validate.To)) {
-		return pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
+		err := pkg.ValidateBusinessError(constant.ErrAccountIneligibility, "ValidateAccounts")
+
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_balances_rules", err)
+
+		return err
 	}
 
 	for _, balance := range balances {
 		if err := validateFromBalances(balance, validate.From, validate.Asset); err != nil {
+			mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_from_balances_", err)
+
+			logger.Errorf("validations.validate_from_balances_err: %s", err)
+
 			return err
 		}
 
 		if err := validateToBalances(balance, validate.To, validate.Asset); err != nil {
+			mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_to_balances_", err)
+
+			logger.Errorf("validations.validate_to_balances_err: %s", err)
+
 			return err
 		}
 
 		if err := validateBalance(balance, transaction, validate.From); err != nil {
+			mopentelemetry.HandleSpanError(&spanValidateBalances, "validations.validate_to_balances_", err)
+
+			logger.Errorf("validations.validate_balances_err: %s", err)
+
 			return err
 		}
 	}
+
+	spanValidateBalances.End()
 
 	return nil
 }
@@ -183,12 +208,12 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 
 // Scale func scale: (V * 10^ (S0-S1))
 func Scale(v, s0, s1 int64) int64 {
-	return int64(float64(v) * math.Pow10(int(s1)-int(s0)))
+	return int64(float64(v) * math.Pow(10, float64(s1)-float64(s0)))
 }
 
 // UndoScale Function to undo the scale calculation
 func UndoScale(v float64, s int64) int64 {
-	return int64(v * math.Pow10(int(s)))
+	return int64(v * math.Pow(10, float64(s)))
 }
 
 // FindScale Function to find the scale for any value of a value
@@ -390,6 +415,18 @@ func ValidateSendSourceAndDistribute(transaction Transaction) (*Responses, error
 	response.To = <-ft
 	response.Destinations = <-sd
 	response.Aliases = append(response.Aliases, response.Destinations...)
+
+	for _, source := range response.Sources {
+		if _, ok := response.To[source]; ok {
+			return nil, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		}
+	}
+
+	for _, destination := range response.Destinations {
+		if _, ok := response.From[destination]; ok {
+			return nil, pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		}
+	}
 
 	if math.Abs(float64(response.Total)-float64(sourcesTotal)) != 0 {
 		return nil, pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")

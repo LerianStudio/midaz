@@ -290,7 +290,8 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		return nil, err
 	}
 
-	logger.Infof("result: %T", result)
+	logger.Infof("result type: %T", result)
+	logger.Infof("result value: %v", result)
 
 	var b mmodel.Balance
 
