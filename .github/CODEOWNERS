@@ -4,5 +4,5 @@
 # Owners for specific directories and files
 .github/*                         @LerianStudio/G_Github_Devops
 .githooks/*                       @LerianStudio/G_Github_Devops
-components/*/.env.example         @LerianStudio/G_Github_Devops
+components/*/.env.example         @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
 components/*                      @LerianStudio/G_Github_Dev
