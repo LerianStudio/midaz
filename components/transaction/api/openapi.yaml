@@ -9,9 +9,9 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Transaction API
-  version: 1.0.0
+  version: v1.48.0
 servers:
-- url: //localhost:3002/
+- url: //localhost:3001/
 paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
