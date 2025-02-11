@@ -15,7 +15,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
-      - name: Check if .env.example was changed
+    - name: Check if .env.example was changed
       id: check_env_example
       run: |
         git fetch --prune
