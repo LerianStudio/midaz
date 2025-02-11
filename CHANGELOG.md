@@ -1,3 +1,11 @@
+## [1.48.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.1...v1.48.0-beta.2) (2025-02-11)
+
+
+### Bug Fixes
+
+* update golang dependencies based on dependabot; :bug: ([84af1ce](https://github.com/LerianStudio/midaz/commit/84af1ce6da5ccc9a54e78d09ff7b41388d4684a3))
+* update swagger and openapi; :bug: ([d034c4e](https://github.com/LerianStudio/midaz/commit/d034c4e36a4c9994fab4cb43a023d2244b5142b3))
+
 ## [1.48.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.47.0...v1.48.0-beta.1) (2025-02-10)
 
 
