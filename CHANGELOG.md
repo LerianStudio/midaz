@@ -1,3 +1,15 @@
+## [1.48.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.2...v1.48.0-beta.3) (2025-02-11)
+
+
+### Features
+
+* add devops to codeowner when change .env.example files; :sparkles: ([e1328f8](https://github.com/LerianStudio/midaz/commit/e1328f8117f68ecebad7f5fe65a843ace78d30ab))
+
+
+### Bug Fixes
+
+* add dev too to validate pr in .envs :bug: ([0aae153](https://github.com/LerianStudio/midaz/commit/0aae153ca9ce3665fea4bd3317111a15d58f595b))
+
 ## [1.48.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.1...v1.48.0-beta.2) (2025-02-11)
 
 
