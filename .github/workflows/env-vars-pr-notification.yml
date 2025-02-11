@@ -18,7 +18,7 @@ jobs:
     - name: Check if .env.example was changed
       id: check_env_example
       run: |
-        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q 'components/.*\.env.example'; then
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q 'components/\(audit\|auth\|infra\|ledger\|mdz\|transaction\)/.*\.env.example'; then
           echo "File .env.example changed!"
           echo "file_changed=true" >> $GITHUB_ENV
         else
