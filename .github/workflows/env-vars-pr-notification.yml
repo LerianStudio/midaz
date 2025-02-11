@@ -1,7 +1,7 @@
 name: 'Notify DevOps Team on PR with .env.example file'
 
 on:
-  pull_request:
+  push:
     branches: 
       -  'feature/MIDAZ-515'
     paths:
