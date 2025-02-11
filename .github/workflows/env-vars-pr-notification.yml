@@ -16,12 +16,12 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Check if .env.example was changed
-      id: check_env_example
+      id: check_env_example_fetch
       run: |
         git fetch --prune
 
     - name: Check if .env.example was changed
-      id: check_env_example
+      id: check_env_example_diff
       run: |
         if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q 'components/\(audit\|auth\|infra\|ledger\|mdz\|transaction\)/.*\.env.example'; then
           echo "File .env.example changed!"
