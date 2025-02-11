@@ -5,8 +5,8 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 )
 
-// @title			Midaz Ledger API
-// @version		1.0.0
+// @title			Midaz Onboarding API
+// @version		v1.48.0
 // @description	This is a swagger documentation for the Midaz Ledger API
 // @termsOfService	http://swagger.io/terms/
 // @contact.name	Discord community

@@ -2712,11 +2712,11 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0.0",
+	Version:          "v1.48.0",
 	Host:             "localhost:3000",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "Midaz Ledger API",
+	Title:            "Midaz Onboarding API",
 	Description:      "This is a swagger documentation for the Midaz Ledger API",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

@@ -2,7 +2,7 @@
     "swagger": "2.0",
     "info": {
         "description": "This is a swagger documentation for the Midaz Ledger API",
-        "title": "Midaz Ledger API",
+        "title": "Midaz Onboarding API",
         "termsOfService": "http://swagger.io/terms/",
         "contact": {
             "name": "Discord community",
@@ -12,7 +12,7 @@
             "name": "Apache 2.0",
             "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
         },
-        "version": "1.0.0"
+        "version": "v1.48.0"
     },
     "host": "localhost:3000",
     "basePath": "/",
