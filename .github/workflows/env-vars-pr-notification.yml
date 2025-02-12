@@ -2,10 +2,10 @@ name: 'Notify DevOps Team on PR with .env.example file'
 
 on:
   push:
-    branches: 
-      -  'feature/MIDAZ-515'
+    branches:
+      - 'feature/MIDAZ-515'
     paths:
-      - 'components/*/.env.example'  #Tracking env vars file
+      - 'components/*/.env.example'  # Tracking env vars file
 
 jobs:
   notify_devops:
@@ -22,28 +22,33 @@ jobs:
         echo "Current branch:"
         git branch
         echo "Current commit history:"
-        git log --oneline -n 5  # Mostra os últimos 5 commits para verificar se o commit está presente
+        git log --oneline -n 5  # Shows the last 5 commits to verify if the commit is present
 
     - name: Check for changes in .env.example files
       run: |
         echo "Checking for changes in .env.example..."
-        if git diff --name-only fdcfab0165fee5bdf218abb52df9d9c925462a9b 847b4b22b926304ab57f130f447d09ff1285db47 | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'; then
-           echo "File .env.example changed!"
-           echo "file_changed=true" >> $GITHUB_ENV
-        else
-           echo "File .env.example not changed."
-           echo "file_changed=false" >> $GITHUB_ENV
-        fi
+        
+        # Defining the commits dynamically
+        PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+        CURRENT_COMMIT=$(git rev-parse HEAD)
 
-    - name: Send Slack Notification if file changedq
-      # Only send notification if the file was changed
-      if: env.file_changed == 'true'   
+        # Checking if .env.example files have changed
+        if git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'; then
+            echo "File .env.example changed!"
+            echo "file_changed=true" >> $GITHUB_ENV
+        else
+            echo "File .env.example not changed."
+            echo "file_changed=false" >> $GITHUB_ENV
+        fi
+        
+    - name: Send Slack Notification if file changed
+      if: env.file_changed == 'true'  # Only send notification if the file was changed
       uses: rtCamp/action-slack-notify@v2
       env:
         SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }}
-        SLACK_COLOR: "#ff0000"  # Red Color
+        SLACK_COLOR: "#ff0000"  # Red color
         SLACK_CHANNEL: "Marvin"
-        SLACK_ICON_EMOJI: ":memo"
+        SLACK_ICON_EMOJI: ":memo:"
         SLACK_TITLE: "New PR with .env.example changes!"
         SLACK_MESSAGE: |
             :bell: **A new PR has changes in the `.env.example` file!** :warning:
@@ -54,4 +59,3 @@ jobs:
             Please review the changes made to the `.env.example` file.
             
             @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
-      
