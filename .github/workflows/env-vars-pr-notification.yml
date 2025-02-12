@@ -32,8 +32,9 @@ jobs:
           PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
           CURRENT_COMMIT=$(git rev-parse HEAD)
           
-          # Obter o diff real, mas ignorando a linha com VERSION= (independente do valor)
-          CHANGED_FILES=$(git diff $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example' | grep -vE 'VERSION=[^ ]+')
+          # Obter o diff real, mas ignorando a linha com VERSION
+          CHANGED_FILES=$(git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- 'components/(audit|auth|infra|onboarding|mdz|transaction)/*.env.example' | grep -vE '^\+.*VERSION=' | grep -vE '^---' | grep -vE '^\+\+\+')
+
           
           # Verificando se há outras alterações, desconsiderando a linha VERSION
           if [ -n "$CHANGED_FILES" ]; then
