@@ -15,8 +15,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # This fetches the full commit history
-    
+          fetch-depth: 0  # Fetches the full commit history
+
       - name: Check the current branch
         run: |
           echo "Current branch:"
@@ -32,36 +32,5 @@ jobs:
           PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
           CURRENT_COMMIT=$(git rev-parse HEAD)
           
-          # Obter o diff real, mas ignorando a linha com VERSION
-          CHANGED_FILES=$(git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- 'components/(audit|auth|infra|ledger|mdz|transaction)/*.env.example' | grep -vE '^\+.*VERSION=' | grep -vE '^---' | grep -vE '^\+\+\+')
-
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
- 
-          # Verificando se há outras alterações, desconsiderando a linha VERSION
-          if [ -n "$CHANGED_FILES" ]; then
-              echo "File .env.example changed!"
-              echo "file_changed=true" >> $GITHUB_ENV
-          else
-              echo "File .env.example not changed."
-              echo "file_changed=false" >> $GITHUB_ENV
-          fi
-
-      - name: Send Slack Notification if file changed
-        if: env.file_changed == 'true'  # Only send notification if the file was changed
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }}
-          SLACK_COLOR: "#ff0000"  # Red color
-          SLACK_CHANNEL: "Marvin"
-          SLACK_ICON_EMOJI: ":memo:"
-          SLACK_TITLE: "New PR with .env.example changes!"
-          SLACK_MESSAGE: |
-            :bell: **A new PR has changes in the `.env.example` file!** :warning:
-            
-            **PR Title:** ${{ github.event.pull_request.title }}
-            **PR URL:** ${{ github.event.pull_request.html_url }}
-            
-            Please review the changes made to the `.env.example` file.
-            
-            @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
+          # Obter o diff real, mas ignorando qualquer linha com VERSION
+          CHANGED_FILES=$(git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- 'components/(audit|auth|infra|ledger
