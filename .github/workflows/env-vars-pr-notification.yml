@@ -43,7 +43,7 @@ jobs:
               CHANGED=true
               break
             fi
-          done
+          done  # Fechando o loop "for" aqui
 
           # Determinando se o arquivo mudou ou não
           if [ "$CHANGED" = true ]; then
@@ -52,6 +52,7 @@ jobs:
           else
             echo "File .env.example not changed."
             echo "file_changed=false" >> $GITHUB_ENV
+          fi  # Fechando o "if" aqui
 
       - name: Send Slack Notification if file changed
         if: env.file_changed == 'true'  # Only send notification if the file was changed
