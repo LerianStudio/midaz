@@ -41,7 +41,7 @@ jobs:
             echo "Checking file: $file"
             
             # Verificando as mudanças no arquivo, mas excluindo as linhas que começam com 'VERSION='
-            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '^\+VERSION=' | grep -q .; then
+            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '(^\+VERSION=.*|\-VERSION=.*)' | grep -q .; then
               echo "File $file has changes!"
               CHANGED=true
               break
