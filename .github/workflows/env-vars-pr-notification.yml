@@ -14,12 +14,21 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # This fetches the full commit history
+    
+    - name: Check the current branch
+      run: |
+        echo "Current branch:"
+        git branch
+        echo "Current commit history:"
+        git log --oneline -n 5  # Mostra os últimos 5 commits para verificar se o commit está presente
     
     - name: Check if .env.example was changed
       id: check_env_example_fetch
       run: |
         git config --global fetch.depth 0  # Ensures full history is available
-        git fetch --prune
+        git fetch --all -prune
 
     - name: Check if .env.example was changed
       id: check_env_example_diff
@@ -32,7 +41,7 @@ jobs:
           echo "file_changed=false" >> $GITHUB_ENV
         fi
 
-    - name: Send Slack Notification if file changed
+    - name: Send Slack Notification if file changedq
       # Only send notification if the file was changed
       if: env.file_changed == 'true'   
       uses: rtCamp/action-slack-notify@v2
