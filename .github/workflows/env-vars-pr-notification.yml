@@ -32,10 +32,11 @@ jobs:
           PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
           CURRENT_COMMIT=$(git rev-parse HEAD)
 
-          # Checking if .env.example files have changed, excluding VERSION= changes
+          # Checking for changes in .env.example files, excluding VERSION changes
           CHANGED=false
           for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
-            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | sed '/^+VERSION=/d' | grep -q .; then
+            # Checking if the file changed excluding lines with 'VERSION='
+            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '^\+VERSION=' | grep -q .; then
               echo "File $file changed!"
               CHANGED=true
               break
@@ -48,7 +49,6 @@ jobs:
           else
             echo "File .env.example not changed."
             echo "file_changed=false" >> $GITHUB_ENV
-          fi
 
       - name: Send Slack Notification if file changed
         if: env.file_changed == 'true'  # Only send notification if the file was changed
