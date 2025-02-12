@@ -27,13 +27,16 @@ jobs:
     - name: Check for changes in .env.example files
       run: |
         echo "Checking for changes in .env.example..."
-        
-        # Defining the commits dynamically
+      
+# Definindo os commits dinamicamente
         PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
         CURRENT_COMMIT=$(git rev-parse HEAD)
-
-        # Checking if .env.example files have changed
-        if git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'; then
+      
+# Obter o diff real, mas ignorando a linha com VERSION= (independente do valor)
+        CHANGED_FILES=$(git diff $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example' | grep -vE 'VERSION=[^ ]+')
+      
+# Verificando se há outras alterações, desconsiderando a linha VERSION
+        if [ -n "$CHANGED_FILES" ]; then
             echo "File .env.example changed!"
             echo "file_changed=true" >> $GITHUB_ENV
         else
