@@ -22,12 +22,12 @@ jobs:
         echo "Current branch:"
         git branch
         echo "Current commit history:"
-        git log --oneline -n 5  # Mostra os últimos 5 commits para verificar se o commit está presente
+        git log --oneline -n 5
     
     - name: Check if .env.example was changed
       id: check_env_example_fetch
       run: |
-        git config --global fetch.depth 0  # Ensures full history is available
+        git config --global fetch.depth 0
         git fetch --all -prune
 
     - name: Check if .env.example was changed
