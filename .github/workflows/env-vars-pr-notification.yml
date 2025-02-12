@@ -41,14 +41,16 @@ jobs:
               CHANGED=true
               break
             fi
-          done
+          done  # Aqui estava faltando o fechamento do loop for
 
+          # Abaixo corrigido o fechamento do bloco if
           if [ "$CHANGED" = true ]; then
             echo "File .env.example changed!"
             echo "file_changed=true" >> $GITHUB_ENV
           else
             echo "File .env.example not changed."
             echo "file_changed=false" >> $GITHUB_ENV
+          fi  # Aqui estava faltando o fechamento do bloco if
 
       - name: Send Slack Notification if file changed
         if: env.file_changed == 'true'  # Only send notification if the file was changed
@@ -66,3 +68,5 @@ jobs:
             **PR URL:** ${{ github.event.pull_request.html_url }}
             
             Please review the changes made to the `.env.example` file.
+            
+            @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
