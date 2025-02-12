@@ -34,7 +34,8 @@ jobs:
 
           # Checking if .env.example files have changed, excluding VERSION= changes
           if git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example' | while read file; do
-            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -qv '^\+VERSION='; then
+            # Check if the change is only on the VERSION= line, if yes, skip it
+            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '^\+VERSION=' | grep -q .; then
               echo "File $file changed!"
               echo "file_changed=true" >> $GITHUB_ENV
               break
