@@ -34,23 +34,24 @@ jobs:
 
           # Checking for changes in .env.example files, excluding VERSION changes
           CHANGED=false
+          
+          # Verificando se os arquivos .env.example mudaram
           for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
-            # Checking if the file changed excluding lines with 'VERSION='
+            # Verificando as mudanças no arquivo, mas excluindo as linhas que começam com 'VERSION='
             if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '^\+VERSION=' | grep -q .; then
               echo "File $file changed!"
               CHANGED=true
               break
             fi
-          done  # Aqui estava faltando o fechamento do loop for
+          done
 
-          # Abaixo corrigido o fechamento do bloco if
+          # Determinando se o arquivo mudou ou não
           if [ "$CHANGED" = true ]; then
             echo "File .env.example changed!"
             echo "file_changed=true" >> $GITHUB_ENV
           else
             echo "File .env.example not changed."
             echo "file_changed=false" >> $GITHUB_ENV
-          fi  # Aqui estava faltando o fechamento do bloco if
 
       - name: Send Slack Notification if file changed
         if: env.file_changed == 'true'  # Only send notification if the file was changed
