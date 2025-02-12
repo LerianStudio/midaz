@@ -2,12 +2,14 @@ package command
 
 import (
 	"context"
+	"errors"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -36,8 +38,17 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, logger mlog.Logger, organ
 	err = uc.BalanceRepo.SelectForUpdate(ctx, organizationID, ledgerID, balancesToUpdate)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update balances on database", err)
-
 		logger.Error("Failed to update balances on database", err.Error())
+
+		var pgErr *pgconn.ConnectError
+		if errors.As(err, &pgErr) {
+			logger.Error("AAAAAAA >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>", pgErr.Error())
+		}
+
+		err = uc.SendBalanceQueueRetry(ctx, organizationID, ledgerID, balancesToUpdate)
+		if err == nil {
+			logger.Error("Balances updates sent to queue retry")
+		}
 
 		return err
 	}
