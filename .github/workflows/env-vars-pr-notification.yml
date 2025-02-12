@@ -40,7 +40,7 @@ jobs:
       if: env.file_changed == 'true'   
       uses: rtCamp/action-slack-notify@v2
       env:
-        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}  
+        SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }}
         SLACK_COLOR: "#ff0000"  # Red Color
         SLACK_CHANNEL: "Marvin"
         SLACK_ICON_EMOJI: ":memo"
