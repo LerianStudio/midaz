@@ -43,7 +43,7 @@ jobs:
             fi
           done
 
-          if $CHANGED; then
+          if [ "$CHANGED" = true ]; then
             echo "File .env.example changed!"
             echo "file_changed=true" >> $GITHUB_ENV
           else
@@ -66,5 +66,3 @@ jobs:
             **PR URL:** ${{ github.event.pull_request.html_url }}
             
             Please review the changes made to the `.env.example` file.
-            
-            @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
