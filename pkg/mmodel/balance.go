@@ -29,6 +29,11 @@ type Balance struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
+type UpdateBalance struct {
+	AllowSending   bool `json:"allowSending" example:"true"`
+	AllowReceiving bool `json:"allowReceiving" example:"true"`
+}
+
 // IDtoUUID is a func that convert UUID string to uuid.UUID
 func (b *Balance) IDtoUUID() uuid.UUID {
 	return uuid.MustParse(b.ID)

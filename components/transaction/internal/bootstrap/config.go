@@ -193,9 +193,14 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
+	balanceHandler := &in.BalanceHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
+	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

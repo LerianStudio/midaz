@@ -8,7 +8,10 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"reflect"
@@ -22,9 +25,14 @@ import (
 //go:generate mockgen --destination=balance.mock.go --package=balance . Repository
 type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) error
+	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)
+	ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error)
+	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
+	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
@@ -184,6 +192,227 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 	}
 
 	return balances, nil
+}
+
+// ListAll list Balances entity from the database.
+func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_all_balances")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	balances := make([]*mmodel.Balance, 0)
+
+	decodedCursor := http.Cursor{}
+	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = http.DecodeCursor(filter.Cursor)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+	}
+
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var balance BalancePostgreSQLModel
+		if err = rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.AssetCode,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Scale,
+			&balance.Version,
+			&balance.AccountType,
+			&balance.AllowSending,
+			&balance.AllowReceiving,
+			&balance.CreatedAt,
+			&balance.UpdatedAt,
+			&balance.DeletedAt,
+		); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err = rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	hasPagination := len(balances) > filter.Limit
+
+	balances = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, balances, filter.Limit, orderDirection)
+
+	cur := http.CursorPagination{}
+	if len(balances) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, balances[0].ID, balances[len(balances)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+	}
+
+	return balances, cur, nil
+}
+
+// ListAllByAccountID list Balances entity from the database using the provided accountID.
+func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_all_balances_by_account_id")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	balances := make([]*mmodel.Balance, 0)
+
+	decodedCursor := http.Cursor{}
+	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
+	orderDirection := strings.ToUpper(filter.SortOrder)
+
+	if !isFirstPage {
+		decodedCursor, err = http.DecodeCursor(filter.Cursor)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+	}
+
+	findAll := squirrel.Select("*").
+		From(r.tableName).
+		Where(squirrel.Expr("organization_id = ?", organizationID)).
+		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
+		Where(squirrel.Expr("account_id = ?", accountID)).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
+		PlaceholderFormat(squirrel.Dollar)
+
+	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
+
+	query, args, err := findAll.ToSql()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.list_all_by_account_id.query")
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to get operations on repo", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+	defer rows.Close()
+
+	spanQuery.End()
+
+	for rows.Next() {
+		var balance BalancePostgreSQLModel
+		if err = rows.Scan(
+			&balance.ID,
+			&balance.OrganizationID,
+			&balance.LedgerID,
+			&balance.AccountID,
+			&balance.Alias,
+			&balance.AssetCode,
+			&balance.Available,
+			&balance.OnHold,
+			&balance.Scale,
+			&balance.Version,
+			&balance.AccountType,
+			&balance.AllowSending,
+			&balance.AllowReceiving,
+			&balance.CreatedAt,
+			&balance.UpdatedAt,
+			&balance.DeletedAt,
+		); err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+
+		balances = append(balances, balance.ToEntity())
+	}
+
+	if err = rows.Err(); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+
+		return nil, http.CursorPagination{}, err
+	}
+
+	hasPagination := len(balances) > filter.Limit
+
+	balances = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, balances, filter.Limit, orderDirection)
+
+	cur := http.CursorPagination{}
+	if len(balances) > 0 {
+		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, balances[0].ID, balances[len(balances)-1].ID)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
+
+			return nil, http.CursorPagination{}, err
+		}
+	}
+
+	return balances, cur, nil
 }
 
 // ListByAliases list Balances entity from the database using the provided aliases.
@@ -367,6 +596,152 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		mopentelemetry.HandleSpanError(&span, "Failed to commit balances", err)
 
 		return commitErr
+	}
+
+	return nil
+}
+
+// Find retrieves a balance entity from the database using the provided ID.
+func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.find_balance")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	balance := &BalancePostgreSQLModel{}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.find.query")
+
+	row := db.QueryRowContext(ctx, "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL",
+		organizationID, ledgerID, id)
+
+	spanQuery.End()
+
+	if err = row.Scan(
+		&balance.ID,
+		&balance.OrganizationID,
+		&balance.LedgerID,
+		&balance.AccountID,
+		&balance.Alias,
+		&balance.AssetCode,
+		&balance.Available,
+		&balance.OnHold,
+		&balance.Scale,
+		&balance.Version,
+		&balance.AccountType,
+		&balance.AllowSending,
+		&balance.AllowReceiving,
+		&balance.CreatedAt,
+		&balance.UpdatedAt,
+		&balance.DeletedAt,
+	); err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+		}
+
+		return nil, err
+	}
+
+	return balance.ToEntity(), nil
+}
+
+// Delete marks a balance as deleted in the database using the ID provided
+func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.delete_balance")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.delete.exec")
+
+	result, err := db.ExecContext(ctx, `
+		UPDATE balance 
+		SET deleted_at = NOW()
+		WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
+		organizationID, ledgerID, id,
+	)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "failed to execute delete query", err)
+		return err
+	}
+	spanQuery.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	if rowsAffected == 0 {
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to delete balance. Rows affected is 0", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// Update updates the allow_sending and allow_receiving fields of a Balance in the database.
+func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error {
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.update_balance")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	ctx, spanQuery := tracer.Start(ctx, "postgres.update.exec")
+
+	result, err := db.ExecContext(ctx, `
+		UPDATE balance 
+		SET allow_sending = $1, allow_receiving = $2, updated_at = NOW()
+		WHERE organization_id = $3 AND ledger_id = $4 AND id = $5 AND deleted_at IS NULL`,
+		balance.AllowSending, balance.AllowReceiving, organizationID, ledgerID, id,
+	)
+
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "failed to execute update query", err)
+		return err
+	}
+	spanQuery.End()
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+
+		return err
+	}
+
+	if rowsAffected == 0 {
+		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
+
+		mopentelemetry.HandleSpanError(&span, "Failed to update balance. Rows affected is 0", err)
+
+		return err
 	}
 
 	return nil
