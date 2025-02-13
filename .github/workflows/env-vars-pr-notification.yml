@@ -44,22 +44,21 @@ jobs:
             
             # Verificando as mudanças no arquivo, mas excluindo as linhas que começam com 'VERSION='
             if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '(^\+VERSION=.*$|^\-VERSION=.*$)' | grep -q .; then
-              echo "File $file has changes!"
+               echo "File $file has changes!"
               CHANGED=true
               break
             else
               echo "No relevant changes in $file"
             fi
-          done  # Aqui eu fecho o loop
 
-          # Determinando se o arquivo mudou ou não
-          if [ "$CHANGED" = true ]; then
-            echo "File .env.example changed!"
-            echo "file_changed=true" >> $GITHUB_ENV
-          else
-            echo "File .env.example not changed."
-            echo "file_changed=false" >> $GITHUB_ENV
-          fi  # Fechando o "if" aqui
+            # Determinando se o arquivo mudou ou não
+            if [ "$CHANGED" = true ]; then
+              echo "File .env.example changed!"
+              echo "file_changed=true" >> $GITHUB_ENV
+            else
+              echo "File .env.example not changed."
+              echo "file_changed=false" >> $GITHUB_ENV
+            fi
 
       - name: Send Slack Notification if file changed
         if: env.file_changed == 'true'  # Only send notification if the file was changed
