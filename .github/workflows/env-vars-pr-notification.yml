@@ -39,26 +39,24 @@ jobs:
           for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
             # Exibindo qual arquivo estamos verificando
             echo "Checking file: $file"
-
-            git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file"
             
             # Verificando as mudanças no arquivo, mas excluindo as linhas que começam com 'VERSION='
-            if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '(^\+VERSION=.*$|^\-VERSION=.*$)' | grep -q .; then
-               echo "File $file has changes!"
-               CHANGED=true
-               break
+            if git diff --ignore-matching-lines='^VERSION=.*' $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -q .; then
+              echo "File $file has changes!"
+              CHANGED=true
+              break
             else
-               echo "No relevant changes in $file"
+              echo "No relevant changes in $file"
             fi
+          done  # Fechando o loop "for" aqui
 
-            # Determinando se o arquivo mudou ou não
-            if [ "$CHANGED" = true ]; then
-              echo "File .env.example changed!"
-              echo "file_changed=true" >> $GITHUB_ENV
-            else
-              echo "File .env.example not changed."
-              echo "file_changed=false" >> $GITHUB_ENV
-            fi
+          # Determinando se o arquivo mudou ou não
+          if [ "$CHANGED" = true ]; then
+            echo "File .env.example changed!"
+            echo "file_changed=true" >> $GITHUB_ENV
+          else
+            echo "File .env.example not changed."
+            echo "file_changed=false" >> $GITHUB_ENV
 
       - name: Send Slack Notification if file changed
         if: env.file_changed == 'true'  # Only send notification if the file was changed
