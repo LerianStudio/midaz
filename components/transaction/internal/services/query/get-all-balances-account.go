@@ -16,16 +16,16 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, http.CursorPagination, error) {
+func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, http.CursorPagination, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_all_balances")
+	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_account_id")
 	defer span.End()
 
-	logger.Infof("Retrieving all balances")
+	logger.Infof("Retrieving all balances by account")
 
-	balance, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to get balances on repo", err)
 
