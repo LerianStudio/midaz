@@ -1,9 +1,9 @@
 name: 'Notify DevOps Team on PR with .env.example file'
 
 on:
-  push:
+  pull_request:
     branches:
-      - 'feature/MIDAZ-515'
+      - 'main'  # Apenas para PRs direcionados para a main
     paths:
       - 'components/*/.env.example'  # Tracking env vars file
 
