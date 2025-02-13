@@ -50,7 +50,7 @@ jobs:
             fi
           done  # Fechando o loop "for" aqui
 
-          # Determinando se o arquivo mudou ou não
+          # Determinando se o arquivo mudou ou não (fora do loop)
           if [ "$CHANGED" = true ]; then
             echo "File .env.example changed!"
             echo "file_changed=true" >> $GITHUB_ENV
