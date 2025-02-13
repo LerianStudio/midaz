@@ -39,6 +39,8 @@ jobs:
           for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
             # Exibindo qual arquivo estamos verificando
             echo "Checking file: $file"
+
+            git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file"
             
             # Verificando as mudanças no arquivo, mas excluindo as linhas que começam com 'VERSION='
             if git diff $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -vE '(^\+VERSION=.*|\-VERSION=.*)' | grep -q .; then
@@ -48,7 +50,7 @@ jobs:
             else
               echo "No relevant changes in $file"
             fi
-          done  # Fechando o loop "for" aqui
+          done  # Aqui eu fecho o loop
 
           # Determinando se o arquivo mudou ou não
           if [ "$CHANGED" = true ]; then
