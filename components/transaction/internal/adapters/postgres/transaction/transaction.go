@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
@@ -140,8 +141,14 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
+
+	ID := pkg.GenerateUUIDv7().String()
+	if transaction.ID != "" {
+		ID = transaction.ID
+	}
+
 	*t = TransactionPostgreSQLModel{
-		ID:                       pkg.GenerateUUIDv7().String(),
+		ID:                       ID,
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
 		Template:                 transaction.Template,
@@ -229,4 +236,11 @@ func (t Transaction) TransactionRevert() goldModel.Transaction {
 	}
 
 	return transaction
+}
+
+// TransactionQueue this is a struct that is responsible to send and receive from queue.
+type TransactionQueue struct {
+	Validate    *goldModel.Responses
+	Balances    []*mmodel.Balance
+	Transaction *Transaction
 }

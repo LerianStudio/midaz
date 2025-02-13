@@ -26,7 +26,7 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 
 	// Registry handlers for each queue
 	routes.Register(os.Getenv("RABBITMQ_QUEUE"), consumer.handlerBalanceCreateQueue)
-	routes.Register(os.Getenv("RABBITMQ_BALANCE_RETRY_QUEUE"), consumer.handlerBalanceUpdateQueue)
+	routes.Register(os.Getenv("RABBITMQ_BALANCE_RETRY_QUEUE"), consumer.handlerBTOQueue)
 
 	return consumer
 }
@@ -71,8 +71,8 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 	return nil
 }
 
-// handlerBalanceUpdateQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
-func (mq *MultiQueueConsumer) handlerBalanceUpdateQueue(ctx context.Context, body []byte) error {
+// handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
+func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -92,7 +92,16 @@ func (mq *MultiQueueConsumer) handlerBalanceUpdateQueue(ctx context.Context, bod
 		return err
 	}
 
-	logger.Infof("Balance message consumed: %s", message.OrganizationID)
+	logger.Infof("Transaction message consumed: %s", message.QueueData[0].ID)
+
+	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Error creating transaction", err)
+
+		logger.Errorf("Error creating transaction: %v", err)
+
+		return err
+	}
 
 	return nil
 }
