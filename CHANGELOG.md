@@ -1,3 +1,10 @@
+## [1.48.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.3...v1.48.0-beta.4) (2025-02-13)
+
+
+### Bug Fixes
+
+* make name required when creating asset :bug: ([58f7fd6](https://github.com/LerianStudio/midaz/commit/58f7fd6bd39359ad26e56b3392c3a5a6c145bcc9))
+
 ## [1.48.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.2...v1.48.0-beta.3) (2025-02-11)
 
 
