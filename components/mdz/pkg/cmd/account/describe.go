@@ -74,7 +74,7 @@ func (f *factoryAccountDescribe) runE(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	account, err := f.repoAccount.GetByID(f.OrganizationID, f.LedgerID, f.PortfolioID, f.AccountID)
+	account, err := f.repoAccount.GetByID(f.OrganizationID, f.LedgerID, f.AccountID)
 	if err != nil {
 		return err
 	}

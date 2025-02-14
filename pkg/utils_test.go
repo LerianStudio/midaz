@@ -1,15 +1,12 @@
 package pkg
 
 import (
-	"context"
-	"errors"
 	"reflect"
 	"testing"
 
 	cn "github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	gomock "go.uber.org/mock/gomock"
 )
 
 func TestContains(t *testing.T) {
@@ -37,9 +34,9 @@ func TestContains(t *testing.T) {
 		},
 		{
 			name: "checks for integer value returns false because the value entered is not in the list", args: args{
-			slice: []any{1, 2, 3, 4, 5},
-			item:  11,
-		},
+				slice: []any{1, 2, 3, 4, 5},
+				item:  11,
+			},
 			want: false,
 		},
 		{
@@ -467,115 +464,6 @@ func TestMergeMaps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MergeMaps(tt.source, tt.target)
 			assert.Equal(t, tt.expected, result, "Result mismatch for test case: %s", tt.name)
-		})
-	}
-}
-
-func TestGetCPUUsage(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	tests := []struct {
-		name         string
-		mockResponse []byte
-		mockError    error
-		expected     int64
-		expectError  bool
-	}{
-		{
-			name:         "Valid CPU usage",
-			mockResponse: []byte("12.34"),
-			mockError:    nil,
-			expected:     12,
-			expectError:  false,
-		},
-		{
-			name:         "Error in executing command",
-			mockResponse: nil,
-			mockError:    errors.New("command failed"),
-			expected:     0,
-			expectError:  true,
-		},
-		{
-			name:         "Invalid output format",
-			mockResponse: []byte("invalid data"),
-			mockError:    nil,
-			expected:     0,
-			expectError:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockExecutor := NewMockSyscmdI(ctrl)
-			mockExecutor.EXPECT().ExecCmd(gomock.Any(), gomock.Any()).Return(tt.mockResponse, tt.mockError)
-
-			ctx := context.Background()
-			result := GetCPUUsage(ctx, mockExecutor)
-
-			if tt.expectError {
-				assert.Equal(t, tt.expected, result)
-			} else {
-				assert.Equal(t, tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestGetMemUsage(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	tests := []struct {
-		name         string
-		mockResponse []byte
-		mockError    error
-		expected     int64
-		expectError  bool
-	}{
-		{
-			name:         "Valid memory usage",
-			mockResponse: []byte("42.5"),
-			mockError:    nil,
-			expected:     42, // Esperado arredondamento para int64
-			expectError:  false,
-		},
-		{
-			name:         "Error in executing command",
-			mockResponse: nil,
-			mockError:    errors.New("command failed"),
-			expected:     0,
-			expectError:  true,
-		},
-		{
-			name:         "Invalid output format",
-			mockResponse: []byte("invalid data"),
-			mockError:    nil,
-			expected:     0,
-			expectError:  true,
-		},
-		{
-			name:         "Empty output",
-			mockResponse: []byte(""),
-			mockError:    nil,
-			expected:     0,
-			expectError:  true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockExecutor := NewMockSyscmdI(ctrl)
-			mockExecutor.EXPECT().ExecCmd(gomock.Any(), gomock.Any()).Return(tt.mockResponse, tt.mockError)
-
-			ctx := context.Background()
-			result := GetMemUsage(ctx, mockExecutor)
-
-			if tt.expectError {
-				assert.Equal(t, tt.expected, result)
-			} else {
-				assert.Equal(t, tt.expected, result)
-			}
 		})
 	}
 }

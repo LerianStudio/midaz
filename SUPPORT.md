@@ -6,7 +6,7 @@ In our repository, there is a section for discussing Midaz using the Discussions
 
 ### Channels
 
-1. **Github:** Enter our public repository and join the [Discussions](https://github.com/LerianStudio/midaz-private/discussions).
+1. **GitHub:** Enter our public repository and join the [Discussions](https://github.com/LerianStudio/midaz-private/discussions).
 2. **Discord**: Enter our [Discord](https://discord.gg/DnhqKwkGv3).
 
 **Pick an Issue, Share Ideas and Questions**: Check out the open issues, ideas and questions labeled for beginners or propose your own project.

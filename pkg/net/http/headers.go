@@ -6,7 +6,7 @@ const (
 	headerForwardedFor = "X-Forwarded-For"
 	dsl                = "dsl"
 	fileExtension      = ".gold"
-	HeaderMidazID      = "X-Midaz-Id"
+	HeaderMidazID      = "X-Request-Id"
 	idempotencyKey     = "X-Idempotency"
 	idempotencyTTL     = "X-TTL"
 )

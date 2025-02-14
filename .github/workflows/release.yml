@@ -26,7 +26,7 @@ jobs:
     name: Integration test
     runs-on: ubuntu-24.04
     env:
-      WORKING_DIR: components/ledger
+      WORKING_DIR: components/onboarding
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +42,7 @@ jobs:
     environment:
       name: create_release
     env:
-      WORKING_DIR: components/ledger
+      WORKING_DIR: components/onboarding
     name: Create release to Midaz
     steps:
     - uses: actions/create-github-app-token@v1

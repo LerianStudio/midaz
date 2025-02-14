@@ -22,7 +22,6 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -43,53 +42,53 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(ctx context.Context, operation *Operation) (*Operation, error) {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *Operation) (*Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, operation)
+	ret := m.ctrl.Call(m, "Create", arg0, arg1)
 	ret0, _ := ret[0].(*Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(ctx, operation any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, operation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1)
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, organizationID, ledgerID, id)
+	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockRepositoryMockRecorder) Delete(ctx, organizationID, ledgerID, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), ctx, organizationID, ledgerID, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3)
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error) {
+func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, organizationID, ledgerID, transactionID, id)
+	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, transactionID, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), ctx, organizationID, ledgerID, transactionID, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), arg0, arg1, arg2, arg3, arg4)
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAll(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, transactionID, filter)
+	ret := m.ctrl.Call(m, "FindAll", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].([]*Operation)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
@@ -97,15 +96,15 @@ func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID, 
 }
 
 // FindAll indicates an expected call of FindAll.
-func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, transactionID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAll(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, ledgerID, transactionID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), arg0, arg1, arg2, arg3, arg4)
 }
 
 // FindAllByAccount mocks base method.
-func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
+func (m *MockRepository) FindAllByAccount(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http.Pagination) ([]*Operation, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllByAccount", ctx, organizationID, ledgerID, accountID, filter)
+	ret := m.ctrl.Call(m, "FindAllByAccount", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].([]*Operation)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
@@ -113,83 +112,52 @@ func (m *MockRepository) FindAllByAccount(ctx context.Context, organizationID, l
 }
 
 // FindAllByAccount indicates an expected call of FindAllByAccount.
-func (mr *MockRepositoryMockRecorder) FindAllByAccount(ctx, organizationID, ledgerID, accountID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindAllByAccount(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAccount", reflect.TypeOf((*MockRepository)(nil).FindAllByAccount), ctx, organizationID, ledgerID, accountID, filter)
-}
-
-// FindAllByPortfolio mocks base method.
-func (m *MockRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindAllByPortfolio", ctx, organizationID, ledgerID, portfolioID, filter)
-	ret0, _ := ret[0].([]*Operation)
-	ret1, _ := ret[1].(http.CursorPagination)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-// FindAllByPortfolio indicates an expected call of FindAllByPortfolio.
-func (mr *MockRepositoryMockRecorder) FindAllByPortfolio(ctx, organizationID, ledgerID, portfolioID, filter any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByPortfolio", reflect.TypeOf((*MockRepository)(nil).FindAllByPortfolio), ctx, organizationID, ledgerID, portfolioID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAllByAccount", reflect.TypeOf((*MockRepository)(nil).FindAllByAccount), arg0, arg1, arg2, arg3, arg4)
 }
 
 // FindByAccount mocks base method.
-func (m *MockRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
+func (m *MockRepository) FindByAccount(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID) (*Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByAccount", ctx, organizationID, ledgerID, accountID, id)
+	ret := m.ctrl.Call(m, "FindByAccount", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(*Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FindByAccount indicates an expected call of FindByAccount.
-func (mr *MockRepositoryMockRecorder) FindByAccount(ctx, organizationID, ledgerID, accountID, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) FindByAccount(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAccount", reflect.TypeOf((*MockRepository)(nil).FindByAccount), ctx, organizationID, ledgerID, accountID, id)
-}
-
-// FindByPortfolio mocks base method.
-func (m *MockRepository) FindByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*Operation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByPortfolio", ctx, organizationID, ledgerID, portfolioID, id)
-	ret0, _ := ret[0].(*Operation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindByPortfolio indicates an expected call of FindByPortfolio.
-func (mr *MockRepositoryMockRecorder) FindByPortfolio(ctx, organizationID, ledgerID, portfolioID, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByPortfolio", reflect.TypeOf((*MockRepository)(nil).FindByPortfolio), ctx, organizationID, ledgerID, portfolioID, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByAccount", reflect.TypeOf((*MockRepository)(nil).FindByAccount), arg0, arg1, arg2, arg3, arg4)
 }
 
 // ListByIDs mocks base method.
-func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error) {
+func (m *MockRepository) ListByIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListByIDs", ctx, organizationID, ledgerID, ids)
+	ret := m.ctrl.Call(m, "ListByIDs", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListByIDs indicates an expected call of ListByIDs.
-func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, ids any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ListByIDs(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, ids)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), arg0, arg1, arg2, arg3)
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error) {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3, arg4 uuid.UUID, arg5 *Operation) (*Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, transactionID, id, operation)
+	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(*Operation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, transactionID, id, operation any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4, arg5 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, transactionID, id, operation)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4, arg5)
 }

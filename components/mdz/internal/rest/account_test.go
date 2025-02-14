@@ -40,7 +40,8 @@ func Test_account_Create(t *testing.T) {
 			Code:        statusCode,
 			Description: statusDescription,
 		},
-		Metadata: metadata,
+		PortfolioID: &portfolioID,
+		Metadata:    metadata,
 	}
 
 	expectedResult := &mmodel.Account{
@@ -65,8 +66,8 @@ func Test_account_Create(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts",
-		URIAPILedger, organizationID, ledgerID, portfolioID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts",
+		URIAPILedger, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPost, uri,
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/account_response_create.json"))
@@ -80,7 +81,7 @@ func Test_account_Create(t *testing.T) {
 
 	account := NewAccount(factory)
 
-	result, err := account.Create(organizationID, ledgerID, portfolioID, input)
+	result, err := account.Create(organizationID, ledgerID, input)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -161,8 +162,8 @@ func Test_account_Get(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, portfolioID, limit, page)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts?limit=%d&page=%d",
+		URIAPILedger, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/account_response_list.json"))
@@ -176,7 +177,7 @@ func Test_account_Get(t *testing.T) {
 
 	asset := NewAccount(factory)
 
-	result, err := asset.Get(organizationID, ledgerID, portfolioID, limit, page, "", "", "")
+	result, err := asset.Get(organizationID, ledgerID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -225,8 +226,8 @@ func Test_account_GetByID(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
-		URIAPILedger, organizationID, ledgerID, portfolioID, accountID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
+		URIAPILedger, organizationID, ledgerID, accountID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/account_response_describe.json"))
@@ -240,7 +241,7 @@ func Test_account_GetByID(t *testing.T) {
 
 	account := NewAccount(factory)
 
-	result, err := account.GetByID(organizationID, ledgerID, portfolioID, accountID)
+	result, err := account.GetByID(organizationID, ledgerID, accountID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedResult.ID, result.ID)
@@ -306,8 +307,8 @@ func Test_account_Update(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
-		URIAPILedger, organizationID, ledgerID, portfolioID, accountID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
+		URIAPILedger, organizationID, ledgerID, accountID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK,
@@ -322,7 +323,7 @@ func Test_account_Update(t *testing.T) {
 
 	account := NewAccount(factory)
 
-	result, err := account.Update(organizationID, ledgerID, portfolioID, accountID, inp)
+	result, err := account.Update(organizationID, ledgerID, accountID, inp)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -343,7 +344,6 @@ func Test_account_Update(t *testing.T) {
 func Test_account_Delete(t *testing.T) {
 	organizationID := "01933f94-67b1-794c-bb13-6b75aed7591a"
 	ledgerID := "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61"
-	portfolioID := "01933f94-d329-76fe-8de0-40559c7b282d"
 	accountID := "01933f96-ed04-7c57-be5b-c091388830f8"
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -352,8 +352,8 @@ func Test_account_Delete(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s/accounts/%s",
-		URIAPILedger, organizationID, ledgerID, portfolioID, accountID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
+		URIAPILedger, organizationID, ledgerID, accountID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -367,7 +367,7 @@ func Test_account_Delete(t *testing.T) {
 
 	account := NewAccount(factory)
 
-	err := account.Delete(organizationID, ledgerID, portfolioID, accountID)
+	err := account.Delete(organizationID, ledgerID, accountID)
 
 	assert.NoError(t, err)
 

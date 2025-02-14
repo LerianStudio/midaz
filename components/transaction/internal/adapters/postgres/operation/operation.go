@@ -14,19 +14,19 @@ type OperationPostgreSQLModel struct {
 	Description           string
 	Type                  string
 	AssetCode             string
-	Amount                *float64
-	AmountScale           *float64
-	AvailableBalance      *float64
-	BalanceScale          *float64
-	OnHoldBalance         *float64
-	AvailableBalanceAfter *float64
-	OnHoldBalanceAfter    *float64
-	BalanceScaleAfter     *float64
+	Amount                *int64
+	AmountScale           *int64
+	AvailableBalance      *int64
+	BalanceScale          *int64
+	OnHoldBalance         *int64
+	AvailableBalanceAfter *int64
+	OnHoldBalanceAfter    *int64
+	BalanceScaleAfter     *int64
 	Status                string
 	StatusDescription     *string
 	AccountID             string
 	AccountAlias          string
-	PortfolioID           *string
+	BalanceID             string
 	ChartOfAccounts       string
 	OrganizationID        string
 	LedgerID              string
@@ -55,8 +55,8 @@ func (s Status) IsEmpty() bool {
 // swagger:model Amount
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
-	Amount *float64 `json:"amount" example:"1500"`
-	Scale  *float64 `json:"scale" example:"2"`
+	Amount *int64 `json:"amount" example:"1500"`
+	Scale  *int64 `json:"scale" example:"2"`
 } // @name Amount
 
 // IsEmpty method that set empty or nil in fields
@@ -69,9 +69,9 @@ func (a Amount) IsEmpty() bool {
 // swagger:model Balance
 // @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
-	Available *float64 `json:"available" example:"1500"`
-	OnHold    *float64 `json:"onHold" example:"500"`
-	Scale     *float64 `json:"scale" example:"2"`
+	Available *int64 `json:"available" example:"1500"`
+	OnHold    *int64 `json:"onHold" example:"500"`
+	Scale     *int64 `json:"scale" example:"2"`
 } // @name Balance
 
 // IsEmpty method that set empty or nil in fields
@@ -96,7 +96,7 @@ type Operation struct {
 	Status          Status         `json:"status"`
 	AccountID       string         `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
 	AccountAlias    string         `json:"accountAlias" example:"@person1"`
-	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
+	BalanceID       string         `json:"balanceId" example:"00000000-0000-0000-0000-000000000000"`
 	OrganizationID  string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
 	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
@@ -144,7 +144,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 		AccountAlias:    t.AccountAlias,
 		LedgerID:        t.LedgerID,
 		OrganizationID:  t.OrganizationID,
-		PortfolioID:     t.PortfolioID,
+		BalanceID:       t.BalanceID,
 		CreatedAt:       t.CreatedAt,
 		UpdatedAt:       t.UpdatedAt,
 		DeletedAt:       nil,
@@ -179,7 +179,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 		StatusDescription:     operation.Status.Description,
 		AccountID:             operation.AccountID,
 		AccountAlias:          operation.AccountAlias,
-		PortfolioID:           operation.PortfolioID,
+		BalanceID:             operation.BalanceID,
 		LedgerID:              operation.LedgerID,
 		OrganizationID:        operation.OrganizationID,
 		CreatedAt:             operation.CreatedAt,
@@ -189,10 +189,6 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
-	}
-
-	if pkg.IsNilOrEmpty(operation.PortfolioID) {
-		t.PortfolioID = nil
 	}
 }
 
@@ -218,7 +214,7 @@ type OperationLog struct {
 	Status          Status    `json:"status"`
 	AccountID       string    `json:"accountId" example:"00000000-0000-0000-0000-000000000000"`
 	AccountAlias    string    `json:"accountAlias" example:"@person1"`
-	PortfolioID     *string   `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
+	BalanceID       string    `json:"balanceId" example:"00000000-0000-0000-0000-000000000000"`
 	CreatedAt       time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 }
 
@@ -236,7 +232,7 @@ func (o *Operation) ToLog() *OperationLog {
 		Status:          o.Status,
 		AccountID:       o.AccountID,
 		AccountAlias:    o.AccountAlias,
-		PortfolioID:     o.PortfolioID,
+		BalanceID:       o.BalanceID,
 		CreatedAt:       o.CreatedAt,
 	}
 }

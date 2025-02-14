@@ -66,7 +66,7 @@ func Test_newCmdLedgerUpdate(t *testing.T) {
 			Metadata: metadata,
 		}
 
-		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(got, nil)
+		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(got, nil)
 
 		err := cmd.Execute()
 		assert.NoError(t, err)
@@ -126,7 +126,7 @@ func Test_newCmdLedgerUpdate(t *testing.T) {
 			Metadata: metadata,
 		}
 
-		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(got, nil)
+		mockRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(got, nil)
 
 		err := cmd.Execute()
 		assert.NoError(t, err)

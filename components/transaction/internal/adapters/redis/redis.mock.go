@@ -14,6 +14,8 @@ import (
 	reflect "reflect"
 	time "time"
 
+	model "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -81,6 +83,21 @@ func (m *MockRedisRepository) Incr(arg0 context.Context, arg1 string) int64 {
 func (mr *MockRedisRepositoryMockRecorder) Incr(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incr", reflect.TypeOf((*MockRedisRepository)(nil).Incr), arg0, arg1)
+}
+
+// LockBalanceRedis mocks base method.
+func (m *MockRedisRepository) LockBalanceRedis(arg0 context.Context, arg1 string, arg2 mmodel.Balance, arg3 model.Amount, arg4 string) (*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockBalanceRedis", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockBalanceRedis indicates an expected call of LockBalanceRedis.
+func (mr *MockRedisRepositoryMockRecorder) LockBalanceRedis(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).LockBalanceRedis), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Set mocks base method.

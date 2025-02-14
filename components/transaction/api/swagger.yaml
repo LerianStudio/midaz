@@ -65,13 +65,13 @@ definitions:
     properties:
       available:
         example: 1500
-        type: number
+        type: integer
       onHold:
         example: 500
-        type: number
+        type: integer
       scale:
         example: 2
-        type: number
+        type: integer
     type: object
   CreateAssetRateInput:
     description: CreateAssetRateInput is the input payload to create an asset rate.
@@ -188,6 +188,9 @@ definitions:
         $ref: '#/definitions/Balance'
       balanceAfter:
         $ref: '#/definitions/Balance'
+      balanceId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
       chartOfAccounts:
         example: "1000"
         type: string
@@ -210,9 +213,6 @@ definitions:
         additionalProperties: {}
         type: object
       organizationId:
-        example: 00000000-0000-0000-0000-000000000000
-        type: string
-      portfolioId:
         example: 00000000-0000-0000-0000-000000000000
         type: string
       status:
@@ -419,7 +419,7 @@ definitions:
         additionalProperties: {}
         type: object
     type: object
-host: localhost:3002
+host: localhost:3001
 info:
   contact:
     name: Discord community
@@ -430,7 +430,7 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Transaction API
-  version: 1.0.0
+  version: v1.48.0
 paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
     get:
@@ -708,124 +708,6 @@ paths:
       summary: Get an AssetRate by the Asset Code
       tags:
       - Asset Rates
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
-    get:
-      description: Get all Operations with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - default: 10
-        description: Limit
-        in: query
-        name: limit
-        type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        type: string
-      - description: End Date
-        in: query
-        name: end_date
-        type: string
-      - description: Sort Order
-        enum:
-        - asc
-        - desc
-        in: query
-        name: sort_order
-        type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/Pagination'
-            - properties:
-                items:
-                  items:
-                    $ref: '#/definitions/Operation'
-                  type: array
-                limit:
-                  type: integer
-                next_cursor:
-                  type: string
-                prev_cursor:
-                  type: string
-              type: object
-      summary: Get all Operations by portfolio
-      tags:
-      - Operations
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}:
-    get:
-      description: Get an Operation with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        type: string
-      - description: Operation ID
-        in: path
-        name: operation_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Operation'
-      summary: Get an Operation by portfolio
-      tags:
-      - Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata

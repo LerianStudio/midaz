@@ -79,7 +79,7 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	accounts, err := f.repoAccount.Get(
-		f.OrganizationID, f.LedgerID, f.PortfolioID,
+		f.OrganizationID, f.LedgerID,
 		f.Limit, f.Page, f.SortOrder, f.StartDate, f.EndDate,
 	)
 	if err != nil {

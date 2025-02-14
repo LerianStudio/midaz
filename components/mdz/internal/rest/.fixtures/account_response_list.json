@@ -10,17 +10,10 @@
             "ledgerId": "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61",
             "portfolioId": "01933f94-d329-76fe-8de0-40559c7b282d",
             "segmentId": "01933f94-fbdf-7756-af37-ef32d0e3268b",
-            "balance": {
-                "available": 0,
-                "onHold": 0,
-                "scale": 0
-            },
             "status": {
                 "code": "CREDIT",
                 "description": "Teste Account"
             },
-            "allowSending": true,
-            "allowReceiving": true,
             "alias": "@wallet_25200376",
             "type": "creditCard",
             "createdAt": "2024-11-18T14:04:35.972791Z",
@@ -51,8 +44,6 @@
                 "code": "CREDIT",
                 "description": "Teste Account"
             },
-            "allowSending": true,
-            "allowReceiving": true,
             "alias": "@wallet_63396725",
             "type": "creditCard",
             "createdAt": "2024-11-18T14:04:27.524314Z",

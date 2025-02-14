@@ -9,6 +9,7 @@ type Queue struct {
 	OrganizationID uuid.UUID   `json:"organizationId"`
 	LedgerID       uuid.UUID   `json:"ledgerId"`
 	AuditID        uuid.UUID   `json:"auditId"`
+	AccountID      uuid.UUID   `json:"accountId"`
 	QueueData      []QueueData `json:"queueData"`
 }
 

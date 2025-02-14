@@ -7,7 +7,7 @@
       "tags":"administrator"
     },
     {
-      "name":"ledger",
+      "name":"onboarding",
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
@@ -39,7 +39,7 @@
       "read": ".*"
     },
     {
-      "user": "ledger",
+      "user": "onboarding",
       "vhost": "/",
       "configure": ".*",
       "write": ".*",
@@ -67,12 +67,7 @@
       "durable": true
     },
     {
-      "name": "transaction_operations_queue",
-      "vhost": "/",
-      "durable": true
-    },
-    {
-      "name": "ledger_accounts_queue",
+      "name": "transaction_balance_queue",
       "vhost": "/",
       "durable": true
     }
@@ -85,13 +80,7 @@
       "durable": true
     },
     {
-      "name": "transaction_operations_exchange",
-      "vhost": "/",
-      "type": "direct",
-      "durable": true
-    },
-    {
-      "name": "ledger_accounts_exchange",
+      "name": "transaction_balance_exchange",
       "vhost": "/",
       "type": "direct",
       "durable": true
@@ -106,18 +95,11 @@
       "routing_key": "audit_key"
     },
     {
-      "source": "transaction_operations_exchange",
+      "source": "transaction_balance_exchange",
       "vhost": "/",
-      "destination": "transaction_operations_queue",
+      "destination": "transaction_balance_queue",
       "destination_type": "queue",
-      "routing_key": "transaction_operations_key"
-    },
-    {
-      "source": "ledger_accounts_exchange",
-      "vhost": "/",
-      "destination": "ledger_accounts_queue",
-      "destination_type": "queue",
-      "routing_key": "ledger_accounts_key"
+      "routing_key": "transaction_balance_key"
     }
   ]
 }

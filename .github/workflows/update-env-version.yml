@@ -63,7 +63,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          VERSION=$(grep '^VERSION=' ./components/ledger/.env.example | cut -d '=' -f2)
+          VERSION=$(grep '^VERSION=' ./components/onboarding/.env.example | cut -d '=' -f2)
           echo "LEDGER version: $VERSION"
           echo "::set-output name=version::$VERSION"
 
@@ -75,7 +75,7 @@ jobs:
       - name: Update LEDGER Env
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version
         run: |
-          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/ledger/.env.example
+          sed -i "s/^VERSION=.*/VERSION=${{ steps.latest_release.outputs.tag }}/" ./components/onboarding/.env.example
 
       - name: Update TRANSACTION Env
         if: steps.latest_release.outputs.tag != steps.env_release.outputs.version

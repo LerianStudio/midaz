@@ -2,14 +2,13 @@ package http
 
 import (
 	"context"
-	"strings"
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"strings"
 
 	"github.com/LerianStudio/midaz/pkg"
 	cn "github.com/LerianStudio/midaz/pkg/constant"
@@ -131,17 +130,14 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 		return err
 	}
 
+	go pkg.GetCPUUsage(ctx, cpuGauge)
+
 	memGauge, err := otel.Meter(tm.ServiceName).Int64Gauge("system.mem.usage", metric.WithUnit("percentage"))
 	if err != nil {
 		return err
 	}
 
-	cmdExec := pkg.Syscmd{}
-	cpuUsage := pkg.GetCPUUsage(ctx, &cmdExec)
-	memUsage := pkg.GetMemUsage(ctx, &cmdExec)
-
-	cpuGauge.Record(ctx, cpuUsage)
-	memGauge.Record(ctx, memUsage)
+	go pkg.GetMemUsage(ctx, memGauge)
 
 	return nil
 }

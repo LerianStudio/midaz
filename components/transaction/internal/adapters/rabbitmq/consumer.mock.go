@@ -38,14 +38,28 @@ func (m *MockConsumerRepository) EXPECT() *MockConsumerRepositoryMockRecorder {
 	return m.recorder
 }
 
-// ConsumerDefault mocks base method.
-func (m *MockConsumerRepository) ConsumerDefault(arg0 chan string) {
+// Register mocks base method.
+func (m *MockConsumerRepository) Register(arg0 string, arg1 QueueHandlerFunc) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "ConsumerDefault", arg0)
+	m.ctrl.Call(m, "Register", arg0, arg1)
 }
 
-// ConsumerDefault indicates an expected call of ConsumerDefault.
-func (mr *MockConsumerRepositoryMockRecorder) ConsumerDefault(arg0 any) *gomock.Call {
+// Register indicates an expected call of Register.
+func (mr *MockConsumerRepositoryMockRecorder) Register(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConsumerDefault", reflect.TypeOf((*MockConsumerRepository)(nil).ConsumerDefault), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockConsumerRepository)(nil).Register), arg0, arg1)
+}
+
+// RunConsumers mocks base method.
+func (m *MockConsumerRepository) RunConsumers() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RunConsumers")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RunConsumers indicates an expected call of RunConsumers.
+func (mr *MockConsumerRepositoryMockRecorder) RunConsumers() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunConsumers", reflect.TypeOf((*MockConsumerRepository)(nil).RunConsumers))
 }
