@@ -112,6 +112,24 @@ services:
       midaz-postgres-primary:
         condition: service_healthy
 
+#  midaz-pgbouncer:
+#    image: pgbouncer/pgbouncer:latest
+#    container_name: midaz-pgbouncer
+#    restart: always
+#    ports:
+#      - ${DB_PGBOUNCER_PORT}:${DB_PGBOUNCER_PORT}
+#    volumes:
+#      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+#      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+#    command: ["/usr/local/bin/pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
+#    environment:
+#      - DATABASES_HOST=localhost
+#    networks:
+#      - infra_network
+#    depends_on:
+#      - midaz-postgres-primary
+#      - midaz-postgres-replica
+
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
