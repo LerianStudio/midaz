@@ -18,7 +18,7 @@ func TestUpdateBalanceSuccess(t *testing.T) {
 	ledgerID := pkg.GenerateUUIDv7()
 	balanceID := pkg.GenerateUUIDv7()
 
-	balanceUpdate := &mmodel.UpdateBalance{
+	balanceUpdate := mmodel.UpdateBalance{
 		AllowSending:   true,
 		AllowReceiving: false,
 	}
@@ -30,9 +30,9 @@ func TestUpdateBalanceSuccess(t *testing.T) {
 	uc.BalanceRepo.(*balance.MockRepository).
 		EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(balanceUpdate, nil).
+		Return(nil).
 		Times(1)
-	err := uc.BalanceRepo.Update(context.TODO(), organizationID, ledgerID, balanceID, *balanceUpdate)
+	err := uc.BalanceRepo.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
 
 	assert.Nil(t, err)
 }
