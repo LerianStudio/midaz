@@ -680,6 +680,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 		mopentelemetry.HandleSpanError(&span, "failed to execute delete query", err)
 		return err
 	}
+
 	spanQuery.End()
 
 	rowsAffected, err := result.RowsAffected()
@@ -727,6 +728,7 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		mopentelemetry.HandleSpanError(&span, "failed to execute update query", err)
 		return err
 	}
+
 	spanQuery.End()
 
 	rowsAffected, err := result.RowsAffected()

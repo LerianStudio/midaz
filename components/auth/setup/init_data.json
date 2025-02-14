@@ -817,6 +817,7 @@
         "segment",
         "transaction",
         "operation",
+        "balance",
         "asset-rate"
       ],
       "actions": [
@@ -882,6 +883,7 @@
         "segment",
         "transaction",
         "operation",
+        "balance",
         "asset-rate"
       ],
       "actions": [

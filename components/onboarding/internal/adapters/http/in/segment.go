@@ -29,7 +29,7 @@ type SegmentHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
+//	@Param			X-Request-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			segment			body		mmodel.CreateSegmentInput	true	"Segment"
@@ -77,7 +77,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 //	@Tags			Segments
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
@@ -164,7 +164,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 //	@Tags			Segments
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Segment ID"
@@ -206,7 +206,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string						false	"Request ID"
+//	@Param			X-Request-Id		header		string						false	"Request ID"
 //	@Param			organization_id	path		string						true	"Organization ID"
 //	@Param			ledger_id		path		string						true	"Ledger ID"
 //	@Param			id				path		string						true	"Segment ID"
@@ -266,7 +266,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 //	@Description	Delete a Segment with the input ID
 //	@Tags			Segments
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			X-Request-Id		header	string	false	"Request ID"
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			id				path	string	true	"Segment ID"

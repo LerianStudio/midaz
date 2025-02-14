@@ -64,6 +64,10 @@ INSERT INTO "casbin_lerian_enforcer_rule" ("ptype", "v0", "v1", "v2", "v3", "v4"
 ('p',	'developer_role',	'operation',	'get',	'',	'',	''),
 ('p',	'developer_role',	'operation',	'patch',	'',	'',	''),
 ('p',	'developer_role',	'operation',	'put',	'',	'',	''),
+('p',	'developer_role',	'balance',	'post',	'',	'',	''),
+('p',	'developer_role',	'balance',	'get',	'',	'',	''),
+('p',	'developer_role',	'balance',	'patch',	'',	'',	''),
+('p',	'developer_role',	'balance',	'put',	'',	'',	''),
 ('p',	'developer_role',	'asset-rate',	'put',	'',	'',	''),
 ('p',	'developer_role',	'asset-rate',	'get',	'',	'',	''),
 ('p',	'user_role',	'organization',	'get',	'',	'',	''),
@@ -74,6 +78,7 @@ INSERT INTO "casbin_lerian_enforcer_rule" ("ptype", "v0", "v1", "v2", "v3", "v4"
 ('p',	'user_role',	'account',	'get',	'',	'',	''),
 ('p',	'user_role',	'transaction',	'get',	'',	'',	''),
 ('p',	'user_role',	'operation',	'get',	'',	'',	''),
+('p',	'user_role',	'balance',	'get',	'',	'',	''),
 ('p',	'user_role',	'asset-rate',	'get',	'',	'',	''),
 ('p',	'grpc_role',	'account.AccountProto',	'*',	'',	'',	''),
 ('p',	'auditor_role',	'audit',	'get',	'',	'',	'');

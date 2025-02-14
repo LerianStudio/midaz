@@ -28,7 +28,7 @@ type BalanceHandler struct {
 //	@Tags			Balances
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
@@ -102,7 +102,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Tags			Balances
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
@@ -171,20 +171,20 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	return http.OK(c, pagination)
 }
 
-// GetBalanceById retrieves a balance by Id.
+// GetBalanceByID retrieves a balance by ID.
 //
 //	@Summary		Get Balance by id
 //	@Description	Get a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Success		200				{object}	mmodel.Balance
 //	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id [get]
-func (handler *BalanceHandler) GetBalanceById(c *fiber.Ctx) error {
+func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := pkg.NewLoggerFromContext(ctx)
@@ -213,20 +213,20 @@ func (handler *BalanceHandler) GetBalanceById(c *fiber.Ctx) error {
 	return http.OK(c, op)
 }
 
-// DeleteBalanceById delete a balance by Id.
+// DeleteBalanceByID delete a balance by ID.
 //
 //	@Summary		Delete Balance by account
 //	@Description	Delete a Balance with the input ID
 //	@Tags			Balances
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Success		200				{object}	mmodel.Balance
 //	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id [delete]
-func (handler *BalanceHandler) DeleteBalanceById(c *fiber.Ctx) error {
+func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := pkg.NewLoggerFromContext(ctx)
@@ -263,7 +263,7 @@ func (handler *BalanceHandler) DeleteBalanceById(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id	header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			balance_id		path		string							true	"Balance ID"

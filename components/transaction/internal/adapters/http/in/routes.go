@@ -54,9 +54,9 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 
 	//Balance
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetAllBalances)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetBalanceById)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetBalanceByID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetAllBalancesByAccountID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.DeleteBalanceById)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.DeleteBalanceByID)
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
 
 	// Health
