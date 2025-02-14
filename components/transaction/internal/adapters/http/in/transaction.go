@@ -1,7 +1,6 @@
 package in
 
 import (
-	"encoding/json"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -11,7 +10,6 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -628,29 +626,29 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	queueData := make([]mmodel.QueueData, 0)
+	//queueData := make([]mmodel.QueueData, 0)
+	//
+	//value := transaction.TransactionQueue{
+	//	Validate:    validate,
+	//	Balances:    balances,
+	//	Transaction: tran,
+	//}
+	//
+	//marshal, err := json.Marshal(value)
+	//queueData = append(queueData, mmodel.QueueData{
+	//	ID:    tran.IDtoUUID(),
+	//	Value: marshal,
+	//})
+	//
+	//queueMessage := mmodel.Queue{
+	//	OrganizationID: organizationID,
+	//	LedgerID:       ledgerID,
+	//	QueueData:      queueData,
+	//}
 
-	value := transaction.TransactionQueue{
-		Validate:    validate,
-		Balances:    balances,
-		Transaction: tran,
-	}
+	//go handler.Command.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
 
-	marshal, err := json.Marshal(value)
-	queueData = append(queueData, mmodel.QueueData{
-		ID:    tran.IDtoUUID(),
-		Value: marshal,
-	})
-
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		QueueData:      queueData,
-	}
-
-	go handler.Command.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
-
-	//go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, validate, balances, tran)
+	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, validate, balances, tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 

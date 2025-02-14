@@ -68,6 +68,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      PG_MAX_CONNECTIONS: 5000
     command: |
       postgres
       -c wal_level=replica
@@ -88,6 +89,7 @@ services:
       PGPORT: ${DB_REPLICA_PORT}
       PGUSER: ${REPLICATION_USER}
       PGPASSWORD: ${REPLICATION_PASSWORD}
+      PG_MAX_CONNECTIONS: 5000
     command: |
       bash -c "
       if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
@@ -112,23 +114,22 @@ services:
       midaz-postgres-primary:
         condition: service_healthy
 
-#  midaz-pgbouncer:
-#    image: pgbouncer/pgbouncer:latest
-#    container_name: midaz-pgbouncer
-#    restart: always
-#    ports:
-#      - ${DB_PGBOUNCER_PORT}:${DB_PGBOUNCER_PORT}
-#    volumes:
-#      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-#      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-#    command: ["/usr/local/bin/pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
-#    environment:
-#      - DATABASES_HOST=localhost
-#    networks:
-#      - infra_network
-#    depends_on:
-#      - midaz-postgres-primary
-#      - midaz-postgres-replica
+  midaz-pgbouncer:
+    image: edoburu/pgbouncer
+    container_name: midaz-pgbouncer
+    restart: always
+    ports:
+      - ${DB_PGBOUNCER_PORT}:${DB_PGBOUNCER_PORT}
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    environment:
+      - DATABASES_HOST=localhost
+    networks:
+      - infra_network
+    depends_on:
+      - midaz-postgres-primary
+      - midaz-postgres-replica
 
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
