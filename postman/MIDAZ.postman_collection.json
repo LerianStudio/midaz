@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "b65ce2ce-d594-48c4-9ff9-49f6af023cd3",
+		"_postman_id": "0ecc0d05-17e4-4ee8-8060-3e3a42b06884",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "32592108"
+		"_exporter_id": "41999946"
 	},
 	"item": [
 		{
@@ -2751,6 +2751,247 @@
 			]
 		},
 		{
+			"name": "Balances",
+			"item": [
+				{
+					"name": "Operations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "{{$randomUUID}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"allow_sending\": true,\n    \"allow_receiving\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances/{{balance_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"balances",
+								"{{balance_id}}"
+							]
+						},
+						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
+					},
+					"response": []
+				},
+				{
+					"name": "List All",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "{{$randomUUID}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"balances"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": "",
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List All By Account",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "{{$randomUUID}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/balances",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"accounts",
+								"{{account_id}}",
+								"balances"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2021-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "cursor",
+									"value": null,
+									"description": "Cursor Pagination",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2025-01-01",
+									"description": "Date in the format yyyy-mm-dd",
+									"disabled": true
+								},
+								{
+									"key": "sort_order",
+									"value": "asc",
+									"description": "Enum(asc,desc)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Default 10",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Find",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "{{$randomUUID}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances/{{balance_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"balances",
+								"{{balance_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "X-Request-Id",
+								"value": "{{$randomUUID}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances/{{balance_id}}",
+							"host": [
+								"{{url_transaction}}"
+							],
+							"path": [
+								"v1",
+								"organizations",
+								"{{organization_id}}",
+								"ledgers",
+								"{{ledger_id}}",
+								"balances",
+								"{{balance_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Asset Rates",
 			"item": [
 				{
@@ -3389,6 +3630,11 @@
 		},
 		{
 			"key": "audit_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "balance_id",
 			"value": "",
 			"type": "string"
 		}
