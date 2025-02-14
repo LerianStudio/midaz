@@ -20,8 +20,8 @@ type TransactionPostgreSQLModel struct {
 	Template                 string
 	Status                   string
 	StatusDescription        *string
-	Amount                   *float64
-	AmountScale              *float64
+	Amount                   *int64
+	AmountScale              *int64
 	AssetCode                string
 	ChartOfAccountsGroupName string
 	LedgerID                 string
@@ -86,8 +86,8 @@ type Transaction struct {
 	Description              string                 `json:"description" example:"Transaction description"`
 	Template                 string                 `json:"template" example:"Transaction template"`
 	Status                   Status                 `json:"status"`
-	Amount                   *float64               `json:"amount" example:"1500"`
-	AmountScale              *float64               `json:"amountScale" example:"2"`
+	Amount                   *int64                 `json:"amount" example:"1500"`
+	AmountScale              *int64                 `json:"amountScale" example:"2"`
 	AssetCode                string                 `json:"assetCode" example:"BRL"`
 	ChartOfAccountsGroupName string                 `json:"chartOfAccountsGroupName" example:"Chart of accounts group name"`
 	Source                   []string               `json:"source" example:"@person1"`
