@@ -5,7 +5,7 @@
 
 - [ ] Auth
 - [ ] Infra
-- [ ] Ledger
+- [ ] Onboarding
 - [ ] Mdz
 - [ ] Transaction
 - [ ] Audit
@@ -24,6 +24,6 @@ Please check each item after it's completed.
 - [ ] I have updated the version appropriately (if applicable).
 - [ ] I have confirmed this code is ready for review.
 
+## Obs: Please, always remember to target your PR to develop branch instead of main.
 ## Additional Notes
 [//]: # (Add any additional notes, context, or explanation that could be helpful for reviewers.)
-## Obs: Please, always remember to target your PR to develop branch instead of main.

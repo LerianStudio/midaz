@@ -8,7 +8,7 @@ import "time"
 //
 //	@Description	CreateAssetInput is the input payload to create an asset.
 type CreateAssetInput struct {
-	Name     string         `json:"name" validate:"max=256" example:"Brazilian Real"`
+	Name     string         `json:"name" validate:"required,max=256" example:"Brazilian Real"`
 	Type     string         `json:"type" example:"currency"`
 	Code     string         `json:"code" validate:"required,max=100" example:"BRL"`
 	Status   Status         `json:"status"`

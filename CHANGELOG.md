@@ -1,3 +1,70 @@
+## [1.48.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.3...v1.48.0-beta.4) (2025-02-13)
+
+
+### Bug Fixes
+
+* make name required when creating asset :bug: ([58f7fd6](https://github.com/LerianStudio/midaz/commit/58f7fd6bd39359ad26e56b3392c3a5a6c145bcc9))
+
+## [1.48.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.2...v1.48.0-beta.3) (2025-02-11)
+
+
+### Features
+
+* add devops to codeowner when change .env.example files; :sparkles: ([e1328f8](https://github.com/LerianStudio/midaz/commit/e1328f8117f68ecebad7f5fe65a843ace78d30ab))
+
+
+### Bug Fixes
+
+* add dev too to validate pr in .envs :bug: ([0aae153](https://github.com/LerianStudio/midaz/commit/0aae153ca9ce3665fea4bd3317111a15d58f595b))
+
+## [1.48.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.1...v1.48.0-beta.2) (2025-02-11)
+
+
+### Bug Fixes
+
+* update golang dependencies based on dependabot; :bug: ([84af1ce](https://github.com/LerianStudio/midaz/commit/84af1ce6da5ccc9a54e78d09ff7b41388d4684a3))
+* update swagger and openapi; :bug: ([d034c4e](https://github.com/LerianStudio/midaz/commit/d034c4e36a4c9994fab4cb43a023d2244b5142b3))
+
+## [1.48.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.47.0...v1.48.0-beta.1) (2025-02-10)
+
+
+### Features
+
+* add new table balance for perfomance poc; ([cd1bc6b](https://github.com/LerianStudio/midaz/commit/cd1bc6b846615b1d8997dadc6e1887c238e82e6b))
+* add on asset and account when creation account to send to the transaction balance queue; :sparkles: ([aeedcf9](https://github.com/LerianStudio/midaz/commit/aeedcf9ef366bd9e7e8f11ecb9b675c2cfc3438f))
+* add trace on casdoor; :sparkles: ([63d084d](https://github.com/LerianStudio/midaz/commit/63d084d473484e7585e4c22c48675b8100c2de53))
+* create balance sql implements; ([e89d870](https://github.com/LerianStudio/midaz/commit/e89d870a7c4c6b42a77fd0331889cbd061dc43db))
+* create structure to receive account from rabbitmq and create balance; :sparkles: ([6a3b41c](https://github.com/LerianStudio/midaz/commit/6a3b41c847f8de3e25f146040e8c9d43d0d3390f))
+* update balance async; rename validate accounts to validate balance rules; :sparkles: ([587f362](https://github.com/LerianStudio/midaz/commit/587f3622bcfdc8f23432cec3d219abc6c5fdc5ce))
+
+
+### Bug Fixes
+
+* add column that accepts account to be negative; :bug: ([e952a37](https://github.com/LerianStudio/midaz/commit/e952a379a3236c56dc739be72e5e8909e5b3a1a6))
+* add insert values on table; :bug: ([e23a9ab](https://github.com/LerianStudio/midaz/commit/e23a9abefe9ccdbe6d866e69beb2fc250b606f42))
+* add log to catch erros when cannot marshal result var; :bug: ([1074626](https://github.com/LerianStudio/midaz/commit/10746263fffb4296cb08784b8d617196397e5130))
+* add rule to only lock balances on redis if has more than one balance on slice; :bug: ([1c52e66](https://github.com/LerianStudio/midaz/commit/1c52e66c12e44d5c2451ca1c8fc484cb6054b213))
+* add two index one by alias e another by account_id; :bug: ([f6b36ab](https://github.com/LerianStudio/midaz/commit/f6b36ab32c777156d94aed68add262592fd05bc2))
+* add validation to avoid ambiguous account on source and distribute; :bug: ([d201dec](https://github.com/LerianStudio/midaz/commit/d201dec63c9c6fbf91a8b03dac0aea45a247ccd8))
+* adjust accounts removing old fields and reorganizing it; :bug: ([b86d541](https://github.com/LerianStudio/midaz/commit/b86d5411309ecb7116ea3305a048cc3592021b42))
+* adjust go test after change asset and account; :bug: :bug: ([6bddbea](https://github.com/LerianStudio/midaz/commit/6bddbea6ac442f9a76276674c64f881ce7bad7ca))
+* make sec and make lint; :bug: ([3eacf02](https://github.com/LerianStudio/midaz/commit/3eacf0274b25cedfb1714d771dbbd3e98fa7ffcb))
+* midazId name; :bug: ([263cae3](https://github.com/LerianStudio/midaz/commit/263cae37cb5b5f308f1aaff64255349b8e1d29af))
+* remove extension; add index; :bug: ([8d06d22](https://github.com/LerianStudio/midaz/commit/8d06d22f70120932632fdb537f8b05977f71d564))
+* remove grpc accounts from ledger; :bug: ([7e91f64](https://github.com/LerianStudio/midaz/commit/7e91f64fa0d6c0442aac2dab8ad869706fb1c500))
+* remove old locks rules; :bug: ([2bba68d](https://github.com/LerianStudio/midaz/commit/2bba68d8915b3d78bba77d1735c06fe53f172821))
+* remove old references from accounts; :bug: ([dfb0a57](https://github.com/LerianStudio/midaz/commit/dfb0a57d1ed2fabab1e1c71f36c743fc5b61fa89))
+* remove portfolio routes and funcs on account that was deprecated and update postman; :bug: ([7bc5f5e](https://github.com/LerianStudio/midaz/commit/7bc5f5e7f46465ef4d7fd415a685b3d9e680593d))
+* remove protobuf door on ledger; :bug: ([b3d0b56](https://github.com/LerianStudio/midaz/commit/b3d0b566b2f039a362c51fac351d2c8f843c1efa))
+* remove protobuf reference on ledger; :bug: ([1ccefc5](https://github.com/LerianStudio/midaz/commit/1ccefc5f1b15287a8a5c3711f5f73f99e5737382))
+* reusable protobuf door on transaction and transaction door on audit; :bug: ([2224904](https://github.com/LerianStudio/midaz/commit/2224904540995a9bb2096dda7c904f4a7b3d4a2c))
+* revert telemetry; :bug: ([2d1fbce](https://github.com/LerianStudio/midaz/commit/2d1fbcef56af103077171a8232eda9d48f612849))
+* tables accounts and balance; :bug: ([23f0e16](https://github.com/LerianStudio/midaz/commit/23f0e16f63e44e5c07aa6947c2ccdd2e7951f20b))
+* update asset to remove old fields on create external account; :bug: ([ef34a89](https://github.com/LerianStudio/midaz/commit/ef34a89818da10f7fe63f5f004f903b402afa4f3))
+* update description log oeprations to operations; :bug: ([5fe3156](https://github.com/LerianStudio/midaz/commit/5fe3156b5eb6686ed9bc661fac5e123dee8b5d53))
+* update dockerfile port; :bug: ([e3c17a2](https://github.com/LerianStudio/midaz/commit/e3c17a2a443aa38856ab70a0e599db7d923de48c))
+* update ports docker; :bug: ([41260c9](https://github.com/LerianStudio/midaz/commit/41260c9d991a6e2b299f79409c5d9fb132596ff2))
+
 ## [1.47.0](https://github.com/LerianStudio/midaz/compare/v1.46.0...v1.47.0) (2025-02-10)
 
 

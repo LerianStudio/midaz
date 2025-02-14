@@ -55,7 +55,7 @@ jobs:
           git push origin main
 
   update-swagger-on-pages:
-    name: Run Update swagger on ledger and transaction in LerianStudio.github.io
+    name: Run Update swagger on onboarding and transaction in LerianStudio.github.io
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/create-github-app-token@v1
@@ -92,7 +92,7 @@ jobs:
           
           gh repo clone LerianStudio/LerianStudio.github.io
 
-      - name: Generate Swagger on Ledger and Transaction
+      - name: Generate Swagger on Onboarding and Transaction
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -115,8 +115,8 @@ jobs:
           cp midaz/components/audit/api/swagger.json LerianStudio.github.io/audit/
           cp midaz/components/audit/api/openapi.yaml LerianStudio.github.io/audit/
 
-          cp midaz/components/ledger/api/swagger.json LerianStudio.github.io/ledger/ 
-          cp midaz/components/ledger/api/openapi.yaml LerianStudio.github.io/ledger/ 
+          cp midaz/components/onboarding/api/swagger.json LerianStudio.github.io/onboarding/ 
+          cp midaz/components/onboarding/api/openapi.yaml LerianStudio.github.io/onboarding/ 
           
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
           cp midaz/components/transaction/api/openapi.yaml LerianStudio.github.io/transaction/
@@ -137,7 +137,7 @@ jobs:
           
             git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
           
-            git add audit ledger transaction
+            git add audit onboarding transaction
             git commit -S -m "Update openapi.yaml and swagger.json from Repositories"
           
             git push origin main

@@ -3,13 +3,15 @@ package pkg
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
+	"go.opentelemetry.io/otel/metric"
 	"math"
 	"os/exec"
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -204,46 +206,36 @@ func (r *Syscmd) ExecCmd(name string, arg ...string) ([]byte, error) {
 }
 
 // GetCPUUsage get the current CPU usage
-func GetCPUUsage(ctx context.Context, exc SyscmdI) int64 {
+func GetCPUUsage(ctx context.Context, cpuGauge metric.Int64Gauge) {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := exc.ExecCmd("sh", "-c", "top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1}'")
+	out, err := cpu.Percent(100*time.Millisecond, false)
 	if err != nil {
-		fmt.Println("Error executing command:", err)
-		return 0
+		logger.Warnf("Errot to get cpu use: %v", err)
 	}
 
-	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
-
-	usage, err := strconv.ParseFloat(usageStr, 64)
-	if err != nil {
-		logger.Errorf("Error parsing CPU usage: %v", err)
-
-		return 0
+	var percentageCPU int64 = 0
+	if len(out) > 0 {
+		percentageCPU = int64(out[0])
 	}
 
-	return int64(usage)
+	cpuGauge.Record(ctx, percentageCPU)
 }
 
 // GetMemUsage get the current memory usage
-func GetMemUsage(ctx context.Context, exc SyscmdI) int64 {
+func GetMemUsage(ctx context.Context, memGauge metric.Int64Gauge) {
 	logger := NewLoggerFromContext(ctx)
 
-	out, err := exc.ExecCmd("sh", "-c", "free | grep Mem | awk '{print $3/$2 * 100.0}'")
+	var percentageMem int64 = 0
+	
+	out, err := mem.VirtualMemory()
 	if err != nil {
-		return 0
+		logger.Warnf("Error to get info memory: %v", err)
+	} else {
+		percentageMem = int64(out.UsedPercent)
 	}
 
-	usageStr := strings.Split(strings.TrimSpace(string(out)), "\n")[0]
-
-	usage, err := strconv.ParseFloat(usageStr, 64)
-	if err != nil {
-		logger.Errorf("Error parsing memory usage: %v", err)
-
-		return 0
-	}
-
-	return int64(usage)
+	memGauge.Record(ctx, percentageMem)
 }
 
 // GetMapNumKinds get the map of numeric kinds to use in validations and conversions.

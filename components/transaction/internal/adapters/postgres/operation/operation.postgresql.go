@@ -28,10 +28,8 @@ type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error)
 	FindAllByAccount(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error)
-	FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error)
 	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
 	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error)
-	FindByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*Operation, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error)
 	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
@@ -102,7 +100,7 @@ func (r *OperationPostgreSQLRepository) Create(ctx context.Context, operation *O
 		record.StatusDescription,
 		record.AccountID,
 		record.AccountAlias,
-		record.PortfolioID,
+		record.BalanceID,
 		record.ChartOfAccounts,
 		record.OrganizationID,
 		record.LedgerID,
@@ -216,7 +214,7 @@ func (r *OperationPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 			&operation.StatusDescription,
 			&operation.AccountID,
 			&operation.AccountAlias,
-			&operation.PortfolioID,
+			&operation.BalanceID,
 			&operation.ChartOfAccounts,
 			&operation.OrganizationID,
 			&operation.LedgerID,
@@ -304,7 +302,7 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 			&operation.StatusDescription,
 			&operation.AccountID,
 			&operation.AccountAlias,
-			&operation.PortfolioID,
+			&operation.BalanceID,
 			&operation.ChartOfAccounts,
 			&operation.OrganizationID,
 			&operation.LedgerID,
@@ -370,7 +368,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 		&operation.StatusDescription,
 		&operation.AccountID,
 		&operation.AccountAlias,
-		&operation.PortfolioID,
+		&operation.BalanceID,
 		&operation.ChartOfAccounts,
 		&operation.OrganizationID,
 		&operation.LedgerID,
@@ -431,7 +429,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 		&operation.StatusDescription,
 		&operation.AccountID,
 		&operation.AccountAlias,
-		&operation.PortfolioID,
+		&operation.BalanceID,
 		&operation.ChartOfAccounts,
 		&operation.OrganizationID,
 		&operation.LedgerID,
@@ -451,68 +449,7 @@ func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organ
 	return operation.ToEntity(), nil
 }
 
-// FindByPortfolio retrieves a Operation entity from the database using the provided portfolio ID.
-func (r *OperationPostgreSQLRepository) FindByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID, id uuid.UUID) (*Operation, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.find_operations_by_portfolio")
-	defer span.End()
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		return nil, err
-	}
-
-	operation := &OperationPostgreSQLModel{}
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_by_portfolio.query")
-
-	row := db.QueryRowContext(ctx, "SELECT * FROM operation WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND id = $4 AND deleted_at IS NULL",
-		organizationID, ledgerID, portfolioID, id)
-
-	spanQuery.End()
-
-	if err := row.Scan(
-		&operation.ID,
-		&operation.TransactionID,
-		&operation.Description,
-		&operation.Type,
-		&operation.AssetCode,
-		&operation.Amount,
-		&operation.AmountScale,
-		&operation.AvailableBalance,
-		&operation.BalanceScale,
-		&operation.OnHoldBalance,
-		&operation.AvailableBalanceAfter,
-		&operation.OnHoldBalanceAfter,
-		&operation.BalanceScaleAfter,
-		&operation.Status,
-		&operation.StatusDescription,
-		&operation.AccountID,
-		&operation.AccountAlias,
-		&operation.PortfolioID,
-		&operation.ChartOfAccounts,
-		&operation.OrganizationID,
-		&operation.LedgerID,
-		&operation.CreatedAt,
-		&operation.UpdatedAt,
-		&operation.DeletedAt,
-	); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(Operation{}).Name())
-		}
-
-		return nil, err
-	}
-
-	return operation.ToEntity(), nil
-}
-
-// Update a Operation entity into Postgresql and returns the Operation updated.
+// Update an Operation entity into Postgresql and returns the Operation updated.
 func (r *OperationPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -711,126 +648,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 			&operation.StatusDescription,
 			&operation.AccountID,
 			&operation.AccountAlias,
-			&operation.PortfolioID,
-			&operation.ChartOfAccounts,
-			&operation.OrganizationID,
-			&operation.LedgerID,
-			&operation.CreatedAt,
-			&operation.UpdatedAt,
-			&operation.DeletedAt,
-		); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
-
-			return nil, http.CursorPagination{}, err
-		}
-
-		operations = append(operations, operation.ToEntity())
-	}
-
-	if err := rows.Err(); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get rows", err)
-
-		return nil, http.CursorPagination{}, err
-	}
-
-	hasPagination := len(operations) > filter.Limit
-
-	operations = http.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, operations, filter.Limit, orderDirection)
-
-	cur := http.CursorPagination{}
-	if len(operations) > 0 {
-		cur, err = http.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, operations[0].ID, operations[len(operations)-1].ID)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to calculate cursor", err)
-
-			return nil, http.CursorPagination{}, err
-		}
-	}
-
-	return operations, cur, nil
-}
-
-// FindAllByPortfolio retrieves Operations entities from the database using the provided portfolio ID.
-func (r *OperationPostgreSQLRepository) FindAllByPortfolio(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, filter http.Pagination) ([]*Operation, http.CursorPagination, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.find_all_by_portfolio")
-	defer span.End()
-
-	db, err := r.connection.GetDB()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
-
-		return nil, http.CursorPagination{}, err
-	}
-
-	operations := make([]*Operation, 0)
-
-	decodedCursor := http.Cursor{}
-	isFirstPage := pkg.IsNilOrEmpty(&filter.Cursor)
-	orderDirection := strings.ToUpper(filter.SortOrder)
-
-	if !isFirstPage {
-		decodedCursor, err = http.DecodeCursor(filter.Cursor)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to decode cursor", err)
-
-			return nil, http.CursorPagination{}, err
-		}
-	}
-
-	findAll := squirrel.Select("*").
-		From(r.tableName).
-		Where(squirrel.Expr("organization_id = ?", organizationID)).
-		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
-		Where(squirrel.Expr("portfolio_id = ?", portfolioID)).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
-		PlaceholderFormat(squirrel.Dollar)
-
-	findAll, orderDirection = http.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
-
-	query, args, err := findAll.ToSql()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
-
-		return nil, http.CursorPagination{}, err
-	}
-
-	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all_by_portfolio.query")
-
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to query database", err)
-
-		return nil, http.CursorPagination{}, err
-	}
-	defer rows.Close()
-
-	spanQuery.End()
-
-	for rows.Next() {
-		var operation OperationPostgreSQLModel
-		if err := rows.Scan(
-			&operation.ID,
-			&operation.TransactionID,
-			&operation.Description,
-			&operation.Type,
-			&operation.AssetCode,
-			&operation.Amount,
-			&operation.AmountScale,
-			&operation.AvailableBalance,
-			&operation.BalanceScale,
-			&operation.OnHoldBalance,
-			&operation.AvailableBalanceAfter,
-			&operation.OnHoldBalanceAfter,
-			&operation.BalanceScaleAfter,
-			&operation.Status,
-			&operation.StatusDescription,
-			&operation.AccountID,
-			&operation.AccountAlias,
-			&operation.PortfolioID,
+			&operation.BalanceID,
 			&operation.ChartOfAccounts,
 			&operation.OrganizationID,
 			&operation.LedgerID,

@@ -5,13 +5,13 @@ package model
 // swagger:model Balance
 // @Description Balance is the struct designed to represent the account balance.
 type Balance struct {
-	Available int `json:"available" example:"1500"`
-	OnHold    int `json:"onHold" example:"500"`
-	Scale     int `json:"scale" example:"2"`
+	Available int64 `json:"available" example:"1500"`
+	OnHold    int64 `json:"onHold" example:"500"`
+	Scale     int64 `json:"scale" example:"2"`
 } // @name Balance
 
 type Responses struct {
-	Total        int
+	Total        int64
 	Asset        string
 	From         map[string]Amount
 	To           map[string]Amount
@@ -35,8 +35,8 @@ type Metadata struct {
 // @Description Amount is the struct designed to represent the amount of an operation.
 type Amount struct {
 	Asset string `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value int    `json:"value,omitempty" validate:"required" example:"1000"`
-	Scale int    `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Value int64  `json:"value,omitempty" validate:"required" example:"1000"`
+	Scale int64  `json:"scale,omitempty" validate:"gte=0" example:"2"`
 } // @name Amount
 
 // Share structure for marshaling/unmarshalling JSON.
@@ -44,8 +44,8 @@ type Amount struct {
 // swagger:model Share
 // @Description Share is the struct designed to represent the sharing fields of an operation.
 type Share struct {
-	Percentage             int `json:"percentage,omitempty" validate:"required"`
-	PercentageOfPercentage int `json:"percentageOfPercentage,omitempty"`
+	Percentage             int64 `json:"percentage,omitempty" validate:"required"`
+	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
 } // @name Share
 
 // Send structure for marshaling/unmarshalling JSON.
@@ -54,8 +54,8 @@ type Share struct {
 // @Description Send is the struct designed to represent the sending fields of an operation.
 type Send struct {
 	Asset      string     `json:"asset,omitempty" validate:"required" example:"BRL"`
-	Value      int        `json:"value,omitempty" validate:"required" example:"1000"`
-	Scale      int        `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Value      int64      `json:"value,omitempty" validate:"required" example:"1000"`
+	Scale      int64      `json:"scale,omitempty" validate:"gte=0" example:"2"`
 	Source     Source     `json:"source,omitempty" validate:"required"`
 	Distribute Distribute `json:"distribute,omitempty" validate:"required"`
 } // @name Send
@@ -76,8 +76,8 @@ type Source struct {
 type Rate struct {
 	From       string `json:"from" validate:"required" example:"BRL"`
 	To         string `json:"to" validate:"required" example:"USDe"`
-	Value      int    `json:"value" validate:"required" example:"1000"`
-	Scale      int    `json:"scale" validate:"gte=0" example:"2"`
+	Value      int64  `json:"value" validate:"required" example:"1000"`
+	Scale      int64  `json:"scale" validate:"gte=0" example:"2"`
 	ExternalID string `json:"externalId" validate:"uuid,required" example:"00000000-0000-0000-0000-000000000000"`
 } // @name Rate
 
