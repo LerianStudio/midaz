@@ -626,28 +626,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	//queueData := make([]mmodel.QueueData, 0)
-	//
-	//value := transaction.TransactionQueue{
-	//	Validate:    validate,
-	//	Balances:    balances,
-	//	Transaction: tran,
-	//}
-	//
-	//marshal, err := json.Marshal(value)
-	//queueData = append(queueData, mmodel.QueueData{
-	//	ID:    tran.IDtoUUID(),
-	//	Value: marshal,
-	//})
-	//
-	//queueMessage := mmodel.Queue{
-	//	OrganizationID: organizationID,
-	//	LedgerID:       ledgerID,
-	//	QueueData:      queueData,
-	//}
-
-	//go handler.Command.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
-
 	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, validate, balances, tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())

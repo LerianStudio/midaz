@@ -68,7 +68,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 md5"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
-      PG_MAX_CONNECTIONS: 5000
     command: |
       postgres
       -c wal_level=replica
@@ -76,6 +75,8 @@ services:
       -c max_wal_senders=10
       -c max_replication_slots=10
       -c hot_standby_feedback=on
+      -c max_connections=${MAX_CONNECTIONS}
+      -c shared_buffers=${SHARED_BUFFERS}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -89,22 +90,33 @@ services:
       PGPORT: ${DB_REPLICA_PORT}
       PGUSER: ${REPLICATION_USER}
       PGPASSWORD: ${REPLICATION_PASSWORD}
-      PG_MAX_CONNECTIONS: 5000
-    command: |
-      bash -c "
-      if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
-        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-primary --port=${DB_PORT}
-        do
-          echo 'Waiting for midaz-postgres-primary to connect...'
-          sleep 1s
-        done
-        echo 'Backup done..., starting midaz-postgres-replica...'
-        chmod 0700 /var/lib/postgresql/data
-        # Ensure the port is set to use for the replica
-        sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
-      fi
-      exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
-      "
+      command: |
+        bash -c "
+        set -euo pipefail
+      
+        # If the data directory or configuration file does not exist, perform the base backup.
+        if [ ! -d '/var/lib/postgresql/data' ] || [ ! -f '/var/lib/postgresql/data/postgresql.conf' ]; then
+          until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-primary --port=${DB_PORT}; do
+            echo 'Waiting for midaz-postgres-primary to connect...'
+            sleep 1
+          done
+      
+          echo 'Backup done, starting midaz-postgres-replica...'
+          chmod 0700 /var/lib/postgresql/data
+      
+          # Set the port for the replica.
+          sed -i \"s/^#*port.*/port = ${DB_REPLICA_PORT}/\" /var/lib/postgresql/data/postgresql.conf
+      
+          # Set the maximum number of connections.
+          sed -i \"s/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/\" /var/lib/postgresql/data/postgresql.conf
+      
+          # Set the shared_buffers parameter.
+          sed -i \"s/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/\" /var/lib/postgresql/data/postgresql.conf
+        fi
+      
+        # Start PostgreSQL using the updated configuration file.
+        exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
+        "
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_REPLICA_USER} -p ${DB_REPLICA_PORT}" ]
       interval: 10s
