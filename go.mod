@@ -8,7 +8,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
-	github.com/casdoor/casdoor-go-sdk v1.3.0
+	github.com/casdoor/casdoor-go-sdk v1.4.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.3.2
 	github.com/go-playground/locales v0.14.1
