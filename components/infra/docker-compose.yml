@@ -90,33 +90,29 @@ services:
       PGPORT: ${DB_REPLICA_PORT}
       PGUSER: ${REPLICATION_USER}
       PGPASSWORD: ${REPLICATION_PASSWORD}
-      command: |
-        bash -c "
-        set -euo pipefail
+    command: |
+      bash -c "
+      if [ ! -d \"/var/lib/postgresql/data\" ] || [ ! -f \"/var/lib/postgresql/data/postgresql.conf\" ]; then
+        until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-primary --port=${DB_PORT}
+        do
+          echo 'Waiting for midaz-postgres-primary to connect...'
+          sleep 1s
+        done
       
-        # If the data directory or configuration file does not exist, perform the base backup.
-        if [ ! -d '/var/lib/postgresql/data' ] || [ ! -f '/var/lib/postgresql/data/postgresql.conf' ]; then
-          until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=midaz-postgres-primary --port=${DB_PORT}; do
-            echo 'Waiting for midaz-postgres-primary to connect...'
-            sleep 1
-          done
+        echo 'Backup done..., starting midaz-postgres-replica...'
+        chmod 0700 /var/lib/postgresql/data
       
-          echo 'Backup done, starting midaz-postgres-replica...'
-          chmod 0700 /var/lib/postgresql/data
+        # Ensure the port is set to use for the replica
+        sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
       
-          # Set the port for the replica.
-          sed -i \"s/^#*port.*/port = ${DB_REPLICA_PORT}/\" /var/lib/postgresql/data/postgresql.conf
+        # Define database max conn
+        sed -i 's/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/' /var/lib/postgresql/data/postgresql.conf      
       
-          # Set the maximum number of connections.
-          sed -i \"s/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/\" /var/lib/postgresql/data/postgresql.conf
-      
-          # Set the shared_buffers parameter.
-          sed -i \"s/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/\" /var/lib/postgresql/data/postgresql.conf
-        fi
-      
-        # Start PostgreSQL using the updated configuration file.
-        exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
-        "
+        # Define database shared buffers
+        sed -i 's/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf      
+      fi
+      exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
+      "
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_REPLICA_USER} -p ${DB_REPLICA_PORT}" ]
       interval: 10s
