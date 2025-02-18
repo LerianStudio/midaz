@@ -194,5 +194,6 @@ func StringToInt(s string) int {
 	if err != nil {
 		return 100
 	}
+
 	return i
 }

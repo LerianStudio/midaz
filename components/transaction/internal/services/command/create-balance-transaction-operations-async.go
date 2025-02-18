@@ -19,6 +19,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	var t transaction.TransactionQueue
+	
 	for _, item := range data.QueueData {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
 
@@ -28,7 +29,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 			return err
 		}
-
 	}
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")

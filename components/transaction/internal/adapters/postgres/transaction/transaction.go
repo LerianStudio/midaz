@@ -141,7 +141,6 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
-
 	ID := pkg.GenerateUUIDv7().String()
 	if transaction.ID != "" {
 		ID = transaction.ID

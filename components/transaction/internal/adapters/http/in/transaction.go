@@ -587,9 +587,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 					Scale:     &bat.Scale,
 				}
 
-				description := fromTo[i].Description
+				descr := fromTo[i].Description
 				if pkg.IsNilOrEmpty(&fromTo[i].Description) {
-					description = parserDSL.Description
+					descr = parserDSL.Description
 				}
 
 				var typeOperation string
@@ -602,7 +602,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 				operations = append(operations, &operation.Operation{
 					ID:              pkg.GenerateUUIDv7().String(),
 					TransactionID:   tran.ID,
-					Description:     description,
+					Description:     descr,
 					Type:            typeOperation,
 					AssetCode:       parserDSL.Send.Asset,
 					ChartOfAccounts: fromTo[i].ChartOfAccounts,

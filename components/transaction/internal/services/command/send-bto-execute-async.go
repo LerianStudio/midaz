@@ -56,5 +56,4 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 		logger.Fatalf("Failed to send message: %s", err.Error())
 	}
-
 }
