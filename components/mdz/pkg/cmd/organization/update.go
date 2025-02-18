@@ -95,7 +95,7 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrg
 		return err
 	}
 
-	org.DoingBusinessAs = &doingBusinessAsPtr
+	org.DoingBusinessAs = doingBusinessAsPtr
 
 	org.Status.Code = f.Code
 	org.Status.Description = utils.AssignOptionalStringPtr(f.Description)
