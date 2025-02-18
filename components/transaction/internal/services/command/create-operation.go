@@ -100,7 +100,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					err <- er
 				}
 
-				er = uc.createMetadata(ctx, logger, fromTo[i].Metadata, op)
+				er = uc.CreateMetadata(ctx, logger, fromTo[i].Metadata, op)
 				if er != nil {
 					mopentelemetry.HandleSpanError(&span, "Failed to create metadata on operation", er)
 
@@ -117,8 +117,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	result <- operations
 }
 
-// createMetadata func that create metadata into operations
-func (uc *UseCase) createMetadata(ctx context.Context, logger mlog.Logger, metadata map[string]any, o *operation.Operation) error {
+// CreateMetadata func that create metadata into operations
+func (uc *UseCase) CreateMetadata(ctx context.Context, logger mlog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
 		if err := pkg.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
 			return err

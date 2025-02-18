@@ -41,7 +41,7 @@ func OK(c *fiber.Ctx, s any) error {
 	return c.Status(http.StatusOK).JSON(s)
 }
 
-// NoContent sends an HTTP 204 No Content response without any body.
+// NoContent sends an HTTP 204 No Content response without anybody.
 func NoContent(c *fiber.Ctx) error {
 	return c.SendStatus(http.StatusNoContent)
 }

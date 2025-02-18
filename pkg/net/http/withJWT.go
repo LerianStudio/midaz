@@ -209,7 +209,7 @@ func NewJWTMiddleware(cc *mcasdoor.CasdoorConnection) *JWTMiddleware {
 
 	_, err := c.connection.GetClient()
 	if err != nil {
-		panic("Failed to connect on Casddor")
+		panic("Failed to connect on Casdoor")
 	}
 
 	return c

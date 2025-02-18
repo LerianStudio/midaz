@@ -3,8 +3,10 @@ package mpostgres
 import (
 	"database/sql"
 	"errors"
+	"github.com/LerianStudio/midaz/pkg"
 	"go.uber.org/zap"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -35,15 +37,18 @@ type PostgresConnection struct {
 func (pc *PostgresConnection) Connect() error {
 	pc.Logger.Info("Connecting to primary and replica databases...")
 
+	maxOpenConns := pkg.StringToInt(os.Getenv("DB_MAX_OPEN_CONNS"))
+	maxIdleConns := pkg.StringToInt(os.Getenv("DB_MAX_IDLE_CONNS"))
+
 	dbPrimary, err := sql.Open("pgx", pc.ConnectionStringPrimary)
 	if err != nil {
 		pc.Logger.Fatal("failed to open connect to primary database", zap.Error(err))
 		return nil
 	}
 
-	dbPrimary.SetMaxOpenConns(100)
-	dbPrimary.SetMaxIdleConns(100)
-	dbPrimary.SetConnMaxLifetime(time.Minute * 5)
+	dbPrimary.SetMaxOpenConns(maxOpenConns)
+	dbPrimary.SetMaxIdleConns(maxIdleConns)
+	dbPrimary.SetConnMaxLifetime(time.Minute * 30)
 
 	dbReadOnlyReplica, err := sql.Open("pgx", pc.ConnectionStringReplica)
 	if err != nil {
@@ -51,9 +56,9 @@ func (pc *PostgresConnection) Connect() error {
 		return nil
 	}
 
-	dbReadOnlyReplica.SetMaxOpenConns(100)
-	dbReadOnlyReplica.SetMaxIdleConns(100)
-	dbReadOnlyReplica.SetConnMaxLifetime(time.Minute * 5)
+	dbReadOnlyReplica.SetMaxOpenConns(maxOpenConns)
+	dbReadOnlyReplica.SetMaxIdleConns(maxIdleConns)
+	dbReadOnlyReplica.SetConnMaxLifetime(time.Minute * 30)
 
 	connectionDB := dbresolver.New(
 		dbresolver.WithPrimaryDBs(dbPrimary),

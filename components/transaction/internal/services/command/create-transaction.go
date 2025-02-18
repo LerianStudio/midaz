@@ -31,9 +31,6 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		Description: &description,
 	}
 
-	amount := float64(t.Send.Value)
-	scale := float64(t.Send.Scale)
-
 	var parentTransactionID *string
 
 	if transactionID != uuid.Nil {
@@ -49,8 +46,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		Description:              t.Description,
 		Template:                 t.ChartOfAccountsGroupName,
 		Status:                   status,
-		Amount:                   &amount,
-		AmountScale:              &scale,
+		Amount:                   &t.Send.Value,
+		AmountScale:              &t.Send.Scale,
 		AssetCode:                t.Send.Asset,
 		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
 		Body:                     *t,

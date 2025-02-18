@@ -1,7 +1,6 @@
 package in
 
 import (
-	"context"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -11,7 +10,6 @@ import (
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
@@ -19,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"reflect"
+	"time"
 )
 
 // TransactionHandler struct that handle transaction
@@ -503,7 +502,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	balances, err := handler.Query.GetBalances(ctx, logger, organizationID, ledgerID, validate)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
@@ -525,83 +524,111 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateBalances.End()
 
-	go handler.UpdateBalanceAsync(ctx, organizationID, ledgerID, validate, balances)
-
-	ctxCreateTransaction, spanCreateTransaction := tracer.Start(ctx, "handler.create_transaction.create_transaction")
-
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanCreateTransaction, "payload_command_create_transaction", parserDSL)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to convert parserDSL from struct to JSON string", err)
-
-		return http.WithError(c, err)
+	description := constant.CREATED
+	status := transaction.Status{
+		Code:        description,
+		Description: &description,
 	}
 
-	tran, err := handler.Command.CreateTransaction(ctxCreateTransaction, organizationID, ledgerID, transactionID, &parserDSL)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction", err)
+	var parentTransactionID *string
 
-		logger.Error("Failed to create transaction", err.Error())
-
-		return http.WithError(c, err)
+	if transactionID != uuid.Nil {
+		value := transactionID.String()
+		parentTransactionID = &value
 	}
 
-	spanCreateTransaction.End()
-
-	e := make(chan error)
-	result := make(chan []*operation.Operation)
+	tran := &transaction.Transaction{
+		ID:                       pkg.GenerateUUIDv7().String(),
+		ParentTransactionID:      parentTransactionID,
+		OrganizationID:           organizationID.String(),
+		LedgerID:                 ledgerID.String(),
+		Description:              parserDSL.Description,
+		Template:                 parserDSL.ChartOfAccountsGroupName,
+		Status:                   status,
+		Amount:                   &parserDSL.Send.Value,
+		AmountScale:              &parserDSL.Send.Scale,
+		AssetCode:                parserDSL.Send.Asset,
+		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
+		Body:                     parserDSL,
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
+	}
 
 	var operations []*operation.Operation
 
-	ctxCreateOperation, spanCreateOperation := tracer.Start(ctx, "handler.create_transaction.create_operation")
+	var fromTo []goldModel.FromTo
+	fromTo = append(fromTo, parserDSL.Send.Source.From...)
+	fromTo = append(fromTo, parserDSL.Send.Distribute.To...)
 
-	go handler.Command.CreateOperation(ctxCreateOperation, balances, tran.ID, &parserDSL, *validate, result, e)
-	select {
-	case ops := <-result:
-		operations = append(operations, ops...)
-	case err := <-e:
-		mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operations", err)
+	for _, blc := range balances {
+		for i := range fromTo {
+			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+				logger.Infof("Creating operation for account id: %s", blc.ID)
 
-		logger.Error("Failed to create operations: ", err.Error())
+				balance := operation.Balance{
+					Available: &blc.Available,
+					OnHold:    &blc.OnHold,
+					Scale:     &blc.Scale,
+				}
 
-		return http.WithError(c, err)
+				amt, bat, er := goldModel.ValidateFromToOperation(fromTo[i], *validate, blc)
+				if er != nil {
+					logger.Errorf("Failed to validate balance: %v", er.Error())
+				}
+
+				amount := operation.Amount{
+					Amount: &amt.Value,
+					Scale:  &amt.Scale,
+				}
+
+				balanceAfter := operation.Balance{
+					Available: &bat.Available,
+					OnHold:    &bat.OnHold,
+					Scale:     &bat.Scale,
+				}
+
+				descr := fromTo[i].Description
+				if pkg.IsNilOrEmpty(&fromTo[i].Description) {
+					descr = parserDSL.Description
+				}
+
+				var typeOperation string
+				if fromTo[i].IsFrom {
+					typeOperation = constant.DEBIT
+				} else {
+					typeOperation = constant.CREDIT
+				}
+
+				operations = append(operations, &operation.Operation{
+					ID:              pkg.GenerateUUIDv7().String(),
+					TransactionID:   tran.ID,
+					Description:     descr,
+					Type:            typeOperation,
+					AssetCode:       parserDSL.Send.Asset,
+					ChartOfAccounts: fromTo[i].ChartOfAccounts,
+					Amount:          amount,
+					Balance:         balance,
+					BalanceAfter:    balanceAfter,
+					BalanceID:       blc.ID,
+					AccountID:       blc.AccountID,
+					AccountAlias:    blc.Alias,
+					OrganizationID:  blc.OrganizationID,
+					LedgerID:        blc.LedgerID,
+					CreatedAt:       time.Now(),
+					UpdatedAt:       time.Now(),
+					Metadata:        fromTo[i].Metadata,
+				})
+			}
+		}
 	}
-
-	spanCreateOperation.End()
 
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
+	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, validate, balances, tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
-}
-
-// UpdateBalanceAsync is a function that update balances async
-func (handler *TransactionHandler) UpdateBalanceAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, balances []*mmodel.Balance) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	_, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
-	defer spanLogTransaction.End()
-
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "handler.create_transaction.update_balances")
-
-	err := mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_handler_update_balances", balances)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-
-		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
-	}
-
-	err = handler.Command.UpdateBalances(ctxProcessBalances, logger, organizationID, ledgerID, *validate, balances)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update accounts", err)
-
-		logger.Errorf("Failed to update accounts: %v", err.Error())
-	}
-
-	spanUpdateBalances.End()
 }

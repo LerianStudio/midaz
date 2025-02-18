@@ -227,7 +227,7 @@ func GetMemUsage(ctx context.Context, memGauge metric.Int64Gauge) {
 	logger := NewLoggerFromContext(ctx)
 
 	var percentageMem int64 = 0
-	
+
 	out, err := mem.VirtualMemory()
 	if err != nil {
 		logger.Warnf("Error to get info memory: %v", err)
@@ -281,10 +281,4 @@ func LockInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
 	lockInternalKey := "lock:" + InternalKey(organizationID, ledgerID, key)
 
 	return lockInternalKey
-}
-
-func LockVersionInternalKey(organizationID, ledgerID uuid.UUID, key, version string) string {
-	lockVersionInternalKey := LockInternalKey(organizationID, ledgerID, key) + ":" + version
-
-	return lockVersionInternalKey
 }

@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"database/sql"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
@@ -19,8 +20,8 @@ type TransactionPostgreSQLModel struct {
 	Template                 string
 	Status                   string
 	StatusDescription        *string
-	Amount                   *float64
-	AmountScale              *float64
+	Amount                   *int64
+	AmountScale              *int64
 	AssetCode                string
 	ChartOfAccountsGroupName string
 	LedgerID                 string
@@ -85,8 +86,8 @@ type Transaction struct {
 	Description              string                 `json:"description" example:"Transaction description"`
 	Template                 string                 `json:"template" example:"Transaction template"`
 	Status                   Status                 `json:"status"`
-	Amount                   *float64               `json:"amount" example:"1500"`
-	AmountScale              *float64               `json:"amountScale" example:"2"`
+	Amount                   *int64                 `json:"amount" example:"1500"`
+	AmountScale              *int64                 `json:"amountScale" example:"2"`
 	AssetCode                string                 `json:"assetCode" example:"BRL"`
 	ChartOfAccountsGroupName string                 `json:"chartOfAccountsGroupName" example:"Chart of accounts group name"`
 	Source                   []string               `json:"source" example:"@person1"`
@@ -140,8 +141,13 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
+	ID := pkg.GenerateUUIDv7().String()
+	if transaction.ID != "" {
+		ID = transaction.ID
+	}
+
 	*t = TransactionPostgreSQLModel{
-		ID:                       pkg.GenerateUUIDv7().String(),
+		ID:                       ID,
 		ParentTransactionID:      transaction.ParentTransactionID,
 		Description:              transaction.Description,
 		Template:                 transaction.Template,
@@ -229,4 +235,11 @@ func (t Transaction) TransactionRevert() goldModel.Transaction {
 	}
 
 	return transaction
+}
+
+// TransactionQueue this is a struct that is responsible to send and receive from queue.
+type TransactionQueue struct {
+	Validate    *goldModel.Responses
+	Balances    []*mmodel.Balance
+	Transaction *Transaction
 }

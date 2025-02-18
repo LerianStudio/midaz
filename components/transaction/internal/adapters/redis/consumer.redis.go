@@ -214,6 +214,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 			Available = total,
 			OnHold = balance.OnHold,
 			Scale = scale,
+			Version = balance.Version + 1,
 			AccountType = balance.AccountType
 		  }
 		end
@@ -231,10 +232,11 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		  Available = tonumber(ARGV[4]),
 		  OnHold = tonumber(ARGV[5]),
 		  Scale = tonumber(ARGV[6]),
-		  AccountType = ARGV[7]
+          Version = tonumber(ARGV[7]),
+		  AccountType = ARGV[8]
 		}
 		
-		local operation = ARGV[8]
+		local operation = ARGV[9]
 		
 		local currentValue = redis.call("GET", key)
 		if not currentValue then
@@ -273,6 +275,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		strconv.FormatInt(balance.Available, 10),
 		strconv.FormatInt(balance.OnHold, 10),
 		strconv.FormatInt(balance.Scale, 10),
+		strconv.FormatInt(balance.Version, 10),
 		balance.AccountType,
 		operation,
 	}
@@ -319,6 +322,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	balance.Available = b.Available
 	balance.OnHold = b.OnHold
 	balance.Scale = b.Scale
+	balance.Version = b.Version
 
 	return &balance, nil
 }

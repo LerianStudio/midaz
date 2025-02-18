@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -185,4 +186,14 @@ func ValidateServerAddress(value string) string {
 func HashSHA256(input string) string {
 	hash := sha256.Sum256([]byte(input))
 	return hex.EncodeToString(hash[:])
+}
+
+// StringToInt func that convert string to int.
+func StringToInt(s string) int {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 100
+	}
+
+	return i
 }

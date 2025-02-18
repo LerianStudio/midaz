@@ -164,7 +164,7 @@ func ValidateFromToOperation(ft FromTo, validate Responses, balance *mmodel.Bala
 	return amount, balanceAfter, nil
 }
 
-// UpdateBalances function with some updates values in balances and
+// UpdateBalances function with some updates values in balances.
 func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmodel.Balance, result chan []*mmodel.Balance) {
 	newBalances := make([]*mmodel.Balance, 0)
 

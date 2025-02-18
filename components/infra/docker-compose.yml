@@ -75,6 +75,8 @@ services:
       -c max_wal_senders=10
       -c max_replication_slots=10
       -c hot_standby_feedback=on
+      -c max_connections=${MAX_CONNECTIONS}
+      -c shared_buffers=${SHARED_BUFFERS}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -96,10 +98,18 @@ services:
           echo 'Waiting for midaz-postgres-primary to connect...'
           sleep 1s
         done
+      
         echo 'Backup done..., starting midaz-postgres-replica...'
         chmod 0700 /var/lib/postgresql/data
+      
         # Ensure the port is set to use for the replica
         sed -i 's/^#port.*/port = ${DB_REPLICA_PORT}/' /var/lib/postgresql/data/postgresql.conf
+      
+        # Define database max conn
+        sed -i 's/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/' /var/lib/postgresql/data/postgresql.conf      
+      
+        # Define database shared buffers
+        sed -i 's/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf      
       fi
       exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
       "
@@ -111,6 +121,23 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+
+  midaz-pgbouncer:
+    image: edoburu/pgbouncer
+    container_name: midaz-pgbouncer
+    restart: always
+    ports:
+      - ${DB_PGBOUNCER_PORT}:${DB_PGBOUNCER_PORT}
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    environment:
+      - DATABASES_HOST=localhost
+    networks:
+      - infra_network
+    depends_on:
+      - midaz-postgres-primary
+      - midaz-postgres-replica
 
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm

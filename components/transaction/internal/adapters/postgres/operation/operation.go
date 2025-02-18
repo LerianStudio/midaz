@@ -160,8 +160,13 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
+	ID := pkg.GenerateUUIDv7().String()
+	if operation.ID != "" {
+		ID = operation.ID
+	}
+
 	*t = OperationPostgreSQLModel{
-		ID:                    pkg.GenerateUUIDv7().String(),
+		ID:                    ID,
 		TransactionID:         operation.TransactionID,
 		Description:           operation.Description,
 		Type:                  operation.Type,

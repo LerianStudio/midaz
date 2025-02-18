@@ -5,16 +5,18 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // GetBalances methods responsible to get balances.
-func (uc *UseCase) GetBalances(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses) ([]*mmodel.Balance, error) {
-	span := trace.SpanFromContext(ctx)
+func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses) ([]*mmodel.Balance, error) {
+	tracer := pkg.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "query.get_balances")
+	defer span.End()
 
 	var ids []uuid.UUID
 
@@ -78,7 +80,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.get_account_and_lock")
+	ctx, span := tracer.Start(ctx, "query.get_account_and_lock")
 	defer span.End()
 
 	newBalances := make([]*mmodel.Balance, 0)
