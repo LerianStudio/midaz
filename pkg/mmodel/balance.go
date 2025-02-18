@@ -30,8 +30,8 @@ type Balance struct {
 }
 
 type UpdateBalance struct {
-	AllowSending   bool `json:"allowSending" example:"true"`
-	AllowReceiving bool `json:"allowReceiving" example:"true"`
+	AllowSending   *bool `json:"allowSending" example:"true"`
+	AllowReceiving *bool `json:"allowReceiving" example:"true"`
 }
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID

@@ -704,6 +704,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 // Update updates the allow_sending and allow_receiving fields of a Balance in the database.
 func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error {
 	tracer := pkg.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_balance")
 	defer span.End()
@@ -716,32 +717,49 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	ctx, spanQuery := tracer.Start(ctx, "postgres.update.exec")
+	defer spanQuery.End()
 
-	result, err := db.ExecContext(ctx, `
-		UPDATE balance 
-		SET allow_sending = $1, allow_receiving = $2, updated_at = NOW()
-		WHERE organization_id = $3 AND ledger_id = $4 AND id = $5 AND deleted_at IS NULL`,
-		balance.AllowSending, balance.AllowReceiving, organizationID, ledgerID, id,
-	)
+	var updates []string
 
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "failed to execute update query", err)
-		return err
+	var args []any
+
+	if balance.AllowSending != nil {
+		updates = append(updates, "allow_sending = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balance.AllowSending)
 	}
 
-	spanQuery.End()
+	if balance.AllowReceiving != nil {
+		updates = append(updates, "allow_receiving = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balance.AllowReceiving)
+	}
+
+	updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+	args = append(args, time.Now(), organizationID, ledgerID, id)
+
+	queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
+		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+		` AND id = $` + strconv.Itoa(len(args)) +
+		` AND deleted_at IS NULL`
+
+	result, err := db.ExecContext(ctx, queryUpdate, args...)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Err on result exec content", err)
+
+		logger.Errorf("Err on result exec content: %v", err)
+
+		return err
+	}
 
 	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+	if err != nil || rowsAffected == 0 {
+		if err == nil {
+			err = sql.ErrNoRows
+		}
 
-		return err
-	}
+		mopentelemetry.HandleSpanError(&span, "Err on rows affected", err)
 
-	if rowsAffected == 0 {
-		err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Balance{}).Name())
-
-		mopentelemetry.HandleSpanError(&span, "Failed to update balance. Rows affected is 0", err)
+		logger.Errorf("Err on rows affected: %v", err)
 
 		return err
 	}

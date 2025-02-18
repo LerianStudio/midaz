@@ -1,10 +1,10 @@
 {
 	"info": {
-		"_postman_id": "0ecc0d05-17e4-4ee8-8060-3e3a42b06884",
+		"_postman_id": "466b36cf-9d1a-45ad-8800-b20825152983",
 		"name": "MIDAZ",
 		"description": "## **How generate token to use on MIDAZ**\n\n<img src=\"https://content.pstmn.io/4d5e891d-4eee-4fc9-a934-017456eebe95/aW1hZ2UucG5n\" width=\"606\" height=\"573\">\n\n<img src=\"https://content.pstmn.io/033e5a7a-d1d1-434a-988f-31bda4bf5028/aW1hZ2UucG5n\" width=\"616\" height=\"600\">\n\n<img src=\"https://content.pstmn.io/98a264c5-2b90-4f41-b7dd-8cea8f2ea945/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/c62093ff-8dd4-4df4-a73e-e3a448935224/aW1hZ2UucG5n\" width=\"937\" height=\"730\">\n\n<img src=\"https://content.pstmn.io/39566f9d-2e0b-4fd2-bf2f-15fbe211f5a9/aW1hZ2UucG5n\" width=\"937\" height=\"730\">",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "41999946"
+		"_exporter_id": "32592108"
 	},
 	"item": [
 		{
@@ -566,7 +566,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    \"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked organization\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"01310916\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
+							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io 2\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked organization\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"01310916\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"testettetetete\"\n    },\n    \"metadatas\": {\n        \"zozo\": null\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2779,7 +2779,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"allow_sending\": true,\n    \"allow_receiving\": false\n}",
+							"raw": "{\n    \"allowSending\": true,\n    \"allowReceiving\": false\n}",
 							"options": {
 								"raw": {
 									"language": "json"

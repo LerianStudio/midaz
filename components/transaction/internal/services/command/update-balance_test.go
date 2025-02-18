@@ -18,9 +18,11 @@ func TestUpdateBalanceSuccess(t *testing.T) {
 	ledgerID := pkg.GenerateUUIDv7()
 	balanceID := pkg.GenerateUUIDv7()
 
+	allowSending := false
+
 	balanceUpdate := mmodel.UpdateBalance{
-		AllowSending:   true,
-		AllowReceiving: false,
+		AllowSending:   &allowSending,
+		AllowReceiving: nil,
 	}
 
 	uc := UseCase{
@@ -44,9 +46,12 @@ func TestUpdateBalanceError(t *testing.T) {
 	ledgerID := pkg.GenerateUUIDv7()
 	balanceID := pkg.GenerateUUIDv7()
 
+	allowSending := true
+	allowReceiving := false
+
 	balanceUpdate := mmodel.UpdateBalance{
-		AllowSending:   true,
-		AllowReceiving: false,
+		AllowSending:   &allowSending,
+		AllowReceiving: &allowReceiving,
 	}
 
 	uc := UseCase{
