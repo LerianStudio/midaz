@@ -31,7 +31,7 @@ type UpdateAccountInput struct {
 	SegmentID   *string        `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	PortfolioID *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Status      Status         `json:"status"`
-	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateAccountInput
 
 // Account is a struct designed to encapsulate response payload data.

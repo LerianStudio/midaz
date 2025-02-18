@@ -32,7 +32,7 @@ type OrganizationHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id		header		string							false	"Request ID"
 //	@Param			organization	body		mmodel.CreateOrganizationInput	true	"Organization Input"
 //	@Success		200				{object}	mmodel.Organization
 //	@Router			/v1/organizations [post]
@@ -75,7 +75,7 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id		header		string							false	"Request ID"
 //	@Param			id				path		string							true	"Organization ID"
 //	@Param			organization	body		mmodel.UpdateOrganizationInput	true	"Organization Input"
 //	@Success		200				{object}	mmodel.Organization
@@ -132,7 +132,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 //	@Tags			Organizations
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			id				path		string	true	"Organization ID"
 //	@Success		200				{object}	mmodel.Organization
 //	@Router			/v1/organizations/{id} [get]
@@ -169,7 +169,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Tags			Organizations
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			metadata		query		string	false	"Metadata"
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			page			query		int		false	"Page"			default(1)
@@ -248,7 +248,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 //	@Description	Delete an Organization with the input ID
 //	@Tags			Organizations
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			X-Request-Id		header	string	false	"Request ID"
 //	@Param			id				path	string	true	"Organization ID"
 //	@Success		204
 //	@Router			/v1/organizations/{id} [delete]

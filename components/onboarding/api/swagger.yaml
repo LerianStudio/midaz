@@ -172,6 +172,7 @@ definitions:
         type: string
     required:
     - code
+    - name
     type: object
   CreateLedgerInput:
     description: CreateLedgerInput is the input payload to create a ledger.
@@ -528,7 +529,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Metadata
         in: query
@@ -592,7 +593,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization Input
         in: body
@@ -621,7 +622,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -644,7 +645,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -673,7 +674,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -707,7 +708,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -777,7 +778,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -811,7 +812,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -839,7 +840,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -873,7 +874,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -912,7 +913,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -986,7 +987,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1025,7 +1026,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1063,7 +1064,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1096,7 +1097,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1135,7 +1136,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1179,7 +1180,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1253,7 +1254,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1292,7 +1293,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1325,7 +1326,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1364,7 +1365,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1408,7 +1409,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1482,7 +1483,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1521,7 +1522,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1554,7 +1555,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1593,7 +1594,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1637,7 +1638,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1711,7 +1712,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1750,7 +1751,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1783,7 +1784,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1822,7 +1823,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path

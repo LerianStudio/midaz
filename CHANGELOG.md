@@ -1,3 +1,27 @@
+## [1.48.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.5...v1.48.0-beta.6) (2025-02-18)
+
+
+### Features
+
+* add balance docs :sparkles: ([a6c6560](https://github.com/LerianStudio/midaz/commit/a6c6560c13f914027b06f892fd9b17dda078f787))
+* add balance functions :sparkles: ([92f35ea](https://github.com/LerianStudio/midaz/commit/92f35ea866a9c64f7c22dd17157e5916d4e000ee))
+* add balance routes :sparkles: ([23da369](https://github.com/LerianStudio/midaz/commit/23da369836b23e13ebddd14268fe8ab9c43d8a53))
+* add tests :sparkles: :sparkles: ([c032548](https://github.com/LerianStudio/midaz/commit/c032548a8fb22e1fbefcdddc2ea791790fe50d32))
+* update postman :sparkles: ([070f01f](https://github.com/LerianStudio/midaz/commit/070f01f1426f84581521d221e5b2e52d2595a5f8))
+
+
+### Bug Fixes
+
+* add balance_id to knows paths parameters; :bug: ([f999782](https://github.com/LerianStudio/midaz/commit/f999782767a715ee29523a1823a4b901be7f89c0))
+* add omitempty that when body pass metadata key with null remove from db; :bug: ([ed405c7](https://github.com/LerianStudio/midaz/commit/ed405c78d5ed489d73e0ec92e56a0e0088f71599))
+* adjust balance update to only update a individual field; :bug: ([c460707](https://github.com/LerianStudio/midaz/commit/c460707fafc8b746aaf7fe4414840a50c08fd6f5))
+* adjust legal_name and doing_business_as to be updated individually; :bug: ([bea1039](https://github.com/LerianStudio/midaz/commit/bea1039274d30154be73993a07a2b40c5378ecec))
+* make lint and make sec; refactor swagger and openapi; :bug: ([5b07249](https://github.com/LerianStudio/midaz/commit/5b07249ebcb1a8142aeed50f4b6b301e0fc8081c))
+* make test; :bug: ([44b8a38](https://github.com/LerianStudio/midaz/commit/44b8a38d7e784d37556916d3da5da9486343310e))
+* param sort order :bug: ([610167a](https://github.com/LerianStudio/midaz/commit/610167a03d584313a85e277a7bd28dd9a3c00626))
+* update libs on go mod and go sum; :bug: ([042951e](https://github.com/LerianStudio/midaz/commit/042951ea6c86f6eb91adef676ccee7fdb7356fc3))
+* update tests; :bug: ([8d919fe](https://github.com/LerianStudio/midaz/commit/8d919fe75ab159abfaac047ec9e7dcac55b1524a))
+
 ## [1.48.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.4...v1.48.0-beta.5) (2025-02-14)
 
 
