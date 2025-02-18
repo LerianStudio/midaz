@@ -1,3 +1,23 @@
+## [1.48.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.6...v1.48.0-beta.7) (2025-02-18)
+
+
+### Features
+
+* add balance, transaction and operations to be persisted in a queue; ([c55d348](https://github.com/LerianStudio/midaz/commit/c55d348aba14425d41480e99efb57be5b165608c))
+* add rabbit queue; create producer and consumer to retry; ([2c72336](https://github.com/LerianStudio/midaz/commit/2c723367d26000f38a8adc71d615eac80f1b991e))
+* pgbouncer and 3000 conn and shared buffers 1gb; :sparkles: ([6eceeef](https://github.com/LerianStudio/midaz/commit/6eceeefb163ca5252de4ced9c415e865addb5c63))
+* pgbouncer try to config connections to best tps possible; :sparkles: ([fa59836](https://github.com/LerianStudio/midaz/commit/fa59836f81af8ec4acb520dac172c1bafd404cb3))
+
+
+### Bug Fixes
+
+* add pgbounce ([9cddd3e](https://github.com/LerianStudio/midaz/commit/9cddd3e5df1dafef06bb9b0494ed1d3dfe229eeb))
+* adjust lint; :bug: ([b946a43](https://github.com/LerianStudio/midaz/commit/b946a43472c3e9e2ccf5141a27598a0bb4635d78))
+* audit log enabled false; :bug: ([f7ca26b](https://github.com/LerianStudio/midaz/commit/f7ca26b78126e9f1410cb079e37f1395ac5cb4c7))
+* message casdoor name; :bug: ([a1e9431](https://github.com/LerianStudio/midaz/commit/a1e943183ea4db6bdde33a3a39e3d5e2dc1dd681))
+* pgbounce shared buffers on replica; :bug: ([fe91059](https://github.com/LerianStudio/midaz/commit/fe910596423740ce7fc91cb7440a00397ef6952b))
+* some adjusts to improve tps performance; ([57eb1c8](https://github.com/LerianStudio/midaz/commit/57eb1c83f23acb5eae23151470bbdb18e38e097b))
+
 ## [1.48.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.5...v1.48.0-beta.6) (2025-02-18)
 
 
