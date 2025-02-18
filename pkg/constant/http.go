@@ -13,4 +13,5 @@ var UUIDPathParameters = []string{
 	"asset_rate_id",
 	"external_id",
 	"audit_id",
+	"balance_id",
 }
