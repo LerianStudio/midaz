@@ -26,7 +26,7 @@ type UpdateOrganizationInput struct {
 	DoingBusinessAs      string         `json:"doingBusinessAs" validate:"max=256" example:"The ledger.io"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
-	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateOrganizationInput
 
 // Organization is a struct designed to encapsulate response payload data.
