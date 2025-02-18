@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mlog"
@@ -38,6 +39,28 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, logger mlog.Logger, organ
 		mopentelemetry.HandleSpanError(&span, "Failed to update balances on database", err)
 
 		logger.Error("Failed to update balances on database", err.Error())
+
+		return err
+	}
+
+	return nil
+}
+
+// Update balance in the repository.
+func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) error {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "exec.update_balance")
+	defer span.End()
+
+	logger.Infof("Trying to update balance")
+
+	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to update balance on repo", err)
+
+		logger.Errorf("Error update balance: %v", err)
 
 		return err
 	}

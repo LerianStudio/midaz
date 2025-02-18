@@ -44,7 +44,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -143,7 +143,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -187,7 +187,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -224,7 +224,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -264,7 +264,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -315,7 +315,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -422,7 +422,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -473,7 +473,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -517,7 +517,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -564,7 +564,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -622,7 +622,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -735,7 +735,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -793,7 +793,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -849,7 +849,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -900,7 +900,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -954,7 +954,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1019,7 +1019,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1132,7 +1132,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1190,7 +1190,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1241,7 +1241,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1295,7 +1295,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1360,7 +1360,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1473,7 +1473,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1531,7 +1531,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1582,7 +1582,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1636,7 +1636,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1701,7 +1701,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1814,7 +1814,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1872,7 +1872,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1923,7 +1923,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1977,7 +1977,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -2230,7 +2230,8 @@ const docTemplate = `{
             "description": "CreateAssetInput is the input payload to create an asset.",
             "type": "object",
             "required": [
-                "code"
+                "code",
+                "name"
             ],
             "properties": {
                 "code": {

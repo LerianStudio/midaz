@@ -19,7 +19,7 @@ type CreateLedgerInput struct {
 type UpdateLedgerInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"Lerian Studio Updated"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateLedgerInput
 
 // Ledger is a struct designed to encapsulate payload data.

@@ -29,7 +29,7 @@ type AssetHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string					false	"Request ID"
+//	@Param			X-Request-Id		header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset Input"
@@ -81,7 +81,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Tags			Assets
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			metadata		query		string	false	"Metadata"
@@ -170,7 +170,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 //	@Tags			Assets
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			id				path		string	true	"Asset ID"
@@ -213,7 +213,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string					false	"Request ID"
+//	@Param			X-Request-Id		header		string					false	"Request ID"
 //	@Param			organization_id	path		string					true	"Organization ID"
 //	@Param			ledger_id		path		string					true	"Ledger ID"
 //	@Param			id				path		string					true	"Asset ID"
@@ -274,7 +274,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 //	@Description	Delete an Asset with the input ID
 //	@Tags			Assets
 //	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header	string	false	"Request ID"
+//	@Param			X-Request-Id		header	string	false	"Request ID"
 //	@Param			organization_id	path	string	true	"Organization ID"
 //	@Param			ledger_id		path	string	true	"Ledger ID"
 //	@Param			id				path	string	true	"Asset ID"

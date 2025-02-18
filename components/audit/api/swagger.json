@@ -38,7 +38,7 @@
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -94,7 +94,7 @@
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {

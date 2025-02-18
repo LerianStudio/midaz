@@ -419,6 +419,67 @@ definitions:
         additionalProperties: {}
         type: object
     type: object
+  mmodel.Balance:
+    description: Balance is a struct designed to store balance data.
+    properties:
+      accountId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      accountType:
+        example: creditCard
+        type: string
+      alias:
+        example: '@person1'
+        type: string
+      allowReceiving:
+        example: true
+        type: boolean
+      allowSending:
+        example: true
+        type: boolean
+      assetCode:
+        example: BRL
+        type: string
+      available:
+        example: 1500
+        type: integer
+      createdAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      deletedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+      id:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      ledgerId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      onHold:
+        example: 500
+        type: integer
+      organizationId:
+        example: 00000000-0000-0000-0000-000000000000
+        type: string
+      scale:
+        example: 2
+        type: integer
+      updatedAt:
+        example: "2021-01-01T00:00:00Z"
+        type: string
+    type: object
+  mmodel.UpdateBalance:
+    properties:
+      allowReceiving:
+        example: true
+        type: boolean
+      allowSending:
+        example: true
+        type: boolean
+    type: object
 host: localhost:3001
 info:
   contact:
@@ -432,9 +493,9 @@ info:
   title: Midaz Transaction API
   version: v1.48.0
 paths:
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+  /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances:
     get:
-      description: Get all Operations with the input ID
+      description: Get all balances by account id
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -443,7 +504,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -473,7 +534,266 @@ paths:
         in: query
         name: end_date
         type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
+                items:
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+                  type: array
+                limit:
+                  type: integer
+              type: object
+      summary: Get all balances by account id
+      tags:
+      - Balances
+  /v1/organizations/:organization_id/ledgers/:ledger_id/balances:
+    get:
+      description: Get all balances
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
       - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
+                items:
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+                  type: array
+                limit:
+                  type: integer
+              type: object
+      summary: Get all balances
+      tags:
+      - Balances
+  /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id:
+    delete:
+      description: Delete a Balance with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+      summary: Delete Balance by account
+      tags:
+      - Balances
+    get:
+      description: Get a Balance with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+      summary: Get Balance by id
+      tags:
+      - Balances
+    patch:
+      consumes:
+      - application/json
+      description: Update a Balance with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      - description: Balance Input
+        in: body
+        name: balance
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.UpdateBalance'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+      summary: Update Balance
+      tags:
+      - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
         in: query
         name: sort_order
         type: string
@@ -515,7 +835,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -560,7 +880,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -599,7 +919,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -637,7 +957,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -719,7 +1039,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -791,7 +1111,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -830,7 +1150,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -876,7 +1196,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -927,7 +1247,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -967,7 +1287,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -1007,7 +1327,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path

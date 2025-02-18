@@ -28,14 +28,14 @@ type OperationHandler struct {
 //	@Tags			Operations
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Ledger ID"		enum(asc,desc)
+//	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations [get]
@@ -104,7 +104,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Tags			Operations
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
@@ -149,7 +149,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id		header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			transaction_id	path		string							true	"Transaction ID"

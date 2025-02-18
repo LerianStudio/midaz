@@ -147,7 +147,7 @@ func TestOrganizationGetByID(t *testing.T) {
 func TestOrganizationUpdate(t *testing.T) {
 	inp := mmodel.UpdateOrganizationInput{
 		LegalName:       "Corwin LLC",
-		DoingBusinessAs: ptr.StringPtr("The ledger.io"),
+		DoingBusinessAs: "The ledger.io",
 		Status: mmodel.Status{
 			Code:        "ACTIVE",
 			Description: ptr.StringPtr("Teste Ledger"),

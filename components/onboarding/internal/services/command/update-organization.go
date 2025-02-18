@@ -39,7 +39,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	organization := &mmodel.Organization{
 		ParentOrganizationID: uoi.ParentOrganizationID,
 		LegalName:            uoi.LegalName,
-		DoingBusinessAs:      uoi.DoingBusinessAs,
+		DoingBusinessAs:      &uoi.DoingBusinessAs,
 		Address:              uoi.Address,
 		Status:               uoi.Status,
 	}
