@@ -89,7 +89,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 						cr.Logger.Errorf("Error nack message from queue %s: %v", queue, nackErr)
 					}
 
-					cr.Logger.Fatalf("Error processing message from queue %s: %v", queue, err)
+					cr.Logger.Errorf("Error processing message from queue %s: %v", queue, err)
 
 					return
 				}
