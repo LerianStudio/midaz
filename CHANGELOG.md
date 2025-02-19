@@ -1,3 +1,10 @@
+## [1.48.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.7...v1.48.0-beta.8) (2025-02-19)
+
+
+### Features
+
+* add optimistic lock using version on database; :sparkles: ([bd753c9](https://github.com/LerianStudio/midaz/commit/bd753c9e87023a6db100f31e050247cb29b6b1ff))
+
 ## [1.48.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.6...v1.48.0-beta.7) (2025-02-18)
 
 
