@@ -563,12 +563,13 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		args = append(args, version)
 
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, blc.ID)
+		args = append(args, time.Now(), organizationID, ledgerID, blc.ID, blc.Version)
 
 		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-			` AND id = $` + strconv.Itoa(len(args)) +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+			` AND id = $` + strconv.Itoa(len(args)-1) +
+			` AND version = $` + strconv.Itoa(len(args)) +
 			` AND deleted_at IS NULL`
 
 		result, err := tx.ExecContext(ctx, queryUpdate, args...)

@@ -19,7 +19,7 @@ type Balance struct {
 	Available      int64          `json:"available" example:"1500"`
 	OnHold         int64          `json:"onHold" example:"500"`
 	Scale          int64          `json:"scale" example:"2"`
-	Version        int64          `json:"-"`
+	Version        int64          `json:"version" example:"1"`
 	AccountType    string         `json:"accountType" example:"creditCard"`
 	AllowSending   bool           `json:"allowSending" example:"true"`
 	AllowReceiving bool           `json:"allowReceiving" example:"true"`
