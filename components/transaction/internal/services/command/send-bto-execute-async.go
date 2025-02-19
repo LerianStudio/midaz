@@ -54,6 +54,6 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	); err != nil {
 		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
 
-		logger.Fatalf("Failed to send message: %s", err.Error())
+		logger.Errorf("Failed to send message: %s", err.Error())
 	}
 }

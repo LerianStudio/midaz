@@ -509,9 +509,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	}
 
 	for _, blc := range balances {
-		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL FOR UPDATE"
+		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND version = $4 AND deleted_at IS NULL FOR UPDATE"
 
-		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID)
+		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID, blc.Version)
 
 		var balance BalancePostgreSQLModel
 		err = row.Scan(
@@ -563,13 +563,12 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		args = append(args, version)
 
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, blc.ID, blc.Version)
+		args = append(args, time.Now(), organizationID, ledgerID, blc.ID)
 
 		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
-			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
-			` AND id = $` + strconv.Itoa(len(args)-1) +
-			` AND version = $` + strconv.Itoa(len(args)) +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+			` AND id = $` + strconv.Itoa(len(args)) +
 			` AND deleted_at IS NULL`
 
 		result, err := tx.ExecContext(ctx, queryUpdate, args...)

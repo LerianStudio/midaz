@@ -83,20 +83,15 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 				err := handlerFunc(ctx, msg.Body)
 				if err != nil {
-					cr.Logger.Errorf("Error processing message from queue %s: %v", queue, err)
+					cr.Logger.Errorf("Error processing message, resend messages to queue %s: %v", queue, err)
+					cr.Logger.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s: %v", queue, msg.Body)
 
-					if nackErr := msg.Nack(false, true); nackErr != nil {
-						cr.Logger.Errorf("Error nack message from queue %s: %v", queue, nackErr)
-					}
+					_ = msg.Nack(false, true)
 
-					cr.Logger.Errorf("Error processing message from queue %s: %v", queue, err)
-
-					return
+					continue
 				}
 
-				if ackErr := msg.Ack(false); ackErr != nil {
-					cr.Logger.Errorf("Error ack message from queue %s: %v", queue, ackErr)
-				}
+				_ = msg.Ack(false)
 			}
 		}(queueName, handler)
 	}
