@@ -48,8 +48,8 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
 		ctxSendBTOQueue,
-		os.Getenv("RABBITMQ_BALANCE_RETRY_EXCHANGE"),
-		os.Getenv("RABBITMQ_BALANCE_RETRY_KEY"),
+		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
+		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
 		queueMessage,
 	); err != nil {
 		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)

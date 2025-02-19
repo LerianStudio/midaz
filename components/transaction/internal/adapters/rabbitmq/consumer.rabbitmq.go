@@ -84,7 +84,6 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 				err := handlerFunc(ctx, msg.Body)
 				if err != nil {
 					cr.Logger.Errorf("Error processing message, resend messages to queue %s: %v", queue, err)
-					cr.Logger.Errorf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s: %v", queue, msg.Body)
 
 					_ = msg.Nack(false, true)
 

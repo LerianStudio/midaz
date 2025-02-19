@@ -25,8 +25,8 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 	}
 
 	// Registry handlers for each queue
-	routes.Register(os.Getenv("RABBITMQ_QUEUE"), consumer.handlerBalanceCreateQueue)
-	routes.Register(os.Getenv("RABBITMQ_BALANCE_RETRY_QUEUE"), consumer.handlerBTOQueue)
+	routes.Register(os.Getenv("RABBITMQ_BALANCE_CREATE_QUEUE"), consumer.handlerBalanceCreateQueue)
+	routes.Register(os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE"), consumer.handlerBTOQueue)
 
 	return consumer
 }
