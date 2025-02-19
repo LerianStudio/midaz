@@ -643,7 +643,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanTranAsync, "Failed to marshal transaction to JSON string", err)
 
-		logger.Fatalf("Failed to marshal validate to JSON string: %s", err.Error())
+		logger.Errorf("Failed to marshal validate to JSON string: %s", err.Error())
 	}
 
 	queueData = append(queueData, mmodel.QueueData{
