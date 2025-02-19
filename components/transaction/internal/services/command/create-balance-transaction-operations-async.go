@@ -19,7 +19,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	var t transaction.TransactionQueue
-	
+
 	for _, item := range data.QueueData {
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
 
@@ -124,4 +124,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	return nil
+}
+
+func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
+	logger := pkg.NewLoggerFromContext(ctx)
+
+	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
+	if err != nil {
+		logger.Errorf("Failed to create balance transaction operations: %v", err)
+	}
 }

@@ -628,6 +628,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
+	_, spanTranAsync := tracer.Start(ctx, "handler.create_transaction.async")
+	defer spanTranAsync.End()
+
 	queueData := make([]mmodel.QueueData, 0)
 
 	value := transaction.TransactionQueue{
@@ -637,6 +640,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	}
 
 	marshal, err := json.Marshal(value)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanTranAsync, "Failed to marshal transaction to JSON string", err)
+
+		logger.Fatalf("Failed to marshal validate to JSON string: %s", err.Error())
+	}
+
 	queueData = append(queueData, mmodel.QueueData{
 		ID:    tran.IDtoUUID(),
 		Value: marshal,
@@ -648,7 +657,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		QueueData:      queueData,
 	}
 
-	go handler.Command.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
+	go handler.Command.CreateBTOAsync(ctx, queueMessage)
 
 	//go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, validate, balances, tran)
 
