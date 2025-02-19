@@ -509,9 +509,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	}
 
 	for _, blc := range balances {
-		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND version = $4 AND deleted_at IS NULL FOR UPDATE"
+		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL FOR UPDATE"
 
-		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID, blc.Version)
+		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID)
 
 		var balance BalancePostgreSQLModel
 		err = row.Scan(
