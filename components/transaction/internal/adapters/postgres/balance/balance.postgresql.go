@@ -530,6 +530,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	var balances []BalancePostgreSQLModel
 
 	query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL FOR UPDATE"
+
 	rows, err := tx.QueryContext(ctx, query, organizationID, ledgerID, aliases)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to execute query", err)
@@ -538,6 +539,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 
 		return err
 	}
+
 	defer rows.Close()
 
 	for rows.Next() {
@@ -621,6 +623,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		rowsAffected, err := result.RowsAffected()
 		if err != nil || rowsAffected == 0 {
 			mopentelemetry.HandleSpanError(&span, "Err or zero rows affected", err)
+
 			if err == nil {
 				err = sql.ErrNoRows
 			}
