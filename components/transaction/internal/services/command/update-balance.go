@@ -23,19 +23,16 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
 	}
 
-	result := make(chan []*mmodel.Balance)
+	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.From, constant.DEBIT)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 
-	var balancesToUpdate []*mmodel.Balance
+		logger.Error("Failed to update balances on database", err.Error())
 
-	go goldModel.UpdateBalances(constant.DEBIT, validate.From, balances, result)
-	rDebit := <-result
-	balancesToUpdate = append(balancesToUpdate, rDebit...)
+		return err
+	}
 
-	go goldModel.UpdateBalances(constant.CREDIT, validate.To, balances, result)
-	rCredit := <-result
-	balancesToUpdate = append(balancesToUpdate, rCredit...)
-
-	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, balancesToUpdate)
+	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.To, constant.CREDIT)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 

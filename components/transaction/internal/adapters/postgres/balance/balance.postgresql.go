@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
@@ -30,7 +31,7 @@ type Repository interface {
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
-	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
+	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, fromTo map[string]goldModel.Amount, operation string) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -487,7 +488,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 }
 
 // SelectForUpdate a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, fromTo map[string]goldModel.Amount, operation string) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 	logger := pkg.NewLoggerFromContext(ctx)
 
@@ -526,10 +527,10 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		}
 	}()
 
-	for _, blc := range balances {
-		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND version = $4 AND deleted_at IS NULL FOR UPDATE"
+	for key := range fromTo {
+		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL FOR UPDATE"
 
-		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID, blc.Version)
+		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, key)
 
 		var balance BalancePostgreSQLModel
 		err = row.Scan(
@@ -552,20 +553,44 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		)
 
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "register not found", err)
 			if errors.Is(err, sql.ErrNoRows) {
-
-				logger.Errorf("register not found for ID %s", blc.ID)
+				logger.Errorf("registro não encontrado para ID %s", key)
 
 				return err
 			}
 
-			logger.Errorf("err on select for update: %v", err)
+			logger.Errorf("erro no select for update: %v", err)
 
 			return err
 		}
 
+		calculateBalances := goldModel.OperateBalances(fromTo[key],
+			goldModel.Balance{
+				Scale:     balance.Scale,
+				Available: balance.Available,
+				OnHold:    balance.OnHold,
+			},
+			operation)
+
+		blc := mmodel.Balance{
+			ID:             balance.ID,
+			Alias:          balance.Alias,
+			OrganizationID: balance.OrganizationID,
+			LedgerID:       balance.LedgerID,
+			AssetCode:      balance.AssetCode,
+			Available:      calculateBalances.Available,
+			Scale:          calculateBalances.Scale,
+			OnHold:         calculateBalances.OnHold,
+			AllowSending:   balance.AllowSending,
+			AllowReceiving: balance.AllowReceiving,
+			AccountType:    balance.AccountType,
+			Version:        balance.Version,
+			CreatedAt:      balance.CreatedAt,
+			UpdatedAt:      balance.UpdatedAt,
+		}
+
 		var updates []string
+
 		var args []any
 
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
