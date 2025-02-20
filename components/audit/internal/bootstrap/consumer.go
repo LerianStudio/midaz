@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"os"
 
 	"github.com/LerianStudio/midaz/components/audit/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/audit/internal/services"
@@ -25,7 +26,7 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *services.Us
 	}
 
 	// Registry handlers for each queue
-	routes.Register("audit_queue", consumer.handleAuditQueue)
+	routes.Register(os.Getenv("RABBITMQ_QUEUE"), consumer.handleAuditQueue)
 
 	return consumer
 }
@@ -35,7 +36,7 @@ func (mq *MultiQueueConsumer) Run(l *pkg.Launcher) error {
 	return mq.consumerRoutes.RunConsumers()
 }
 
-// handleAuditQueue process messages from "audit_queue".
+// handleAuditQueue process messages from queue.
 func (mq *MultiQueueConsumer) handleAuditQueue(ctx context.Context, body []byte) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
@@ -43,7 +44,7 @@ func (mq *MultiQueueConsumer) handleAuditQueue(ctx context.Context, body []byte)
 	ctx, span := tracer.Start(ctx, "consumer.handleAuditQueue")
 	defer span.End()
 
-	logger.Info("Processing message from audit_queue")
+	logger.Info("Processing message from queue")
 
 	var message mmodel.Queue
 

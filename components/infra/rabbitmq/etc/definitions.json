@@ -62,36 +62,36 @@
   ],
   "queues": [
     {
-      "name": "audit_queue",
+      "name": "audit.append_log.queue",
       "vhost": "/",
       "durable": true
     },
     {
-      "name": "transaction_balance_queue",
+      "name": "transaction.balance_create.queue",
       "vhost": "/",
       "durable": true
     },
     {
-      "name": "balance_retry_queue",
+      "name": "transaction.transaction_balance_operation.queue",
       "vhost": "/",
       "durable": true
     }
   ],
   "exchanges": [
     {
-      "name": "audit_exchange",
+      "name": "audit.append_log.exchange",
       "vhost": "/",
       "type": "direct",
       "durable": true
     },
     {
-      "name": "transaction_balance_exchange",
+      "name": "transaction.balance_create.exchange",
       "vhost": "/",
       "type": "direct",
       "durable": true
     },
     {
-      "name": "balance_retry_queue_exchange",
+      "name": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",
       "type": "direct",
       "durable": true
@@ -99,25 +99,25 @@
   ],
   "bindings": [
     {
-      "source": "audit_exchange",
+      "source": "audit.append_log.exchange",
       "vhost": "/",
-      "destination": "audit_queue",
+      "destination": "audit.append_log.queue",
       "destination_type": "queue",
-      "routing_key": "audit_key"
+      "routing_key": "audit.append_log.key"
     },
     {
-      "source": "transaction_balance_exchange",
+      "source": "transaction.balance_create.exchange",
       "vhost": "/",
-      "destination": "transaction_balance_queue",
+      "destination": "transaction.balance_create.queue",
       "destination_type": "queue",
-      "routing_key": "transaction_balance_key"
+      "routing_key": "transaction.balance_create.key"
     },
     {
-      "source": "balance_retry_queue_exchange",
+      "source": "transaction.transaction_balance_operation.exchange",
       "vhost": "/",
-      "destination": "balance_retry_queue",
+      "destination": "transaction.transaction_balance_operation.queue",
       "destination_type": "queue",
-      "routing_key": "balance_retry_queue_key"
+      "routing_key": "transaction.transaction_balance_operation.key"
     }
   ]
 }
