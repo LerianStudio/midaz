@@ -491,7 +491,7 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	tracer := pkg.NewTracerFromContext(ctx)
 	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.update_balances")
+	_, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
@@ -501,17 +501,35 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		return err
 	}
 
-	tx, err := db.Begin()
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to init balances", err)
 
 		return err
 	}
 
-	for _, blc := range balances {
-		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL FOR UPDATE"
+	defer func() {
+		if err != nil {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to init balances", rollbackErr)
 
-		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID)
+				logger.Errorf("err on rollback: %v", rollbackErr)
+			}
+		} else {
+			commitErr := tx.Commit()
+			if commitErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to init balances", commitErr)
+
+				logger.Errorf("err on commit: %v", commitErr)
+			}
+		}
+	}()
+
+	for _, blc := range balances {
+		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND version = $4 AND deleted_at IS NULL FOR UPDATE"
+
+		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, blc.ID, blc.Version)
 
 		var balance BalancePostgreSQLModel
 		err = row.Scan(
@@ -534,19 +552,20 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		)
 
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "register not found", err)
 			if errors.Is(err, sql.ErrNoRows) {
-				logger.Errorf("registro não encontrado para ID %s", blc.ID)
+
+				logger.Errorf("register not found for ID %s", blc.ID)
 
 				return err
 			}
 
-			logger.Errorf("erro no select for update: %v", err)
+			logger.Errorf("err on select for update: %v", err)
 
 			return err
 		}
 
 		var updates []string
-
 		var args []any
 
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
@@ -573,6 +592,8 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 
 		result, err := tx.ExecContext(ctx, queryUpdate, args...)
 		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Err on result exec content", err)
+
 			logger.Errorf("Err on result exec content: %v", err)
 
 			return err
@@ -580,22 +601,15 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil || rowsAffected == 0 {
+			mopentelemetry.HandleSpanError(&span, "Err or zero rows affected", err)
 			if err == nil {
 				err = sql.ErrNoRows
 			}
 
-			logger.Errorf("Err on rows affected: %v", err)
+			logger.Errorf("Err or zero rows affected: %v", err)
 
 			return err
 		}
-	}
-
-	if commitErr := tx.Commit(); commitErr != nil {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
-
-		mopentelemetry.HandleSpanError(&span, "Failed to commit balances", err)
-
-		return commitErr
 	}
 
 	return nil
