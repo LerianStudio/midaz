@@ -242,4 +242,5 @@ type TransactionQueue struct {
 	Validate    *goldModel.Responses
 	Balances    []*mmodel.Balance
 	Transaction *Transaction
+	ParseDSL    *goldModel.Transaction
 }

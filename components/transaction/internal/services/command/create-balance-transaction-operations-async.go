@@ -54,6 +54,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
+	tran.Body = *t.ParseDSL
 
 	description := constant.APPROVED
 	status := transaction.Status{
