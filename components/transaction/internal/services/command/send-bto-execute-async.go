@@ -13,7 +13,7 @@ import (
 )
 
 // SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
-func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) {
+func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *goldModel.Transaction, validate *goldModel.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -26,6 +26,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		Validate:    validate,
 		Balances:    blc,
 		Transaction: tran,
+		ParseDSL:    parseDSL,
 	}
 
 	marshal, err := json.Marshal(value)
