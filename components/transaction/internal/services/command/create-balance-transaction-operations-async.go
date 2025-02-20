@@ -31,22 +31,22 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		}
 	}
 
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
-	defer spanUpdateBalances.End()
-
-	logger.Infof("Trying to update balances")
-
-	validate := t.Validate
-	balances := t.Balances
-
-	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *validate, balances)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
-
-		logger.Errorf("Failed to update balances: %v", err.Error())
-
-		return err
-	}
+	//ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
+	//defer spanUpdateBalances.End()
+	//
+	//logger.Infof("Trying to update balances")
+	//
+	//validate := t.Validate
+	//balances := t.Balances
+	//
+	//err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *validate, balances)
+	//if err != nil {
+	//	mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
+	//
+	//	logger.Errorf("Failed to update balances: %v", err.Error())
+	//
+	//	return err
+	//}
 
 	ctxProcessTransaction, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
@@ -63,7 +63,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	tran.Status = status
 
-	_, err = uc.TransactionRepo.Create(ctx, tran)
+	_, err := uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
 

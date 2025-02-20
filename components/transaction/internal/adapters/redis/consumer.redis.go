@@ -24,7 +24,9 @@ type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
+	MGet(ctx context.Context, keys []string) ([]any, error)
 	Del(ctx context.Context, key string) error
+	Scan(ctx context.Context, key string) ([]string, error)
 	Incr(ctx context.Context, key string) int64
 	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount goldModel.Amount, operation string) (*mmodel.Balance, error)
 }
@@ -124,6 +126,32 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	return val, nil
 }
 
+func (rr *RedisConsumerRepository) MGet(ctx context.Context, keys []string) ([]any, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.mget")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to mget redis", err)
+
+		return nil, err
+	}
+
+	val, err := rds.MGet(ctx, keys...).Result()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to mget on redis", err)
+
+		return nil, err
+	}
+
+	logger.Infof("value : %v", val)
+
+	return val, nil
+}
+
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
@@ -148,6 +176,46 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger.Infof("value : %v", val)
 
 	return nil
+}
+
+func (rr *RedisConsumerRepository) Scan(ctx context.Context, key string) ([]string, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.scan")
+	defer span.End()
+
+	rds, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+
+		logger.Errorf("Failed to get redis on scan")
+
+		return nil, err
+	}
+
+	var cursor uint64
+	var allKeys []string
+
+	for {
+		keys, nextCursor, err := rds.Scan(ctx, cursor, key, 0).Result()
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Failed to get redis on scan", err)
+
+			logger.Errorf("Failed to get redis on scan")
+
+			return nil, err
+		}
+
+		allKeys = append(allKeys, keys...)
+
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return allKeys, nil
 }
 
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
@@ -219,7 +287,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		  }
 		end
 		
-		local ttl = 3600        
+		local ttl = 300        
 		local key = KEYS[1]
 		
 		local amount = {

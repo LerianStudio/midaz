@@ -9,6 +9,7 @@ import (
 type Service struct {
 	*Server
 	*MultiQueueConsumer
+	*CronConsumer
 	mlog.Logger
 }
 
@@ -17,7 +18,8 @@ type Service struct {
 func (app *Service) Run() {
 	pkg.NewLauncher(
 		pkg.WithLogger(app.Logger),
-		pkg.RunApp("services", app.Server),
+		pkg.RunApp("Server Apis", app.Server),
 		pkg.RunApp("RabbitMQ Consumer", app.MultiQueueConsumer),
+		pkg.RunApp("Cron Consumer", app.CronConsumer),
 	).Run()
 }

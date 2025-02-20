@@ -100,6 +100,36 @@ func (mr *MockRedisRepositoryMockRecorder) LockBalanceRedis(arg0, arg1, arg2, ar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).LockBalanceRedis), arg0, arg1, arg2, arg3, arg4)
 }
 
+// MGet mocks base method.
+func (m *MockRedisRepository) MGet(arg0 context.Context, arg1 []string) ([]any, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MGet", arg0, arg1)
+	ret0, _ := ret[0].([]any)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MGet indicates an expected call of MGet.
+func (mr *MockRedisRepositoryMockRecorder) MGet(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MGet", reflect.TypeOf((*MockRedisRepository)(nil).MGet), arg0, arg1)
+}
+
+// Scan mocks base method.
+func (m *MockRedisRepository) Scan(arg0 context.Context, arg1 string) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Scan", arg0, arg1)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Scan indicates an expected call of Scan.
+func (mr *MockRedisRepositoryMockRecorder) Scan(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Scan", reflect.TypeOf((*MockRedisRepository)(nil).Scan), arg0, arg1)
+}
+
 // Set mocks base method.
 func (m *MockRedisRepository) Set(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) error {
 	m.ctrl.T.Helper()

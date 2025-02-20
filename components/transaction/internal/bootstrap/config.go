@@ -204,9 +204,12 @@ func InitServers() *Service {
 
 	server := NewServer(cfg, app, logger, telemetry)
 
+	cronConsumer := NewCronConsumer(logger, telemetry, useCase)
+
 	return &Service{
 		Server:             server,
 		MultiQueueConsumer: multiQueueConsumer,
+		CronConsumer:       cronConsumer,
 		Logger:             logger,
 	}
 }
