@@ -1,3 +1,15 @@
+## [1.48.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.8...v1.48.0-beta.9) (2025-02-20)
+
+
+### Bug Fixes
+
+* change fatal to error; :bug: ([326f235](https://github.com/LerianStudio/midaz/commit/326f235b124914fa0cda9927216fc06488ad9903))
+* change func to log erro ands pass make lint; :bug: ([bfdbdb9](https://github.com/LerianStudio/midaz/commit/bfdbdb979d482e81fc57221d2681c1175f756c3c))
+* put bto sync; :bug: ([e028f41](https://github.com/LerianStudio/midaz/commit/e028f413f432a6281da2d09a70d90a92da79e17c))
+* update rabbitmq queues names, exchanges and keys; :bug: ([e1f8c56](https://github.com/LerianStudio/midaz/commit/e1f8c56e66e5182ac51fadfa99d1b9796c0e67bd))
+* update some changes to adjuste version on database; :bug: ([6f61294](https://github.com/LerianStudio/midaz/commit/6f612947dd3167b489270b35ea16ea69d4d57001))
+* version using queue and remove database optimistic lock; :bug: ([cc32b57](https://github.com/LerianStudio/midaz/commit/cc32b5705cc70be807675d25874dddda22f1a0a7))
+
 ## [1.48.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.7...v1.48.0-beta.8) (2025-02-19)
 
 
