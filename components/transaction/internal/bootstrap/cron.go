@@ -95,7 +95,7 @@ func (cc *CronConsumer) Run(l *pkg.Launcher) error {
 				balance.Alias = parts[3]
 				balances = append(balances, balance)
 
-				cc.Logger.Infof("Chave encontrada: %v", key)
+				cc.Logger.Infof("Chave encontrada: %v - Version: %v - Available: %v - Scale: %v", parts[3], balance.Version, balance.Available, balance.Scale)
 
 				continue
 			}
