@@ -31,7 +31,7 @@ type Repository interface {
 	ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error)
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
-	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, fromTo map[string]goldModel.Amount, operation string) error
+	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]goldModel.Amount) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -488,7 +488,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 }
 
 // SelectForUpdate a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, fromTo map[string]goldModel.Amount, operation string) error {
+func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]goldModel.Amount) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 	logger := pkg.NewLoggerFromContext(ctx)
 
@@ -527,13 +527,22 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		}
 	}()
 
-	for key := range fromTo {
-		query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL FOR UPDATE"
+	var balances []BalancePostgreSQLModel
 
-		row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, key)
+	query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL FOR UPDATE"
+	rows, err := tx.QueryContext(ctx, query, organizationID, ledgerID, aliases)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to execute query", err)
 
+		logger.Errorf("Failed to execute query: %v - err: %v", query, err)
+
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
 		var balance BalancePostgreSQLModel
-		err = row.Scan(
+		if err := rows.Scan(
 			&balance.ID,
 			&balance.OrganizationID,
 			&balance.LedgerID,
@@ -550,11 +559,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			&balance.CreatedAt,
 			&balance.UpdatedAt,
 			&balance.DeletedAt,
-		)
-
-		if err != nil {
+		); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				logger.Errorf("registro não encontrado para ID %s", key)
+				logger.Errorf("register not found")
 
 				return err
 			}
@@ -564,50 +571,37 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			return err
 		}
 
-		calculateBalances := goldModel.OperateBalances(fromTo[key],
+		balances = append(balances, balance)
+	}
+
+	for _, balance := range balances {
+		calculateBalances := goldModel.OperateBalances(fromTo[balance.Alias],
 			goldModel.Balance{
 				Scale:     balance.Scale,
 				Available: balance.Available,
 				OnHold:    balance.OnHold,
 			},
-			operation)
-
-		blc := mmodel.Balance{
-			ID:             balance.ID,
-			Alias:          balance.Alias,
-			OrganizationID: balance.OrganizationID,
-			LedgerID:       balance.LedgerID,
-			AssetCode:      balance.AssetCode,
-			Available:      calculateBalances.Available,
-			Scale:          calculateBalances.Scale,
-			OnHold:         calculateBalances.OnHold,
-			AllowSending:   balance.AllowSending,
-			AllowReceiving: balance.AllowReceiving,
-			AccountType:    balance.AccountType,
-			Version:        balance.Version,
-			CreatedAt:      balance.CreatedAt,
-			UpdatedAt:      balance.UpdatedAt,
-		}
+			fromTo[balance.Alias].Operation)
 
 		var updates []string
 
 		var args []any
 
 		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
-		args = append(args, blc.Available)
+		args = append(args, calculateBalances.Available)
 
 		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
-		args = append(args, blc.OnHold)
+		args = append(args, calculateBalances.OnHold)
 
 		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-		args = append(args, blc.Scale)
+		args = append(args, calculateBalances.Scale)
 
 		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-		version := blc.Version + 1
+		version := balance.Version + 1
 		args = append(args, version)
 
 		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-		args = append(args, time.Now(), organizationID, ledgerID, blc.ID)
+		args = append(args, time.Now(), organizationID, ledgerID, balance.ID)
 
 		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
 			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +

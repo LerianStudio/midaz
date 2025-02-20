@@ -149,7 +149,7 @@ func (mr *MockRepositoryMockRecorder) ListByAliases(arg0, arg1, arg2, arg3 any) 
 }
 
 // SelectForUpdate mocks base method.
-func (m *MockRepository) SelectForUpdate(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 map[string]model.Amount, arg4 string) error {
+func (m *MockRepository) SelectForUpdate(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []string, arg4 map[string]model.Amount) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SelectForUpdate", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
