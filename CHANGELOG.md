@@ -1,3 +1,10 @@
+## [1.48.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.10...v1.48.0-beta.11) (2025-02-20)
+
+
+### Bug Fixes
+
+* because body field is json:"-" in transaction when do marshal field desapear; :bug: ([9d4c563](https://github.com/LerianStudio/midaz/commit/9d4c563059d420baa1f327edfb12b024745f87dd))
+
 ## [1.48.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.9...v1.48.0-beta.10) (2025-02-20)
 
 
