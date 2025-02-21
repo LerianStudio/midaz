@@ -626,7 +626,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, validate, balances, tran)
+	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 
 	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 

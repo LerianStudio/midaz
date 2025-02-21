@@ -3,8 +3,10 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/jackc/pgx/v5/pgconn"
 	"time"
 )
 
@@ -29,7 +31,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			return err
 		}
 
-		b := &mmodel.Balance{
+		balance := &mmodel.Balance{
 			ID:             pkg.GenerateUUIDv7().String(),
 			Alias:          *account.Alias,
 			OrganizationID: account.OrganizationID,
@@ -43,11 +45,18 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			UpdatedAt:      time.Now(),
 		}
 
-		err = uc.BalanceRepo.Create(ctx, b)
+		err = uc.BalanceRepo.Create(ctx, balance)
 		if err != nil {
-			logger.Errorf("Error creating balance on repo: %v", err)
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				logger.Infof("Balance already exists: %v", balance.ID)
+			} else {
+				logger.Errorf("Error creating balance on repo: %v", err)
 
-			return err
+				logger.Infof("Error creating balance on repo")
+
+				return err
+			}
 		}
 	}
 

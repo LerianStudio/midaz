@@ -1,3 +1,32 @@
+## [1.48.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.11...v1.48.0-beta.12) (2025-02-21)
+
+
+### Bug Fixes
+
+* update balance create too to avoid erros and return msg to queue; :bug: ([cc0b38b](https://github.com/LerianStudio/midaz/commit/cc0b38be8e9b4028f40d7a13cf1dd4984b26c07d))
+* update create transaction and operation erro handling duplicated key; :bug: ([2a984df](https://github.com/LerianStudio/midaz/commit/2a984dfa84d51607eab9cf5bab969dc3d212a695))
+
+## [1.48.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.10...v1.48.0-beta.11) (2025-02-20)
+
+
+### Bug Fixes
+
+* because body field is json:"-" in transaction when do marshal field desapear; :bug: ([9d4c563](https://github.com/LerianStudio/midaz/commit/9d4c563059d420baa1f327edfb12b024745f87dd))
+
+## [1.48.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.9...v1.48.0-beta.10) (2025-02-20)
+
+
+### Features
+
+* add acid to select for update; ([17b02aa](https://github.com/LerianStudio/midaz/commit/17b02aa091be7b17077bdeeffd538f791bad2de6))
+* first version of select of update with balance rules; :sparkles: ([0bcde2e](https://github.com/LerianStudio/midaz/commit/0bcde2ea41e10aec0697dfe214dbd6383ce06824))
+* select for update with version correctly implemented; :sparkles: ([a7e10ff](https://github.com/LerianStudio/midaz/commit/a7e10ff58ed0b12a77e1f2126d30836e7703dc6d))
+
+
+### Bug Fixes
+
+* make lint and make sec; :bug: ([5d83b0d](https://github.com/LerianStudio/midaz/commit/5d83b0dff59175d323b9da77681efa6a3ae453fb))
+
 ## [1.48.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.8...v1.48.0-beta.9) (2025-02-20)
 
 
