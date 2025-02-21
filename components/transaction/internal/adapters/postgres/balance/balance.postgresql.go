@@ -7,6 +7,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
@@ -32,7 +33,7 @@ type Repository interface {
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]goldModel.Amount) error
-	SelectForUpdateNew(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceUpdate mmodel.Balance) error
+	SelectForUpdateNew(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, balanceUpdate mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -489,9 +490,8 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 }
 
 // SelectForUpdateNew a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceUpdate mmodel.Balance) error {
+func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, logger mlog.Logger, organizationID, ledgerID uuid.UUID, balanceUpdate mmodel.Balance) error {
 	tracer := pkg.NewTracerFromContext(ctx)
-	logger := pkg.NewLoggerFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
@@ -617,6 +617,8 @@ func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, or
 
 			return err
 		}
+
+		logger.Infof("BALANCE updated by REDIS successfully for alias: %v", balanceUpdate.Alias)
 	}
 
 	return nil

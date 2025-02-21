@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	model "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	mlog "github.com/LerianStudio/midaz/pkg/mlog"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	http "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
@@ -163,17 +164,17 @@ func (mr *MockRepositoryMockRecorder) SelectForUpdate(arg0, arg1, arg2, arg3, ar
 }
 
 // SelectForUpdateNew mocks base method.
-func (m *MockRepository) SelectForUpdateNew(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 mmodel.Balance) error {
+func (m *MockRepository) SelectForUpdateNew(arg0 context.Context, arg1 mlog.Logger, arg2, arg3 uuid.UUID, arg4 mmodel.Balance) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectForUpdateNew", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "SelectForUpdateNew", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SelectForUpdateNew indicates an expected call of SelectForUpdateNew.
-func (mr *MockRepositoryMockRecorder) SelectForUpdateNew(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) SelectForUpdateNew(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectForUpdateNew", reflect.TypeOf((*MockRepository)(nil).SelectForUpdateNew), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectForUpdateNew", reflect.TypeOf((*MockRepository)(nil).SelectForUpdateNew), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Update mocks base method.

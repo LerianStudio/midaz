@@ -16,10 +16,10 @@ import (
 
 // CronConsumer represents cron consumer.
 type CronConsumer struct {
-	UseCase   *command.UseCase
-	Logger    mlog.Logger
-	Telemetry *mopentelemetry.Telemetry
-	Timer     time.Duration
+	UseCase *command.UseCase
+	mlog.Logger
+	*mopentelemetry.Telemetry
+	Timer time.Duration
 }
 
 // NewCronConsumer create a new instance of NewCronConsumer.
@@ -36,11 +36,20 @@ func NewCronConsumer(logger mlog.Logger, telemetry *mopentelemetry.Telemetry, us
 
 // Run starts cron consumer.
 func (cc *CronConsumer) Run(l *pkg.Launcher) error {
+	cc.InitializeTelemetry(cc.Logger)
+	defer cc.ShutdownTelemetry()
+
+	defer func() {
+		if err := cc.Logger.Sync(); err != nil {
+			cc.Logger.Fatalf("Failed to sync logger: %s", err)
+		}
+	}()
+
 	ctx := context.Background()
 
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "run.cron_consumer")
+	newCtx, span := tracer.Start(ctx, "run.cron_consumer")
 	defer span.End()
 
 	ticker := time.NewTicker(cc.Timer)
@@ -51,7 +60,7 @@ func (cc *CronConsumer) Run(l *pkg.Launcher) error {
 	balances := make([]mmodel.Balance, 0)
 
 	for range ticker.C {
-		keys, err := cc.UseCase.RedisRepo.Scan(ctx, "lock:*")
+		keys, err := cc.UseCase.RedisRepo.Scan(ctx, "lock#*")
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to get redis locks", err)
 
@@ -95,13 +104,13 @@ func (cc *CronConsumer) Run(l *pkg.Launcher) error {
 				balance.Alias = parts[3]
 				balances = append(balances, balance)
 
-				cc.Logger.Infof("Chave encontrada: %v - Version: %v - Available: %v - Scale: %v", parts[3], balance.Version, balance.Available, balance.Scale)
-
 				continue
 			}
 
+			cc.Logger.Infof("Found %d accounts", len(keys))
+
 			for _, balance := range balances {
-				err = cc.UseCase.BalanceRepo.SelectForUpdateNew(ctx, organizationID, ledgerID, balance)
+				err = cc.UseCase.BalanceRepo.SelectForUpdateNew(newCtx, cc.Logger, organizationID, ledgerID, balance)
 				if err != nil {
 					mopentelemetry.HandleSpanError(&span, "Error to SelectForUpdate", err)
 
