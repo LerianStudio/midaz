@@ -3,12 +3,14 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/jackc/pgx/v5/pgconn"
 	"reflect"
 	"time"
 )
@@ -66,11 +68,16 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	_, err = uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			logger.Infof("Transaction already exists: %v", tran.ID)
+		} else {
+			mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
-		logger.Errorf("Failed to create transaction on repo: %v", err.Error())
+			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
 
-		return err
+			return err
+		}
 	}
 
 	if tran.Metadata != nil {
@@ -107,11 +114,16 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	for _, operation := range tran.Operations {
 		op, er := uc.OperationRepo.Create(ctxProcessOperation, operation)
 		if er != nil {
-			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", er)
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				logger.Infof("Operation already exists: %v", operation.ID)
+			} else {
+				mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", er)
 
-			logger.Errorf("Error creating operation: %v", er)
+				logger.Errorf("Error creating operation: %v", er)
 
-			return err
+				return err
+			}
 		}
 
 		er = uc.CreateMetadata(ctxProcessOperation, logger, tran.Metadata, op)
