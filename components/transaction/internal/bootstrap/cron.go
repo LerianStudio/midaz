@@ -107,7 +107,7 @@ func (cc *CronConsumer) Run(l *pkg.Launcher) error {
 				continue
 			}
 
-			cc.Logger.Infof("Found %d accounts", len(keys))
+			cc.Logger.Infof("Found %d total balances", len(keys))
 
 			for _, balance := range balances {
 				err = cc.UseCase.BalanceRepo.SelectForUpdateNew(newCtx, cc.Logger, organizationID, ledgerID, balance)
