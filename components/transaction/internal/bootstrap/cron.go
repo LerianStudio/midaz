@@ -100,11 +100,13 @@ func (cc *CronConsumer) Run(l *pkg.Launcher) error {
 				continue
 			}
 
-			err = cc.UseCase.BalanceRepo.SelectForUpdateNew(ctx, organizationID, ledgerID, aliases, balances)
-			if err != nil {
-				mopentelemetry.HandleSpanError(&span, "Error to SelectForUpdate", err)
+			for _, balance := range balances {
+				err = cc.UseCase.BalanceRepo.SelectForUpdateNew(ctx, organizationID, ledgerID, balance)
+				if err != nil {
+					mopentelemetry.HandleSpanError(&span, "Error to SelectForUpdate", err)
 
-				cc.Logger.Errorf("Error to SelectForUpdate: %v", err)
+					cc.Logger.Errorf("Error to SelectForUpdate: %v", err)
+				}
 			}
 		}
 	}

@@ -32,7 +32,7 @@ type Repository interface {
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]goldModel.Amount) error
-	SelectForUpdateNew(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, balanceUpdate []mmodel.Balance) error
+	SelectForUpdateNew(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceUpdate mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -489,7 +489,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 }
 
 // SelectForUpdateNew a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, balanceUpdate []mmodel.Balance) error {
+func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceUpdate mmodel.Balance) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 	logger := pkg.NewLoggerFromContext(ctx)
 
@@ -528,11 +528,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, or
 		}
 	}()
 
-	var balances []BalancePostgreSQLModel
+	query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ($3) AND deleted_at IS NULL FOR UPDATE"
 
-	query := "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL FOR UPDATE"
-
-	rows, err := tx.QueryContext(ctx, query, organizationID, ledgerID, aliases)
+	row := tx.QueryRowContext(ctx, query, organizationID, ledgerID, balanceUpdate.Alias)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to execute query", err)
 
@@ -541,92 +539,83 @@ func (r *BalancePostgreSQLRepository) SelectForUpdateNew(ctx context.Context, or
 		return err
 	}
 
-	defer rows.Close()
+	var balance BalancePostgreSQLModel
 
-	for rows.Next() {
-		var balance BalancePostgreSQLModel
-		if err := rows.Scan(
-			&balance.ID,
-			&balance.OrganizationID,
-			&balance.LedgerID,
-			&balance.AccountID,
-			&balance.Alias,
-			&balance.AssetCode,
-			&balance.Available,
-			&balance.OnHold,
-			&balance.Scale,
-			&balance.Version,
-			&balance.AccountType,
-			&balance.AllowSending,
-			&balance.AllowReceiving,
-			&balance.CreatedAt,
-			&balance.UpdatedAt,
-			&balance.DeletedAt,
-		); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				logger.Errorf("register not found")
-
-				return err
-			}
-
-			logger.Errorf("erro no select for update: %v", err)
+	if err := row.Scan(
+		&balance.ID,
+		&balance.OrganizationID,
+		&balance.LedgerID,
+		&balance.AccountID,
+		&balance.Alias,
+		&balance.AssetCode,
+		&balance.Available,
+		&balance.OnHold,
+		&balance.Scale,
+		&balance.Version,
+		&balance.AccountType,
+		&balance.AllowSending,
+		&balance.AllowReceiving,
+		&balance.CreatedAt,
+		&balance.UpdatedAt,
+		&balance.DeletedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			logger.Errorf("register not found")
 
 			return err
 		}
 
-		balances = append(balances, balance)
+		logger.Errorf("erro no select for update: %v", err)
+
+		return err
 	}
 
-	for _, balance := range balances {
-		for _, update := range balanceUpdate {
-			if balance.Alias == update.Alias && balance.Version < update.Version {
-				var updates []string
-				var args []any
+	if balance.Version < balanceUpdate.Version {
+		var updates []string
+		var args []any
 
-				updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
-				args = append(args, update.Available)
+		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balanceUpdate.Available)
 
-				updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
-				args = append(args, update.OnHold)
+		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balanceUpdate.OnHold)
 
-				updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
-				args = append(args, update.Scale)
+		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balanceUpdate.Scale)
 
-				updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
-				version := update.Version
-				args = append(args, version)
+		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+		version := balanceUpdate.Version
+		args = append(args, version)
 
-				updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
-				args = append(args, time.Now(), organizationID, ledgerID, balance.ID)
+		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+		args = append(args, time.Now(), organizationID, ledgerID, balance.ID)
 
-				queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
-					` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
-					` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
-					` AND id = $` + strconv.Itoa(len(args)) +
-					` AND deleted_at IS NULL`
+		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+			` AND id = $` + strconv.Itoa(len(args)) +
+			` AND deleted_at IS NULL`
 
-				result, err := tx.ExecContext(ctx, queryUpdate, args...)
-				if err != nil {
-					mopentelemetry.HandleSpanError(&span, "Err on result exec content", err)
+		result, err := tx.ExecContext(ctx, queryUpdate, args...)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Err on result exec content", err)
 
-					logger.Errorf("Err on result exec content: %v", err)
+			logger.Errorf("Err on result exec content: %v", err)
 
-					return err
-				}
+			return err
+		}
 
-				rowsAffected, err := result.RowsAffected()
-				if err != nil || rowsAffected == 0 {
-					mopentelemetry.HandleSpanError(&span, "Err or zero rows affected", err)
+		rowsAffected, err := result.RowsAffected()
+		if err != nil || rowsAffected == 0 {
+			mopentelemetry.HandleSpanError(&span, "Err or zero rows affected", err)
 
-					if err == nil {
-						err = sql.ErrNoRows
-					}
-
-					logger.Errorf("Err or zero rows affected: %v", err)
-
-					return err
-				}
+			if err == nil {
+				err = sql.ErrNoRows
 			}
+
+			logger.Errorf("Err or zero rows affected: %v", err)
+
+			return err
 		}
 	}
 
