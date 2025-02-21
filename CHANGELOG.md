@@ -1,3 +1,11 @@
+## [1.48.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.11...v1.48.0-beta.12) (2025-02-21)
+
+
+### Bug Fixes
+
+* update balance create too to avoid erros and return msg to queue; :bug: ([cc0b38b](https://github.com/LerianStudio/midaz/commit/cc0b38be8e9b4028f40d7a13cf1dd4984b26c07d))
+* update create transaction and operation erro handling duplicated key; :bug: ([2a984df](https://github.com/LerianStudio/midaz/commit/2a984dfa84d51607eab9cf5bab969dc3d212a695))
+
 ## [1.48.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.48.0-beta.10...v1.48.0-beta.11) (2025-02-20)
 
 
