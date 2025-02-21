@@ -272,13 +272,13 @@ func Reverse[T any](s []T) []T {
 }
 
 func InternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	internalKey := organizationID.String() + ":" + ledgerID.String() + ":" + key
+	internalKey := organizationID.String() + "#" + ledgerID.String() + "#" + key
 
 	return internalKey
 }
 
 func LockInternalKey(organizationID, ledgerID uuid.UUID, key string) string {
-	lockInternalKey := "lock:" + InternalKey(organizationID, ledgerID, key)
+	lockInternalKey := "lock#" + InternalKey(organizationID, ledgerID, key)
 
 	return lockInternalKey
 }

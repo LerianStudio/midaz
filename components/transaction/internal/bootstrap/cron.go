@@ -87,7 +87,7 @@ func (cc *CronConsumer) Run(l *pkg.Launcher) error {
 					cc.Logger.Errorf("Error to Deserialization json: %v", err)
 				}
 
-				parts := strings.Split(key, ":")
+				parts := strings.Split(key, "#")
 
 				organizationID = uuid.MustParse(parts[1])
 				ledgerID = uuid.MustParse(parts[2])

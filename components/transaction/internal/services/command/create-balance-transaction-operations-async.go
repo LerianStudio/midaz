@@ -69,7 +69,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			logger.Infof("Transaction already exists")
+			logger.Infof("Transaction already exists: %v", tran.ID)
 		} else {
 			mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
@@ -115,7 +115,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		if er != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				logger.Infof("Transaction already exists")
+				logger.Infof("Operation already exists: %v", operation.ID)
 			} else {
 				mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", er)
 
