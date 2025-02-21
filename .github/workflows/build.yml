@@ -17,10 +17,10 @@ jobs:
     strategy:
       matrix:
         app:
-          - name: "midaz-ledger"
-            working_dir: "components/ledger"
           - name: "midaz-audit"
             working_dir: "components/audit"
+          - name: "midaz-onboarding"
+            working_dir: "components/onboarding"
           - name: "midaz-transaction"
             working_dir: "components/transaction"
 

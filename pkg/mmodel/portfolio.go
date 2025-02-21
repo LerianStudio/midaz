@@ -20,7 +20,7 @@ type CreatePortfolioInput struct {
 type UpdatePortfolioInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"My Portfolio Updated"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdatePortfolioInput
 
 // Portfolio is a struct designed to encapsulate request update payload data.

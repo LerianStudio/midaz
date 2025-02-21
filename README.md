@@ -19,9 +19,9 @@ Midaz is designed to address the limitations of traditional ledger systems and p
 
 At Lerian, we view a core banking system as a comprehensive platform consisting of four main components:
 
-1. **Ledger (Core)**: The central database that manages all transactions and accounts. This is where Midaz plays a crucial role, serving as the foundation of the core banking system.
+1. **Onboarding (Core)**: The central database that manages all transactions and accounts. This is where Midaz plays a crucial role, serving as the foundation of the core banking system.
 
-2. **Transactional Services**: These generate debits and credits in the ledger. Examples include instant payments (like PIX in Brazil), card transactions, and wire transfers.
+2. **Transactional Services**: These generate debits and credits in the onboarding. Examples include instant payments (like PIX in Brazil), card transactions, and wire transfers.
 
 3. **Governance**: This component includes integrations for onboarding, anti-fraud/AML measures, management reporting, regulatory compliance, and accounting.
 
@@ -69,7 +69,7 @@ First, make sure you have Docker and Docker Compose installed.
    This will start all components using Docker Compose:
    - Authentication Service
    - Infrastructure Service
-   - Ledger Service
+   - Onboarding Service
    - Transaction Service
 
 ### Additional Commands

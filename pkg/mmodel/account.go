@@ -1,9 +1,8 @@
 package mmodel
 
 import (
+	"github.com/google/uuid"
 	"time"
-
-	proto "github.com/LerianStudio/midaz/pkg/mgrpc/account"
 )
 
 // CreateAccountInput is a struct design to encapsulate request create payload data.
@@ -11,17 +10,15 @@ import (
 // swagger:model CreateAccountInput
 // @Description CreateAccountInput is the input payload to create an account.
 type CreateAccountInput struct {
-	AssetCode       string         `json:"assetCode" validate:"required,max=100" example:"BRL"`
 	Name            string         `json:"name" validate:"max=256" example:"My Account"`
-	Alias           *string        `json:"alias" validate:"max=100,prohibitedexternalaccountprefix" example:"@person1"`
-	Type            string         `json:"type" validate:"required" example:"creditCard"`
 	ParentAccountID *string        `json:"parentAccountId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
-	SegmentID       *string        `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
-	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	EntityID        *string        `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
+	AssetCode       string         `json:"assetCode" validate:"required,max=100" example:"BRL"`
+	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	SegmentID       *string        `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Status          Status         `json:"status"`
-	AllowSending    *bool          `json:"allowSending" example:"true"`
-	AllowReceiving  *bool          `json:"allowReceiving" example:"true"`
+	Alias           *string        `json:"alias" validate:"required,max=100,prohibitedexternalaccountprefix" example:"@person1"`
+	Type            string         `json:"type" validate:"required" example:"creditCard"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateAccountInput
 
@@ -30,14 +27,11 @@ type CreateAccountInput struct {
 // swagger:model UpdateAccountInput
 // @Description UpdateAccountInput is the input payload to update an account.
 type UpdateAccountInput struct {
-	Name           string         `json:"name" validate:"max=256" example:"My Account Updated"`
-	Status         Status         `json:"status"`
-	AllowSending   *bool          `json:"allowSending" example:"true"`
-	AllowReceiving *bool          `json:"allowReceiving" example:"true"`
-	Alias          *string        `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@person1"`
-	SegmentID      *string        `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
-	PortfolioID    *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
-	Metadata       map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Name        string         `json:"name" validate:"max=256" example:"My Account Updated"`
+	SegmentID   *string        `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	PortfolioID *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
+	Status      Status         `json:"status"`
+	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateAccountInput
 
 // Account is a struct designed to encapsulate response payload data.
@@ -54,32 +48,18 @@ type Account struct {
 	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
 	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000"`
 	SegmentID       *string        `json:"segmentId" example:"00000000-0000-0000-0000-000000000000"`
-	Balance         Balance        `json:"balance"`
 	Status          Status         `json:"status"`
-	AllowSending    *bool          `json:"allowSending" example:"true"`
-	AllowReceiving  *bool          `json:"allowReceiving" example:"true"`
 	Alias           *string        `json:"alias" example:"@person1"`
 	Type            string         `json:"type" example:"creditCard"`
-	Version         int64          `json:"-"`
 	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z"`
 	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 } // @name Account
 
-// Balance structure for marshaling/unmarshalling JSON.
-//
-// swagger:model Balance
-// @Description Balance is the struct designed to represent the account balance.
-type Balance struct {
-	Available *float64 `json:"available" example:"1500"`
-	OnHold    *float64 `json:"onHold" example:"500"`
-	Scale     *float64 `json:"scale" example:"2"`
-} // @name Balance
-
-// IsEmpty method that set empty or nil in fields
-func (b Balance) IsEmpty() bool {
-	return b.Available == nil && b.OnHold == nil && b.Scale == nil
+// IDtoUUID is a func that convert UUID string to uuid.UUID
+func (a *Account) IDtoUUID() uuid.UUID {
+	return uuid.MustParse(a.ID)
 }
 
 // Accounts struct to return get all.
@@ -91,68 +71,3 @@ type Accounts struct {
 	Page  int       `json:"page" example:"1"`
 	Limit int       `json:"limit" example:"10"`
 } // @name Accounts
-
-// ToProto converts entity Account to a response protobuf proto
-func (e *Account) ToProto() *proto.Account {
-	status := proto.Status{
-		Code: e.Status.Code,
-	}
-
-	if e.Status.Description != nil {
-		status.Description = *e.Status.Description
-	}
-
-	balance := proto.Balance{
-		Available: *e.Balance.Available,
-		OnHold:    *e.Balance.OnHold,
-		Scale:     *e.Balance.Scale,
-	}
-
-	account := &proto.Account{
-		Id:             e.ID,
-		Name:           e.Name,
-		AssetCode:      e.AssetCode,
-		OrganizationId: e.OrganizationID,
-		LedgerId:       e.LedgerID,
-		Balance:        &balance,
-		Status:         &status,
-		AllowSending:   *e.AllowSending,
-		AllowReceiving: *e.AllowReceiving,
-		Type:           e.Type,
-		Version:        e.Version,
-	}
-
-	if e.ParentAccountID != nil {
-		account.ParentAccountId = *e.ParentAccountID
-	}
-
-	if e.DeletedAt != nil {
-		account.DeletedAt = e.DeletedAt.String()
-	}
-
-	if !e.UpdatedAt.IsZero() {
-		account.UpdatedAt = e.UpdatedAt.String()
-	}
-
-	if !e.CreatedAt.IsZero() {
-		account.CreatedAt = e.CreatedAt.String()
-	}
-
-	if e.EntityID != nil {
-		account.EntityId = *e.EntityID
-	}
-
-	if e.PortfolioID != nil {
-		account.PortfolioId = *e.PortfolioID
-	}
-
-	if e.SegmentID != nil {
-		account.SegmentId = *e.SegmentID
-	}
-
-	if e.Alias != nil {
-		account.Alias = *e.Alias
-	}
-
-	return account
-}

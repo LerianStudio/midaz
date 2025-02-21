@@ -28,14 +28,14 @@ type OperationHandler struct {
 //	@Tags			Operations
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Ledger ID"		enum(asc,desc)
+//	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations [get]
@@ -104,7 +104,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Tags			Operations
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			account_id		path		string	true	"Account ID"
@@ -141,126 +141,6 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	return http.OK(c, op)
 }
 
-// GetAllOperationsByPortfolio retrieves all operations by portfolio.
-//
-//	@Summary		Get all Operations by portfolio
-//	@Description	Get all Operations with the input ID
-//	@Tags			Operations
-//	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			portfolio_id	path		string	true	"Portfolio ID"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Param			cursor			query		string	false	"Cursor"
-//	@Success		200				{object}	mpostgres.Pagination{items=[]operation.Operation,next_cursor=string,prev_cursor=string,limit=int}
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations [get]
-func (handler *OperationHandler) GetAllOperationsByPortfolio(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_portfolio")
-	defer span.End()
-
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
-
-	headerParams, err := http.ValidateParameters(c.Queries())
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
-
-		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	pagination := mpostgres.Pagination{
-		Limit:      headerParams.Limit,
-		NextCursor: headerParams.Cursor,
-		SortOrder:  headerParams.SortOrder,
-		StartDate:  headerParams.StartDate,
-		EndDate:    headerParams.EndDate,
-	}
-
-	logger.Infof("Initiating retrieval of all Operations by portfolio")
-
-	headerParams.Metadata = &bson.M{}
-
-	err = mopentelemetry.SetSpanAttributesFromStruct(&span, "headerParams", headerParams)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert headerParams to JSON string", err)
-
-		return http.WithError(c, err)
-	}
-
-	operations, cur, err := handler.Query.GetAllOperationsByPortfolio(ctx, organizationID, ledgerID, portfolioID, *headerParams)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by portfolio", err)
-
-		logger.Errorf("Failed to retrieve all Operations by portfolio, Error: %s", err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	logger.Infof("Successfully retrieved all Operations by portfolio")
-
-	pagination.SetItems(operations)
-	pagination.SetCursor(cur.Next, cur.Prev)
-
-	return http.OK(c, pagination)
-}
-
-// GetOperationByPortfolio retrieves an operation by portfolio.
-//
-//	@Summary		Get an Operation by portfolio
-//	@Description	Get an Operation with the input ID
-//	@Tags			Operations
-//	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			portfolio_id	path		string	true	"Portfolio ID"
-//	@Param			operation_id	path		string	true	"Operation ID"
-//	@Success		200				{object}	operation.Operation
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id} [get]
-func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
-	ctx := c.UserContext()
-
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "handler.get_operation_by_portfolio")
-	defer span.End()
-
-	organizationID := c.Locals("organization_id").(uuid.UUID)
-	ledgerID := c.Locals("ledger_id").(uuid.UUID)
-	portfolioID := c.Locals("portfolio_id").(uuid.UUID)
-	operationID := c.Locals("operation_id").(uuid.UUID)
-
-	logger.Infof("Initiating retrieval of Operation by portfolio")
-
-	op, err := handler.Query.GetOperationByPortfolio(ctx, organizationID, ledgerID, portfolioID, operationID)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Operation by portfolio", err)
-
-		logger.Errorf("Failed to retrieve Operation by portfolio, Error: %s", err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	logger.Infof("Successfully retrieved Operation by portfolio")
-
-	return http.OK(c, op)
-}
-
 // UpdateOperation method that patch operation created before
 //
 //	@Summary		Update an Operation
@@ -269,7 +149,7 @@ func (handler *OperationHandler) GetOperationByPortfolio(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id		header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			transaction_id	path		string							true	"Transaction ID"

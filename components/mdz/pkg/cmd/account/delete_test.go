@@ -39,7 +39,7 @@ func Test_newCmdAccountDelete(t *testing.T) {
 			"--account-id", "444",
 		})
 
-		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		err := cmd.Execute()
 		assert.NoError(t, err)
@@ -72,7 +72,7 @@ func Test_newCmdAccountDelete(t *testing.T) {
 		cmd := newCmdAccountDelete(&orgFactory)
 		cmd.SetArgs([]string{})
 
-		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+		mockRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
 		err := cmd.Execute()
 		assert.NoError(t, err)

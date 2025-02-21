@@ -92,7 +92,7 @@ func Test_newCmdAssetList(t *testing.T) {
 
 		mockRepo.EXPECT().Get(
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any()).
+			gomock.Any(), gomock.Any()).
 			Return(list, nil)
 
 		err := cmd.Execute()
@@ -175,7 +175,7 @@ func Test_newCmdAssetList(t *testing.T) {
 
 		mockRepo.EXPECT().Get(
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any()).
+			gomock.Any(), gomock.Any()).
 			Return(list, nil)
 
 		err := cmd.Execute()
@@ -260,7 +260,7 @@ func Test_newCmdAssetList(t *testing.T) {
 
 		mockRepo.EXPECT().Get(
 			gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(),
-			gomock.Any(), gomock.Any(), gomock.Any()).
+			gomock.Any(), gomock.Any()).
 			Return(list, nil)
 
 		err := cmd.Execute()

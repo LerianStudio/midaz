@@ -44,7 +44,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -100,7 +100,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -190,8 +190,8 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0.0",
-	Host:             "localhost:3005",
+	Version:          "v1.48.0",
+	Host:             "localhost:3002",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Midaz Audit API",

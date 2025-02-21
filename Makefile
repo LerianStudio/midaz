@@ -2,7 +2,7 @@ AUDIT_DIR := ./components/audit
 AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
 MDZ_DIR := ./components/mdz
-LEDGER_DIR := ./components/ledger
+ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 
 BLUE := \033[36m
@@ -63,19 +63,19 @@ help:
 	@echo "    make checkEnvs                           Check if github hooks are installed and secret env on files are not exposed."
 	@echo "    make auth                                Run a command inside the auth app in the components directory to see available commands."
 	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
-	@echo "    make ledger                              Run a command inside the ledger app in the components directory to see available commands."
+	@echo "    make onboarding                              Run a command inside the onboarding app in the components directory to see available commands."
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
 	@echo "    make audit                         		Run a command inside the audit app in the components directory to see available commands."
 	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
-	@echo "    make generate-docs-all                   Run a command to inside the ledger and transaction app to generate swagger docs."
+	@echo "    make generate-docs-all                   Run a command to inside the onboarding and transaction app to generate swagger docs."
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
 	@echo "  make up                 - Start all services with Docker Compose"
 	@echo "  make auth COMMAND=<cmd> - Run command in auth service"
 	@echo "  make infra COMMAND=<cmd> - Run command in infra service"
-	@echo "  make ledger COMMAND=<cmd> - Run command in ledger service"
+	@echo "  make onboarding COMMAND=<cmd> - Run command in onboarding service"
 	@echo "  make transaction COMMAND=<cmd> - Run command in transaction service"
 	@echo "  make audit COMMAND=<cmd> - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd> - Run command across all services"
@@ -154,7 +154,7 @@ set-env:
 	@echo "$(BLUE)Setting up environment files...$(NC)"
 	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
 	cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
-	cp -r $(LEDGER_DIR)/.env.example $(LEDGER_DIR)/.env
+	cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
 	cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
 	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
@@ -165,7 +165,7 @@ up:
 	@echo "$(BLUE)Starting all services...$(NC)"
 	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
-	@$(DOCKER_CMD) -f $(LEDGER_DIR)/docker-compose.yml up --build -d
+	@$(DOCKER_CMD) -f $(ONBOARDING_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
 	@echo "$(BLUE)All services started successfully$(NC)"
 
@@ -179,10 +179,10 @@ infra:
 	@echo "$(BLUE)Executing command in infra service...$(NC)"
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND)
 
-.PHONY: ledger
-ledger:
-	@echo "$(BLUE)Executing command in ledger service...$(NC)"
-	$(MAKE) -C $(LEDGER_DIR) $(COMMAND)
+.PHONY: onboarding
+onboarding:
+	@echo "$(BLUE)Executing command in onboarding service...$(NC)"
+	$(MAKE) -C $(ONBOARDING_DIR) $(COMMAND)
 
 .PHONY: transaction
 transaction:
@@ -199,7 +199,7 @@ all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
-	$(MAKE) -C $(LEDGER_DIR) $(COMMAND) && \
+	$(MAKE) -C $(ONBOARDING_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
 	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
 
@@ -224,6 +224,6 @@ tidy:
 .PHONY: generate-docs-all
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
-	$(MAKE) -C $(LEDGER_DIR) generate-docs && \
+	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
 	$(MAKE) -C $(TRANSACTION_DIR) generate-docs && \
 	$(MAKE) -C $(AUDIT_DIR) generate-docs

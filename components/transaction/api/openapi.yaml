@@ -9,13 +9,13 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Transaction API
-  version: 1.0.0
+  version: v1.48.0
 servers:
-- url: //localhost:3002/
+- url: //localhost:3001/
 paths:
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+  /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances:
     get:
-      description: Get all Operations with the input ID
+      description: Get all balances by account id
       parameters:
       - description: Authorization Bearer Token
         in: header
@@ -25,7 +25,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -62,7 +62,7 @@ paths:
         name: end_date
         schema:
           type: string
-      - description: Ledger ID
+      - description: Sort Order
         in: query
         name: sort_order
         schema:
@@ -79,6 +79,273 @@ paths:
               schema:
                 $ref: '#/components/schemas/inline_response_200'
           description: OK
+      summary: Get all balances by account id
+      tags:
+      - Balances
+  /v1/organizations/:organization_id/ledgers/:ledger_id/balances:
+    get:
+      description: Get all balances
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200'
+          description: OK
+      summary: Get all balances
+      tags:
+      - Balances
+  /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id:
+    delete:
+      description: Delete a Balance with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/mmodel.Balance'
+          description: OK
+      summary: Delete Balance by account
+      tags:
+      - Balances
+    get:
+      description: Get a Balance with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/mmodel.Balance'
+          description: OK
+      summary: Get Balance by id
+      tags:
+      - Balances
+    patch:
+      description: Update a Balance with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/mmodel.UpdateBalance'
+        description: Balance Input
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/mmodel.Balance'
+          description: OK
+      summary: Update Balance
+      tags:
+      - Balances
+      x-codegen-request-body-name: balance
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
+    get:
+      description: Get all Operations with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        schema:
+          type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        schema:
+          type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        schema:
+          type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        schema:
+          type: string
+      - description: Account ID
+        in: path
+        name: account_id
+        required: true
+        schema:
+          type: string
+      - description: Limit
+        in: query
+        name: limit
+        schema:
+          default: 10
+          type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        schema:
+          type: string
+      - description: End Date
+        in: query
+        name: end_date
+        schema:
+          type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        schema:
+          type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/inline_response_200_1'
+          description: OK
       summary: Get all Operations by account
       tags:
       - Operations
@@ -94,7 +361,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -143,7 +410,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -188,7 +455,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -252,7 +519,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/inline_response_200_1'
+                $ref: '#/components/schemas/inline_response_200_2'
           description: OK
       summary: Get an AssetRate by the Asset Code
       tags:
@@ -269,7 +536,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -300,127 +567,6 @@ paths:
       summary: Get an AssetRate by External ID
       tags:
       - Asset Rates
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations:
-    get:
-      description: Get all Operations with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Limit
-        in: query
-        name: limit
-        schema:
-          default: 10
-          type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        schema:
-          type: string
-      - description: End Date
-        in: query
-        name: end_date
-        schema:
-          type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        schema:
-          enum:
-          - asc
-          - desc
-          type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/inline_response_200_2'
-          description: OK
-      summary: Get all Operations by portfolio
-      tags:
-      - Operations
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}:
-    get:
-      description: Get an Operation with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        schema:
-          type: string
-      - description: Request ID
-        in: header
-        name: Midaz-Id
-        schema:
-          type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        schema:
-          type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        schema:
-          type: string
-      - description: Portfolio ID
-        in: path
-        name: portfolio_id
-        required: true
-        schema:
-          type: string
-      - description: Operation ID
-        in: path
-        name: operation_id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Operation'
-          description: OK
-      summary: Get an Operation by portfolio
-      tags:
-      - Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata
@@ -433,7 +579,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -499,7 +645,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -548,7 +694,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -593,7 +739,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -635,7 +781,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -686,7 +832,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -743,7 +889,7 @@ paths:
           type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         schema:
           type: string
       - description: Organization ID
@@ -859,19 +1005,19 @@ components:
     Balance:
       description: Balance is the struct designed to represent the account balance.
       example:
-        onHold: 500.0
-        available: 1500.0
-        scale: 2.0
+        onHold: 500
+        available: 1500
+        scale: 2
       properties:
         available:
-          example: 1500.0
-          type: number
+          example: 1500
+          type: integer
         onHold:
-          example: 500.0
-          type: number
+          example: 500
+          type: integer
         scale:
-          example: 2.0
-          type: number
+          example: 2
+          type: integer
       type: object
     CreateAssetRateInput:
       description: CreateAssetRateInput is the input payload to create an asset rate.
@@ -1164,16 +1310,16 @@ components:
         accountId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
         deletedAt: 2021-01-01T00:00:00Z
-        portfolioId: 00000000-0000-0000-0000-000000000000
         balance:
-          onHold: 500.0
-          available: 1500.0
-          scale: 2.0
+          onHold: 500
+          available: 1500
+          scale: 2
         balanceAfter:
-          onHold: 500.0
-          available: 1500.0
-          scale: 2.0
+          onHold: 500
+          available: 1500
+          scale: 2
         id: 00000000-0000-0000-0000-000000000000
+        balanceId: 00000000-0000-0000-0000-000000000000
         status:
           code: ACTIVE
           description: Active status
@@ -1194,6 +1340,9 @@ components:
           $ref: '#/components/schemas/Balance'
         balanceAfter:
           $ref: '#/components/schemas/Balance'
+        balanceId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
         chartOfAccounts:
           example: "1000"
           type: string
@@ -1217,9 +1366,6 @@ components:
             type: object
           type: object
         organizationId:
-          example: 00000000-0000-0000-0000-000000000000
-          type: string
-        portfolioId:
           example: 00000000-0000-0000-0000-000000000000
           type: string
         status:
@@ -1531,16 +1677,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1562,16 +1708,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1676,7 +1822,147 @@ components:
             type: object
           type: object
       type: object
+    mmodel.Balance:
+      description: Balance is a struct designed to store balance data.
+      example:
+        metadata:
+          key: '{}'
+        assetCode: BRL
+        onHold: 500
+        allowReceiving: true
+        accountType: creditCard
+        available: 1500
+        scale: 2
+        allowSending: true
+        ledgerId: 00000000-0000-0000-0000-000000000000
+        organizationId: 00000000-0000-0000-0000-000000000000
+        accountId: 00000000-0000-0000-0000-000000000000
+        createdAt: 2021-01-01T00:00:00Z
+        deletedAt: 2021-01-01T00:00:00Z
+        alias: '@person1'
+        id: 00000000-0000-0000-0000-000000000000
+        updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        accountId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        accountType:
+          example: creditCard
+          type: string
+        alias:
+          example: '@person1'
+          type: string
+        allowReceiving:
+          example: true
+          type: boolean
+        allowSending:
+          example: true
+          type: boolean
+        assetCode:
+          example: BRL
+          type: string
+        available:
+          example: 1500
+          type: integer
+        createdAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        deletedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+        id:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        ledgerId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        metadata:
+          additionalProperties:
+            type: object
+          type: object
+        onHold:
+          example: 500
+          type: integer
+        organizationId:
+          example: 00000000-0000-0000-0000-000000000000
+          type: string
+        scale:
+          example: 2
+          type: integer
+        updatedAt:
+          example: 2021-01-01T00:00:00Z
+          type: string
+      type: object
+    mmodel.UpdateBalance:
+      properties:
+        allowReceiving:
+          example: true
+          type: boolean
+        allowSending:
+          example: true
+          type: boolean
+      type: object
     inline_response_200:
+      example:
+        Pagination:
+          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
+          limit: 10
+          page: 1
+          items: '{}'
+        ' prev_cursor': ' prev_cursor'
+        ' next_cursor': ' next_cursor'
+        limit: 0
+        items:
+        - metadata:
+            key: '{}'
+          assetCode: BRL
+          onHold: 500
+          allowReceiving: true
+          accountType: creditCard
+          available: 1500
+          scale: 2
+          allowSending: true
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          alias: '@person1'
+          id: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2021-01-01T00:00:00Z
+        - metadata:
+            key: '{}'
+          assetCode: BRL
+          onHold: 500
+          allowReceiving: true
+          accountType: creditCard
+          available: 1500
+          scale: 2
+          allowSending: true
+          ledgerId: 00000000-0000-0000-0000-000000000000
+          organizationId: 00000000-0000-0000-0000-000000000000
+          accountId: 00000000-0000-0000-0000-000000000000
+          createdAt: 2021-01-01T00:00:00Z
+          deletedAt: 2021-01-01T00:00:00Z
+          alias: '@person1'
+          id: 00000000-0000-0000-0000-000000000000
+          updatedAt: 2021-01-01T00:00:00Z
+      properties:
+        ' next_cursor':
+          type: string
+        ' prev_cursor':
+          type: string
+        Pagination:
+          $ref: '#/components/schemas/Pagination'
+        items:
+          items:
+            $ref: '#/components/schemas/mmodel.Balance'
+          type: array
+        limit:
+          type: integer
+      type: object
+    inline_response_200_1:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
@@ -1705,16 +1991,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1736,16 +2022,16 @@ components:
           accountId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
           deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
           balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
+            onHold: 500
+            available: 1500
+            scale: 2
           id: 00000000-0000-0000-0000-000000000000
+          balanceId: 00000000-0000-0000-0000-000000000000
           status:
             code: ACTIVE
             description: Active status
@@ -1764,7 +2050,7 @@ components:
         limit:
           type: integer
       type: object
-    inline_response_200_1:
+    inline_response_200_2:
       example:
         Pagination:
           prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
@@ -1810,94 +2096,6 @@ components:
         items:
           items:
             $ref: '#/components/schemas/AssetRate'
-          type: array
-        limit:
-          type: integer
-        next_cursor:
-          type: string
-        prev_cursor:
-          type: string
-      type: object
-    inline_response_200_2:
-      example:
-        Pagination:
-          prev_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          next_cursor: MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwMA==
-          limit: 10
-          page: 1
-          items: '{}'
-        prev_cursor: prev_cursor
-        next_cursor: next_cursor
-        limit: 0
-        items:
-        - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            value: 1000
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: creditCard
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-        - accountAlias: '@person1'
-          amount:
-            scale: 2
-            asset: BRL
-            value: 1000
-          metadata:
-            key: '{}'
-          assetCode: BRL
-          chartOfAccounts: "1000"
-          description: Credit card operation
-          type: creditCard
-          transactionId: 00000000-0000-0000-0000-000000000000
-          ledgerId: 00000000-0000-0000-0000-000000000000
-          organizationId: 00000000-0000-0000-0000-000000000000
-          accountId: 00000000-0000-0000-0000-000000000000
-          createdAt: 2021-01-01T00:00:00Z
-          deletedAt: 2021-01-01T00:00:00Z
-          portfolioId: 00000000-0000-0000-0000-000000000000
-          balance:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          balanceAfter:
-            onHold: 500.0
-            available: 1500.0
-            scale: 2.0
-          id: 00000000-0000-0000-0000-000000000000
-          status:
-            code: ACTIVE
-            description: Active status
-          updatedAt: 2021-01-01T00:00:00Z
-      properties:
-        Pagination:
-          $ref: '#/components/schemas/Pagination'
-        items:
-          items:
-            $ref: '#/components/schemas/Operation'
           type: array
         limit:
           type: integer
@@ -1954,16 +2152,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status
@@ -1985,16 +2183,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status
@@ -2039,16 +2237,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status
@@ -2070,16 +2268,16 @@ components:
             accountId: 00000000-0000-0000-0000-000000000000
             createdAt: 2021-01-01T00:00:00Z
             deletedAt: 2021-01-01T00:00:00Z
-            portfolioId: 00000000-0000-0000-0000-000000000000
             balance:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             balanceAfter:
-              onHold: 500.0
-              available: 1500.0
-              scale: 2.0
+              onHold: 500
+              available: 1500
+              scale: 2
             id: 00000000-0000-0000-0000-000000000000
+            balanceId: 00000000-0000-0000-0000-000000000000
             status:
               code: ACTIVE
               description: Active status

@@ -11,7 +11,7 @@ github.com/LerianStudio/midaz/pkg/mredis
 github.com/LerianStudio/midaz/pkg/net/http
 github.com/LerianStudio/midaz/pkg/mlog
 github.com/LerianStudio/midaz/components/audit/internal/bootstrap
-github.com/LerianStudio/midaz/components/ledger/internal/bootstrap
+github.com/LerianStudio/midaz/components/onboarding/internal/bootstrap
 github.com/LerianStudio/midaz/components/transaction/internal/bootstrap
 github.com/LerianStudio/midaz/components/audit/cmd
 github.com/LerianStudio/midaz/components/ledger/cmd

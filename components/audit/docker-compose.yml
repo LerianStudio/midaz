@@ -15,6 +15,9 @@ services:
       - audit_network
       - infra_network
       - auth_network
+    depends_on:
+      - midaz-audit-server
+      - midaz-audit-signer
 
   midaz-audit-db:
     container_name: midaz-audit-db

@@ -8,7 +8,7 @@ import "time"
 //
 //	@Description	CreateAssetInput is the input payload to create an asset.
 type CreateAssetInput struct {
-	Name     string         `json:"name" validate:"max=256" example:"Brazilian Real"`
+	Name     string         `json:"name" validate:"required,max=256" example:"Brazilian Real"`
 	Type     string         `json:"type" example:"currency"`
 	Code     string         `json:"code" validate:"required,max=100" example:"BRL"`
 	Status   Status         `json:"status"`
@@ -23,7 +23,7 @@ type CreateAssetInput struct {
 type UpdateAssetInput struct {
 	Name     string         `json:"name" validate:"max=256" example:"Bitcoin"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } //	@name	UpdateAssetInput
 
 // Asset is a struct designed to encapsulate payload data.

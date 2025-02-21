@@ -6,6 +6,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mlog"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 
@@ -14,7 +15,7 @@ import (
 	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
-func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, th *TransactionHandler, oh *OperationHandler, ah *AssetRateHandler, bh *BalanceHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -43,8 +44,6 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	// Operations
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetAllOperationsByAccount)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetOperationByAccount)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetAllOperationsByPortfolio)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:portfolio_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, oh.GetOperationByPortfolio)
 
 	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/transactions/:transaction_id/operations/:operation_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("operation"), http.ParseUUIDPathParameters, http.WithBody(new(operation.UpdateOperationInput), oh.UpdateOperation))
 
@@ -52,6 +51,13 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Put("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, http.WithBody(new(assetrate.CreateAssetRateInput), ah.CreateOrUpdateAssetRate))
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/:external_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAssetRateByExternalID)
 	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/asset-rates/from/:asset_code", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset-rate"), http.ParseUUIDPathParameters, ah.GetAllAssetRatesByAssetCode)
+
+	//Balance
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetAllBalances)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetBalanceByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.GetAllBalancesByAccountID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, bh.DeleteBalanceByID)
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("balance"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateBalance), bh.UpdateBalance))
 
 	// Health
 	f.Get("/health", http.Ping)

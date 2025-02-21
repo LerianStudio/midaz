@@ -32,7 +32,7 @@ definitions:
       tree_id:
         type: integer
     type: object
-host: localhost:3005
+host: localhost:3002
 info:
   contact:
     name: Discord community
@@ -43,7 +43,7 @@ info:
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   termsOfService: http://swagger.io/terms/
   title: Midaz Audit API
-  version: 1.0.0
+  version: v1.48.0
 paths:
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/audit/{audit_id}/audit-logs:
     get:
@@ -56,7 +56,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path
@@ -94,7 +94,7 @@ paths:
         type: string
       - description: Request ID
         in: header
-        name: Midaz-Id
+        name: X-Request-Id
         type: string
       - description: Organization ID
         in: path

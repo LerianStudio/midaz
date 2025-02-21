@@ -28,7 +28,7 @@ type AssetRateHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string							true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string							false	"Request ID"
+//	@Param			X-Request-Id		header		string							false	"Request ID"
 //	@Param			organization_id	path		string							true	"Organization ID"
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
@@ -80,7 +80,7 @@ func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) er
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			external_id		path		string	true	"External ID"
@@ -123,7 +123,7 @@ func (handler *AssetRateHandler) GetAssetRateByExternalID(c *fiber.Ctx) error {
 //	@Tags			Asset Rates
 //	@Produce		json
 //	@Param			Authorization	header		string		true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string		false	"Request ID"
+//	@Param			X-Request-Id		header		string		false	"Request ID"
 //	@Param			organization_id	path		string		true	"Organization ID"
 //	@Param			ledger_id		path		string		true	"Ledger ID"
 //	@Param			asset_code		path		string		true	"From Asset Code"

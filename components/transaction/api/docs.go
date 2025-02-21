@@ -23,16 +23,16 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+        "/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances": {
             "get": {
-                "description": "Get all Operations with the input ID",
+                "description": "Get all balances by account id",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Operations"
+                    "Balances"
                 ],
-                "summary": "Get all Operations by account",
+                "summary": "Get all balances by account id",
                 "parameters": [
                     {
                         "type": "string",
@@ -44,7 +44,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -89,7 +89,398 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        " next_cursor": {
+                                            "type": "string"
+                                        },
+                                        " prev_cursor": {
+                                            "type": "string"
+                                        },
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/mmodel.Balance"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/:organization_id/ledgers/:ledger_id/balances": {
+            "get": {
+                "description": "Get all balances",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Get all balances",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
                         "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Cursor",
+                        "name": "cursor",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/Pagination"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        " next_cursor": {
+                                            "type": "string"
+                                        },
+                                        " prev_cursor": {
+                                            "type": "string"
+                                        },
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/mmodel.Balance"
+                                            }
+                                        },
+                                        "limit": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id": {
+            "get": {
+                "description": "Get a Balance with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Get Balance by id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Balance ID",
+                        "name": "balance_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.Balance"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a Balance with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Delete Balance by account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Balance ID",
+                        "name": "balance_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.Balance"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update a Balance with the input payload",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Balances"
+                ],
+                "summary": "Update Balance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Balance ID",
+                        "name": "balance_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Balance Input",
+                        "name": "balance",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.UpdateBalance"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/mmodel.Balance"
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations": {
+            "get": {
+                "description": "Get all Operations with the input ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Operations"
+                ],
+                "summary": "Get all Operations by account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authorization Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Request ID",
+                        "name": "X-Request-Id",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Ledger ID",
+                        "name": "ledger_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start Date",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End Date",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort Order",
                         "name": "sort_order",
                         "in": "query"
                     },
@@ -155,7 +546,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -221,7 +612,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -279,7 +670,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -404,7 +795,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -439,184 +830,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations": {
-            "get": {
-                "description": "Get all Operations with the input ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Operations"
-                ],
-                "summary": "Get all Operations by portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "default": 10,
-                        "description": "Limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start Date",
-                        "name": "start_date",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End Date",
-                        "name": "end_date",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "asc",
-                            "desc"
-                        ],
-                        "type": "string",
-                        "description": "Sort Order",
-                        "name": "sort_order",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor",
-                        "name": "cursor",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/Pagination"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "items": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/Operation"
-                                            }
-                                        },
-                                        "limit": {
-                                            "type": "integer"
-                                        },
-                                        "next_cursor": {
-                                            "type": "string"
-                                        },
-                                        "prev_cursor": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}/operations/{operation_id}": {
-            "get": {
-                "description": "Get an Operation with the input ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Operations"
-                ],
-                "summary": "Get an Operation by portfolio",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Authorization Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Request ID",
-                        "name": "Midaz-Id",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Ledger ID",
-                        "name": "ledger_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Portfolio ID",
-                        "name": "portfolio_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Operation ID",
-                        "name": "operation_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/Operation"
-                        }
-                    }
-                }
-            }
-        },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions": {
             "get": {
                 "description": "Get all Transactions with the input metadata or without metadata",
@@ -638,7 +851,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -752,7 +965,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -811,7 +1024,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -869,7 +1082,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -926,7 +1139,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -994,7 +1207,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1069,7 +1282,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Request ID",
-                        "name": "Midaz-Id",
+                        "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
@@ -1192,15 +1405,15 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "available": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 1500
                 },
                 "onHold": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 500
                 },
                 "scale": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 2
                 }
             }
@@ -1362,6 +1575,10 @@ const docTemplate = `{
                 "balanceAfter": {
                     "$ref": "#/definitions/Balance"
                 },
+                "balanceId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "chartOfAccounts": {
                     "type": "string",
                     "example": "1000"
@@ -1391,10 +1608,6 @@ const docTemplate = `{
                     "additionalProperties": {}
                 },
                 "organizationId": {
-                    "type": "string",
-                    "example": "00000000-0000-0000-0000-000000000000"
-                },
-                "portfolioId": {
                     "type": "string",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
@@ -1672,14 +1885,97 @@ const docTemplate = `{
                     "additionalProperties": {}
                 }
             }
+        },
+        "mmodel.Balance": {
+            "description": "Balance is a struct designed to store balance data.",
+            "type": "object",
+            "properties": {
+                "accountId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "accountType": {
+                    "type": "string",
+                    "example": "creditCard"
+                },
+                "alias": {
+                    "type": "string",
+                    "example": "@person1"
+                },
+                "allowReceiving": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "allowSending": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "assetCode": {
+                    "type": "string",
+                    "example": "BRL"
+                },
+                "available": {
+                    "type": "integer",
+                    "example": 1500
+                },
+                "createdAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "ledgerId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "onHold": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "organizationId": {
+                    "type": "string",
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
+                "scale": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "updatedAt": {
+                    "type": "string",
+                    "example": "2021-01-01T00:00:00Z"
+                }
+            }
+        },
+        "mmodel.UpdateBalance": {
+            "type": "object",
+            "properties": {
+                "allowReceiving": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "allowSending": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
         }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0.0",
-	Host:             "localhost:3002",
+	Version:          "v1.48.0",
+	Host:             "localhost:3001",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Midaz Transaction API",

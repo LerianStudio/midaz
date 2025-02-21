@@ -813,6 +813,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction can't be reverted",
 			Message:    "Transaction can't be reverted. Please try again",
 		},
+		constant.ErrTransactionAmbiguous: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrTransactionAmbiguous.Error(),
+			Title:      "Transaction ambiguous account",
+			Message:    "Transaction can't be used same account in sources ans destinations",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {

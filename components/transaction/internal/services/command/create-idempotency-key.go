@@ -13,7 +13,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.create-idempotency-key")
+	_, span := tracer.Start(ctx, "command.create_idempotency_key")
 	defer span.End()
 
 	logger.Infof("Trying to create or check idempotency key in redis")
@@ -24,7 +24,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 
 	internalKey := pkg.InternalKey(organizationID, ledgerID, key)
 
-	success, err := uc.RedisRepo.SetNX(context.Background(), internalKey, hash, ttl)
+	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {
 		logger.Error("Error to lock idempotency key on redis failed:", err.Error())
 	}

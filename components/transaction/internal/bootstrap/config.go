@@ -2,11 +2,10 @@ package bootstrap
 
 import (
 	"fmt"
-
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/grpc/out"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
@@ -15,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mcasdoor"
-	"github.com/LerianStudio/midaz/pkg/mgrpc"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
@@ -28,50 +26,48 @@ const ApplicationName = "transaction"
 
 // Config is the top level configuration struct for the entire application.
 type Config struct {
-	EnvName                 string `env:"ENV_NAME"`
-	LogLevel                string `env:"LOG_LEVEL"`
-	ServerAddress           string `env:"SERVER_ADDRESS"`
-	PrimaryDBHost           string `env:"DB_HOST"`
-	PrimaryDBUser           string `env:"DB_USER"`
-	PrimaryDBPassword       string `env:"DB_PASSWORD"`
-	PrimaryDBName           string `env:"DB_NAME"`
-	PrimaryDBPort           string `env:"DB_PORT"`
-	ReplicaDBHost           string `env:"DB_REPLICA_HOST"`
-	ReplicaDBUser           string `env:"DB_REPLICA_USER"`
-	ReplicaDBPassword       string `env:"DB_REPLICA_PASSWORD"`
-	ReplicaDBName           string `env:"DB_REPLICA_NAME"`
-	ReplicaDBPort           string `env:"DB_REPLICA_PORT"`
-	MongoURI                string `env:"MONGO_URI"`
-	MongoDBHost             string `env:"MONGO_HOST"`
-	MongoDBName             string `env:"MONGO_NAME"`
-	MongoDBUser             string `env:"MONGO_USER"`
-	MongoDBPassword         string `env:"MONGO_PASSWORD"`
-	MongoDBPort             string `env:"MONGO_PORT"`
-	LedgerGRPCAddr          string `env:"LEDGER_GRPC_ADDR"`
-	LedgerGRPCPort          string `env:"LEDGER_GRPC_PORT"`
-	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID         string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
-	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
-	RabbitURI               string `env:"RABBITMQ_URI"`
-	RabbitMQHost            string `env:"RABBITMQ_HOST"`
-	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
-	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
-	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
-	RabbitMQQueue           string `env:"RABBITMQ_QUEUE"`
-	OtelServiceName         string `env:"OTEL_RESOURCE_SERVICE_NAME"`
-	OtelLibraryName         string `env:"OTEL_LIBRARY_NAME"`
-	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
-	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
-	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
-	RedisHost               string `env:"REDIS_HOST"`
-	RedisPort               string `env:"REDIS_PORT"`
-	RedisUser               string `env:"REDIS_USER"`
-	RedisPassword           string `env:"REDIS_PASSWORD"`
+	EnvName                    string `env:"ENV_NAME"`
+	LogLevel                   string `env:"LOG_LEVEL"`
+	ServerAddress              string `env:"SERVER_ADDRESS"`
+	PrimaryDBHost              string `env:"DB_HOST"`
+	PrimaryDBUser              string `env:"DB_USER"`
+	PrimaryDBPassword          string `env:"DB_PASSWORD"`
+	PrimaryDBName              string `env:"DB_NAME"`
+	PrimaryDBPort              string `env:"DB_PORT"`
+	ReplicaDBHost              string `env:"DB_REPLICA_HOST"`
+	ReplicaDBUser              string `env:"DB_REPLICA_USER"`
+	ReplicaDBPassword          string `env:"DB_REPLICA_PASSWORD"`
+	ReplicaDBName              string `env:"DB_REPLICA_NAME"`
+	ReplicaDBPort              string `env:"DB_REPLICA_PORT"`
+	MongoURI                   string `env:"MONGO_URI"`
+	MongoDBHost                string `env:"MONGO_HOST"`
+	MongoDBName                string `env:"MONGO_NAME"`
+	MongoDBUser                string `env:"MONGO_USER"`
+	MongoDBPassword            string `env:"MONGO_PASSWORD"`
+	MongoDBPort                string `env:"MONGO_PORT"`
+	CasdoorAddress             string `env:"CASDOOR_ADDRESS"`
+	CasdoorClientID            string `env:"CASDOOR_CLIENT_ID"`
+	CasdoorClientSecret        string `env:"CASDOOR_CLIENT_SECRET"`
+	CasdoorOrganizationName    string `env:"CASDOOR_ORGANIZATION_NAME"`
+	CasdoorApplicationName     string `env:"CASDOOR_APPLICATION_NAME"`
+	CasdoorModelName           string `env:"CASDOOR_MODEL_NAME"`
+	JWKAddress                 string `env:"CASDOOR_JWK_ADDRESS"`
+	RabbitURI                  string `env:"RABBITMQ_URI"`
+	RabbitMQHost               string `env:"RABBITMQ_HOST"`
+	RabbitMQPortHost           string `env:"RABBITMQ_PORT_HOST"`
+	RabbitMQPortAMQP           string `env:"RABBITMQ_PORT_AMPQ"`
+	RabbitMQUser               string `env:"RABBITMQ_DEFAULT_USER"`
+	RabbitMQPass               string `env:"RABBITMQ_DEFAULT_PASS"`
+	RabbitMQBalanceCreateQueue string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
+	OtelServiceName            string `env:"OTEL_RESOURCE_SERVICE_NAME"`
+	OtelLibraryName            string `env:"OTEL_LIBRARY_NAME"`
+	OtelServiceVersion         string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
+	OtelDeploymentEnv          string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
+	OtelColExporterEndpoint    string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	RedisHost                  string `env:"REDIS_HOST"`
+	RedisPort                  string `env:"REDIS_PORT"`
+	RedisUser                  string `env:"REDIS_USER"`
+	RedisPassword              string `env:"REDIS_PASSWORD"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -127,13 +123,6 @@ func InitServers() *Service {
 		Logger:                 logger,
 	}
 
-	grpcSource := fmt.Sprintf("%s:%s", cfg.LedgerGRPCAddr, cfg.LedgerGRPCPort)
-
-	grpcConnection := &mgrpc.GRPCConnection{
-		Addr:   grpcSource,
-		Logger: logger,
-	}
-
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
@@ -143,7 +132,7 @@ func InitServers() *Service {
 		Port:                   cfg.RabbitMQPortAMQP,
 		User:                   cfg.RabbitMQUser,
 		Pass:                   cfg.RabbitMQPass,
-		Queue:                  cfg.RabbitMQQueue,
+		Queue:                  cfg.RabbitMQBalanceCreateQueue,
 		Logger:                 logger,
 	}
 
@@ -161,21 +150,20 @@ func InitServers() *Service {
 	transactionPostgreSQLRepository := transaction.NewTransactionPostgreSQLRepository(postgresConnection)
 	operationPostgreSQLRepository := operation.NewOperationPostgreSQLRepository(postgresConnection)
 	assetRatePostgreSQLRepository := assetrate.NewAssetRatePostgreSQLRepository(postgresConnection)
+	balancePostgreSQLRepository := balance.NewBalancePostgreSQLRepository(postgresConnection)
 
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	consumerRabbitMQRepository := rabbitmq.NewConsumerRabbitMQ(rabbitMQConnection)
-
-	accountGRPCRepository := out.NewAccountGRPC(grpcConnection)
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, logger, telemetry)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
 	useCase := &command.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
-		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
@@ -183,11 +171,10 @@ func InitServers() *Service {
 
 	queryUseCase := &query.UseCase{
 		TransactionRepo: transactionPostgreSQLRepository,
-		AccountGRPCRepo: accountGRPCRepository,
 		OperationRepo:   operationPostgreSQLRepository,
 		AssetRateRepo:   assetRatePostgreSQLRepository,
+		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
-		RabbitMQRepo:    consumerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
 	}
 
@@ -206,12 +193,20 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler)
+	balanceHandler := &in.BalanceHandler{
+		Command: useCase,
+		Query:   queryUseCase,
+	}
+
+	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
+
+	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 
 	return &Service{
-		Server: server,
-		Logger: logger,
+		Server:             server,
+		MultiQueueConsumer: multiQueueConsumer,
+		Logger:             logger,
 	}
 }

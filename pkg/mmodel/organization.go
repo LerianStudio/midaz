@@ -21,12 +21,12 @@ type CreateOrganizationInput struct {
 // // swagger:model UpdateOrganizationInput
 // @Description UpdateOrganizationInput is the input payload to update an organization.
 type UpdateOrganizationInput struct {
-	LegalName            string         `json:"legalName" validate:"required,max=256" example:"Lerian Studio Updated"`
+	LegalName            string         `json:"legalName" validate:"max=256" example:"Lerian Studio Updated"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
-	DoingBusinessAs      *string        `json:"doingBusinessAs" validate:"max=256" example:"The ledger.io"`
+	DoingBusinessAs      string         `json:"doingBusinessAs" validate:"max=256" example:"The ledger.io"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
-	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata             map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateOrganizationInput
 
 // Organization is a struct designed to encapsulate response payload data.

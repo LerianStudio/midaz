@@ -1,8 +1,6 @@
 package in
 
 import (
-	"context"
-	"encoding/json"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
@@ -11,20 +9,15 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	goldTransaction "github.com/LerianStudio/midaz/pkg/gold/transaction"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/pkg/mgrpc/account"
 	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.opentelemetry.io/otel/trace"
-	"os"
-	"reflect"
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"reflect"
+	"time"
 )
 
 // TransactionHandler struct that handle transaction
@@ -41,7 +34,7 @@ type TransactionHandler struct {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string								false	"Request ID"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
@@ -75,7 +68,7 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Accept			mpfd
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
@@ -175,7 +168,7 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string								false	"Request ID"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
@@ -256,7 +249,7 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			Authorization	header		string								true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string								false	"Request ID"
+//	@Param			X-Request-Id		header		string								false	"Request ID"
 //	@Param			organization_id	path		string								true	"Organization ID"
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
@@ -311,7 +304,7 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Tags			Transactions
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
@@ -375,7 +368,7 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Tags			Transactions
 //	@Produce		json
 //	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			Midaz-Id		header		string	false	"Request ID"
+//	@Param			X-Request-Id		header		string	false	"Request ID"
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			limit			query		int		false	"Limit"			default(10)
@@ -507,246 +500,135 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	spanValidateDSL.End()
 
-	_, spanRaceCondition := tracer.Start(ctx, "handler.create_transaction.race_condition")
+	_, spanGetBalances := tracer.Start(ctx, "handler.create_transaction.get_balances")
 
-	handler.Command.AllKeysUnlocked(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-	spanRaceCondition.End()
-
-	ctxGetAccounts, spanGetAccounts := tracer.Start(ctx, "handler.create_transaction.get_accounts")
-
-	token := http.GetTokenHeader(c)
-
-	accounts, err := handler.getAccountsAndValidate(ctxGetAccounts, logger, token, hash, organizationID, ledgerID, validate, parserDSL)
+	balances, err := handler.Query.GetBalances(ctx, organizationID, ledgerID, validate)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanGetAccounts, "Failed to get accounts", err)
+		mopentelemetry.HandleSpanError(&spanGetBalances, "Failed to get balances", err)
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
+		logger.Errorf("Failed to get balances: %v", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	spanGetAccounts.End()
+	spanGetBalances.End()
 
-	ctxCreateTransaction, spanCreateTransaction := tracer.Start(ctx, "handler.create_transaction.create_transaction")
+	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
 
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanCreateTransaction, "payload_command_create_transaction", parserDSL)
+	err = goldModel.ValidateBalancesRules(ctx, parserDSL, *validate, balances)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to convert parserDSL from struct to JSON string", err)
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
 
 		return http.WithError(c, err)
 	}
 
-	tran, err := handler.Command.CreateTransaction(ctxCreateTransaction, organizationID, ledgerID, transactionID, &parserDSL)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction", err)
+	spanValidateBalances.End()
 
-		logger.Error("Failed to create transaction", err.Error())
-
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
-		return http.WithError(c, err)
+	description := constant.CREATED
+	status := transaction.Status{
+		Code:        description,
+		Description: &description,
 	}
 
-	spanCreateTransaction.End()
+	var parentTransactionID *string
 
-	e := make(chan error)
-	result := make(chan []*operation.Operation)
+	if transactionID != uuid.Nil {
+		value := transactionID.String()
+		parentTransactionID = &value
+	}
+
+	tran := &transaction.Transaction{
+		ID:                       pkg.GenerateUUIDv7().String(),
+		ParentTransactionID:      parentTransactionID,
+		OrganizationID:           organizationID.String(),
+		LedgerID:                 ledgerID.String(),
+		Description:              parserDSL.Description,
+		Template:                 parserDSL.ChartOfAccountsGroupName,
+		Status:                   status,
+		Amount:                   &parserDSL.Send.Value,
+		AmountScale:              &parserDSL.Send.Scale,
+		AssetCode:                parserDSL.Send.Asset,
+		ChartOfAccountsGroupName: parserDSL.ChartOfAccountsGroupName,
+		Body:                     parserDSL,
+		CreatedAt:                time.Now(),
+		UpdatedAt:                time.Now(),
+	}
 
 	var operations []*operation.Operation
 
-	ctxCreateOperation, spanCreateOperation := tracer.Start(ctx, "handler.create_transaction.create_operation")
+	var fromTo []goldModel.FromTo
+	fromTo = append(fromTo, parserDSL.Send.Source.From...)
+	fromTo = append(fromTo, parserDSL.Send.Distribute.To...)
 
-	go handler.Command.CreateOperation(ctxCreateOperation, accounts, tran.ID, &parserDSL, *validate, result, e)
-	select {
-	case ops := <-result:
-		operations = append(operations, ops...)
-	case err := <-e:
-		mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operations", err)
+	for _, blc := range balances {
+		for i := range fromTo {
+			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+				logger.Infof("Creating operation for account id: %s", blc.ID)
 
-		logger.Error("Failed to create operations: ", err.Error())
+				balance := operation.Balance{
+					Available: &blc.Available,
+					OnHold:    &blc.OnHold,
+					Scale:     &blc.Scale,
+				}
 
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
+				amt, bat, er := goldModel.ValidateFromToOperation(fromTo[i], *validate, blc)
+				if er != nil {
+					logger.Errorf("Failed to validate balance: %v", er.Error())
+				}
 
-		spanReleaseLock.End()
+				amount := operation.Amount{
+					Amount: &amt.Value,
+					Scale:  &amt.Scale,
+				}
 
-		return http.WithError(c, err)
-	}
+				balanceAfter := operation.Balance{
+					Available: &bat.Available,
+					OnHold:    &bat.OnHold,
+					Scale:     &bat.Scale,
+				}
 
-	spanCreateOperation.End()
+				descr := fromTo[i].Description
+				if pkg.IsNilOrEmpty(&fromTo[i].Description) {
+					descr = parserDSL.Description
+				}
 
-	ctxProcessAccounts, spanUpdateAccounts := tracer.Start(ctx, "handler.create_transaction.update_accounts")
+				var typeOperation string
+				if fromTo[i].IsFrom {
+					typeOperation = constant.DEBIT
+				} else {
+					typeOperation = constant.CREDIT
+				}
 
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateAccounts, "payload_handler_update_accounts", accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to convert accounts from struct to JSON string", err)
-	}
-
-	err = handler.Command.UpdateAccounts(ctxProcessAccounts, logger, *validate, token, organizationID, ledgerID, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateAccounts, "Failed to update accounts", err)
-
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
-		ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.update_accounts.update_transaction_status")
-		_, er := handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.DECLINED)
-
-		if er != nil {
-			mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
-
-			logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-			return http.WithError(c, er)
+				operations = append(operations, &operation.Operation{
+					ID:              pkg.GenerateUUIDv7().String(),
+					TransactionID:   tran.ID,
+					Description:     descr,
+					Type:            typeOperation,
+					AssetCode:       parserDSL.Send.Asset,
+					ChartOfAccounts: fromTo[i].ChartOfAccounts,
+					Amount:          amount,
+					Balance:         balance,
+					BalanceAfter:    balanceAfter,
+					BalanceID:       blc.ID,
+					AccountID:       blc.AccountID,
+					AccountAlias:    blc.Alias,
+					OrganizationID:  blc.OrganizationID,
+					LedgerID:        blc.LedgerID,
+					CreatedAt:       time.Now(),
+					UpdatedAt:       time.Now(),
+					Metadata:        fromTo[i].Metadata,
+				})
+			}
 		}
-
-		spanUpdateTransactionStatus.End()
-
-		return http.WithError(c, err)
 	}
-
-	spanUpdateAccounts.End()
-
-	ctxUpdateTransactionStatus, spanUpdateTransactionStatus := tracer.Start(ctx, "handler.create_transaction.update_transaction_status")
-	_, err = handler.Command.UpdateTransactionStatus(ctxUpdateTransactionStatus, organizationID, ledgerID, tran.IDtoUUID(), constant.APPROVED)
-
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateTransactionStatus, "Failed to update transaction status", err)
-
-		logger.Errorf("Failed to update Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-		_, spanReleaseLock := tracer.Start(ctx, "handler.update_accounts.delete_locks_race_condition")
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		spanReleaseLock.End()
-
-		return http.WithError(c, err)
-	}
-
-	spanUpdateTransactionStatus.End()
-
-	ctxGetTransaction, spanGetTransaction := tracer.Start(ctx, "handler.create_transaction.get_transaction")
-
-	tran, err = handler.Query.GetTransactionByID(ctxGetTransaction, organizationID, ledgerID, tran.IDtoUUID())
-	if err != nil {
-		mopentelemetry.HandleSpanError(&spanGetTransaction, "Failed to retrieve transaction", err)
-
-		logger.Errorf("Failed to retrieve Transaction with ID: %s, Error: %s", tran.ID, err.Error())
-
-		return http.WithError(c, err)
-	}
-
-	spanGetTransaction.End()
 
 	tran.Source = validate.Sources
 	tran.Destination = validate.Destinations
 	tran.Operations = operations
 
-	logger.Infof("Successfully updated Transaction with Organization ID: %s, Ledger ID: %s and ID: %s", organizationID.String(), ledgerID.String(), tran.ID)
+	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
 
-	_, spanReleaseLock := tracer.Start(ctx, "handler.create_transaction.delete_race_condition")
-	handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-	spanReleaseLock.End()
-
-	go handler.logTransaction(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
 
 	return http.Created(c, tran)
-}
-
-// getAccounts is a function that split aliases and ids, call the properly function and return Accounts
-func (handler *TransactionHandler) getAccountsAndValidate(ctx context.Context, logger mlog.Logger, token, hash string, organizationID, ledgerID uuid.UUID, validate *goldModel.Responses, body goldModel.Transaction) ([]*account.Account, error) {
-	span := trace.SpanFromContext(ctx)
-	defer span.End()
-
-	accounts, err := handler.Query.GetAccountsLedger(ctx, logger, token, organizationID, ledgerID, validate.Aliases)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get accounts", err)
-
-		return nil, err
-	}
-
-	err = goldModel.ValidateAccounts(body, *validate, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate accounts", err)
-
-		handler.Command.DeleteLocks(ctx, organizationID, ledgerID, validate.Aliases, hash)
-
-		return nil, err
-	}
-
-	searchAgain, err := handler.Command.LockBalanceVersion(ctx, organizationID, ledgerID, validate.Aliases, accounts)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get account by alias gRPC on Ledger", err)
-
-		logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
-
-		return nil, err
-	}
-
-	if searchAgain {
-		return handler.getAccountsAndValidate(ctx, logger, token, hash, organizationID, ledgerID, validate, body)
-	}
-
-	return accounts, nil
-}
-
-// logTransaction creates a message representing a transaction log and sends to auditing exchange
-func (handler *TransactionHandler) logTransaction(ctx context.Context, operations []*operation.Operation, organizationID uuid.UUID, ledgerID uuid.UUID, transactionID uuid.UUID) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
-
-	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "handler.transaction.log_transaction")
-	defer spanLogTransaction.End()
-
-	if !isAuditLogEnabled() {
-		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
-		return
-	}
-
-	queueData := make([]mmodel.QueueData, 0)
-
-	for _, o := range operations {
-		oLog := o.ToLog()
-
-		marshal, err := json.Marshal(oLog)
-		if err != nil {
-			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
-		}
-
-		queueData = append(queueData, mmodel.QueueData{
-			ID:    uuid.MustParse(o.ID),
-			Value: marshal,
-		})
-	}
-
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AuditID:        transactionID,
-		QueueData:      queueData,
-	}
-
-	if _, err := handler.Command.RabbitMQRepo.ProducerDefault(
-		ctxLogTransaction,
-		os.Getenv("RABBITMQ_AUDIT_EXCHANGE"),
-		os.Getenv("RABBITMQ_AUDIT_KEY"),
-		queueMessage,
-	); err != nil {
-		logger.Fatalf("Failed to send message: %s", err.Error())
-	}
-}
-
-func isAuditLogEnabled() bool {
-	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
-	return envValue != "false"
 }
