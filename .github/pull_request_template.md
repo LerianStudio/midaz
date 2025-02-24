@@ -8,7 +8,6 @@
 - [ ] Onboarding
 - [ ] Mdz
 - [ ] Transaction
-- [ ] Audit
 - [ ] Pipeline
 - [ ] Documentation
 

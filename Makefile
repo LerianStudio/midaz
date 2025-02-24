@@ -1,4 +1,3 @@
-AUDIT_DIR := ./components/audit
 AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
 MDZ_DIR := ./components/mdz
@@ -65,7 +64,6 @@ help:
 	@echo "    make infra                               Run a command inside the infra app in the components directory to see available commands."
 	@echo "    make onboarding                              Run a command inside the onboarding app in the components directory to see available commands."
 	@echo "    make transaction                         Run a command inside the transaction app in the components directory to see available commands."
-	@echo "    make audit                         		Run a command inside the audit app in the components directory to see available commands."
 	@echo "    make set-env                             Run a command to copy all .env.example to .env into respective folders."
 	@echo "    make all-services                        Run a command to all services passing any individual container command."
 	@echo "    make generate-docs-all                   Run a command to inside the onboarding and transaction app to generate swagger docs."
@@ -77,7 +75,6 @@ help:
 	@echo "  make infra COMMAND=<cmd> - Run command in infra service"
 	@echo "  make onboarding COMMAND=<cmd> - Run command in onboarding service"
 	@echo "  make transaction COMMAND=<cmd> - Run command in transaction service"
-	@echo "  make audit COMMAND=<cmd> - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd> - Run command across all services"
 	@echo "  make clean-docker - Run command to clean docker"
 	@echo ""
@@ -157,7 +154,6 @@ set-env:
 	cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
 	cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
-	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
 .PHONY: up
@@ -189,19 +185,13 @@ transaction:
 	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
-.PHONY: audit
-audit:
-	@echo "$(BLUE)Executing command in audit service...$(NC)"
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
-
 .PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(ONBOARDING_DIR) $(COMMAND) && \
-	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
 .PHONY: clean-docker
 clean-docker:
@@ -225,5 +215,4 @@ tidy:
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
-	$(MAKE) -C $(TRANSACTION_DIR) generate-docs && \
-	$(MAKE) -C $(AUDIT_DIR) generate-docs
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs

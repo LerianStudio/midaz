@@ -29,58 +29,6 @@ MIDAZ
 |       |-- chocolateyinstall.ps1
 |       `-- chocolateyuninstall.ps1
 |-- components
-|   |-- audit
-|   |   |-- Dockerfile
-|   |   |-- Makefile
-|   |   |-- api
-|   |   |   |-- docs.go
-|   |   |   |-- openapi.yaml
-|   |   |   |-- swagger.json
-|   |   |   `-- swagger.yaml
-|   |   |-- artifacts
-|   |   |-- cmd
-|   |   |   `-- app
-|   |   |       `-- main.go
-|   |   |-- db
-|   |   |   `-- init.sql
-|   |   |-- docker-compose.yml
-|   |   `-- internal
-|   |       |-- adapters
-|   |       |   |-- grpc
-|   |       |   |   |-- in
-|   |       |   |   `-- out
-|   |       |   |       |-- trillian.grpc.go
-|   |       |   |       `-- trillian.mock.go
-|   |       |   |-- http
-|   |       |   |   |-- in
-|   |       |   |   |   |-- response.go
-|   |       |   |   |   |-- routes.go
-|   |       |   |   |   |-- swagger.go
-|   |       |   |   |   `-- trillian.go
-|   |       |   |   `-- out
-|   |       |   |-- mongodb
-|   |       |   |   `-- audit
-|   |       |   |       |-- audit.go
-|   |       |   |       |-- audit.mock.go
-|   |       |   |       `-- audit.mongodb.go
-|   |       |   `-- rabbitmq
-|   |       |       |-- consumer.mock.go
-|   |       |       `-- consumer.rabbitmq.go
-|   |       |-- bootstrap
-|   |       |   |-- config.go
-|   |       |   |-- consumer.go
-|   |       |   |-- server.go
-|   |       |   `-- service.go
-|   |       `-- services
-|   |           |-- create-log.go
-|   |           |-- create-log_test.go
-|   |           |-- get-audit-info.go
-|   |           |-- get-audit-info_test.go
-|   |           |-- get-log-by-hash.go
-|   |           |-- get-log-by-hash_test.go
-|   |           |-- usecase.go
-|   |           |-- validate-log-hash.go
-|   |           `-- validate-log-hash_test.go
 |   |-- auth
 |   |   |-- Makefile
 |   |   |-- artifacts

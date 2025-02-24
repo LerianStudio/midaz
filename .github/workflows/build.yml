@@ -17,8 +17,6 @@ jobs:
     strategy:
       matrix:
         app:
-          - name: "midaz-audit"
-            working_dir: "components/audit"
           - name: "midaz-onboarding"
             working_dir: "components/onboarding"
           - name: "midaz-transaction"
