@@ -1,4 +1,3 @@
-AUDIT_DIR := ./components/audit
 AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
 MDZ_DIR := ./components/mdz
@@ -157,7 +156,6 @@ set-env:
 	cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
 	cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
-	cp -r $(AUDIT_DIR)/.env.example $(AUDIT_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
 .PHONY: up
@@ -189,19 +187,13 @@ transaction:
 	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
-.PHONY: audit
-audit:
-	@echo "$(BLUE)Executing command in audit service...$(NC)"
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
-
 .PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
 	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(ONBOARDING_DIR) $(COMMAND) && \
-	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND) && \
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
 .PHONY: clean-docker
 clean-docker:
@@ -225,5 +217,4 @@ tidy:
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
-	$(MAKE) -C $(TRANSACTION_DIR) generate-docs && \
-	$(MAKE) -C $(AUDIT_DIR) generate-docs
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs

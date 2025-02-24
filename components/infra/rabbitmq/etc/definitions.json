@@ -17,12 +17,6 @@
       "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
       "hashing_algorithm":"rabbit_password_hashing_sha256",
       "tags":"administrator"
-    },
-    {
-      "name":"audit",
-      "password_hash":"/xSX/E+2TzPfqRPYnPIdviUpNiXnoQWnAdQR7TS47cJc6GuM",
-      "hashing_algorithm":"rabbit_password_hashing_sha256",
-      "tags":"administrator"
     }
   ],
   "vhosts": [
@@ -51,21 +45,9 @@
       "configure": ".*",
       "write": ".*",
       "read": ".*"
-    },
-    {
-      "user": "audit",
-      "vhost": "/",
-      "configure": ".*",
-      "write": ".*",
-      "read": ".*"
     }
   ],
   "queues": [
-    {
-      "name": "audit.append_log.queue",
-      "vhost": "/",
-      "durable": true
-    },
     {
       "name": "transaction.balance_create.queue",
       "vhost": "/",
@@ -78,12 +60,6 @@
     }
   ],
   "exchanges": [
-    {
-      "name": "audit.append_log.exchange",
-      "vhost": "/",
-      "type": "direct",
-      "durable": true
-    },
     {
       "name": "transaction.balance_create.exchange",
       "vhost": "/",
@@ -98,13 +74,6 @@
     }
   ],
   "bindings": [
-    {
-      "source": "audit.append_log.exchange",
-      "vhost": "/",
-      "destination": "audit.append_log.queue",
-      "destination_type": "queue",
-      "routing_key": "audit.append_log.key"
-    },
     {
       "source": "transaction.balance_create.exchange",
       "vhost": "/",
