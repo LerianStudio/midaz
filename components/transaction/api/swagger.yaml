@@ -6,6 +6,8 @@ definitions:
       asset:
         example: BRL
         type: string
+      operation:
+        type: string
       scale:
         example: 2
         minimum: 0
@@ -338,10 +340,10 @@ definitions:
     properties:
       amount:
         example: 1500
-        type: number
+        type: integer
       amountScale:
         example: 2
-        type: number
+        type: integer
       assetCode:
         example: BRL
         type: string
@@ -470,6 +472,9 @@ definitions:
       updatedAt:
         example: "2021-01-01T00:00:00Z"
         type: string
+      version:
+        example: 1
+        type: integer
     type: object
   mmodel.UpdateBalance:
     properties:

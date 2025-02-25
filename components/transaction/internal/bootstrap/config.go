@@ -13,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
@@ -86,17 +85,6 @@ func InitServers() *Service {
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-	}
-
-	casDoorConnection := &mcasdoor.CasdoorConnection{
-		JWKUri:           cfg.JWKAddress,
-		Endpoint:         cfg.CasdoorAddress,
-		ClientID:         cfg.CasdoorClientID,
-		ClientSecret:     cfg.CasdoorClientSecret,
-		OrganizationName: cfg.CasdoorOrganizationName,
-		ApplicationName:  cfg.CasdoorApplicationName,
-		ModelName:        cfg.CasdoorModelName,
-		Logger:           logger,
 	}
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
@@ -200,7 +188,7 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
+	app := in.NewRouter(logger, telemetry, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

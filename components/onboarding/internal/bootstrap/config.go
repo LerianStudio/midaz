@@ -16,7 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
@@ -48,12 +47,6 @@ type Config struct {
 	MongoDBUser             string `env:"MONGO_USER"`
 	MongoDBPassword         string `env:"MONGO_PASSWORD"`
 	MongoDBPort             string `env:"MONGO_PORT"`
-	CasdoorAddress          string `env:"CASDOOR_ADDRESS"`
-	CasdoorClientID         string `env:"CASDOOR_CLIENT_ID"`
-	CasdoorClientSecret     string `env:"CASDOOR_CLIENT_SECRET"`
-	CasdoorOrganizationName string `env:"CASDOOR_ORGANIZATION_NAME"`
-	CasdoorApplicationName  string `env:"CASDOOR_APPLICATION_NAME"`
-	CasdoorModelName        string `env:"CASDOOR_MODEL_NAME"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
 	RabbitURI               string `env:"RABBITMQ_URI"`
 	RabbitMQHost            string `env:"RABBITMQ_HOST"`
@@ -90,17 +83,6 @@ func InitServers() *Service {
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-	}
-
-	casDoorConnection := &mcasdoor.CasdoorConnection{
-		JWKUri:           cfg.JWKAddress,
-		Endpoint:         cfg.CasdoorAddress,
-		ClientID:         cfg.CasdoorClientID,
-		ClientSecret:     cfg.CasdoorClientSecret,
-		OrganizationName: cfg.CasdoorOrganizationName,
-		ApplicationName:  cfg.CasdoorApplicationName,
-		ModelName:        cfg.CasdoorModelName,
-		Logger:           logger,
 	}
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
@@ -216,7 +198,7 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	httpApp := httpin.NewRouter(logger, telemetry, casDoorConnection, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
+	httpApp := httpin.NewRouter(logger, telemetry, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 

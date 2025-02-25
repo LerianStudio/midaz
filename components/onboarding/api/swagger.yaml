@@ -476,8 +476,6 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/Status'
-    required:
-    - legalName
     type: object
   UpdatePortfolioInput:
     description: UpdatePortfolioInput is the input payload to update a portfolio.
