@@ -1,3 +1,11 @@
+## [1.49.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.1...v1.49.0-beta.2) (2025-02-25)
+
+
+### Bug Fixes
+
+* comment integrations test to refactor mdz after implement auth; ([d19c527](https://github.com/LerianStudio/midaz/commit/d19c5277df2db47603a5b900d31c190ca1cef374))
+* remove auth from template deploy; ([e692244](https://github.com/LerianStudio/midaz/commit/e692244d1a818d50b61e0279fb6e90595d344989))
+
 ## [1.49.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.48.0...v1.49.0-beta.1) (2025-02-24)
 
 ## [1.48.0](https://github.com/LerianStudio/midaz/compare/v1.47.0...v1.48.0) (2025-02-21)
