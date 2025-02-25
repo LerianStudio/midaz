@@ -3,7 +3,6 @@
 ## Pull Request Type
 [//]: # (Check the appropriate box for the type of pull request.)
 
-- [ ] Auth
 - [ ] Infra
 - [ ] Onboarding
 - [ ] Mdz
