@@ -1,4 +1,3 @@
-AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
 MDZ_DIR := ./components/mdz
 ONBOARDING_DIR := ./components/onboarding
@@ -149,7 +148,6 @@ set-env:
 	@echo "$(YELLOW)WARNING:$(NC)"
 	@echo "$(YELLOW)Customize .env variables to fit your environment. Default values are for initial setup and may not be secure for production. Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
 	@echo "$(BLUE)Setting up environment files...$(NC)"
-	cp -r $(AUTH_DIR)/.env.example $(AUTH_DIR)/.env
 	cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
 	cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env
 	cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
@@ -159,16 +157,11 @@ set-env:
 .PHONY: up
 up: 
 	@echo "$(BLUE)Starting all services...$(NC)"
-	@$(DOCKER_CMD) -f $(AUTH_DIR)/docker-compose.yml up --build -d
+
 	@$(DOCKER_CMD) -f $(INFRA_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(ONBOARDING_DIR)/docker-compose.yml up --build -d
 	@$(DOCKER_CMD) -f $(TRANSACTION_DIR)/docker-compose.yml up --build -d
 	@echo "$(BLUE)All services started successfully$(NC)"
-
-.PHONY: auth
-auth:
-	@echo "$(BLUE)Executing command in auth service...$(NC)"
-	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
 
 .PHONY: infra
 infra:
@@ -188,7 +181,6 @@ transaction:
 .PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
-	$(MAKE) -C $(AUTH_DIR) $(COMMAND) && \
 	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
 	$(MAKE) -C $(ONBOARDING_DIR) $(COMMAND) && \
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
