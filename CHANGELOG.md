@@ -1,3 +1,15 @@
+## [1.49.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.2...v1.49.0-beta.3) (2025-02-26)
+
+
+### Features
+
+* Implements feature to get balance on database or redis on cache ([b507a9d](https://github.com/LerianStudio/midaz/commit/b507a9da54f1972936765f9729c330b5c8d2c9ff))
+
+
+### Bug Fixes
+
+* update go mod and go sum; ([681589e](https://github.com/LerianStudio/midaz/commit/681589e40e1fa4de0fd64a6f4d88d1e718f74e67))
+
 ## [1.49.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.1...v1.49.0-beta.2) (2025-02-25)
 
 
