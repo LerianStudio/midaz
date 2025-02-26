@@ -48,3 +48,16 @@ type Balances struct {
 	Page  int       `json:"page" example:"1"`
 	Limit int       `json:"limit" example:"10"`
 } // @name Balances
+
+type BalanceRedis struct {
+	ID             string `json:"id"`
+	AccountID      string `json:"accountId"`
+	AssetCode      string `json:"assetCode"`
+	Available      int64  `json:"available"`
+	OnHold         int64  `json:"onHold"`
+	Scale          int64  `json:"scale"`
+	Version        int64  `json:"version"`
+	AccountType    string `json:"accountType"`
+	AllowSending   int    `json:"allowSending"`
+	AllowReceiving int    `json:"allowReceiving"`
+}
