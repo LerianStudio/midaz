@@ -1,9 +1,14 @@
 name: "Build midaz images"
 
 on:
-  push:
-    tags:
-      - '**'
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
 
 permissions:
   id-token: write
