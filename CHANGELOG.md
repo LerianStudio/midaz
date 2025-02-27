@@ -1,3 +1,17 @@
+## [1.49.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.3...v1.49.0-beta.4) (2025-02-27)
+
+
+### Features
+
+* change redis image to valkey and some adjusts on docker-compose; ([0d6494c](https://github.com/LerianStudio/midaz/commit/0d6494cd580693d321e164e1537425e2ea43ee61))
+* test create image when open pr; ([d90aaf5](https://github.com/LerianStudio/midaz/commit/d90aaf568de1fe2fbfaae6a185c8ba09e6aa9672))
+
+
+### Bug Fixes
+
+* add multi-arch to docker hub; ([69640e6](https://github.com/LerianStudio/midaz/commit/69640e6c87fbba0edd3e93dfbb10863f4fc4964e))
+* revert to when generating tags; ([daef69f](https://github.com/LerianStudio/midaz/commit/daef69fbfac87c7a6c179778edd90838f9ceb2eb))
+
 ## [1.49.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.2...v1.49.0-beta.3) (2025-02-26)
 
 
