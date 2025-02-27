@@ -225,7 +225,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		end
 
 		local function main()
-			local ttl = 300        
+			local ttl = 3600        
 			local key = KEYS[1]
 			local operation = ARGV[1]
 			
