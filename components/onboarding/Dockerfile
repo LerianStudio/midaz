@@ -1,22 +1,19 @@
-FROM golang:1.23-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS builder
 
 WORKDIR /onboarding-app
 
 COPY go.mod go.sum ./
-
 RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/onboarding/cmd/app/main.go
+ARG TARGETPLATFORM
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/onboarding/cmd/app/main.go
 
-FROM gcr.io/distroless/static-debian12
+FROM --platform=$TARGETPLATFORM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app /app
-
-# Copy the migrations directory.
 COPY --from=builder /onboarding-app/components/onboarding/migrations /components/onboarding/migrations
 
 EXPOSE 3000
-
 ENTRYPOINT ["/app"]
