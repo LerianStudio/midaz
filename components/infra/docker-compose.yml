@@ -1,41 +1,13 @@
-x-midaz-postgres-common:
-  &midaz-postgres-common
-  image: postgres:latest
-  restart: always
-  user: ${USER_EXECUTE_COMMAND}
-  healthcheck:
-    test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -p ${DB_PORT}" ]
-    interval: 10s
-    timeout: 5s
-    retries: 5
-  networks:
-    - infra_network
-
-x-midaz-mongodb-common:
-  &midaz-mongodb-common
-  image: mongo:latest
-  restart: always
-  healthcheck:
-    test: echo 'db.runCommand("ping").ok'
-    interval: 10s
-    timeout: 5s
-    retries: 5
-  networks:
-    - infra_network
-
-x-midaz-redis-common:
-  &midaz-redis-common
-  image: redis:latest
-  restart: always
-  env_file:
-    - .env
-  networks:
-    - infra_network
-
 services:
   midaz-mongodb:
-    <<: *midaz-mongodb-common
     container_name: midaz-mongodb
+    image: mongo:latest
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 5s
+      retries: 5
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
@@ -44,22 +16,36 @@ services:
       - ${MONGO_PORT}:${MONGO_PORT}
     volumes:
       - mongodb-data:/data/db
+    networks:
+      - infra_network
 
   midaz-redis:
-    <<: *midaz-redis-common
     container_name: midaz-redis
+    image: valkey/valkey:latest
+    restart: always
+    env_file:
+      - .env
     environment:
       - REDIS_USER=${REDIS_USER}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--user", "${REDIS_USER}",  "--port ${REDIS_PORT}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}",  "--port", "${REDIS_PORT}"]
     ports:
       - ${REDIS_PORT}:${REDIS_PORT}
     volumes:
       - redis-data:/data
+    networks:
+      - infra_network
 
   midaz-postgres-primary:
-    <<: *midaz-postgres-common
     container_name: midaz-postgres-primary
+    image: postgres:latest
+    restart: always
+    user: ${USER_EXECUTE_COMMAND}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER} -p ${DB_PORT}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     ports:
       - ${DB_PORT}:${DB_PORT}
     environment:
@@ -80,10 +66,14 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - infra_network
 
   midaz-postgres-replica:
-    <<: *midaz-postgres-common
     container_name: midaz-postgres-replica
+    image: postgres:latest
+    restart: always
+    user: ${USER_EXECUTE_COMMAND}
     ports:
       - ${DB_REPLICA_PORT}:${DB_REPLICA_PORT}
     environment:
@@ -121,6 +111,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+    networks:
+      - infra_network
 
   midaz-pgbouncer:
     image: edoburu/pgbouncer
