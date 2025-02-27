@@ -62,7 +62,8 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: "application/json",
+			ContentType:  "application/json",
+			DeliveryMode: amqp.Persistent,
 			Headers: amqp.Table{
 				http.HeaderMidazID: pkg.NewMidazIDFromContext(ctx),
 			},
