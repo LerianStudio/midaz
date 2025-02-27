@@ -1,3 +1,10 @@
+## [1.49.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.4...v1.49.0-beta.5) (2025-02-27)
+
+
+### Features
+
+* add new implements to dockerfile and increase ttl on valkey; ([b1bfb12](https://github.com/LerianStudio/midaz/commit/b1bfb12e35a434f8b0568b6740ffcf0cffafe264))
+
 ## [1.49.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.3...v1.49.0-beta.4) (2025-02-27)
 
 
