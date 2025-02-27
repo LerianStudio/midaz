@@ -1,3 +1,15 @@
+## [1.49.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.5...v1.49.0-beta.6) (2025-02-27)
+
+
+### Features
+
+* add 5 works to consumer in rabbitmq and implement message persistent; ([1625d3b](https://github.com/LerianStudio/midaz/commit/1625d3b4aa22ad0889abdd23c97fa41e17714668))
+
+
+### Bug Fixes
+
+* make lint; ([b454376](https://github.com/LerianStudio/midaz/commit/b4543764ee6c3b4e7908fd455a01f553a2716b08))
+
 ## [1.49.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.4...v1.49.0-beta.5) (2025-02-27)
 
 
