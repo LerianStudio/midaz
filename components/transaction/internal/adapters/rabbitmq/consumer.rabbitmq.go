@@ -9,6 +9,8 @@ import (
 	"github.com/LerianStudio/midaz/pkg/net/http"
 )
 
+const numWorkers = 5
+
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 //
 //go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
@@ -50,10 +52,19 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 	cr.routes[queueName] = handler
 }
 
-// RunConsumers init consume for all registry queues.
+// RunConsumers  init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
 		cr.Logger.Infof("Initializing consumer for queue: %s", queueName)
+
+		err := cr.conn.Channel.Qos(
+			10,
+			0,
+			false,
+		)
+		if err != nil {
+			return err
+		}
 
 		messages, err := cr.conn.Channel.Consume(
 			queueName,
@@ -68,31 +79,34 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 			return err
 		}
 
-		go func(queue string, handlerFunc QueueHandlerFunc) {
-			for msg := range messages {
-				midazID, found := msg.Headers[http.HeaderMidazID]
-				if !found {
-					midazID = pkg.GenerateUUIDv7().String()
+		for i := 0; i < numWorkers; i++ {
+			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
+				for msg := range messages {
+					midazID, found := msg.Headers[http.HeaderMidazID]
+					if !found {
+						midazID = pkg.GenerateUUIDv7().String()
+					}
+
+					log := cr.Logger.WithFields(
+						http.HeaderMidazID, midazID.(string),
+					).WithDefaultMessageTemplate(midazID.(string) + " | ")
+
+					ctx := pkg.ContextWithLogger(
+						pkg.ContextWithMidazID(context.Background(), midazID.(string)),
+						log,
+					)
+
+					err := handlerFunc(ctx, msg.Body)
+					if err != nil {
+						cr.Logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+						_ = msg.Nack(false, true)
+						continue
+					}
+
+					_ = msg.Ack(false)
 				}
-
-				log := cr.Logger.WithFields(
-					http.HeaderMidazID, midazID.(string),
-				).WithDefaultMessageTemplate(midazID.(string) + " | ")
-
-				ctx := pkg.ContextWithLogger(pkg.ContextWithMidazID(context.Background(), midazID.(string)), log)
-
-				err := handlerFunc(ctx, msg.Body)
-				if err != nil {
-					cr.Logger.Errorf("Error processing message, resend messages to queue %s: %v", queue, err)
-
-					_ = msg.Nack(false, true)
-
-					continue
-				}
-
-				_ = msg.Ack(false)
-			}
-		}(queueName, handler)
+			}(i, queueName, handler)
+		}
 	}
 
 	return nil
