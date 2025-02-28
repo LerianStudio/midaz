@@ -1,3 +1,18 @@
+## [1.49.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.6...v1.49.0-beta.7) (2025-02-28)
+
+
+### Features
+
+* add flag feature to switch on/off telemetry; ([1b1cd10](https://github.com/LerianStudio/midaz/commit/1b1cd1008282913e71b013860329ac99e99886e1))
+* create new index from database; remove dockerfile platform to predefined redundant; ([8791e04](https://github.com/LerianStudio/midaz/commit/8791e042ef82aa03fa84b2015cf2077ac0685a25))
+
+
+### Bug Fixes
+
+* go sec; ([f18f629](https://github.com/LerianStudio/midaz/commit/f18f62931a9bbb340378601932865fe5144bbd46))
+* mongo max pool conn adjust and postgres add on config; ([ec09c48](https://github.com/LerianStudio/midaz/commit/ec09c482ef10c78f9c8b2df2d26f88ab5d313e43))
+* remove trillian; ([8141a70](https://github.com/LerianStudio/midaz/commit/8141a703d4d9ade594be1f24108cd58de713bb2a))
+
 ## [1.49.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.5...v1.49.0-beta.6) (2025-02-27)
 
 
