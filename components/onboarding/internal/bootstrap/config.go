@@ -41,12 +41,15 @@ type Config struct {
 	ReplicaDBPassword       string `env:"DB_REPLICA_PASSWORD"`
 	ReplicaDBName           string `env:"DB_REPLICA_NAME"`
 	ReplicaDBPort           string `env:"DB_REPLICA_PORT"`
+	MaxOpenConnections      int    `env:"DB_MAX_OPEN_CONNS"`
+	MaxIdleConnections      int    `env:"DB_MAX_IDLE_CONNS"`
 	MongoURI                string `env:"MONGO_URI"`
 	MongoDBHost             string `env:"MONGO_HOST"`
 	MongoDBName             string `env:"MONGO_NAME"`
 	MongoDBUser             string `env:"MONGO_USER"`
 	MongoDBPassword         string `env:"MONGO_PASSWORD"`
 	MongoDBPort             string `env:"MONGO_PORT"`
+	MaxPoolSize             int    `env:"MONGO_MAX_POOL_SIZE"`
 	JWKAddress              string `env:"CASDOOR_JWK_ADDRESS"`
 	RabbitURI               string `env:"RABBITMQ_URI"`
 	RabbitMQHost            string `env:"RABBITMQ_HOST"`
@@ -100,6 +103,8 @@ func InitServers() *Service {
 		ReplicaDBName:           cfg.ReplicaDBName,
 		Component:               ApplicationName,
 		Logger:                  logger,
+		MaxOpenConnections:      cfg.MaxOpenConnections,
+		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s",
@@ -109,6 +114,7 @@ func InitServers() *Service {
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
+		MaxPoolSize:            uint64(cfg.MaxPoolSize),
 	}
 
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
