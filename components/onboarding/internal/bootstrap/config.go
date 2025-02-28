@@ -61,6 +61,7 @@ type Config struct {
 	OtelServiceVersion      string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv       string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry         bool   `env:"ENABLE_TELEMETRY"`
 	RedisHost               string `env:"REDIS_HOST"`
 	RedisPort               string `env:"REDIS_PORT"`
 	RedisUser               string `env:"REDIS_USER"`
@@ -83,6 +84,7 @@ func InitServers() *Service {
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
+		EnableTelemetry:           cfg.EnableTelemetry,
 	}
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
