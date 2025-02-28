@@ -12,8 +12,14 @@ CREATE TABLE IF NOT EXISTS "transaction" (
     ledger_id                           UUID NOT NULL,
     organization_id                     UUID NOT NULL,
     body                                JSONB NOT NULL,
-    created_at                          TIMESTAMP WITH TIME ZONE,
-    updated_at                          TIMESTAMP WITH TIME ZONE,
+    created_at                          TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at                          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                          TIMESTAMP WITH TIME ZONE,
     FOREIGN KEY (parent_transaction_id) REFERENCES "transaction" (id)
-)
+);
+
+CREATE INDEX idx_transaction_organization_ledger_id ON "transaction" (organization_id, ledger_id);
+REINDEX INDEX idx_transaction_organization_ledger_id;
+
+CREATE INDEX idx_transaction_created_at ON "transaction" (created_at);
+REINDEX INDEX idx_transaction_created_at;

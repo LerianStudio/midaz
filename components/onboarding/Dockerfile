@@ -10,7 +10,7 @@ COPY . .
 ARG TARGETPLATFORM
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=$(echo $TARGETPLATFORM | cut -d'/' -f2) go build -a -tags netgo -ldflags '-w -extldflags "-static"' -o /app components/onboarding/cmd/app/main.go
 
-FROM --platform=$TARGETPLATFORM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app /app
 COPY --from=builder /onboarding-app/components/onboarding/migrations /components/onboarding/migrations
