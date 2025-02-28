@@ -8,9 +8,12 @@ CREATE TABLE IF NOT EXISTS asset
     status_description            TEXT,
     ledger_id                     UUID NOT NULL,
     organization_id               UUID NOT NULL,
-    created_at                    TIMESTAMP WITH TIME ZONE,
-    updated_at                    TIMESTAMP WITH TIME ZONE,
+    created_at                    TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at                    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                    TIMESTAMP WITH TIME ZONE,
     FOREIGN KEY (ledger_id)       REFERENCES ledger (id),
     FOREIGN KEY (organization_id) REFERENCES organization (id)
 );
+
+CREATE INDEX idx_asset_created_at ON asset (created_at);
+REINDEX INDEX idx_asset_created_at;

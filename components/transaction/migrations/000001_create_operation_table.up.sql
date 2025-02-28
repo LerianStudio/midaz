@@ -20,8 +20,14 @@ CREATE TABLE IF NOT EXISTS operation (
     chart_of_accounts                  TEXT NOT NULL,
     organization_id                    UUID NOT NULL,
     ledger_id                          UUID NOT NULL,
-    created_at                         TIMESTAMP WITH TIME ZONE,
-    updated_at                         TIMESTAMP WITH TIME ZONE,
+    created_at                         TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at                         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     deleted_at                         TIMESTAMP WITH TIME ZONE,
     FOREIGN KEY (transaction_id) REFERENCES "transaction" (id)
-)
+);
+
+CREATE INDEX idx_operation_organization_ledger_id ON operation (organization_id, ledger_id);
+REINDEX INDEX idx_operation_organization_ledger_id;
+
+CREATE INDEX idx_operation_created_at ON operation (created_at);
+REINDEX INDEX idx_operation_created_at;
