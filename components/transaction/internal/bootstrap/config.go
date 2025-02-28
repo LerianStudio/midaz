@@ -112,6 +112,10 @@ func InitServers() *Service {
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
+	if cfg.MaxPoolSize <= 0 {
+		cfg.MaxPoolSize = 100
+	}
+
 	mongoConnection := &mmongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
