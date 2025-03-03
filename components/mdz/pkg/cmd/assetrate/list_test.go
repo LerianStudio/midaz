@@ -38,7 +38,7 @@ func Test_newCmdAssetRateList(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return assetCode, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				AssetCode:      assetCode,
@@ -61,28 +61,26 @@ func Test_newCmdAssetRateList(t *testing.T) {
 		result := &mmodel.AssetRates{
 			Items: []mmodel.AssetRate{
 				{
-					AssetCode:       "USD",
-					TargetAssetCode: "BRL",
-					Value:           4.97,
+					From:       "USD",
+					To: "BRL",
+					Rate:           4.97,
 					ExternalID:      "ext-rate-12345",
 					OrganizationID:  organizationID,
 					LedgerID:        ledgerID,
 					Source:          mpointers.String("API"),
-					TTL:             mpointers.Int(86400),
-					Date:            now,
+					TTL: 86400,
 					CreatedAt:       now,
 					UpdatedAt:       now,
 				},
 				{
-					AssetCode:       "USD",
-					TargetAssetCode: "EUR",
-					Value:           0.92,
+					From:       "USD",
+					To: "EUR",
+					Rate:           0.92,
 					ExternalID:      "ext-rate-67890",
 					OrganizationID:  organizationID,
 					LedgerID:        ledgerID,
 					Source:          mpointers.String("API"),
-					TTL:             mpointers.Int(86400),
-					Date:            now,
+					TTL: 86400,
 					CreatedAt:       now,
 					UpdatedAt:       now,
 				},
@@ -129,7 +127,7 @@ func Test_newCmdAssetRateList(t *testing.T) {
 				inputCounter++
 				return response, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				Limit: limit,
 				Page:  page,
 			},
@@ -142,28 +140,26 @@ func Test_newCmdAssetRateList(t *testing.T) {
 		result := &mmodel.AssetRates{
 			Items: []mmodel.AssetRate{
 				{
-					AssetCode:       "USD",
-					TargetAssetCode: "BRL",
-					Value:           4.97,
+					From:       "USD",
+					To: "BRL",
+					Rate:           4.97,
 					ExternalID:      "ext-rate-12345",
 					OrganizationID:  organizationID,
 					LedgerID:        ledgerID,
 					Source:          mpointers.String("API"),
-					TTL:             mpointers.Int(86400),
-					Date:            now,
+					TTL: 86400,
 					CreatedAt:       now,
 					UpdatedAt:       now,
 				},
 				{
-					AssetCode:       "USD",
-					TargetAssetCode: "EUR",
-					Value:           0.92,
+					From:       "USD",
+					To: "EUR",
+					Rate:           0.92,
 					ExternalID:      "ext-rate-67890",
 					OrganizationID:  organizationID,
 					LedgerID:        ledgerID,
 					Source:          mpointers.String("API"),
-					TTL:             mpointers.Int(86400),
-					Date:            now,
+					TTL: 86400,
 					CreatedAt:       now,
 					UpdatedAt:       now,
 				},

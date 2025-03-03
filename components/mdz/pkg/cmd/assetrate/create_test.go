@@ -83,15 +83,14 @@ func Test_newCmdAssetRateCreate(t *testing.T) {
 		now := time.Now().UTC()
 
 		result := &mmodel.AssetRate{
-			AssetCode:       from,
-			TargetAssetCode: to,
-			Value:           float64(rateInt) / float64(scaleInt*10),
+			From: from,
+			To: to,
+			Rate: float64(rateInt) / float64(scaleInt*10),
 			ExternalID:      externalID,
 			OrganizationID:  organizationID,
 			LedgerID:        ledgerID,
 			Source:          mpointers.String(source),
-			TTL:             mpointers.Int(ttlInt),
-			Date:            now,
+			TTL: ttlInt,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Metadata:        metadata,
@@ -152,13 +151,12 @@ func Test_newCmdAssetRateCreate(t *testing.T) {
 		now := time.Now().UTC()
 
 		result := &mmodel.AssetRate{
-			AssetCode:       from,
-			TargetAssetCode: to,
-			Value:           4.97,
+			From: from,
+			To: to,
+			Rate: 4.97,
 			ExternalID:      externalID,
 			OrganizationID:  organizationID,
 			LedgerID:        ledgerID,
-			Date:            now,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Metadata:        metadata,

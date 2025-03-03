@@ -29,8 +29,11 @@ func Test_balance_Get(t *testing.T) {
 			{
 				ID:             "01932165-b21d-7e6a-b0fc-d5f625c42a72",
 				AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-				AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-				Amount:         "1000.00",
+				AssetCode:      "BRL",
+				Available:      1000,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -39,8 +42,11 @@ func Test_balance_Get(t *testing.T) {
 			{
 				ID:             "01932166-c32e-7f7b-c1fd-e6g737d53b83",
 				AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-				AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-				Amount:         "2500.50",
+				AssetCode:      "BRL",
+				Available:      1000,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -78,8 +84,8 @@ func Test_balance_Get(t *testing.T) {
 	for i, v := range result.Items {
 		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
 		assert.Equal(t, expectedResult.Items[i].AccountID, v.AccountID)
-		assert.Equal(t, expectedResult.Items[i].AssetID, v.AssetID)
-		assert.Equal(t, expectedResult.Items[i].Amount, v.Amount)
+		assert.Equal(t, expectedResult.Items[i].AssetCode, v.AssetCode)
+		assert.Equal(t, expectedResult.Items[i].Available, v.Available)
 	}
 	assert.Equal(t, expectedResult.Limit, limit)
 	assert.Equal(t, expectedResult.Page, page)
@@ -94,15 +100,13 @@ func Test_balance_GetByID(t *testing.T) {
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
-	amount := "1000.00"
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.Balance{
 		ID:             balanceID,
 		AccountID:      accountID,
-		AssetID:        assetID,
-		Amount:         amount,
+		AssetCode:      assetID,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
 		CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -133,8 +137,10 @@ func Test_balance_GetByID(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedResult.ID, result.ID)
 	assert.Equal(t, expectedResult.AccountID, result.AccountID)
-	assert.Equal(t, expectedResult.AssetID, result.AssetID)
-	assert.Equal(t, expectedResult.Amount, result.Amount)
+	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
+	assert.Equal(t, expectedResult.Available, result.Available)
+	assert.Equal(t, expectedResult.OnHold, result.OnHold)
+	assert.Equal(t, expectedResult.Scale, result.Scale)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
 	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
@@ -159,8 +165,11 @@ func Test_balance_GetByAccount(t *testing.T) {
 			{
 				ID:             "01932165-b21d-7e6a-b0fc-d5f625c42a72",
 				AccountID:      accountID,
-				AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-				Amount:         "1000.00",
+				AssetCode:      "BRL",
+				Available:      1000,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -169,8 +178,11 @@ func Test_balance_GetByAccount(t *testing.T) {
 			{
 				ID:             "01932166-c32e-7f7b-c1fd-e6g737d53b83",
 				AccountID:      accountID,
-				AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-				Amount:         "500.75",
+				AssetCode:      "BRL",
+				Available:      1000,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -208,8 +220,8 @@ func Test_balance_GetByAccount(t *testing.T) {
 	for i, v := range result.Items {
 		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
 		assert.Equal(t, expectedResult.Items[i].AccountID, v.AccountID)
-		assert.Equal(t, expectedResult.Items[i].AssetID, v.AssetID)
-		assert.Equal(t, expectedResult.Items[i].Amount, v.Amount)
+		assert.Equal(t, expectedResult.Items[i].AssetCode, v.AssetCode)
+		assert.Equal(t, expectedResult.Items[i].Available, v.Available)
 	}
 	assert.Equal(t, expectedResult.Limit, limit)
 	assert.Equal(t, expectedResult.Page, page)
@@ -224,21 +236,16 @@ func Test_balance_Update(t *testing.T) {
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
-	amount := "1500.00"
+	// amount removed as unused
 
-	inp := mmodel.UpdateBalance{
-		Amount: amount,
-	}
+	inp := mmodel.UpdateBalance{}
 
 	expectedResult := &mmodel.Balance{
 		ID:             balanceID,
 		AccountID:      accountID,
-		AssetID:        assetID,
-		Amount:         amount,
+		AssetCode:      assetID,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
-		CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-		UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 	}
 
 	client := &http.Client{}
@@ -269,8 +276,10 @@ func Test_balance_Update(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedResult.ID, result.ID)
 	assert.Equal(t, expectedResult.AccountID, result.AccountID)
-	assert.Equal(t, expectedResult.AssetID, result.AssetID)
-	assert.Equal(t, expectedResult.Amount, result.Amount)
+	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
+	assert.Equal(t, expectedResult.Available, result.Available)
+	assert.Equal(t, expectedResult.OnHold, result.OnHold)
+	assert.Equal(t, expectedResult.Scale, result.Scale)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
 

@@ -37,7 +37,7 @@ func Test_newCmdOperationList(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return organizationID, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				Limit:          limit,
@@ -59,8 +59,7 @@ func Test_newCmdOperationList(t *testing.T) {
 					ID:             "01932167-d43f-8g8c-d2ge-f7h848e64c94",
 					TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
 					AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "500.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					Type:           "DEBIT",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
@@ -75,8 +74,7 @@ func Test_newCmdOperationList(t *testing.T) {
 					ID:             "01932168-e54g-9h9d-e3hf-g8i959f75d05",
 					TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
 					AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "500.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					Type:           "CREDIT",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
@@ -125,7 +123,7 @@ func Test_newCmdOperationList(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return organizationID, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				AccountID:      accountID,
@@ -149,8 +147,7 @@ func Test_newCmdOperationList(t *testing.T) {
 					ID:             "01932167-d43f-8g8c-d2ge-f7h848e64c94",
 					TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
 					AccountID:      accountID,
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "500.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					Type:           "DEBIT",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
@@ -165,8 +162,7 @@ func Test_newCmdOperationList(t *testing.T) {
 					ID:             "01932169-f65h-0i0e-f4ig-h9j060g86e16",
 					TransactionID:  "01932162-i7eg-9h3d-c94h-85ff9h8516g5",
 					AccountID:      accountID,
-					AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-					Amount:         "200.50",
+					AssetCode:        "01930365-4d46-7a09-a503-b932714f85af",
 					Type:           "CREDIT",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
@@ -220,7 +216,7 @@ func Test_newCmdOperationList(t *testing.T) {
 				inputCounter++
 				return response, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				Limit: limit,
 				Page:  page,
 			},
@@ -234,8 +230,7 @@ func Test_newCmdOperationList(t *testing.T) {
 					ID:             "01932167-d43f-8g8c-d2ge-f7h848e64c94",
 					TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
 					AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "500.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					Type:           "DEBIT",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
@@ -250,8 +245,7 @@ func Test_newCmdOperationList(t *testing.T) {
 					ID:             "01932168-e54g-9h9d-e3hf-g8i959f75d05",
 					TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
 					AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "500.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					Type:           "CREDIT",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,

@@ -16,10 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_operation_Get(t *testing.T) {
+func Test_operation_List(t *testing.T) {
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
-
 	limit := 2
 	page := 1
 
@@ -31,8 +30,8 @@ func Test_operation_Get(t *testing.T) {
 				ID:             "01932167-d43f-8g8c-d2ge-f7h848e64c94",
 				TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
 				AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-				AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-				Amount:         "500.00",
+				AssetCode:      "BRL",
+				Amount:         mmodel.Amount{},
 				Type:           "DEBIT",
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -45,10 +44,10 @@ func Test_operation_Get(t *testing.T) {
 			},
 			{
 				ID:             "01932168-e54g-9h9d-e3hf-g8i959f75d05",
-				TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
+				TransactionID:  "01932162-i7eg-9h3d-c94h-85ff9h8516g5",
 				AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-				AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-				Amount:         "500.00",
+				AssetCode:      "BRL",
+				Amount:         mmodel.Amount{},
 				Type:           "CREDIT",
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -92,11 +91,10 @@ func Test_operation_Get(t *testing.T) {
 		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
 		assert.Equal(t, expectedResult.Items[i].TransactionID, v.TransactionID)
 		assert.Equal(t, expectedResult.Items[i].AccountID, v.AccountID)
-		assert.Equal(t, expectedResult.Items[i].AssetID, v.AssetID)
-		assert.Equal(t, expectedResult.Items[i].Amount, v.Amount)
+		assert.Equal(t, expectedResult.Items[i].AssetCode, v.AssetCode)
 		assert.Equal(t, expectedResult.Items[i].Type, v.Type)
-		assert.Equal(t, expectedResult.Items[i].Status.Code, v.Status.Code)
 	}
+
 	assert.Equal(t, expectedResult.Limit, limit)
 	assert.Equal(t, expectedResult.Page, page)
 
@@ -107,12 +105,9 @@ func Test_operation_Get(t *testing.T) {
 func Test_operation_GetByID(t *testing.T) {
 	operationID := "01932167-d43f-8g8c-d2ge-f7h848e64c94"
 	transactionID := "01932161-h6df-8g2c-b83g-74ee8g7405f4"
-	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
-	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	amount := "500.00"
-	operationType := "DEBIT"
+	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
@@ -120,11 +115,11 @@ func Test_operation_GetByID(t *testing.T) {
 		ID:             operationID,
 		TransactionID:  transactionID,
 		AccountID:      accountID,
-		AssetID:        assetID,
-		Amount:         amount,
-		Type:           operationType,
-		LedgerID:       ledgerID,
+		AssetCode:      "BRL",
+		Amount:         mmodel.Amount{},
+		Type:           "DEBIT",
 		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
 		Status: mmodel.OperationStatus{
 			Code:        "COMPLETED",
 			Description: ptr.StringPtr("Operation completed successfully"),
@@ -137,8 +132,8 @@ func Test_operation_GetByID(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations/%s",
-		URIAPILedger, organizationID, ledgerID, operationID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations/%s",
+		URIAPILedger, organizationID, ledgerID, transactionID, operationID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_get_by_id.json"))
@@ -152,19 +147,17 @@ func Test_operation_GetByID(t *testing.T) {
 
 	operation := NewOperation(factory)
 
+	// Operation objects are associated with transactions, but the GetByID method only needs organizationID, ledgerID, operationID
 	result, err := operation.GetByID(organizationID, ledgerID, operationID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedResult.ID, result.ID)
 	assert.Equal(t, expectedResult.TransactionID, result.TransactionID)
 	assert.Equal(t, expectedResult.AccountID, result.AccountID)
-	assert.Equal(t, expectedResult.AssetID, result.AssetID)
-	assert.Equal(t, expectedResult.Amount, result.Amount)
+	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
 	assert.Equal(t, expectedResult.Type, result.Type)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
-	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
-	assert.Equal(t, *expectedResult.Status.Description, *result.Status.Description)
 	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
 	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
 
@@ -172,10 +165,10 @@ func Test_operation_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
-func Test_operation_GetByAccount(t *testing.T) {
-	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
+func Test_operation_GetByTransaction(t *testing.T) {
+	transactionID := "01932161-h6df-8g2c-b83g-74ee8g7405f4"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
-	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
+	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 
 	limit := 2
 	page := 1
@@ -186,10 +179,10 @@ func Test_operation_GetByAccount(t *testing.T) {
 		Items: []mmodel.Operation{
 			{
 				ID:             "01932167-d43f-8g8c-d2ge-f7h848e64c94",
-				TransactionID:  "01932161-h6df-8g2c-b83g-74ee8g7405f4",
-				AccountID:      accountID,
-				AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-				Amount:         "500.00",
+				TransactionID:  transactionID,
+				AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
+				AssetCode:      "BRL",
+				Amount:         mmodel.Amount{},
 				Type:           "DEBIT",
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -201,11 +194,11 @@ func Test_operation_GetByAccount(t *testing.T) {
 				UpdatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
 			{
-				ID:             "01932169-f65h-0i0e-f4ig-h9j060g86e16",
-				TransactionID:  "01932162-i7eg-9h3d-c94h-85ff9h8516g5",
-				AccountID:      accountID,
-				AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-				Amount:         "200.50",
+				ID:             "01932168-e54g-9h9d-e3hf-g8i959f75d05",
+				TransactionID:  transactionID,
+				AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
+				AssetCode:      "BRL",
+				Amount:         mmodel.Amount{},
 				Type:           "CREDIT",
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
@@ -225,11 +218,11 @@ func Test_operation_GetByAccount(t *testing.T) {
 
 	URIAPILedger := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, accountID, limit, page)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations?limit=%d&page=%d",
+		URIAPILedger, organizationID, ledgerID, transactionID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
-		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_by_account.json"))
+		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_by_transaction.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
@@ -240,7 +233,7 @@ func Test_operation_GetByAccount(t *testing.T) {
 
 	operation := NewOperation(factory)
 
-	result, err := operation.GetByAccount(organizationID, ledgerID, accountID, limit, page, "", "", "")
+	result, err := operation.GetByTransaction(organizationID, ledgerID, transactionID, limit, page, "", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -249,81 +242,12 @@ func Test_operation_GetByAccount(t *testing.T) {
 		assert.Equal(t, expectedResult.Items[i].ID, v.ID)
 		assert.Equal(t, expectedResult.Items[i].TransactionID, v.TransactionID)
 		assert.Equal(t, expectedResult.Items[i].AccountID, v.AccountID)
-		assert.Equal(t, expectedResult.Items[i].AssetID, v.AssetID)
-		assert.Equal(t, expectedResult.Items[i].Amount, v.Amount)
+		assert.Equal(t, expectedResult.Items[i].AssetCode, v.AssetCode)
 		assert.Equal(t, expectedResult.Items[i].Type, v.Type)
-		assert.Equal(t, expectedResult.Items[i].Status.Code, v.Status.Code)
 	}
+
 	assert.Equal(t, expectedResult.Limit, limit)
 	assert.Equal(t, expectedResult.Page, page)
-
-	info := httpmock.GetCallCountInfo()
-	assert.Equal(t, 1, info["GET "+uri])
-}
-
-func Test_operation_GetByAccountAndID(t *testing.T) {
-	operationID := "01932167-d43f-8g8c-d2ge-f7h848e64c94"
-	transactionID := "01932161-h6df-8g2c-b83g-74ee8g7405f4"
-	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
-	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
-	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
-	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	amount := "500.00"
-	operationType := "DEBIT"
-
-	URIAPILedger := "http://127.0.0.1:3000"
-
-	expectedResult := &mmodel.Operation{
-		ID:             operationID,
-		TransactionID:  transactionID,
-		AccountID:      accountID,
-		AssetID:        assetID,
-		Amount:         amount,
-		Type:           operationType,
-		LedgerID:       ledgerID,
-		OrganizationID: organizationID,
-		Status: mmodel.OperationStatus{
-			Code:        "COMPLETED",
-			Description: ptr.StringPtr("Operation completed successfully"),
-		},
-		CreatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-		UpdatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-	}
-
-	client := &http.Client{}
-	httpmock.ActivateNonDefault(client)
-	defer httpmock.DeactivateAndReset()
-
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations/%s",
-		URIAPILedger, organizationID, ledgerID, accountID, operationID)
-
-	httpmock.RegisterResponder(http.MethodGet, uri,
-		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_get_by_account_id.json"))
-
-	factory := &factory.Factory{
-		HTTPClient: client,
-		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
-		},
-	}
-
-	operation := NewOperation(factory)
-
-	result, err := operation.GetByAccountAndID(organizationID, ledgerID, accountID, operationID)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, expectedResult.ID, result.ID)
-	assert.Equal(t, expectedResult.TransactionID, result.TransactionID)
-	assert.Equal(t, expectedResult.AccountID, result.AccountID)
-	assert.Equal(t, expectedResult.AssetID, result.AssetID)
-	assert.Equal(t, expectedResult.Amount, result.Amount)
-	assert.Equal(t, expectedResult.Type, result.Type)
-	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
-	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
-	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
-	assert.Equal(t, *expectedResult.Status.Description, *result.Status.Description)
-	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
-	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
@@ -334,20 +258,21 @@ func Test_operation_Update(t *testing.T) {
 	transactionID := "01932161-h6df-8g2c-b83g-74ee8g7405f4"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	
+	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 	statusCode := "CANCELED"
-	statusDescription := "Operation was canceled"
+	statusDescription := "Operation was canceled by user request"
 
-	inp := mmodel.UpdateOperationInput{
-		Status: mmodel.OperationStatus{
-			Code:        statusCode,
-			Description: ptr.StringPtr(statusDescription),
-		},
-	}
+	inp := mmodel.UpdateOperationInput{}
 
 	expectedResult := &mmodel.Operation{
-		ID:            operationID,
-		TransactionID: transactionID,
+		ID:             operationID,
+		TransactionID:  transactionID,
+		AccountID:      accountID,
+		AssetCode:      "BRL",
+		Amount:         mmodel.Amount{},
+		Type:           "DEBIT",
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
 		Status: mmodel.OperationStatus{
 			Code:        statusCode,
 			Description: ptr.StringPtr(statusDescription),
@@ -382,6 +307,11 @@ func Test_operation_Update(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedResult.ID, result.ID)
 	assert.Equal(t, expectedResult.TransactionID, result.TransactionID)
+	assert.Equal(t, expectedResult.AccountID, result.AccountID)
+	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
+	assert.Equal(t, expectedResult.Type, result.Type)
+	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
+	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
 	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
 	assert.Equal(t, *expectedResult.Status.Description, *result.Status.Description)
 

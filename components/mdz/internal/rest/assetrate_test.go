@@ -21,27 +21,23 @@ func Test_assetRate_Create(t *testing.T) {
 	assetCode := "BRL"
 	targetAssetCode := "USD"
 	value := 4.97
-	date := time.Now().UTC()
 	externalID := "ext-rate-12345"
 
 	input := mmodel.CreateAssetRateInput{
-		AssetCode:       assetCode,
-		TargetAssetCode: targetAssetCode,
-		Value:           value,
-		Date:            date,
-		ExternalID:      externalID,
+		From:       assetCode,
+		To:         targetAssetCode,
+		Rate:       int(value * 100), // Convert to integer with scale 2
+		Scale:      2,
+		ExternalID: &externalID,
 	}
 
 	expectedResult := &mmodel.AssetRate{
-		AssetCode:       assetCode,
-		TargetAssetCode: targetAssetCode,
-		Value:           value,
-		Date:            date,
-		ExternalID:      externalID,
-		OrganizationID:  organizationID,
-		LedgerID:        ledgerID,
-		CreatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664681, time.UTC),
-		UpdatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664731, time.UTC),
+		From:           assetCode,
+		To:             targetAssetCode,
+		Rate:           value,
+		ExternalID:     externalID,
+		OrganizationID: organizationID,
+		LedgerID:       ledgerID,
 	}
 
 	client := &http.Client{}
@@ -69,9 +65,9 @@ func Test_assetRate_Create(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
-	assert.Equal(t, expectedResult.TargetAssetCode, result.TargetAssetCode)
-	assert.Equal(t, expectedResult.Value, result.Value)
+	assert.Equal(t, expectedResult.From, result.From)
+	assert.Equal(t, expectedResult.To, result.To)
+	assert.Equal(t, expectedResult.Rate, result.Rate)
 	assert.Equal(t, expectedResult.ExternalID, result.ExternalID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
@@ -91,14 +87,12 @@ func Test_assetRate_GetByExternalID(t *testing.T) {
 	URIAPILedger := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.AssetRate{
-		AssetCode:       assetCode,
-		TargetAssetCode: targetAssetCode,
-		Value:           value,
-		ExternalID:      externalID,
-		LedgerID:        ledgerID,
-		OrganizationID:  organizationID,
-		CreatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664681, time.UTC),
-		UpdatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664731, time.UTC),
+		From:           assetCode,
+		To:             targetAssetCode,
+		Rate:           value,
+		ExternalID:     externalID,
+		LedgerID:       ledgerID,
+		OrganizationID: organizationID,
 	}
 
 	client := &http.Client{}
@@ -123,9 +117,9 @@ func Test_assetRate_GetByExternalID(t *testing.T) {
 	result, err := assetRate.GetByExternalID(organizationID, ledgerID, externalID)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
-	assert.Equal(t, expectedResult.TargetAssetCode, result.TargetAssetCode)
-	assert.Equal(t, expectedResult.Value, result.Value)
+	assert.Equal(t, expectedResult.From, result.From)
+	assert.Equal(t, expectedResult.To, result.To)
+	assert.Equal(t, expectedResult.Rate, result.Rate)
 	assert.Equal(t, expectedResult.ExternalID, result.ExternalID)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
@@ -147,24 +141,24 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 		Limit: limit,
 		Items: []mmodel.AssetRate{
 			{
-				AssetCode:       "BRL",
-				TargetAssetCode: "USD",
-				Value:           4.97,
-				ExternalID:      "ext-rate-12345",
-				OrganizationID:  organizationID,
-				LedgerID:        ledgerID,
-				CreatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-				UpdatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+				From:           "BRL",
+				To:             "USD",
+				Rate:           4.97,
+				ExternalID:     "ext-rate-12345",
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
 			{
-				AssetCode:       "BRL",
-				TargetAssetCode: "EUR",
-				Value:           5.43,
-				ExternalID:      "ext-rate-67890",
-				OrganizationID:  organizationID,
-				LedgerID:        ledgerID,
-				CreatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-				UpdatedAt:       time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+				From:           "BRL",
+				To:             "EUR",
+				Rate:           5.43,
+				ExternalID:     "ext-rate-67890",
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
+				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
 		},
 	}
@@ -196,9 +190,9 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 	assert.NotNil(t, result)
 
 	for i, v := range result.Items {
-		assert.Equal(t, expectedResult.Items[i].AssetCode, v.AssetCode)
-		assert.Equal(t, expectedResult.Items[i].TargetAssetCode, v.TargetAssetCode)
-		assert.Equal(t, expectedResult.Items[i].Value, v.Value)
+		assert.Equal(t, expectedResult.Items[i].From, v.From)
+		assert.Equal(t, expectedResult.Items[i].To, v.To)
+		assert.Equal(t, expectedResult.Items[i].Rate, v.Rate)
 		assert.Equal(t, expectedResult.Items[i].ExternalID, v.ExternalID)
 	}
 	assert.Equal(t, expectedResult.Limit, limit)

@@ -36,7 +36,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return organizationID, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				Limit:          limit,
@@ -57,8 +57,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				{
 					ID:             "01932165-b21d-7e6a-b0fc-d5f625c42a72",
 					AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "1000.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
 					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -67,8 +66,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				{
 					ID:             "01932166-c32e-7f7b-c1fd-e6g737d53b83",
 					AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-					AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-					Amount:         "2500.50",
+					AssetCode:        "01930365-4d46-7a09-a503-b932714f85af",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
 					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -111,7 +109,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 			tuiInput: func(message string) (string, error) {
 				return organizationID, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				AccountID:      accountID,
@@ -134,8 +132,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				{
 					ID:             "01932165-b21d-7e6a-b0fc-d5f625c42a72",
 					AccountID:      accountID,
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "1000.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
 					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -144,8 +141,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				{
 					ID:             "01932166-c32e-7f7b-c1fd-e6g737d53b83",
 					AccountID:      accountID,
-					AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-					Amount:         "500.75",
+					AssetCode:        "01930365-4d46-7a09-a503-b932714f85af",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
 					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -192,7 +188,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				inputCounter++
 				return response, nil
 			},
-			flagsList: flagsList{
+			flagsListAll: flagsListAll{
 				Limit: limit,
 				Page:  page,
 			},
@@ -205,8 +201,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				{
 					ID:             "01932165-b21d-7e6a-b0fc-d5f625c42a72",
 					AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-					AssetID:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
-					Amount:         "1000.00",
+					AssetCode:        "01930219-2c25-7a37-a5b9-610d44ae0a27",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
 					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -215,8 +210,7 @@ func Test_newCmdBalanceList(t *testing.T) {
 				{
 					ID:             "01932166-c32e-7f7b-c1fd-e6g737d53b83",
 					AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-					AssetID:        "01930365-4d46-7a09-a503-b932714f85af",
-					Amount:         "2500.50",
+					AssetCode:        "01930365-4d46-7a09-a503-b932714f85af",
 					OrganizationID: organizationID,
 					LedgerID:       ledgerID,
 					CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),

@@ -8,5 +8,6 @@ type Operation interface {
 	GetByID(organizationID, ledgerID, operationID string) (*mmodel.Operation, error)
 	GetByAccount(organizationID, ledgerID, accountID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error)
 	GetByAccountAndID(organizationID, ledgerID, accountID, operationID string) (*mmodel.Operation, error)
+	GetByTransaction(organizationID, ledgerID, transactionID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error)
 	Update(organizationID, ledgerID, transactionID, operationID string, inp mmodel.UpdateOperationInput) (*mmodel.Operation, error)
 }

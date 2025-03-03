@@ -113,3 +113,18 @@ func (mr *MockOperationMockRecorder) Update(organizationID, ledgerID, transactio
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockOperation)(nil).Update), organizationID, ledgerID, transactionID, operationID, inp)
 }
+
+// GetByTransaction mocks base method.
+func (m *MockOperation) GetByTransaction(organizationID, ledgerID, transactionID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetByTransaction", organizationID, ledgerID, transactionID, limit, page, SortOrder, StartDate, EndDate)
+	ret0, _ := ret[0].(*mmodel.Operations)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetByTransaction indicates an expected call of GetByTransaction.
+func (mr *MockOperationMockRecorder) GetByTransaction(organizationID, ledgerID, transactionID, limit, page, SortOrder, StartDate, EndDate any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByTransaction", reflect.TypeOf((*MockOperation)(nil).GetByTransaction), organizationID, ledgerID, transactionID, limit, page, SortOrder, StartDate, EndDate)
+}

@@ -56,15 +56,14 @@ func Test_newCmdAssetRateDescribe(t *testing.T) {
 		})
 
 		result := &mmodel.AssetRate{
-			AssetCode:       assetCode,
-			TargetAssetCode: targetAssetCode,
-			Value:           value,
+			From:       assetCode,
+			To: targetAssetCode,
+			Rate:           value,
 			ExternalID:      externalID,
 			OrganizationID:  organizationID,
 			LedgerID:        ledgerID,
 			Source:          mpointers.String(source),
-			TTL:             mpointers.Int(86400),
-			Date:            now,
+			TTL: 86400,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Metadata: map[string]any{
@@ -118,15 +117,14 @@ func Test_newCmdAssetRateDescribe(t *testing.T) {
 		cmd := newCmdAssetRateDescribe(&rateFactory)
 
 		result := &mmodel.AssetRate{
-			AssetCode:       assetCode,
-			TargetAssetCode: targetAssetCode,
-			Value:           value,
+			From:       assetCode,
+			To: targetAssetCode,
+			Rate:           value,
 			ExternalID:      externalID,
 			OrganizationID:  organizationID,
 			LedgerID:        ledgerID,
 			Source:          mpointers.String(source),
-			TTL:             mpointers.Int(86400),
-			Date:            now,
+			TTL: 86400,
 			CreatedAt:       now,
 			UpdatedAt:       now,
 			Metadata: map[string]any{

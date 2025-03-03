@@ -193,6 +193,45 @@ func (r *operation) Update(
 	return &respStr, nil
 }
 
+func (r *operation) GetByTransaction(
+	organizationID, ledgerID, transactionID string,
+	limit, page int,
+	sortOrder, startDate, endDate string,
+) (*mmodel.Operations, error) {
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations",
+		r.Factory.Env.URLAPILedger, organizationID, ledgerID, transactionID)
+
+	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var operationsResp mmodel.Operations
+	if err := json.NewDecoder(resp.Body).Decode(&operationsResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &operationsResp, nil
+}
+
 // NewOperation creates a new operation REST client
 func NewOperation(f *factory.Factory) *operation {
 	return &operation{f}
