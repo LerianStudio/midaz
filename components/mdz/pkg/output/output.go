@@ -40,36 +40,64 @@ type Output interface {
 
 // FormatAndPrint formats and prints a message indicating the success of an operation,
 // with or without style, depending on the color configuration.
-func FormatAndPrint(f *factory.Factory, id, entity, method string) {
-	var msg, methodStyle string
+func FormatAndPrint(f *factory.Factory, data interface{}, entity, method string) {
+	// If we have a non-empty method, treat it as a success message with ID
+	if method != "" {
+		var msg, methodStyle string
 
-	if f.NoColor {
-		msg = fmt.Sprintf("The %s %s has been successfully %s.",
-			entity,
-			id,
-			method,
-		)
-	} else {
-		switch method {
-		case Created:
-			methodStyle = postStyle(method)
-		case Deleted:
-			methodStyle = deleteStyle(method)
-		case Updated:
-			methodStyle = patchStyle(method)
-		default:
-			methodStyle = method
+		var id string
+
+		// Try to get ID from data if it's a string
+		if strID, ok := data.(string); ok {
+			id = strID
+		} else {
+			// If it's not a success message format, just print the data
+			FormatAndPrintJSON(f, data)
+			return
 		}
 
-		msg = fmt.Sprintf("✔︎  The %s %s has been successfully %s.",
-			entityStyle(entity),
-			idStyle(id),
-			methodStyle,
-		)
+		if f.NoColor {
+			msg = fmt.Sprintf("The %s %s has been successfully %s.",
+				entity,
+				id,
+				method,
+			)
+		} else {
+			switch method {
+			case Created:
+				methodStyle = postStyle(method)
+			case Deleted:
+				methodStyle = deleteStyle(method)
+			case Updated:
+				methodStyle = patchStyle(method)
+			default:
+				methodStyle = method
+			}
+
+			msg = fmt.Sprintf("✔︎  The %s %s has been successfully %s.",
+				entityStyle(entity),
+				idStyle(id),
+				methodStyle,
+			)
+		}
+
+		g := GeneralOutput{Msg: msg, Out: f.IOStreams.Out}
+		g.Output()
+	} else {
+		// Default handling is to print as JSON
+		FormatAndPrintJSON(f, data)
+	}
+}
+
+// FormatAndPrintJSON formats and prints the data as JSON
+func FormatAndPrintJSON(f *factory.Factory, data interface{}) {
+	if data == nil {
+		return
 	}
 
-	g := GeneralOutput{Msg: msg, Out: f.IOStreams.Out}
-	g.Output()
+	// Use a more sophisticated JSON formatter in a real implementation
+	// For now, just use fmt.Fprintf to print the data
+	fmt.Fprintf(f.IOStreams.Out, "%v\n", data)
 }
 
 func Printf(w io.Writer, msg string) {

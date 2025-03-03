@@ -161,7 +161,7 @@ func newCmdAssetCreate(f *factoryAssetCreate) *cobra.Command {
 			"$ mdz asset create -h",
 			"$ mdz asset create --json-file payload.json",
 			"$ cat payload.json | mdz asset create --json-file -",
-			"$ mdz asset create --organization-id 123 --ledger-id 432 --name novonome --code BRL --type currency",
+			"$ mdz asset create --organization-id 123 --ledger-id 432 --name new-asset-name --code BRL --type currency",
 		),
 		RunE: f.runE,
 	}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -131,4 +132,23 @@ func ValidateDate(date string) error {
 	}
 
 	return nil
+}
+
+// ParseBool parses a string to a boolean value. It accepts "true", "false", "1", "0", "yes", "no", "y", "n"
+func ParseBool(s string) (bool, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+
+	switch s {
+	case "true", "1", "yes", "y":
+		return true, nil
+	case "false", "0", "no", "n", "":
+		return false, nil
+	default:
+		// Try to parse as integer
+		if i, err := strconv.Atoi(s); err == nil {
+			return i != 0, nil
+		}
+
+		return false, fmt.Errorf("invalid boolean value: %s", s)
+	}
 }

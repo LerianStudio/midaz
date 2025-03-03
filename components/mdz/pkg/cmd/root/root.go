@@ -5,12 +5,16 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/account"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/assetrate"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/balance"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/configure"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/operation"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/portfolio"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/segment"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/transaction"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -30,9 +34,13 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(organization.NewCmdOrganization(f.factory))
 	cmd.AddCommand(ledger.NewCmdLedger(f.factory))
 	cmd.AddCommand(asset.NewCmdAsset(f.factory))
+	cmd.AddCommand(assetrate.NewCmdAssetRate(f.factory))
 	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
 	cmd.AddCommand(segment.NewCmdSegment(f.factory))
 	cmd.AddCommand(account.NewCmdAccount(f.factory))
+	cmd.AddCommand(balance.NewCmdBalance(f.factory))
+	cmd.AddCommand(transaction.NewCmdTransaction(f.factory))
+	cmd.AddCommand(operation.NewCmdOperation(f.factory))
 	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }
 
