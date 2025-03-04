@@ -19,7 +19,7 @@ type transaction struct {
 // ensureBaseURL ensures the base URL has a protocol prefix
 func (r *transaction) ensureBaseURL() string {
 	baseURL := r.Factory.Env.URLAPITransaction
-	
+
 	// If URL is empty, set a default
 	if baseURL == "" {
 		baseURL = "http://127.0.0.1:3001"
@@ -27,7 +27,7 @@ func (r *transaction) ensureBaseURL() string {
 		// Add protocol if missing
 		baseURL = "http://" + baseURL
 	}
-	
+
 	return baseURL
 }
 
@@ -57,18 +57,12 @@ func (r *transaction) Create(
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
-	// Debug log the JSON being sent
-	fmt.Printf("DEBUG: Sending to API: %s\n", string(jsonData))
-
 	body := bytes.NewReader(jsonData)
 
 	baseURL := r.ensureBaseURL()
-	
+
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/json",
 		baseURL, organizationID, ledgerID)
-
-	// Debug log the URI
-	fmt.Printf("DEBUG: API Endpoint: %s\n", uri)
 
 	req, err := http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -79,14 +73,6 @@ func (r *transaction) Create(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 	req.Header.Set("X-TTL", "3600")
 	req.Header.Set("X-Idempotency", inp.Idempotency)
-
-	// Debug log the request headers
-	fmt.Println("DEBUG: Request Headers:")
-	for key, values := range req.Header {
-		for _, value := range values {
-			fmt.Printf("DEBUG:   %s: %s\n", key, value)
-		}
-	}
 
 	resp, err := r.Factory.HTTPClient.Do(req)
 	if err != nil {
