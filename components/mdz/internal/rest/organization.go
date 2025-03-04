@@ -22,7 +22,7 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 	}
 
 	req, err := http.NewRequest(http.MethodPost,
-		r.Factory.Env.URLAPILedger+"/v1/organizations", bytes.NewBuffer(jsonData))
+		r.Factory.Env.URLAPIOnboarding+"/v1/organizations", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -50,7 +50,7 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 }
 
 func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string) (*mmodel.Organizations, error) {
-	baseURL := r.Factory.Env.URLAPILedger + "/v1/organizations"
+	baseURL := r.Factory.Env.URLAPIOnboarding + "/v1/organizations"
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string
 }
 
 func (r *organization) GetByID(organizationID string) (*mmodel.Organization, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPIOnboarding, organizationID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -125,7 +125,7 @@ func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizati
 
 	body := bytes.NewReader(payloadBytes)
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPIOnboarding, organizationID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, body)
 	if err != nil {
@@ -159,7 +159,7 @@ func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizati
 }
 
 func (r *organization) Delete(organizationID string) error {
-	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPIOnboarding, organizationID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

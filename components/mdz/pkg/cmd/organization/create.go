@@ -2,11 +2,11 @@ package organization
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -45,20 +45,18 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &org)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.createRequestFromFlags(&org)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create organization request from flags")
 		}
 	}
 
 	resp, err := f.repoOrganization.Create(org)
 	if err != nil {
-		return err
+		return errors.CommandError("organization create", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp.ID, "Organization", output.Created)
@@ -71,9 +69,8 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 
 	var err error
 	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
-
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign legal name")
 	}
 
 	if len(f.ParentOrganizationID) < 1 {
@@ -84,14 +81,14 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 
 	doingBusinessAsPtr, err := utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign doing business as")
 	}
 
 	org.DoingBusinessAs = &doingBusinessAsPtr
 
 	org.LegalDocument, err = utils.AssignStringField(f.LegalDocument, "legal-document", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign legal document")
 	}
 
 	org.Status.Code = f.Code
@@ -109,12 +106,12 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 
 	org.Address.Country, err = utils.AssignStringField(f.Country, "country", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign country")
 	}
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	org.Metadata = metadata

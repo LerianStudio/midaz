@@ -22,7 +22,7 @@ func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetIn
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetIn
 
 func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Assets, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -88,7 +88,7 @@ func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder,
 
 func (r *asset) GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, assetID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -125,7 +125,7 @@ func (r *asset) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, assetID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *asset) Update(
 
 func (r *asset) Delete(organizationID, ledgerID, assetID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, assetID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

@@ -16,7 +16,8 @@ func TestNewCmdConfigure(t *testing.T) {
 	vlClientSecret := "secret123"
 	vlClientID := "1234"
 	vlURLAPIAuth := "http://localhost:8080"
-	vlURLAPILedger := "http://localhost:3000"
+	vlURLAPIOnboarding := "http://localhost:3000"
+	vlURLAPITransaction := "http://localhost:3001"
 
 	confFactory := factoryConfigure{
 		factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -29,10 +30,11 @@ func TestNewCmdConfigure(t *testing.T) {
 		read: func() (*setting.Setting, error) {
 			return &setting.Setting{
 				Env: environment.Env{
-					ClientID:     "",
-					ClientSecret: "",
-					URLAPIAuth:   "",
-					URLAPILedger: "",
+					ClientID:          "",
+					ClientSecret:      "",
+					URLAPIAuth:        "",
+					URLAPIOnboarding:  "",
+					URLAPITransaction: "",
 				},
 			}, nil
 		},
@@ -40,10 +42,11 @@ func TestNewCmdConfigure(t *testing.T) {
 			return nil
 		},
 		flagsConfigure: flagsConfigure{
-			ClientID:     vlClientID,
-			ClientSecret: vlClientSecret,
-			URLAPIAuth:   vlURLAPIAuth,
-			URLAPILedger: vlURLAPILedger,
+			ClientID:          vlClientID,
+			ClientSecret:      vlClientSecret,
+			URLAPIAuth:        vlURLAPIAuth,
+			URLAPIOnboarding:  vlURLAPIOnboarding,
+			URLAPITransaction: vlURLAPITransaction,
 		},
 	}
 
@@ -51,7 +54,8 @@ func TestNewCmdConfigure(t *testing.T) {
 	cmd.SetArgs([]string{
 		"--client-id", vlClientID,
 		"--url-api-auth", vlURLAPIAuth,
-		"--url-api-ledger", vlURLAPILedger,
+		"--url-api-onboarding", vlURLAPIOnboarding,
+		"--url-api-transaction", vlURLAPITransaction,
 	})
 
 	err := cmd.Execute()

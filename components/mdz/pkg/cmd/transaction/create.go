@@ -3,10 +3,11 @@ package transaction
 
 import (
 	"encoding/json"
-	"errors"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -42,7 +43,7 @@ func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -51,7 +52,7 @@ func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -60,20 +61,18 @@ func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &transaction)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.createRequestFromFlags(&transaction)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create transaction request from flags")
 		}
 	}
 
 	resp, err := f.repoTransaction.Create(f.OrganizationID, f.LedgerID, transaction)
 	if err != nil {
-		return err
+		return errors.CommandError("transaction create", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp.ID, "Transaction", output.Created)
@@ -86,12 +85,12 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 
 	transaction.Type, err = utils.AssignStringField(f.Type, "type", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign type field")
 	}
 
 	transaction.Description, err = utils.AssignStringField(f.Description, "description", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign description field")
 	}
 
 	if len(f.Status) > 0 {
@@ -108,17 +107,17 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 
 	transaction.SourceAccountID, err = utils.AssignStringField(f.SourceAccountID, "source-account-id", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign source account ID field")
 	}
 
 	transaction.DestinationAccountID, err = utils.AssignStringField(f.DestinationAccountID, "destination-account-id", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign destination account ID field")
 	}
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	transaction.Metadata = metadata

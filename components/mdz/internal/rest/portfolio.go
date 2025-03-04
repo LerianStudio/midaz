@@ -22,7 +22,7 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 
 func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Portfolios, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -88,7 +88,7 @@ func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOr
 
 func (r *portfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmodel.Portfolio, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, portfolioID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -125,7 +125,7 @@ func (r *portfolio) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, portfolioID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *portfolio) Update(
 
 func (r *portfolio) Delete(organizationID, ledgerID, portfolioID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, portfolioID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

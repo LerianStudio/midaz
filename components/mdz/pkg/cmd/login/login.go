@@ -1,12 +1,12 @@
 package login
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
@@ -27,11 +27,11 @@ type factoryLogin struct {
 
 func validateCredentials(username, password string) error {
 	if len(username) == 0 {
-		return errors.New("username must not be empty")
+		return errors.ValidationError("username", "username must not be empty")
 	}
 
 	if len(password) == 0 {
-		return errors.New("password must not be empty")
+		return errors.ValidationError("password", "password must not be empty")
 	}
 
 	return nil
@@ -45,7 +45,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 
 		t, err := l.auth.AuthenticateWithCredentials(l.username, l.password)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "authentication failed")
 		}
 
 		l.token = t.AccessToken
@@ -55,24 +55,24 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 			[]string{"Log in via browser", "Log in via terminal"},
 		)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get login method selection")
 		}
 
 		err = l.execMethodLogin(option)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "login failed")
 		}
 	}
 
 	sett, err := setting.Read()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to read settings")
 	}
 
 	sett.Token = l.token
 
 	if err := setting.Save(*sett); err != nil {
-		return err
+		return errors.Wrap(err, "failed to save settings")
 	}
 
 	output.Printf(l.factory.IOStreams.Out, "successfully logged in")
@@ -86,25 +86,24 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 		l.browserLogin()
 
 		if l.browser.Err != nil {
-			return l.browser.Err
+			return errors.Wrap(l.browser.Err, "browser login failed")
 		}
 
 		return nil
 	case strings.Contains(answer, "terminal"):
 		err := l.terminalLogin()
-
-		if err := validateCredentials(l.username, l.password); err != nil {
-			return err
+		if err != nil {
+			return errors.Wrap(err, "terminal login failed")
 		}
 
-		if err != nil {
+		if err := validateCredentials(l.username, l.password); err != nil {
 			return err
 		}
 
 		return nil
 	}
 
-	return errors.New("invalid login method")
+	return errors.ValidationError("login method", "invalid login method selected")
 }
 
 func NewCmdLogin(f *factory.Factory) *cobra.Command {

@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -23,7 +24,7 @@ func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.organizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.organizationID = id
@@ -32,7 +33,7 @@ func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.ledgerID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.ledgerID = id
@@ -40,7 +41,7 @@ func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 
 	err := f.repoLedger.Delete(f.organizationID, f.ledgerID)
 	if err != nil {
-		return err
+		return errors.CommandError("ledger delete", err)
 	}
 
 	output.FormatAndPrint(f.factory, f.ledgerID, "Ledger", output.Deleted)

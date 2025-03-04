@@ -2,11 +2,11 @@ package ledger
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -38,7 +38,7 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -47,7 +47,7 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -56,20 +56,18 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &led)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&led)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create ledger update request from flags")
 		}
 	}
 
 	resp, err := f.repoLedger.Update(f.OrganizationID, f.LedgerID, led)
 	if err != nil {
-		return err
+		return errors.CommandError("ledger update", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp.ID, "Ledger", output.Updated)
@@ -87,7 +85,7 @@ func (f *factoryLedgerUpdate) UpdateRequestFromFlags(led *mmodel.UpdateLedgerInp
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	led.Metadata = metadata

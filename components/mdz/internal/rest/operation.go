@@ -21,7 +21,7 @@ func (r *operation) Get(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Operations, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *operation) Get(
 func (r *operation) GetByID(
 	organizationID, ledgerID, operationID string) (*mmodel.Operation, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, operationID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, operationID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -91,7 +91,7 @@ func (r *operation) GetByAccount(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Operations, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -127,7 +127,7 @@ func (r *operation) GetByAccount(
 func (r *operation) GetByAccountAndID(
 	organizationID, ledgerID, accountID, operationID string) (*mmodel.Operation, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID, operationID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID, operationID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -165,7 +165,7 @@ func (r *operation) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, transactionID, operationID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, transactionID, operationID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -199,7 +199,7 @@ func (r *operation) GetByTransaction(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Operations, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, transactionID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, transactionID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {

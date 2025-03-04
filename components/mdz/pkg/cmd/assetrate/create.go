@@ -2,16 +2,17 @@ package assetrate
 
 import (
 	"encoding/json"
-	"errors"
+	"strconv"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mpointers"
-	"strconv"
 
 	"github.com/spf13/cobra"
 )
@@ -43,7 +44,7 @@ func (f *factoryAssetRateCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -52,7 +53,7 @@ func (f *factoryAssetRateCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -61,20 +62,18 @@ func (f *factoryAssetRateCreate) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &assetRate)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.createRequestFromFlags(&assetRate)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create asset rate request from flags")
 		}
 	}
 
 	resp, err := f.repoAssetRate.Create(f.OrganizationID, f.LedgerID, assetRate)
 	if err != nil {
-		return err
+		return errors.CommandError("assetrate create", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp, "AssetRate", output.Created)
@@ -87,30 +86,30 @@ func (f *factoryAssetRateCreate) createRequestFromFlags(assetRate *mmodel.Create
 
 	assetRate.From, err = utils.AssignStringField(f.From, "from", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign from field")
 	}
 
 	assetRate.To, err = utils.AssignStringField(f.To, "to", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign to field")
 	}
 
 	if len(f.Rate) > 0 {
 		rate, err := strconv.Atoi(f.Rate)
 		if err != nil {
-			return errors.New("Invalid rate format: " + err.Error())
+			return errors.ValidationError("rate", "Invalid rate format, must be an integer")
 		}
 
 		assetRate.Rate = rate
 	} else {
 		rateStr, err := f.tuiInput("Enter the rate (integer)")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get rate from input")
 		}
 
 		rate, err := strconv.Atoi(rateStr)
 		if err != nil {
-			return errors.New("Invalid rate format: " + err.Error())
+			return errors.ValidationError("rate", "Invalid rate format, must be an integer")
 		}
 
 		assetRate.Rate = rate
@@ -119,7 +118,7 @@ func (f *factoryAssetRateCreate) createRequestFromFlags(assetRate *mmodel.Create
 	if len(f.Scale) > 0 {
 		scale, err := strconv.Atoi(f.Scale)
 		if err != nil {
-			return errors.New("Invalid scale format: " + err.Error())
+			return errors.ValidationError("scale", "Invalid scale format, must be an integer")
 		}
 
 		assetRate.Scale = scale
@@ -132,7 +131,7 @@ func (f *factoryAssetRateCreate) createRequestFromFlags(assetRate *mmodel.Create
 	if len(f.TTL) > 0 {
 		ttl, err := strconv.Atoi(f.TTL)
 		if err != nil {
-			return errors.New("Invalid TTL format: " + err.Error())
+			return errors.ValidationError("ttl", "Invalid TTL format, must be an integer")
 		}
 
 		assetRate.TTL = mpointers.Int(ttl)
@@ -144,7 +143,7 @@ func (f *factoryAssetRateCreate) createRequestFromFlags(assetRate *mmodel.Create
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	assetRate.Metadata = metadata

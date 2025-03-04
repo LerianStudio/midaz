@@ -2,11 +2,11 @@ package account
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -33,7 +33,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -42,7 +42,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -51,7 +51,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get portfolio ID from input")
 		}
 
 		f.PortfolioID = id
@@ -60,7 +60,7 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
 		id, err := f.tuiInput("Enter your account-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get account ID from input")
 		}
 
 		f.AccountID = id
@@ -71,12 +71,12 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 
 func (f *factoryAccountDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if err := f.ensureFlagInput(cmd); err != nil {
-		return err
+		return errors.Wrap(err, "failed to get required input values")
 	}
 
 	account, err := f.repoAccount.GetByID(f.OrganizationID, f.LedgerID, f.AccountID)
 	if err != nil {
-		return err
+		return errors.CommandError("account describe", err)
 	}
 
 	return f.outputAccount(cmd, account)
@@ -86,17 +86,17 @@ func (f *factoryAccountDescribe) outputAccount(cmd *cobra.Command, account *mmod
 	if f.JSON || cmd.Flags().Changed("out") {
 		b, err := json.Marshal(account)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to marshal account to JSON")
 		}
 
 		if cmd.Flags().Changed("out") {
 			if len(f.Out) == 0 {
-				return errors.New("the file path was not entered")
+				return errors.ValidationError("out", "The file path was not entered")
 			}
 
 			err = utils.WriteDetailsToFile(b, f.Out)
 			if err != nil {
-				return errors.New("failed when trying to write the output file " + err.Error())
+				return errors.Wrap(err, "failed when trying to write the output file")
 			}
 
 			output.Printf(f.factory.IOStreams.Out, "File successfully written to: "+f.Out)

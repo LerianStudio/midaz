@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -24,7 +25,7 @@ func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -33,7 +34,7 @@ func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -42,7 +43,7 @@ func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("asset-id") && len(f.AssetID) < 1 {
 		id, err := f.tuiInput("Enter your asset-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get asset ID from input")
 		}
 
 		f.AssetID = id
@@ -53,12 +54,12 @@ func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 func (f *factoryAssetDelete) runE(cmd *cobra.Command, _ []string) error {
 	if err := f.ensureFlagInput(cmd); err != nil {
-		return err
+		return errors.Wrap(err, "failed to get required input values")
 	}
 
 	err := f.repoAsset.Delete(f.OrganizationID, f.LedgerID, f.AssetID)
 	if err != nil {
-		return err
+		return errors.CommandError("asset delete", err)
 	}
 
 	output.FormatAndPrint(f.factory, f.AssetID, "Asset", output.Deleted)

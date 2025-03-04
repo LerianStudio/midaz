@@ -67,7 +67,7 @@ func Test_segment_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -149,7 +149,7 @@ func Test_segment_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -206,7 +206,7 @@ func Test_segment_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -279,7 +279,7 @@ func Test_segment_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -318,7 +318,7 @@ func Test_segment_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 

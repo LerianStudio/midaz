@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -28,7 +29,7 @@ func (f *factoryTransactionDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -37,7 +38,7 @@ func (f *factoryTransactionDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -46,7 +47,7 @@ func (f *factoryTransactionDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("transaction-id") && len(f.TransactionID) < 1 {
 		id, err := f.tuiInput("Enter your transaction-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get transaction ID from input")
 		}
 
 		f.TransactionID = id
@@ -54,7 +55,7 @@ func (f *factoryTransactionDelete) runE(cmd *cobra.Command, _ []string) error {
 
 	err := f.repoTransaction.Delete(f.OrganizationID, f.LedgerID, f.TransactionID)
 	if err != nil {
-		return err
+		return errors.CommandError("transaction delete", err)
 	}
 
 	output.FormatAndPrint(f.factory, f.TransactionID, "Transaction", output.Deleted)

@@ -2,10 +2,11 @@ package account
 
 import (
 	"encoding/json"
-	"errors"
+	
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -44,7 +45,7 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -53,7 +54,7 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -62,7 +63,7 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get portfolio ID from input")
 		}
 
 		f.PortfolioID = id
@@ -71,20 +72,18 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &account)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.createRequestFromFlags(&account)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create request from flags")
 		}
 	}
 
 	resp, err := f.repoAccount.Create(f.OrganizationID, f.LedgerID, account)
 	if err != nil {
-		return err
+		return errors.CommandError("account create", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp.ID, "Account", output.Created)
@@ -99,7 +98,7 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 
 	account.Name, err = utils.AssignStringField(f.Name, "name", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign name field")
 	}
 
 	if len(f.Alias) > 0 {
@@ -132,7 +131,7 @@ func (f *factoryAccountCreate) createRequestFromFlags(account *mmodel.CreateAcco
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	account.Metadata = metadata

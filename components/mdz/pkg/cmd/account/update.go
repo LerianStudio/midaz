@@ -2,10 +2,11 @@ package account
 
 import (
 	"encoding/json"
-	"errors"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -39,7 +40,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -48,7 +49,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -57,7 +58,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get portfolio ID from input")
 		}
 
 		f.PortfolioID = id
@@ -66,7 +67,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
 		id, err := f.tuiInput("Enter your account-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get account ID from input")
 		}
 
 		f.AccountID = id
@@ -79,26 +80,24 @@ func (f *factoryAccountUpdate) runE(cmd *cobra.Command, _ []string) error {
 	account := mmodel.UpdateAccountInput{}
 
 	if err := f.ensureFlagInput(cmd); err != nil {
-		return err
+		return errors.Wrap(err, "failed to get required input values")
 	}
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &account)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&account)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create account update request from flags")
 		}
 	}
 
 	resp, err := f.repoAccount.Update(f.OrganizationID, f.LedgerID, f.AccountID, account)
 	if err != nil {
-		return err
+		return errors.CommandError("account update", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp.ID, "Account", output.Updated)
@@ -120,7 +119,7 @@ func (f *factoryAccountUpdate) UpdateRequestFromFlags(account *mmodel.UpdateAcco
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	account.Metadata = metadata

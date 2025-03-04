@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -25,7 +26,7 @@ func (f *factoryAccountDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -34,7 +35,7 @@ func (f *factoryAccountDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -43,7 +44,7 @@ func (f *factoryAccountDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("potfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get portfolio ID from input")
 		}
 
 		f.PortfolioID = id
@@ -52,7 +53,7 @@ func (f *factoryAccountDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
 		id, err := f.tuiInput("Enter your account-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get account ID from input")
 		}
 
 		f.AccountID = id
@@ -63,12 +64,12 @@ func (f *factoryAccountDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 func (f *factoryAccountDelete) runE(cmd *cobra.Command, _ []string) error {
 	if err := f.ensureFlagInput(cmd); err != nil {
-		return err
+		return errors.Wrap(err, "failed to get required input values")
 	}
 
 	err := f.repoAccount.Delete(f.OrganizationID, f.LedgerID, f.AccountID)
 	if err != nil {
-		return err
+		return errors.CommandError("account delete", err)
 	}
 
 	output.FormatAndPrint(f.factory, f.AccountID, "Account", output.Deleted)

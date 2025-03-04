@@ -6,6 +6,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -31,7 +32,7 @@ func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -39,25 +40,25 @@ func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 
 	if len(f.StartDate) > 0 {
 		if err := utils.ValidateDate(f.StartDate); err != nil {
-			return err
+			return errors.ValidationError("start-date", "Invalid date format. Use YYYY-MM-DD")
 		}
 	}
 
 	if len(f.EndDate) > 0 {
 		if err := utils.ValidateDate(f.EndDate); err != nil {
-			return err
+			return errors.ValidationError("end-date", "Invalid date format. Use YYYY-MM-DD")
 		}
 	}
 
 	leds, err := f.repoLedger.Get(f.OrganizationID, f.Limit, f.Page, f.SortOrder, f.StartDate, f.EndDate)
 	if err != nil {
-		return err
+		return errors.CommandError("ledger list", err)
 	}
 
 	if f.JSON {
 		b, err := json.Marshal(leds)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to marshal ledgers to JSON")
 		}
 
 		output.Printf(f.factory.IOStreams.Out, string(b))

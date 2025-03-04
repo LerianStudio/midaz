@@ -55,7 +55,7 @@ func Test_assetRate_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -108,7 +108,7 @@ func Test_assetRate_GetByExternalID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -178,7 +178,7 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 

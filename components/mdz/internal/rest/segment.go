@@ -22,7 +22,7 @@ func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegme
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -53,7 +53,7 @@ func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegme
 
 func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Segments, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -88,7 +88,7 @@ func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrde
 
 func (r *segment) GetByID(organizationID, ledgerID, segmentID string) (*mmodel.Segment, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, segmentID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, segmentID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -125,7 +125,7 @@ func (r *segment) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, segmentID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, segmentID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *segment) Update(
 
 func (r *segment) Delete(organizationID, ledgerID, segmentID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, segmentID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, segmentID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

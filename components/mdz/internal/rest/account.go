@@ -27,7 +27,7 @@ func (r *account) Create(
 	body := bytes.NewReader(jsonData)
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *account) Get(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Accounts, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -98,7 +98,7 @@ func (r *account) Get(
 func (r *account) GetByID(
 	organizationID, ledgerID, accountID string) (*mmodel.Account, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -136,7 +136,7 @@ func (r *account) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -166,7 +166,7 @@ func (r *account) Update(
 
 func (r *account) Delete(organizationID, ledgerID, accountID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

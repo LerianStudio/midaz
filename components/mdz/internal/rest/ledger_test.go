@@ -64,7 +64,7 @@ func Test_ledger_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -175,7 +175,7 @@ func Test_ledger_List(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -234,7 +234,7 @@ func Test_ledger_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -301,7 +301,7 @@ func Test_ledger_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -339,7 +339,7 @@ func Test_ledger_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 

@@ -75,7 +75,7 @@ func Test_account_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -171,7 +171,7 @@ func Test_account_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -235,7 +235,7 @@ func Test_account_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -317,7 +317,7 @@ func Test_account_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -361,7 +361,7 @@ func Test_account_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 

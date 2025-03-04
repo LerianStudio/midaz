@@ -70,7 +70,7 @@ func Test_balance_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -126,7 +126,7 @@ func Test_balance_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -206,7 +206,7 @@ func Test_balance_GetByAccount(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -264,7 +264,7 @@ func Test_balance_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 
@@ -306,7 +306,7 @@ func Test_balance_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPILedger: URIAPILedger,
+			URLAPIOnboarding: URIAPILedger,
 		},
 	}
 

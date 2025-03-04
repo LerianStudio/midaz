@@ -27,7 +27,7 @@ func (r *assetRate) Create(
 	body := bytes.NewReader(jsonData)
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPut, uri, body)
 	if err != nil {
@@ -59,7 +59,7 @@ func (r *assetRate) Create(
 func (r *assetRate) GetByExternalID(
 	organizationID, ledgerID, externalID string) (*mmodel.AssetRate, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, externalID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, externalID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -93,7 +93,7 @@ func (r *assetRate) GetByAssetCode(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.AssetRates, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/from/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetCode)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, assetCode)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {

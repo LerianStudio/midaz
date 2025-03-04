@@ -21,7 +21,7 @@ func (r *balance) Get(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Balances, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *balance) Get(
 func (r *balance) GetByID(
 	organizationID, ledgerID, balanceID string) (*mmodel.Balance, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, balanceID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, balanceID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -91,7 +91,7 @@ func (r *balance) GetByAccount(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Balances, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -134,7 +134,7 @@ func (r *balance) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, balanceID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, balanceID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -164,7 +164,7 @@ func (r *balance) Update(
 
 func (r *balance) Delete(organizationID, ledgerID, balanceID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, balanceID)
+		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, balanceID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

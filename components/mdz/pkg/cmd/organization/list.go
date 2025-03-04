@@ -6,6 +6,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 
@@ -28,25 +29,25 @@ type factoryOrganizationList struct {
 func (f *factoryOrganizationList) runE(cmd *cobra.Command, _ []string) error {
 	if len(f.StartDate) > 0 {
 		if err := utils.ValidateDate(f.StartDate); err != nil {
-			return err
+			return errors.ValidationError("start-date", "invalid date format, use YYYY-MM-DD")
 		}
 	}
 
 	if len(f.EndDate) > 0 {
 		if err := utils.ValidateDate(f.EndDate); err != nil {
-			return err
+			return errors.ValidationError("end-date", "invalid date format, use YYYY-MM-DD")
 		}
 	}
 
 	orgs, err := f.repoOrganization.Get(f.Limit, f.Page, f.SortOrder, f.StartDate, f.EndDate)
 	if err != nil {
-		return err
+		return errors.CommandError("organization list", err)
 	}
 
 	if f.JSON {
 		b, err := json.Marshal(orgs)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to marshal organizations to JSON")
 		}
 
 		output.Printf(f.factory.IOStreams.Out, string(b))

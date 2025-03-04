@@ -27,7 +27,7 @@ func (r *transaction) Create(
 	body := bytes.NewReader(jsonData)
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *transaction) Get(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Transactions, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -98,7 +98,7 @@ func (r *transaction) Get(
 func (r *transaction) GetByID(
 	organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, transactionID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -136,7 +136,7 @@ func (r *transaction) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, transactionID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -166,7 +166,7 @@ func (r *transaction) Update(
 
 func (r *transaction) Delete(organizationID, ledgerID, transactionID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.Factory.Env.URLAPILedger, organizationID, ledgerID, transactionID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -22,7 +23,7 @@ func (f *factoryOrganizationDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.organizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.organizationID = id
@@ -30,7 +31,7 @@ func (f *factoryOrganizationDelete) runE(cmd *cobra.Command, _ []string) error {
 
 	err := f.repoOrganization.Delete(f.organizationID)
 	if err != nil {
-		return err
+		return errors.CommandError("organization delete", err)
 	}
 
 	output.FormatAndPrint(f.factory, f.organizationID, "Organization", output.Deleted)

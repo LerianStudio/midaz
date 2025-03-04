@@ -2,6 +2,7 @@ package configure
 
 import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -20,23 +21,24 @@ type factoryConfigure struct {
 }
 
 type flagsConfigure struct {
-	ClientID     string
-	ClientSecret string
-	URLAPIAuth   string
-	URLAPILedger string
-	JSONFile     string
+	ClientID          string
+	ClientSecret      string
+	URLAPIAuth        string
+	URLAPIOnboarding  string
+	URLAPITransaction string
+	JSONFile          string
 }
 
 func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	sett, err := f.read()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to read existing settings")
 	}
 
 	if !cmd.Flags().Changed("client-id") {
 		clientID, err := f.tuiInput("Enter your client-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get client ID from input")
 		}
 
 		f.ClientID = clientID
@@ -49,7 +51,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("client-secret") {
 		clientSecret, err := f.tuiInput("Enter your client-secret")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get client secret from input")
 		}
 
 		f.ClientSecret = clientSecret
@@ -62,7 +64,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("url-api-auth") {
 		urlAPIAuth, err := f.tuiInput("Enter your url-api-auth")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get auth API URL from input")
 		}
 
 		f.URLAPIAuth = urlAPIAuth
@@ -72,22 +74,35 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 		sett.URLAPIAuth = f.URLAPIAuth
 	}
 
-	if !cmd.Flags().Changed("url-api-ledger") {
-		urlAPILedger, err := f.tuiInput("Enter your url-api-ledger")
+	if !cmd.Flags().Changed("url-api-onboarding") {
+		URLAPIOnboarding, err := f.tuiInput("Enter your url-api-onboarding")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get onboarding API URL from input")
 		}
 
-		f.URLAPILedger = urlAPILedger
+		f.URLAPIOnboarding = URLAPIOnboarding
 	}
 
-	if len(f.URLAPILedger) > 0 {
-		sett.URLAPILedger = f.URLAPILedger
+	if len(f.URLAPIOnboarding) > 0 {
+		sett.URLAPIOnboarding = f.URLAPIOnboarding
+	}
+
+	if !cmd.Flags().Changed("url-api-transaction") {
+		urlAPITransaction, err := f.tuiInput("Enter your url-api-transaction")
+		if err != nil {
+			return errors.Wrap(err, "failed to get transaction API URL from input")
+		}
+
+		f.URLAPITransaction = urlAPITransaction
+	}
+
+	if len(f.URLAPITransaction) > 0 {
+		sett.URLAPITransaction = f.URLAPITransaction
 	}
 
 	err = f.save(*sett)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to save configuration")
 	}
 
 	tbl := table.New("FIELDS", "VALUES")
@@ -103,8 +118,8 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	tbl.AddRow("client-id:", f.ClientID)
 	tbl.AddRow("client-secret:", f.ClientSecret)
 	tbl.AddRow("url-api-auth:", f.URLAPIAuth)
-	tbl.AddRow("url-api-ledger:", f.URLAPILedger)
-
+	tbl.AddRow("url-api-onboarding:", f.URLAPIOnboarding)
+	tbl.AddRow("url-api-transaction:", f.URLAPITransaction)
 	tbl.Print()
 
 	return nil
@@ -114,7 +129,8 @@ func (f *factoryConfigure) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.ClientID, "client-id", "", "Unique client identifier used for authentication.")
 	cmd.Flags().StringVar(&f.ClientSecret, "client-secret", "", "Secret key used to validate the client's identity.")
 	cmd.Flags().StringVar(&f.URLAPIAuth, "url-api-auth", "", "URL of the authentication service.")
-	cmd.Flags().StringVar(&f.URLAPILedger, "url-api-ledger", "", "URL of the service responsible for the ledger.")
+	cmd.Flags().StringVar(&f.URLAPIOnboarding, "url-api-onboarding", "", "URL of the onboarding service.")
+	cmd.Flags().StringVar(&f.URLAPITransaction, "url-api-transaction", "", "URL of the transaction service.")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 

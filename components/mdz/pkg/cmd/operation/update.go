@@ -2,10 +2,11 @@ package operation
 
 import (
 	"encoding/json"
-	"errors"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -37,7 +38,7 @@ func (f *factoryOperationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -46,7 +47,7 @@ func (f *factoryOperationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -55,7 +56,7 @@ func (f *factoryOperationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("transaction-id") && len(f.TransactionID) < 1 {
 		id, err := f.tuiInput("Enter the transaction-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get transaction ID from input")
 		}
 
 		f.TransactionID = id
@@ -64,7 +65,7 @@ func (f *factoryOperationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("operation-id") && len(f.OperationID) < 1 {
 		id, err := f.tuiInput("Enter the operation-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get operation ID from input")
 		}
 
 		f.OperationID = id
@@ -73,20 +74,18 @@ func (f *factoryOperationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &operation)
 		if err != nil {
-			return errors.New("failed to decode the given 'json' file. Verify if " +
-				"the file format is JSON or fix its content according to the JSON format " +
-				"specification at https://www.json.org/json-en.html")
+			return errors.UserError(err, "Verify if the file format is JSON or fix its content according to the JSON format specification at https://www.json.org/json-en.html")
 		}
 	} else {
 		err := f.createRequestFromFlags(&operation)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to create operation update request from flags")
 		}
 	}
 
 	resp, err := f.repoOperation.Update(f.OrganizationID, f.LedgerID, f.TransactionID, f.OperationID, operation)
 	if err != nil {
-		return err
+		return errors.CommandError("operation update", err)
 	}
 
 	output.FormatAndPrint(f.factory, resp, "Operation", output.Updated)
@@ -99,12 +98,12 @@ func (f *factoryOperationUpdate) createRequestFromFlags(operation *mmodel.Update
 
 	operation.Description, err = utils.AssignStringField(f.Description, "description", f.tuiInput)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to assign description field")
 	}
 
 	var metadata map[string]any
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
-		return errors.New("Error parsing metadata: " + err.Error())
+		return errors.ValidationError("metadata", "Invalid JSON format for metadata")
 	}
 
 	operation.Metadata = metadata

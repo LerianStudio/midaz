@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -29,7 +30,7 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -38,7 +39,7 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -47,7 +48,7 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("operation-id") && len(f.OperationID) < 1 {
 		id, err := f.tuiInput("Enter the operation-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get operation ID from input")
 		}
 
 		f.OperationID = id
@@ -59,12 +60,14 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	if f.AccountID != "" {
 		operation, err = f.repoOperation.GetByAccountAndID(f.OrganizationID, f.LedgerID, f.AccountID, f.OperationID)
+		if err != nil {
+			return errors.CommandError("operation describe by account", err)
+		}
 	} else {
 		operation, err = f.repoOperation.GetByID(f.OrganizationID, f.LedgerID, f.OperationID)
-	}
-
-	if err != nil {
-		return err
+		if err != nil {
+			return errors.CommandError("operation describe", err)
+		}
 	}
 
 	output.FormatAndPrint(f.factory, operation, "", "")

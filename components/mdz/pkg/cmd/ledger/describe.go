@@ -2,11 +2,11 @@ package ledger
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/errors"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
@@ -30,7 +30,7 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get organization ID from input")
 		}
 
 		f.OrganizationID = id
@@ -39,7 +39,7 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get ledger ID from input")
 		}
 
 		f.LedgerID = id
@@ -47,23 +47,23 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	org, err := f.repoLedger.GetByID(f.OrganizationID, f.LedgerID)
 	if err != nil {
-		return err
+		return errors.CommandError("ledger describe", err)
 	}
 
 	if f.JSON || cmd.Flags().Changed("out") {
 		b, err := json.Marshal(org)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to marshal ledger to JSON")
 		}
 
 		if cmd.Flags().Changed("out") {
 			if len(f.Out) == 0 {
-				return errors.New("the file path was not entered")
+				return errors.ValidationError("out", "file path was not entered")
 			}
 
 			err = utils.WriteDetailsToFile(b, f.Out)
 			if err != nil {
-				return errors.New("failed when trying to write the output file " + err.Error())
+				return errors.Wrap(err, "failed to write output file")
 			}
 
 			output.Printf(f.factory.IOStreams.Out, "File successfully written to: "+f.Out)

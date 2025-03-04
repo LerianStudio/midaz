@@ -78,8 +78,12 @@ func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 		f.factory.Env.URLAPIAuth = sett.URLAPIAuth
 	}
 
-	if len(sett.Env.URLAPILedger) > 0 {
-		f.factory.Env.URLAPILedger = sett.URLAPILedger
+	if len(sett.Env.URLAPIOnboarding) > 0 {
+		f.factory.Env.URLAPIOnboarding = sett.URLAPIOnboarding
+	}
+
+	if len(sett.Env.URLAPITransaction) > 0 {
+		f.factory.Env.URLAPITransaction = sett.URLAPITransaction
 	}
 
 	if len(sett.Token) > 0 {
