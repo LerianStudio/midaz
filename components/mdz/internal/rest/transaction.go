@@ -15,6 +15,23 @@ type transaction struct {
 	Factory *factory.Factory
 }
 
+// extractStatusCode extracts status code from transaction object
+func extractStatusCode(tx *mmodel.Transaction) {
+	if tx == nil {
+		return
+	}
+
+	// Extract status code if the status is an object
+	if statusObj, ok := tx.Status.(map[string]interface{}); ok {
+		if code, exists := statusObj["code"]; exists {
+			tx.StatusCode = fmt.Sprintf("%v", code)
+		}
+	} else if statusStr, ok := tx.Status.(string); ok {
+		// If status is already a string, copy it to StatusCode
+		tx.StatusCode = statusStr
+	}
+}
+
 func (r *transaction) Create(
 	organizationID, ledgerID string,
 	inp mmodel.CreateTransactionInput,
@@ -24,10 +41,16 @@ func (r *transaction) Create(
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
+	// Debug log the JSON being sent
+	fmt.Printf("DEBUG: Sending to API: %s\n", string(jsonData))
+
 	body := bytes.NewReader(jsonData)
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions",
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/json",
 		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
+
+	// Debug log the URI
+	fmt.Printf("DEBUG: API Endpoint: %s\n", uri)
 
 	req, err := http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -36,6 +59,8 @@ func (r *transaction) Create(
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+	req.Header.Set("X-TTL", "3600")
+	req.Header.Set("X-Idempotency-Key", inp.IdempotencyKey)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
 	if err != nil {
@@ -52,6 +77,9 @@ func (r *transaction) Create(
 	if err := json.NewDecoder(resp.Body).Decode(&transactionRest); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
+
+	// Extract status code
+	extractStatusCode(&transactionRest)
 
 	return &transactionRest, nil
 }
@@ -78,6 +106,8 @@ func (r *transaction) CreateDSL(
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+	req.Header.Set("X-TTL", "3600")
+	req.Header.Set("X-Idempotency-Key", inp.IdempotencyKey)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
 	if err != nil {
@@ -94,6 +124,9 @@ func (r *transaction) CreateDSL(
 	if err := json.NewDecoder(resp.Body).Decode(&transactionRest); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
+
+	// Extract status code
+	extractStatusCode(&transactionRest)
 
 	return &transactionRest, nil
 }
@@ -134,6 +167,14 @@ func (r *transaction) Get(
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
+	// Extract status code for each transaction
+	for i := range transactionsResp.Items {
+		extractStatusCode(&transactionsResp.Items[i])
+	}
+	for i := range transactionsResp.Data {
+		extractStatusCode(transactionsResp.Data[i])
+	}
+
 	return &transactionsResp, nil
 }
 
@@ -164,6 +205,9 @@ func (r *transaction) GetByID(
 	if err := json.NewDecoder(resp.Body).Decode(&transactionResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
+
+	// Extract status code
+	extractStatusCode(&transactionResp)
 
 	return &transactionResp, nil
 }
@@ -196,6 +240,9 @@ func (r *transaction) GetByParentID(
 	if err := json.NewDecoder(resp.Body).Decode(&transactionResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
+
+	// Extract status code
+	extractStatusCode(&transactionResp)
 
 	return &transactionResp, nil
 }
@@ -237,6 +284,14 @@ func (r *transaction) GetByParentIDPaginated(
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
+	// Extract status code for each transaction
+	for i := range transactionsResp.Items {
+		extractStatusCode(&transactionsResp.Items[i])
+	}
+	for i := range transactionsResp.Data {
+		extractStatusCode(transactionsResp.Data[i])
+	}
+
 	return &transactionsResp, nil
 }
 
@@ -274,6 +329,9 @@ func (r *transaction) Update(
 	if err := json.NewDecoder(resp.Body).Decode(&respStr); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
+
+	// Extract status code
+	extractStatusCode(&respStr)
 
 	return &respStr, nil
 }
@@ -332,6 +390,9 @@ func (r *transaction) Commit(organizationID, ledgerID, transactionID string) (*m
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
 
+	// Extract status code
+	extractStatusCode(&transactionResp)
+
 	return &transactionResp, nil
 }
 
@@ -362,6 +423,9 @@ func (r *transaction) Revert(organizationID, ledgerID, transactionID string) (*m
 	if err := json.NewDecoder(resp.Body).Decode(&transactionResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
+
+	// Extract status code
+	extractStatusCode(&transactionResp)
 
 	return &transactionResp, nil
 }
@@ -405,6 +469,11 @@ func (r *transaction) ListByIDs(organizationID, ledgerID string, ids []string) (
 	var transactionsResp []*mmodel.Transaction
 	if err := json.NewDecoder(resp.Body).Decode(&transactionsResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	// Extract status code for each transaction
+	for _, tx := range transactionsResp {
+		extractStatusCode(tx)
 	}
 
 	return transactionsResp, nil

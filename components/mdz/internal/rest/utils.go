@@ -24,7 +24,9 @@ func formatAPIError(jsonData []byte) error {
 
 	err := json.Unmarshal(jsonData, &apiError)
 	if err != nil {
-		return errors.New("failed to parse error JSON")
+		// Print the raw response for debugging
+		debugMsg := fmt.Sprintf("failed to parse error JSON: %s\nRaw response: %s", err.Error(), string(jsonData))
+		return errors.New(debugMsg)
 	}
 
 	// Format the main error message
