@@ -42,7 +42,7 @@ type CreateTransactionInput struct {
 	Description              string           `json:"description"`
 	Metadata                 map[string]any   `json:"metadata,omitempty"`
 	Send                     *TransactionSend `json:"send,omitempty"`
-	IdempotencyKey           string           `json:"idempotencyKey,omitempty"`
+	IdempotencyKey           string           `json:"-"` // Not sent in JSON payload, only in header
 	// Legacy fields
 	Type                 string `json:"type,omitempty"`
 	Status               string `json:"status,omitempty"`

@@ -29,7 +29,7 @@ func TestTransaction_Create(t *testing.T) {
 		assert.Equal(t, "Bearer test-token", req.Header.Get("Authorization"))
 		assert.Equal(
 			t,
-			"http://example.com/v1/organizations/org_123/ledgers/ldg_123/transactions",
+			"http://example.com/v1/organizations/org_123/ledgers/ldg_123/transactions/json",
 			req.URL.String(),
 		)
 
