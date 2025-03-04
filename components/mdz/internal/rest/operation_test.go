@@ -176,10 +176,14 @@ func Test_operation_GetByID(t *testing.T) {
 	assert.Equal(t, expectedResult.AccountID, result.AccountID)
 	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
 	assert.Equal(t, expectedResult.Type, result.Type)
+	assert.Equal(t, expectedResult.Description, result.Description)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, *expectedResult.Status.Description, *result.Status.Description)
 	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
 	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
@@ -271,8 +275,8 @@ func Test_operation_GetByTransaction(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations?limit=%d&page=%d",
-		URIAPITransaction, organizationID, ledgerID, transactionID, limit, page)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations?limit=%d&page=%d&sort_order=%s",
+		URIAPITransaction, organizationID, ledgerID, transactionID, limit, page, "asc")
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_by_transaction.json"))
@@ -287,7 +291,7 @@ func Test_operation_GetByTransaction(t *testing.T) {
 
 	operation := NewOperation(factory)
 
-	result, err := operation.GetByTransaction(organizationID, ledgerID, transactionID, limit, page, "", "", "")
+	result, err := operation.GetByTransaction(organizationID, ledgerID, transactionID, limit, page, "asc", "", "")
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -465,7 +469,15 @@ func Test_operation_Update(t *testing.T) {
 	assert.Equal(t, expectedResult.TransactionID, result.TransactionID)
 	assert.Equal(t, expectedResult.AccountID, result.AccountID)
 	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
+	assert.Equal(t, expectedResult.Type, result.Type)
 	assert.Equal(t, expectedResult.Description, result.Description)
+	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
+	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
+	assert.Equal(t, expectedResult.Status.Code, result.Status.Code)
+	assert.Equal(t, *expectedResult.Status.Description, *result.Status.Description)
+	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
+	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
+	assert.Equal(t, expectedResult.Metadata, result.Metadata)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["PATCH "+uri])
