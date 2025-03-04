@@ -23,7 +23,6 @@ type factoryAccountDescribe struct {
 	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
-	PortfolioID    string
 	AccountID      string
 	Out            string
 	JSON           bool
@@ -46,15 +45,6 @@ func (f *factoryAccountDescribe) ensureFlagInput(cmd *cobra.Command) error {
 		}
 
 		f.LedgerID = id
-	}
-
-	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := f.tuiInput("Enter your portfolio-id")
-		if err != nil {
-			return errors.Wrap(err, "failed to get portfolio ID from input")
-		}
-
-		f.PortfolioID = id
 	}
 
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
@@ -171,7 +161,6 @@ func (f *factoryAccountDescribe) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.JSON, "json", false, "returns the table in json format")
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.PortfolioID, "portfolio-id", "", "Specify the portfolio ID.")
 	cmd.Flags().StringVar(&f.AccountID, "account-id", "", "Specify the account ID to details.")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
@@ -193,7 +182,7 @@ func newCmdAccountDescribe(f *factoryAccountDescribe) *cobra.Command {
 			"ID as a parameter. Returns an error message if the account is not found.",
 		),
 		Example: utils.Format(
-			"$ mdz account describe --organization-id 12341234 --ledger-id 12312 --portfolio-id 432123",
+			"$ mdz account describe --organization-id 12341234 --ledger-id 12312 --account-id 432123",
 			"$ mdz account describe",
 			"$ mdz account describe -h",
 		),

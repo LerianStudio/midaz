@@ -2,7 +2,7 @@ package account
 
 import (
 	"encoding/json"
-	
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -58,15 +58,6 @@ func (f *factoryAccountCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 
 		f.LedgerID = id
-	}
-
-	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := f.tuiInput("Enter your portfolio-id")
-		if err != nil {
-			return errors.Wrap(err, "failed to get portfolio ID from input")
-		}
-
-		f.PortfolioID = id
 	}
 
 	if cmd.Flags().Changed("json-file") {

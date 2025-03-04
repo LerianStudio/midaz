@@ -29,6 +29,15 @@ type Balance struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
+type CreateBalanceInput struct {
+	AssetID        string         `json:"assetId" example:"00000000-0000-0000-0000-000000000000"`
+	InitialAmount  *int64         `json:"initialAmount,omitempty" example:"10000"`
+	InitialScale   *int32         `json:"initialScale,omitempty" example:"2"`
+	AllowSending   *bool          `json:"allowSending,omitempty" example:"true"`
+	AllowReceiving *bool          `json:"allowReceiving,omitempty" example:"true"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
+}
+
 type UpdateBalance struct {
 	AllowSending   *bool `json:"allowSending" example:"true"`
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`

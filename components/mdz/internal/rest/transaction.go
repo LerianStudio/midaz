@@ -56,6 +56,48 @@ func (r *transaction) Create(
 	return &transactionRest, nil
 }
 
+// CreateDSL creates a new transaction using DSL syntax
+func (r *transaction) CreateDSL(
+	organizationID, ledgerID string,
+	inp mmodel.CreateTransactionDSLInput,
+) (*mmodel.Transaction, error) {
+	jsonData, err := json.Marshal(inp)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	body := bytes.NewReader(jsonData)
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/dsl",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
+
+	req, err := http.NewRequest(http.MethodPost, uri, body)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusCreated); err != nil {
+		return nil, err
+	}
+
+	var transactionRest mmodel.Transaction
+	if err := json.NewDecoder(resp.Body).Decode(&transactionRest); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &transactionRest, nil
+}
+
 func (r *transaction) Get(
 	organizationID, ledgerID string,
 	limit, page int,
@@ -126,6 +168,45 @@ func (r *transaction) GetByID(
 	return &transactionResp, nil
 }
 
+func (r *transaction) GetByParentID(
+	organizationID, ledgerID, parentID string,
+	limit, page int,
+	sortOrder, startDate, endDate string,
+) (*mmodel.Transactions, error) {
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/parent/%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, parentID)
+
+	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var transactionsResp mmodel.Transactions
+	if err := json.NewDecoder(resp.Body).Decode(&transactionsResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &transactionsResp, nil
+}
+
 func (r *transaction) Update(
 	organizationID, ledgerID, transactionID string,
 	inp mmodel.UpdateTransactionInput,
@@ -188,6 +269,68 @@ func (r *transaction) Delete(organizationID, ledgerID, transactionID string) err
 	}
 
 	return nil
+}
+
+// Commit marks a transaction as committed
+func (r *transaction) Commit(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/commit",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+
+	req, err := http.NewRequest(http.MethodPost, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var transactionResp mmodel.Transaction
+	if err := json.NewDecoder(resp.Body).Decode(&transactionResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &transactionResp, nil
+}
+
+// Revert marks a transaction as reverted
+func (r *transaction) Revert(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/revert",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+
+	req, err := http.NewRequest(http.MethodPost, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var transactionResp mmodel.Transaction
+	if err := json.NewDecoder(resp.Body).Decode(&transactionResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &transactionResp, nil
 }
 
 // NewTransaction creates a new transaction REST client

@@ -15,13 +15,55 @@ type balance struct {
 	Factory *factory.Factory
 }
 
+// Create creates a new balance
+func (r *balance) Create(
+	organizationID, ledgerID, accountID string,
+	inp mmodel.CreateBalanceInput,
+) (*mmodel.Balance, error) {
+	jsonData, err := json.Marshal(inp)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	body := bytes.NewReader(jsonData)
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, accountID)
+
+	req, err := http.NewRequest(http.MethodPost, uri, body)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusCreated); err != nil {
+		return nil, err
+	}
+
+	var balanceResp mmodel.Balance
+	if err := json.NewDecoder(resp.Body).Decode(&balanceResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &balanceResp, nil
+}
+
 func (r *balance) Get(
 	organizationID, ledgerID string,
 	limit, page int,
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Balances, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances",
-		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -57,7 +99,7 @@ func (r *balance) Get(
 func (r *balance) GetByID(
 	organizationID, ledgerID, balanceID string) (*mmodel.Balance, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, balanceID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, balanceID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -91,7 +133,7 @@ func (r *balance) GetByAccount(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Balances, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
-		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, accountID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, accountID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -134,7 +176,7 @@ func (r *balance) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, balanceID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, balanceID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -164,7 +206,7 @@ func (r *balance) Update(
 
 func (r *balance) Delete(organizationID, ledgerID, balanceID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		r.Factory.Env.URLAPIOnboarding, organizationID, ledgerID, balanceID)
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, balanceID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {

@@ -65,10 +65,10 @@ func Test_operation_List(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations?limit=%d&page=%d",
-		URIAPIOnboarding, organizationID, ledgerID, limit, page)
+		URIAPITransaction, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_list.json"))
@@ -76,8 +76,9 @@ func Test_operation_List(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
+		Token: "test-token",
 	}
 
 	operation := NewOperation(factory)
@@ -117,10 +118,10 @@ func Test_operation_GetByID(t *testing.T) {
 	var onHold int64 = 0
 
 	expectedResult := &mmodel.Operation{
-		ID:             operationID,
-		TransactionID:  transactionID,
-		AccountID:      accountID,
-		AssetCode:      "BRL",
+		ID:            operationID,
+		TransactionID: transactionID,
+		AccountID:     accountID,
+		AssetCode:     "BRL",
 		Amount: mmodel.Amount{
 			Amount: &amount,
 			Scale:  &scale,
@@ -159,8 +160,9 @@ func Test_operation_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPIOnboarding,
 		},
+		Token: "test-token",
 	}
 
 	operation := NewOperation(factory)
@@ -203,10 +205,10 @@ func Test_operation_GetByTransaction(t *testing.T) {
 		Limit: limit,
 		Items: []mmodel.Operation{
 			{
-				ID:             "01932167-d43f-8g8c-d2ge-f7h848e64c94",
-				TransactionID:  transactionID,
-				AccountID:      "01932159-f4bd-7e0a-971e-52cc6e528312",
-				AssetCode:      "BRL",
+				ID:            "01932167-d43f-8g8c-d2ge-f7h848e64c94",
+				TransactionID: transactionID,
+				AccountID:     "01932159-f4bd-7e0a-971e-52cc6e528312",
+				AssetCode:     "BRL",
 				Amount: mmodel.Amount{
 					Amount: &amount,
 					Scale:  &scale,
@@ -232,10 +234,10 @@ func Test_operation_GetByTransaction(t *testing.T) {
 				UpdatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
 			{
-				ID:             "01932168-e54g-9h9d-e3hf-g8i959f75d05",
-				TransactionID:  transactionID,
-				AccountID:      "01932160-g5ce-7f1b-982f-63dd7f639423",
-				AssetCode:      "BRL",
+				ID:            "01932168-e54g-9h9d-e3hf-g8i959f75d05",
+				TransactionID: transactionID,
+				AccountID:     "01932160-g5ce-7f1b-982f-63dd7f639423",
+				AssetCode:     "BRL",
 				Amount: mmodel.Amount{
 					Amount: &amount,
 					Scale:  &scale,
@@ -267,10 +269,10 @@ func Test_operation_GetByTransaction(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations?limit=%d&page=%d",
-		URIAPIOnboarding, organizationID, ledgerID, transactionID, limit, page)
+		URIAPITransaction, organizationID, ledgerID, transactionID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_by_transaction.json"))
@@ -278,8 +280,9 @@ func Test_operation_GetByTransaction(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
+		Token: "test-token",
 	}
 
 	operation := NewOperation(factory)
@@ -356,10 +359,10 @@ func Test_operation_GetByAccount(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations?limit=%d&page=%d",
-		URIAPIOnboarding, organizationID, ledgerID, accountID, limit, page)
+		URIAPITransaction, organizationID, ledgerID, accountID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_by_account.json"))
@@ -367,8 +370,9 @@ func Test_operation_GetByAccount(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
+		Token: "test-token",
 	}
 
 	operation := NewOperation(factory)
@@ -433,10 +437,10 @@ func Test_operation_Update(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations/%s",
-		URIAPIOnboarding, organizationID, ledgerID, transactionID, operationID)
+		URIAPITransaction, organizationID, ledgerID, transactionID, operationID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_update.json"))
@@ -444,8 +448,9 @@ func Test_operation_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
+		Token: "test-token",
 	}
 
 	operation := NewOperation(factory)

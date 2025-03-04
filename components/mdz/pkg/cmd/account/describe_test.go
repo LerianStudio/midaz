@@ -26,7 +26,6 @@ func Test_newCmdAccountDescribe(t *testing.T) {
 
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
-		portfolioID := "01930365-4d46-7a09-a503-b932714f85af"
 		accountID := "01933f96-ed04-7c57-be5b-c091388830f8"
 
 		ledFactory := factoryAccountDescribe{
@@ -37,7 +36,6 @@ func Test_newCmdAccountDescribe(t *testing.T) {
 			repoAccount:    mockRepo,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
-			PortfolioID:    portfolioID,
 			AccountID:      accountID,
 			Out:            "",
 			JSON:           false,
@@ -53,7 +51,6 @@ func Test_newCmdAccountDescribe(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--ledger-id", ledgerID,
 			"--organization-id", organizationID,
-			"--portfolio-id", portfolioID,
 			"--account-id", accountID,
 		})
 

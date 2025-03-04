@@ -55,15 +55,6 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := f.tuiInput("Enter your portfolio-id")
-		if err != nil {
-			return errors.Wrap(err, "failed to get portfolio ID from input")
-		}
-
-		f.PortfolioID = id
-	}
-
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
 		id, err := f.tuiInput("Enter your account-id")
 		if err != nil {

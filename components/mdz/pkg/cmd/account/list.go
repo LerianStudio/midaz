@@ -50,15 +50,6 @@ func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 		f.LedgerID = id
 	}
 
-	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := f.tuiInput("Enter your portfolio-id")
-		if err != nil {
-			return errors.Wrap(err, "failed to get portfolio ID from input")
-		}
-
-		f.PortfolioID = id
-	}
-
 	if len(f.StartDate) > 0 {
 		if err := utils.ValidateDate(f.StartDate); err != nil {
 			return errors.ValidationError("start-date", "Invalid date format. Use YYYY-MM-DD")

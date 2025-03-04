@@ -44,10 +44,10 @@ func Test_assetRate_Create(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates",
-		URIAPIOnboarding, organizationID, ledgerID)
+		URIAPITransaction, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPut, uri,
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/assetrate_response_create.json"))
@@ -55,7 +55,7 @@ func Test_assetRate_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
 	}
 
@@ -84,7 +84,7 @@ func Test_assetRate_GetByExternalID(t *testing.T) {
 	targetAssetCode := "USD"
 	value := 4.97
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.AssetRate{
 		From:           assetCode,
@@ -100,7 +100,7 @@ func Test_assetRate_GetByExternalID(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/%s",
-		URIAPIOnboarding, organizationID, ledgerID, externalID)
+		URIAPITransaction, organizationID, ledgerID, externalID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/assetrate_response_get_by_id.json"))
@@ -108,7 +108,7 @@ func Test_assetRate_GetByExternalID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
 	}
 
@@ -167,10 +167,10 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPIOnboarding := "http://127.0.0.1:3000"
+	URIAPITransaction := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/from/%s?limit=%d&page=%d",
-		URIAPIOnboarding, organizationID, ledgerID, assetCode, limit, page)
+		URIAPITransaction, organizationID, ledgerID, assetCode, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/assetrate_response_list.json"))
@@ -178,7 +178,7 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPIOnboarding,
+			URLAPITransaction: URIAPITransaction,
 		},
 	}
 

@@ -152,3 +152,53 @@ func ParseBool(s string) (bool, error) {
 		return false, fmt.Errorf("invalid boolean value: %s", s)
 	}
 }
+
+// TruncateString truncates a string to the specified length, adding "..." if truncated
+func TruncateString(s string, length int) string {
+	if len(s) <= length {
+		return s
+	}
+	return s[:length-3] + "..."
+}
+
+// PrintTable prints data in tabular format
+func PrintTable(headers []string, data [][]string) error {
+	// Calculate column widths
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = len(header)
+	}
+	
+	// Update column widths based on data
+	for _, row := range data {
+		for i, cell := range row {
+			if i < len(widths) && len(cell) > widths[i] {
+				widths[i] = len(cell)
+			}
+		}
+	}
+	
+	// Print headers
+	for i, header := range headers {
+		fmt.Printf("%-*s", widths[i]+2, header)
+	}
+	fmt.Println()
+	
+	// Print separator line
+	for _, width := range widths {
+		fmt.Print(strings.Repeat("-", width) + "  ")
+	}
+	fmt.Println()
+	
+	// Print data rows
+	for _, row := range data {
+		for i, cell := range row {
+			if i < len(widths) {
+				fmt.Printf("%-*s", widths[i]+2, cell)
+			}
+		}
+		fmt.Println()
+	}
+	
+	return nil
+}

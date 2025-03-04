@@ -18,7 +18,6 @@ type factoryAccountDelete struct {
 	tuiInput       func(message string) (string, error)
 	OrganizationID string
 	LedgerID       string
-	PortfolioID    string
 	AccountID      string
 }
 
@@ -39,15 +38,6 @@ func (f *factoryAccountDelete) ensureFlagInput(cmd *cobra.Command) error {
 		}
 
 		f.LedgerID = id
-	}
-
-	if !cmd.Flags().Changed("potfolio-id") && len(f.PortfolioID) < 1 {
-		id, err := f.tuiInput("Enter your portfolio-id")
-		if err != nil {
-			return errors.Wrap(err, "failed to get portfolio ID from input")
-		}
-
-		f.PortfolioID = id
 	}
 
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
@@ -80,7 +70,6 @@ func (f *factoryAccountDelete) runE(cmd *cobra.Command, _ []string) error {
 func (f *factoryAccountDelete) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID")
-	cmd.Flags().StringVar(&f.PortfolioID, "portfolio-id", "", "Specify the portfolio ID")
 	cmd.Flags().StringVar(&f.AccountID, "account-id", "", "Specify the account ID")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
@@ -103,7 +92,7 @@ func newCmdAccountDelete(f *factoryAccountDelete) *cobra.Command {
 			"existence of the account.",
 		),
 		Example: utils.Format(
-			"$ mdz account delete --organization-id '1234' --ledger-id '4421' --portfolio-id '743' --account-id '55232'",
+			"$ mdz account delete --organization-id '1234' --ledger-id '4421' --account-id '55232'",
 			"$ mdz account delete -i 12314",
 			"$ mdz account delete -h",
 		),

@@ -13,6 +13,7 @@ type factoryBalance struct {
 }
 
 func (f *factoryBalance) setCmds(cmd *cobra.Command) {
+	cmd.AddCommand(newCmdBalanceCreate(newInjectFacCreate(f.factory)))
 	cmd.AddCommand(newCmdBalanceList(newInjectFacList(f.factory)))
 	cmd.AddCommand(newCmdBalanceDescribe(newInjectFacDescribe(f.factory)))
 	cmd.AddCommand(newCmdBalanceUpdate(newInjectFacUpdate(f.factory)))
@@ -28,7 +29,7 @@ func NewCmdBalance(f *factory.Factory) *cobra.Command {
 		Use:   "balance",
 		Short: "Manages balances in a ledger.",
 		Long: utils.Format(
-			"The balance command allows you to list, describe,",
+			"The balance command allows you to create, list, describe,",
 			"update, and delete balances within a ledger. Each action is carried out",
 			"using a specific subcommand.",
 		),

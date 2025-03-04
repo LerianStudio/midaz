@@ -7,4 +7,6 @@ type AssetRate interface {
 	Create(organizationID, ledgerID string, inp mmodel.CreateAssetRateInput) (*mmodel.AssetRate, error)
 	GetByExternalID(organizationID, ledgerID, externalID string) (*mmodel.AssetRate, error)
 	GetByAssetCode(organizationID, ledgerID, assetCode string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.AssetRates, error)
+	Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.AssetRates, error)
+	GetByID(organizationID, ledgerID, assetRateID string) (*mmodel.AssetRate, error)
 }

@@ -26,7 +26,6 @@ func Test_newCmdAssetList(t *testing.T) {
 
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
-		portfolioID := "01933f94-d329-76fe-8de0-40559c7b282d"
 
 		ledFactory := factoryAccountList{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -42,7 +41,6 @@ func Test_newCmdAssetList(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--organization-id", organizationID,
 			"--ledger-id", ledgerID,
-			"--portfolio-id", portfolioID,
 		})
 
 		list := &mmodel.Accounts{

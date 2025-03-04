@@ -47,3 +47,12 @@ type UpdateTransactionInput struct {
 	Status      string         `json:"status,omitempty"`
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
+
+// CreateTransactionDSLInput represents input for creating a transaction using DSL
+type CreateTransactionDSLInput struct {
+	DSL                  string         `json:"dsl"`
+	Description          string         `json:"description,omitempty"`
+	ChartOfAccountsGroup string         `json:"chartOfAccountsGroup,omitempty"`
+	IdempotencyKey       string         `json:"idempotencyKey,omitempty"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
+}
