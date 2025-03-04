@@ -1,8 +1,9 @@
 package model
 
 import (
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // TransactionStatus represents the status of a transaction
@@ -67,28 +68,28 @@ func AsTransaction(tx *mmodel.Transaction) *Transaction {
 		})
 	}
 
-	// Default scale 
+	// Default scale
 	amountScale := int64(2)
 
 	return &Transaction{
-		ID:                   tx.ID,
-		OrganizationID:       tx.OrganizationID,
-		LedgerID:             tx.LedgerID,
-		Type:                 tx.Type,
-		Description:          tx.Description,
+		ID:             tx.ID,
+		OrganizationID: tx.OrganizationID,
+		LedgerID:       tx.LedgerID,
+		Type:           tx.Type,
+		Description:    tx.Description,
 		Status: TransactionStatus{
-			Code:        statusCode,
+			Code:        statusCode.(string),
 			Description: statusDescription,
 		},
-		Amount:               tx.Amount,
-		AmountScale:          amountScale,
-		Currency:             tx.Currency,
-		SourceAccounts:       sourceAccounts,
-		DestinationAccounts:  destinationAccounts,
-		ParentID:             tx.ParentID,
-		CreatedAt:            tx.CreatedAt,
-		UpdatedAt:            tx.UpdatedAt,
-		DeletedAt:            tx.DeletedAt,
-		Metadata:             tx.Metadata,
+		Amount:              tx.Amount,
+		AmountScale:         amountScale,
+		Currency:            tx.Currency,
+		SourceAccounts:      sourceAccounts,
+		DestinationAccounts: destinationAccounts,
+		ParentID:            tx.ParentID,
+		CreatedAt:           tx.CreatedAt,
+		UpdatedAt:           tx.UpdatedAt,
+		DeletedAt:           tx.DeletedAt,
+		Metadata:            tx.Metadata,
 	}
 }

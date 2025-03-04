@@ -3,7 +3,6 @@ package transaction
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/model"
@@ -98,7 +97,7 @@ func (o *createDSLOptions) run() (*mmodel.Transaction, error) {
 	// Get DSL script from file if provided
 	dslContent := o.dslScript
 	if o.dslFile != "" {
-		content, err := ioutil.ReadFile(o.dslFile)
+		content, err := os.ReadFile(o.dslFile)
 		if err != nil {
 			return nil, fmt.Errorf("error reading DSL file: %v", err)
 		}
