@@ -1,0 +1,15 @@
+{
+  "id": "01932165-b21d-7e6a-b0fc-d5f625c42a72",
+  "organizationId": "0192fc1d-f34d-78c9-9654-83e497349241",
+  "ledgerId": "01930218-bfb7-74fe-ba00-e52a17e9fb4e",
+  "accountId": "01932159-f4bd-7e0a-971e-52cc6e528312",
+  "assetCode": "01930219-2c25-7a37-a5b9-610d44ae0a27",
+  "available": 1000,
+  "onHold": 0,
+  "scale": 2,
+  "version": 1,
+  "allowSending": true,
+  "allowReceiving": true,
+  "createdAt": "2024-11-06T15:30:24.421664Z",
+  "updatedAt": "2024-11-06T15:30:24.421664Z"
+}
