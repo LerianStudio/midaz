@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -26,7 +27,7 @@ type Transaction struct {
 	Type                 string                 `json:"type"`
 	Description          string                 `json:"description"`
 	Status               TransactionStatus      `json:"status"`
-	Amount               string                 `json:"amount"`
+	Amount               json.Number            `json:"amount"`
 	AmountScale          int64                  `json:"amountScale"`
 	Currency             string                 `json:"currency"`
 	SourceAccounts       []Account              `json:"sourceAccounts,omitempty"`

@@ -25,13 +25,17 @@ func Test_newCmdTransactionCreate(t *testing.T) {
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 
-		transactionType := "TRANSFER"
 		description := "Test transfer"
-		status := "COMPLETED"
-		amount := "100.00"
-		currency := "USD"
-		sourceAccountID := "01930219-2c25-7a37-a5b9-610d44ae0a28"
-		destinationAccountID := "01930219-2c25-7a37-a5b9-610d44ae0a29"
+		asset := "USD"
+		value := int64(100)
+		scale := 0
+		chartGroup := "TRANSFERS"
+		sourceAccount := "01930219-2c25-7a37-a5b9-610d44ae0a28"
+		sourceChart := "DEBIT"
+		sourceDescription := "Source operation"
+		destinationAccount := "01930219-2c25-7a37-a5b9-610d44ae0a29"
+		destinationChart := "CREDIT"
+		destinationDescription := "Destination operation"
 
 		metadata := map[string]any{
 			"key1": "value1",
@@ -46,19 +50,23 @@ func Test_newCmdTransactionCreate(t *testing.T) {
 			}},
 			repoTransaction: mockRepo,
 			tuiInput: func(message string) (string, error) {
-				return transactionType, nil
+				return "", nil
 			},
 			flagsCreate: flagsCreate{
-				OrganizationID:       organizationID,
-				LedgerID:             ledgerID,
-				Type:                 transactionType,
-				Description:          description,
-				Status:               status,
-				Amount:               amount,
-				Currency:             currency,
-				SourceAccountID:      sourceAccountID,
-				DestinationAccountID: destinationAccountID,
-				Metadata:             "{\"key1\": \"value1\", \"key2\": 2, \"key3\": true}",
+				OrganizationID:             organizationID,
+				LedgerID:                   ledgerID,
+				ChartOfAccountsGroupName:   chartGroup,
+				Description:                description,
+				Asset:                      asset,
+				Value:                      value,
+				Scale:                      scale,
+				SourceAccount:              sourceAccount,
+				SourceChartOfAccounts:      sourceChart,
+				SourceDescription:          sourceDescription,
+				DestinationAccount:         destinationAccount,
+				DestinationChartOfAccounts: destinationChart,
+				DestinationDescription:     destinationDescription,
+				Metadata:                   "{\"key1\": \"value1\", \"key2\": 2, \"key3\": true}",
 			},
 		}
 
@@ -66,28 +74,26 @@ func Test_newCmdTransactionCreate(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--organization-id", organizationID,
 			"--ledger-id", ledgerID,
-			"--type", transactionType,
+			"--chart-group", chartGroup,
 			"--description", description,
-			"--status", status,
-			"--amount", amount,
-			"--currency", currency,
-			"--source-account-id", sourceAccountID,
-			"--destination-account-id", destinationAccountID,
+			"--asset", asset,
+			"--value", "100",
+			"--scale", "0",
+			"--source-account", sourceAccount,
+			"--source-chart", sourceChart,
+			"--source-description", sourceDescription,
+			"--destination-account", destinationAccount,
+			"--destination-chart", destinationChart,
+			"--destination-description", destinationDescription,
 			"--metadata", "{\"key1\": \"value1\", \"key2\": 2, \"key3\": true}",
 		})
 
 		result := &mmodel.Transaction{
-			ID:                   transactionID,
-			Type:                 transactionType,
-			Description:          description,
-			Status:               status,
-			Amount:               amount,
-			Currency:             currency,
-			SourceAccountID:      sourceAccountID,
-			DestinationAccountID: destinationAccountID,
-			OrganizationID:       organizationID,
-			LedgerID:             ledgerID,
-			Metadata:             metadata,
+			ID:             transactionID,
+			Description:    description,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			Metadata:       metadata,
 		}
 
 		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(result, nil)
@@ -108,13 +114,17 @@ func Test_newCmdTransactionCreate(t *testing.T) {
 		organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 		ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 
-		transactionType := "TRANSFER"
 		description := "Test transfer"
-		status := "COMPLETED"
-		amount := "100.00"
-		currency := "USD"
-		sourceAccountID := "01930219-2c25-7a37-a5b9-610d44ae0a28"
-		destinationAccountID := "01930219-2c25-7a37-a5b9-610d44ae0a29"
+		asset := "USD"
+		value := int64(100)
+		scale := 0
+		chartGroup := "TRANSFERS"
+		sourceAccount := "01930219-2c25-7a37-a5b9-610d44ae0a28"
+		sourceChart := "DEBIT"
+		sourceDescription := "Source operation"
+		destinationAccount := "01930219-2c25-7a37-a5b9-610d44ae0a29"
+		destinationChart := "CREDIT"
+		destinationDescription := "Destination operation"
 
 		metadata := map[string]any{
 			"key1": "value1",
@@ -129,14 +139,18 @@ func Test_newCmdTransactionCreate(t *testing.T) {
 			}},
 			repoTransaction: mockRepo,
 			flagsCreate: flagsCreate{
-				Type:                 transactionType,
-				Description:          description,
-				Status:               status,
-				Amount:               amount,
-				Currency:             currency,
-				SourceAccountID:      sourceAccountID,
-				DestinationAccountID: destinationAccountID,
-				Metadata:             "{\"key1\": \"value1\", \"key2\": 2, \"key3\": true}",
+				Description:                description,
+				Asset:                      asset,
+				Value:                      value,
+				Scale:                      scale,
+				ChartOfAccountsGroupName:   chartGroup,
+				SourceAccount:              sourceAccount,
+				SourceChartOfAccounts:      sourceChart,
+				SourceDescription:          sourceDescription,
+				DestinationAccount:         destinationAccount,
+				DestinationChartOfAccounts: destinationChart,
+				DestinationDescription:     destinationDescription,
+				Metadata:                   "{\"key1\": \"value1\", \"key2\": 2, \"key3\": true}",
 			},
 		}
 
@@ -151,28 +165,25 @@ func Test_newCmdTransactionCreate(t *testing.T) {
 
 		cmd := newCmdTransactionCreate(&trnFactory)
 		cmd.SetArgs([]string{
-			"--type", transactionType,
 			"--description", description,
-			"--status", status,
-			"--amount", amount,
-			"--currency", currency,
-			"--source-account-id", sourceAccountID,
-			"--destination-account-id", destinationAccountID,
+			"--asset", asset,
+			"--value", "100",
+			"--chart-group", chartGroup,
+			"--source-account", sourceAccount,
+			"--source-chart", sourceChart,
+			"--source-description", sourceDescription,
+			"--destination-account", destinationAccount,
+			"--destination-chart", destinationChart,
+			"--destination-description", destinationDescription,
 			"--metadata", "{\"key1\": \"value1\", \"key2\": 2, \"key3\": true}",
 		})
 
 		result := &mmodel.Transaction{
-			ID:                   transactionID,
-			Type:                 transactionType,
-			Description:          description,
-			Status:               status,
-			Amount:               amount,
-			Currency:             currency,
-			SourceAccountID:      sourceAccountID,
-			DestinationAccountID: destinationAccountID,
-			OrganizationID:       organizationID,
-			LedgerID:             ledgerID,
-			Metadata:             metadata,
+			ID:             transactionID,
+			Description:    description,
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			Metadata:       metadata,
 		}
 
 		mockRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(result, nil)

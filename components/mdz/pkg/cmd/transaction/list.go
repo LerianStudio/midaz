@@ -115,7 +115,7 @@ func (f *factoryTransactionList) runE(cmd *cobra.Command, _ []string) error {
 		tbl.AddRow(
 			tx.ID,
 			tx.Type,
-			tx.Amount+" "+tx.Currency,
+			string(tx.Amount)+" "+tx.Currency,
 			tx.Status,
 			tx.SourceAccountID,
 			tx.DestinationAccountID,

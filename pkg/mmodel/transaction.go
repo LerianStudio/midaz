@@ -1,6 +1,9 @@
 package mmodel
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // TransactionStatus represents the status of a transaction
 type TransactionStatus struct {
@@ -17,7 +20,7 @@ type Transaction struct {
 	Description          string         `json:"description"`
 	Status               interface{}    `json:"status"`               // Can be string or object
 	StatusCode           string         `json:"statusCode,omitempty"` // For client use only
-	Amount               string         `json:"amount"`
+	Amount               json.Number    `json:"amount"`               // Changed from string to json.Number to handle both number and string formats
 	Currency             string         `json:"currency"`
 	SourceAccountID      string         `json:"sourceAccountId"`
 	DestinationAccountID string         `json:"destinationAccountId"`
@@ -42,14 +45,7 @@ type CreateTransactionInput struct {
 	Description              string           `json:"description"`
 	Metadata                 map[string]any   `json:"metadata,omitempty"`
 	Send                     *TransactionSend `json:"send,omitempty"`
-	IdempotencyKey           string           `json:"-"` // Not sent in JSON payload, only in header
-	// Legacy fields
-	Type                 string `json:"type,omitempty"`
-	Status               string `json:"status,omitempty"`
-	Amount               string `json:"amount,omitempty"`
-	Currency             string `json:"currency,omitempty"`
-	SourceAccountID      string `json:"sourceAccountId,omitempty"`
-	DestinationAccountID string `json:"destinationAccountId,omitempty"`
+	Idempotency              string           `json:"-"` // Not sent in JSON payload, only in header
 }
 
 // TransactionSend represents the send field in a transaction

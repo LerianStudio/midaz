@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -13,6 +14,21 @@ import (
 
 type transaction struct {
 	Factory *factory.Factory
+}
+
+// ensureBaseURL ensures the base URL has a protocol prefix
+func (r *transaction) ensureBaseURL() string {
+	baseURL := r.Factory.Env.URLAPITransaction
+	
+	// If URL is empty, set a default
+	if baseURL == "" {
+		baseURL = "http://127.0.0.1:3001"
+	} else if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		// Add protocol if missing
+		baseURL = "http://" + baseURL
+	}
+	
+	return baseURL
 }
 
 // extractStatusCode extracts status code from transaction object
@@ -46,8 +62,10 @@ func (r *transaction) Create(
 
 	body := bytes.NewReader(jsonData)
 
+	baseURL := r.ensureBaseURL()
+	
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/json",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
+		baseURL, organizationID, ledgerID)
 
 	// Debug log the URI
 	fmt.Printf("DEBUG: API Endpoint: %s\n", uri)
@@ -60,7 +78,15 @@ func (r *transaction) Create(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 	req.Header.Set("X-TTL", "3600")
-	req.Header.Set("X-Idempotency-Key", inp.IdempotencyKey)
+	req.Header.Set("X-Idempotency", inp.Idempotency)
+
+	// Debug log the request headers
+	fmt.Println("DEBUG: Request Headers:")
+	for key, values := range req.Header {
+		for _, value := range values {
+			fmt.Printf("DEBUG:   %s: %s\n", key, value)
+		}
+	}
 
 	resp, err := r.Factory.HTTPClient.Do(req)
 	if err != nil {
@@ -96,8 +122,9 @@ func (r *transaction) CreateDSL(
 
 	body := bytes.NewReader(jsonData)
 
+	baseURL := r.ensureBaseURL()
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/dsl",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
+		baseURL, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, body)
 	if err != nil {
@@ -137,7 +164,7 @@ func (r *transaction) Get(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Transactions, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
+		r.ensureBaseURL(), organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -181,7 +208,7 @@ func (r *transaction) Get(
 func (r *transaction) GetByID(
 	organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -216,7 +243,7 @@ func (r *transaction) GetByParentID(
 	organizationID, ledgerID, parentID string,
 ) (*mmodel.Transaction, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/parent/%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, parentID)
+		r.ensureBaseURL(), organizationID, ledgerID, parentID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -254,7 +281,7 @@ func (r *transaction) GetByParentIDPaginated(
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Transactions, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/parent/%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, parentID)
+		r.ensureBaseURL(), organizationID, ledgerID, parentID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	if err != nil {
@@ -305,7 +332,7 @@ func (r *transaction) Update(
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -338,7 +365,7 @@ func (r *transaction) Update(
 
 func (r *transaction) Delete(organizationID, ledgerID, transactionID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
 	if err != nil {
@@ -365,7 +392,7 @@ func (r *transaction) Delete(organizationID, ledgerID, transactionID string) err
 // Commit marks a transaction as committed
 func (r *transaction) Commit(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/commit",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, nil)
 	if err != nil {
@@ -399,7 +426,7 @@ func (r *transaction) Commit(organizationID, ledgerID, transactionID string) (*m
 // Revert marks a transaction as reverted
 func (r *transaction) Revert(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/revert",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, nil)
 	if err != nil {
@@ -446,7 +473,7 @@ func (r *transaction) ListByIDs(organizationID, ledgerID string, ids []string) (
 	}
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/list?ids=%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, idsStr)
+		r.ensureBaseURL(), organizationID, ledgerID, idsStr)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {

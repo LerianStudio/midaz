@@ -42,15 +42,8 @@ type flagsCreate struct {
 	DestinationChartOfAccounts string
 	DestinationDescription     string
 	Metadata                   string
-	IdempotencyKey             string
+	Idempotency                string
 	JSONFile                   string
-	// Legacy fields
-	Type                 string
-	Status               string
-	Amount               string
-	Currency             string
-	SourceAccountID      string
-	DestinationAccountID string
 }
 
 func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
@@ -100,15 +93,23 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	var err error
 
 	// Get description
-	transaction.Description, err = utils.AssignStringField(f.Description, "description", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign description field")
+	if f.Description != "" {
+		transaction.Description = f.Description
+	} else {
+		transaction.Description, err = f.tuiInput("description")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign description field")
+		}
 	}
 
 	// Get chart of accounts group name
-	transaction.ChartOfAccountsGroupName, err = utils.AssignStringField(f.ChartOfAccountsGroupName, "chart-of-accounts-group-name", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign chart of accounts group name field")
+	if f.ChartOfAccountsGroupName != "" {
+		transaction.ChartOfAccountsGroupName = f.ChartOfAccountsGroupName
+	} else {
+		transaction.ChartOfAccountsGroupName, err = f.tuiInput("chart-of-accounts-group-name")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign chart of accounts group name field")
+		}
 	}
 
 	// Parse metadata
@@ -119,23 +120,18 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	transaction.Metadata = metadata
 
 	// Create transaction structure
-	asset, err := utils.AssignStringField(f.Asset, "asset", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign asset field")
+	var asset string
+	if f.Asset != "" {
+		asset = f.Asset
+	} else {
+		asset, err = f.tuiInput("asset")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign asset field")
+		}
 	}
 
-	// Set default scale if not provided
 	scale := f.Scale
-	if scale == 0 {
-		scale = 0 // Default scale
-	}
-
-	// Create transaction send structure with integer value
-	// Default to 100 if no value is provided
 	value := f.Value
-	if value == 0 {
-		value = 100
-	}
 
 	transaction.Send = &mmodel.TransactionSend{
 		Asset: asset,
@@ -144,21 +140,36 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	}
 
 	// Get source account
-	sourceAccount, err := utils.AssignStringField(f.SourceAccount, "source-account", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign source account field")
+	var sourceAccount string
+	if f.SourceAccount != "" {
+		sourceAccount = f.SourceAccount
+	} else {
+		sourceAccount, err = f.tuiInput("source-account")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign source account field")
+		}
 	}
 
 	// Get source chart of accounts
-	sourceChartOfAccounts, err := utils.AssignStringField(f.SourceChartOfAccounts, "source-chart-of-accounts", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign source chart of accounts field")
+	var sourceChartOfAccounts string
+	if f.SourceChartOfAccounts != "" {
+		sourceChartOfAccounts = f.SourceChartOfAccounts
+	} else {
+		sourceChartOfAccounts, err = f.tuiInput("source-chart-of-accounts")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign source chart of accounts field")
+		}
 	}
 
 	// Get source description
-	sourceDescription, err := utils.AssignStringField(f.SourceDescription, "source-description", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign source description field")
+	var sourceDescription string
+	if f.SourceDescription != "" {
+		sourceDescription = f.SourceDescription
+	} else {
+		sourceDescription, err = f.tuiInput("source-description")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign source description field")
+		}
 	}
 
 	// Create source operation
@@ -180,21 +191,36 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	}
 
 	// Get destination account
-	destinationAccount, err := utils.AssignStringField(f.DestinationAccount, "destination-account", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign destination account field")
+	var destinationAccount string
+	if f.DestinationAccount != "" {
+		destinationAccount = f.DestinationAccount
+	} else {
+		destinationAccount, err = f.tuiInput("destination-account")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign destination account field")
+		}
 	}
 
 	// Get destination chart of accounts
-	destinationChartOfAccounts, err := utils.AssignStringField(f.DestinationChartOfAccounts, "destination-chart-of-accounts", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign destination chart of accounts field")
+	var destinationChartOfAccounts string
+	if f.DestinationChartOfAccounts != "" {
+		destinationChartOfAccounts = f.DestinationChartOfAccounts
+	} else {
+		destinationChartOfAccounts, err = f.tuiInput("destination-chart-of-accounts")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign destination chart of accounts field")
+		}
 	}
 
 	// Get destination description
-	destinationDescription, err := utils.AssignStringField(f.DestinationDescription, "destination-description", f.tuiInput)
-	if err != nil {
-		return errors.Wrap(err, "failed to assign destination description field")
+	var destinationDescription string
+	if f.DestinationDescription != "" {
+		destinationDescription = f.DestinationDescription
+	} else {
+		destinationDescription, err = f.tuiInput("destination-description")
+		if err != nil {
+			return errors.Wrap(err, "failed to assign destination description field")
+		}
 	}
 
 	// Create destination operation
@@ -216,8 +242,8 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	}
 
 	// Set idempotency key or generate a unique one
-	if len(f.IdempotencyKey) > 0 {
-		transaction.IdempotencyKey = f.IdempotencyKey
+	if len(f.Idempotency) > 0 {
+		transaction.Idempotency = f.Idempotency
 	} else {
 		// Generate a unique key based on the transaction details and current time
 		now := time.Now().Format(time.RFC3339Nano)
@@ -231,31 +257,11 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 			// Add some randomness
 			fmt.Sprintf("%d", time.Now().UnixNano()),
 		)
-		
+
 		// Generate SHA-256 hash
 		h := sha256.New()
 		h.Write([]byte(keyData))
-		transaction.IdempotencyKey = hex.EncodeToString(h.Sum(nil))
-	}
-	
-	// Backward compatibility - these fields will be ignored by the API
-	if len(f.Type) > 0 {
-		transaction.Type = f.Type
-	}
-	if len(f.Status) > 0 {
-		transaction.Status = f.Status
-	}
-	if len(f.Amount) > 0 {
-		transaction.Amount = f.Amount
-	}
-	if len(f.Currency) > 0 {
-		transaction.Currency = f.Currency
-	}
-	if len(f.SourceAccountID) > 0 {
-		transaction.SourceAccountID = f.SourceAccountID
-	}
-	if len(f.DestinationAccountID) > 0 {
-		transaction.DestinationAccountID = f.DestinationAccountID
+		transaction.Idempotency = hex.EncodeToString(h.Sum(nil))
 	}
 
 	return nil
@@ -276,16 +282,8 @@ func (f *factoryTransactionCreate) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.DestinationChartOfAccounts, "destination-chart", "", "Specify the destination chart of accounts.")
 	cmd.Flags().StringVar(&f.DestinationDescription, "destination-description", "", "Provide a description for the destination operation.")
 	cmd.Flags().StringVar(&f.Metadata, "metadata", "{}", "Metadata in JSON format, e.g., '{\"key1\": \"value\", \"key2\": 123}'.")
-	cmd.Flags().StringVar(&f.IdempotencyKey, "idempotency-key", "", "Unique identifier to prevent duplicate transactions. If not provided, one will be generated.")
+	cmd.Flags().StringVar(&f.Idempotency, "idempotency", "", "Unique identifier to prevent duplicate transactions. If not provided, one will be generated.")
 	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "Path to a JSON file containing transaction attributes, or '-' for stdin.")
-
-	// Legacy flags - kept for backward compatibility
-	cmd.Flags().StringVar(&f.Type, "type", "", "Specify the transaction type (e.g., TRANSFER, DEPOSIT, WITHDRAWAL). [Deprecated]")
-	cmd.Flags().StringVar(&f.Status, "status", "", "Specify the status of the transaction (e.g., PENDING, COMPLETED). [Deprecated]")
-	cmd.Flags().StringVar(&f.Amount, "amount", "", "Specify the transaction amount. [Deprecated]")
-	cmd.Flags().StringVar(&f.Currency, "currency", "", "Specify the currency code (e.g., USD). [Deprecated]")
-	cmd.Flags().StringVar(&f.SourceAccountID, "source-account-id", "", "Specify the source account ID. [Deprecated]")
-	cmd.Flags().StringVar(&f.DestinationAccountID, "destination-account-id", "", "Specify the destination account ID. [Deprecated]")
 
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
