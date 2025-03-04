@@ -156,6 +156,9 @@ func Test_balance_GetByID(t *testing.T) {
 	assert.Equal(t, expectedResult.Scale, result.Scale)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
+	assert.Equal(t, expectedResult.Version, result.Version)
+	assert.Equal(t, expectedResult.AllowSending, result.AllowSending)
+	assert.Equal(t, expectedResult.AllowReceiving, result.AllowReceiving)
 	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
 	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
 
@@ -309,26 +312,35 @@ func Test_balance_Update(t *testing.T) {
 	assert.Equal(t, expectedResult.Scale, result.Scale)
 	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
 	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
+	assert.Equal(t, expectedResult.Version, result.Version)
+	assert.Equal(t, expectedResult.AllowSending, result.AllowSending)
+	assert.Equal(t, expectedResult.AllowReceiving, result.AllowReceiving)
+	assert.Equal(t, expectedResult.CreatedAt, result.CreatedAt)
+	assert.Equal(t, expectedResult.UpdatedAt, result.UpdatedAt)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
 func Test_balance_Delete(t *testing.T) {
-	balanceID := "01932165-b21d-7e6a-b0fc-d5f625c42a72"
-	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	URIAPITransaction := "http://127.0.0.1:3000"
+	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
+	balanceID := "01932165-b21d-7e6a-b0fc-d5f625c42a72"
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
+	URIAPITransaction := "http://127.0.0.1:3000"
+
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
 		URIAPITransaction, organizationID, ledgerID, balanceID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
-		httpmock.NewStringResponder(http.StatusNoContent, ""))
+		func(req *http.Request) (*http.Response, error) {
+			resp := httpmock.NewStringResponse(http.StatusNoContent, "")
+			return resp, nil
+		})
 
 	factory := &factory.Factory{
 		HTTPClient: client,
@@ -343,84 +355,4 @@ func Test_balance_Delete(t *testing.T) {
 	err := balance.Delete(organizationID, ledgerID, balanceID)
 
 	assert.NoError(t, err)
-
-	info := httpmock.GetCallCountInfo()
-	assert.Equal(t, 1, info["DELETE "+uri])
-}
-
-func Test_balance_Create(t *testing.T) {
-	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
-	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
-	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
-	balanceID := "01932165-b21d-7e6a-b0fc-d5f625c42a72"
-
-	allowSending := true
-	allowReceiving := true
-	var initialAmount int64 = 1000
-	var initialScale int32 = 2
-
-	inp := mmodel.CreateBalanceInput{
-		AssetID:        assetID,
-		AllowSending:   &allowSending,
-		AllowReceiving: &allowReceiving,
-		InitialAmount:  &initialAmount,
-		InitialScale:   &initialScale,
-	}
-
-	expectedResult := &mmodel.Balance{
-		ID:             balanceID,
-		AccountID:      accountID,
-		AssetCode:      assetID,
-		Available:      1000,
-		OnHold:         0,
-		Scale:          2,
-		Version:        1,
-		LedgerID:       ledgerID,
-		OrganizationID: organizationID,
-		AllowSending:   true,
-		AllowReceiving: true,
-		CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-		UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
-	}
-
-	client := &http.Client{}
-	httpmock.ActivateNonDefault(client)
-	defer httpmock.DeactivateAndReset()
-
-	URIAPITransaction := "http://127.0.0.1:3000"
-
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
-		URIAPITransaction, organizationID, ledgerID, accountID)
-
-	httpmock.RegisterResponder(http.MethodPost, uri,
-		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/balance_response_create.json"))
-
-	factory := &factory.Factory{
-		HTTPClient: client,
-		Env: &environment.Env{
-			URLAPITransaction: URIAPITransaction,
-		},
-		Token: "test-token",
-	}
-
-	balance := NewBalance(factory)
-
-	result, err := balance.Create(organizationID, ledgerID, accountID, inp)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, expectedResult.ID, result.ID)
-	assert.Equal(t, expectedResult.AccountID, result.AccountID)
-	assert.Equal(t, expectedResult.AssetCode, result.AssetCode)
-	assert.Equal(t, expectedResult.Available, result.Available)
-	assert.Equal(t, expectedResult.OnHold, result.OnHold)
-	assert.Equal(t, expectedResult.Scale, result.Scale)
-	assert.Equal(t, expectedResult.OrganizationID, result.OrganizationID)
-	assert.Equal(t, expectedResult.LedgerID, result.LedgerID)
-	assert.Equal(t, expectedResult.AllowSending, result.AllowSending)
-	assert.Equal(t, expectedResult.AllowReceiving, result.AllowReceiving)
-
-	info := httpmock.GetCallCountInfo()
-	assert.Equal(t, 1, info["POST "+uri])
 }

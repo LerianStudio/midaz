@@ -18,8 +18,6 @@ func (f *factoryTransaction) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdTransactionListByParent(newInjectFacListByParent(f.factory)))
 	cmd.AddCommand(newCmdTransactionDescribe(newInjectFacDescribe(f.factory)))
 	cmd.AddCommand(newCmdTransactionUpdate(newInjectFacUpdate(f.factory)))
-	cmd.AddCommand(newCmdTransactionDelete(newInjectFacDelete(f.factory)))
-	cmd.AddCommand(newCmdTransactionCommit(newInjectFacCommit(f.factory)))
 	cmd.AddCommand(newCmdTransactionRevert(newInjectFacRevert(f.factory)))
 }
 
@@ -33,7 +31,7 @@ func NewCmdTransaction(f *factory.Factory) *cobra.Command {
 		Short: "Manages transactions in a ledger.",
 		Long: utils.Format(
 			"The transaction command allows you to create, update, list, describe,",
-			"commit, revert, and delete transactions within a ledger. You can create",
+			"and revert transactions within a ledger. You can create",
 			"transactions using JSON or DSL syntax. Each action is carried out",
 			"using a specific subcommand.",
 		),

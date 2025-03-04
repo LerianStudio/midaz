@@ -40,35 +40,6 @@ func (m *MockOperation) EXPECT() *MockOperationMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method.
-func (m *MockOperation) Create(organizationID, ledgerID string, operation *mmodel.Operation) (*mmodel.Operation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", organizationID, ledgerID, operation)
-	ret0, _ := ret[0].(*mmodel.Operation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Create indicates an expected call of Create.
-func (mr *MockOperationMockRecorder) Create(organizationID, ledgerID, operation any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOperation)(nil).Create), organizationID, ledgerID, operation)
-}
-
-// Delete mocks base method.
-func (m *MockOperation) Delete(organizationID, ledgerID, operationID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", organizationID, ledgerID, operationID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Delete indicates an expected call of Delete.
-func (mr *MockOperationMockRecorder) Delete(organizationID, ledgerID, operationID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockOperation)(nil).Delete), organizationID, ledgerID, operationID)
-}
-
 // Get mocks base method.
 func (m *MockOperation) Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error) {
 	m.ctrl.T.Helper()

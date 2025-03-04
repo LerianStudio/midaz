@@ -15,48 +15,7 @@ type balance struct {
 	Factory *factory.Factory
 }
 
-// Create creates a new balance
-func (r *balance) Create(
-	organizationID, ledgerID, accountID string,
-	inp mmodel.CreateBalanceInput,
-) (*mmodel.Balance, error) {
-	jsonData, err := json.Marshal(inp)
-	if err != nil {
-		return nil, fmt.Errorf("marshalling JSON: %v", err)
-	}
-
-	body := bytes.NewReader(jsonData)
-
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, accountID)
-
-	req, err := http.NewRequest(http.MethodPost, uri, body)
-	if err != nil {
-		return nil, errors.New("creating request: " + err.Error())
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
-
-	resp, err := r.Factory.HTTPClient.Do(req)
-	if err != nil {
-		return nil, errors.New("making POST request: " + err.Error())
-	}
-
-	defer resp.Body.Close()
-
-	if err := checkResponse(resp, http.StatusCreated); err != nil {
-		return nil, err
-	}
-
-	var balanceResp mmodel.Balance
-	if err := json.NewDecoder(resp.Body).Decode(&balanceResp); err != nil {
-		return nil, errors.New("decoding response JSON:" + err.Error())
-	}
-
-	return &balanceResp, nil
-}
-
+// Get retrieves all balances
 func (r *balance) Get(
 	organizationID, ledgerID string,
 	limit, page int,

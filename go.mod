@@ -6,7 +6,6 @@ toolchain go1.23.2
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/casdoor/casdoor-go-sdk v1.4.0
 	github.com/charmbracelet/bubbles v0.20.0
@@ -15,7 +14,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/google/trillian v1.7.1
-	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/joho/godotenv v1.5.1
@@ -58,8 +56,6 @@ require (
 	github.com/charmbracelet/lipgloss v1.0.0 // indirect
 	github.com/charmbracelet/x/ansi v0.8.0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
-	github.com/corpix/uarand v0.0.0-20170723150923-031be390f409 // indirect
-	github.com/creack/pty v1.1.17 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-logr/logr v1.4.2 // indirect

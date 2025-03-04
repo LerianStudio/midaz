@@ -70,20 +70,6 @@ func (mr *MockTransactionMockRecorder) CreateDSL(organizationID, ledgerID, inp a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateDSL", reflect.TypeOf((*MockTransaction)(nil).CreateDSL), organizationID, ledgerID, inp)
 }
 
-// Delete mocks base method.
-func (m *MockTransaction) Delete(organizationID, ledgerID, transactionID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", organizationID, ledgerID, transactionID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Delete indicates an expected call of Delete.
-func (mr *MockTransactionMockRecorder) Delete(organizationID, ledgerID, transactionID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockTransaction)(nil).Delete), organizationID, ledgerID, transactionID)
-}
-
 // Get mocks base method.
 func (m *MockTransaction) Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Transactions, error) {
 	m.ctrl.T.Helper()
@@ -157,4 +143,19 @@ func (m *MockTransaction) Update(organizationID, ledgerID, transactionID string,
 func (mr *MockTransactionMockRecorder) Update(organizationID, ledgerID, transactionID, inp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockTransaction)(nil).Update), organizationID, ledgerID, transactionID, inp)
+}
+
+// Revert mocks base method.
+func (m *MockTransaction) Revert(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Revert", organizationID, ledgerID, transactionID)
+	ret0, _ := ret[0].(*mmodel.Transaction)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Revert indicates an expected call of Revert.
+func (mr *MockTransactionMockRecorder) Revert(organizationID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Revert", reflect.TypeOf((*MockTransaction)(nil).Revert), organizationID, ledgerID, transactionID)
 }

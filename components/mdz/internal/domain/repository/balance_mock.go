@@ -40,35 +40,6 @@ func (m *MockBalance) EXPECT() *MockBalanceMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method.
-func (m *MockBalance) Create(organizationID, ledgerID, accountID string, inp mmodel.CreateBalanceInput) (*mmodel.Balance, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", organizationID, ledgerID, accountID, inp)
-	ret0, _ := ret[0].(*mmodel.Balance)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Create indicates an expected call of Create.
-func (mr *MockBalanceMockRecorder) Create(organizationID, ledgerID, accountID, inp any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockBalance)(nil).Create), organizationID, ledgerID, accountID, inp)
-}
-
-// Delete mocks base method.
-func (m *MockBalance) Delete(organizationID, ledgerID, balanceID string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", organizationID, ledgerID, balanceID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// Delete indicates an expected call of Delete.
-func (mr *MockBalanceMockRecorder) Delete(organizationID, ledgerID, balanceID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockBalance)(nil).Delete), organizationID, ledgerID, balanceID)
-}
-
 // Get mocks base method.
 func (m *MockBalance) Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Balances, error) {
 	m.ctrl.T.Helper()
@@ -157,4 +128,18 @@ func (m *MockBalance) Update(organizationID, ledgerID, balanceID string, inp mmo
 func (mr *MockBalanceMockRecorder) Update(organizationID, ledgerID, balanceID, inp any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockBalance)(nil).Update), organizationID, ledgerID, balanceID, inp)
+}
+
+// Delete mocks base method.
+func (m *MockBalance) Delete(organizationID, ledgerID, balanceID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", organizationID, ledgerID, balanceID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockBalanceMockRecorder) Delete(organizationID, ledgerID, balanceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockBalance)(nil).Delete), organizationID, ledgerID, balanceID)
 }

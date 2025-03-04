@@ -4,7 +4,6 @@ import "github.com/LerianStudio/midaz/pkg/mmodel"
 
 // Operation defines the interface for interacting with operation data in the system
 type Operation interface {
-	Create(organizationID, ledgerID string, operation *mmodel.Operation) (*mmodel.Operation, error)
 	Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error)
 	GetByID(organizationID, ledgerID, operationID string) (*mmodel.Operation, error)
 	GetByAccount(organizationID, ledgerID, accountID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error)
@@ -12,5 +11,4 @@ type Operation interface {
 	GetByTransaction(organizationID, ledgerID, transactionID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Operations, error)
 	ListByIDs(organizationID, ledgerID string, ids []string) ([]*mmodel.Operation, error)
 	Update(organizationID, ledgerID, transactionID, operationID string, inp mmodel.UpdateOperationInput) (*mmodel.Operation, error)
-	Delete(organizationID, ledgerID, operationID string) error
 }

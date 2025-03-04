@@ -11,5 +11,5 @@ type Transaction interface {
 	GetByParentID(organizationID, ledgerID, parentID string) (*mmodel.Transaction, error)
 	ListByIDs(organizationID, ledgerID string, ids []string) ([]*mmodel.Transaction, error)
 	Update(organizationID, ledgerID, transactionID string, inp mmodel.UpdateTransactionInput) (*mmodel.Transaction, error)
-	Delete(organizationID, ledgerID, transactionID string) error
+	Revert(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error)
 }

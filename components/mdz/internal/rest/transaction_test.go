@@ -155,9 +155,6 @@ func TestTransaction_Update(t *testing.T) {
 	orgID := "org_123"
 	ledgerID := "ldg_123"
 	transactionID := "txn_123"
-	expectedTransaction := mmodel.Transaction{
-		ID: transactionID,
-	}
 
 	roundTripFunc := func(req *http.Request) *http.Response {
 		assert.Equal(t, http.MethodPatch, req.Method)
@@ -169,10 +166,9 @@ func TestTransaction_Update(t *testing.T) {
 			req.URL.String(),
 		)
 
-		respBody, _ := json.Marshal(expectedTransaction)
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(bytes.NewReader(respBody)),
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"txn_123"}`))),
 		}
 	}
 
@@ -192,43 +188,4 @@ func TestTransaction_Update(t *testing.T) {
 	// Then
 	assert.NoError(t, err)
 	assert.Equal(t, transactionID, transaction.ID)
-}
-
-func TestTransaction_Delete(t *testing.T) {
-	// Given
-	orgID := "org_123"
-	ledgerID := "ldg_123"
-	transactionID := "txn_123"
-
-	roundTripFunc := func(req *http.Request) *http.Response {
-		assert.Equal(t, http.MethodDelete, req.Method)
-		assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
-		assert.Equal(t, "Bearer test-token", req.Header.Get("Authorization"))
-		assert.Equal(
-			t,
-			"http://example.com/v1/organizations/org_123/ledgers/ldg_123/transactions/txn_123",
-			req.URL.String(),
-		)
-
-		return &http.Response{
-			StatusCode: http.StatusNoContent,
-			Body:       io.NopCloser(bytes.NewReader([]byte{})),
-		}
-	}
-
-	clientMock := mockutil.NewMockHTTPClient(roundTripFunc)
-	f := &factory.Factory{
-		Env: &environment.Env{
-			URLAPITransaction: "http://example.com",
-		},
-		Token:      "test-token",
-		HTTPClient: clientMock,
-	}
-
-	// When
-	repo := NewTransaction(f)
-	err := repo.Delete(orgID, ledgerID, transactionID)
-
-	// Then
-	assert.NoError(t, err)
 }

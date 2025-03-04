@@ -15,47 +15,6 @@ type operation struct {
 	Factory *factory.Factory
 }
 
-func (r *operation) Create(
-	organizationID, ledgerID string,
-	operation *mmodel.Operation,
-) (*mmodel.Operation, error) {
-	jsonData, err := json.Marshal(operation)
-	if err != nil {
-		return nil, fmt.Errorf("marshalling JSON: %v", err)
-	}
-
-	body := bytes.NewReader(jsonData)
-
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
-
-	req, err := http.NewRequest(http.MethodPost, uri, body)
-	if err != nil {
-		return nil, errors.New("creating request: " + err.Error())
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
-
-	resp, err := r.Factory.HTTPClient.Do(req)
-	if err != nil {
-		return nil, errors.New("making POST request: " + err.Error())
-	}
-
-	defer resp.Body.Close()
-
-	if err := checkResponse(resp, http.StatusCreated); err != nil {
-		return nil, err
-	}
-
-	var operationResp mmodel.Operation
-	if err := json.NewDecoder(resp.Body).Decode(&operationResp); err != nil {
-		return nil, errors.New("decoding response JSON:" + err.Error())
-	}
-
-	return &operationResp, nil
-}
-
 func (r *operation) Get(
 	organizationID, ledgerID string,
 	limit, page int,
@@ -239,15 +198,18 @@ func (r *operation) GetByTransaction(
 	limit, page int,
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Operations, error) {
-	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/operations?limit=%d&page=%d&sort_order=%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, transactionID, limit, page, sortOrder)
 
-	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
-	if err != nil {
-		return nil, err
+	if startDate != "" {
+		uri += fmt.Sprintf("&start_date=%s", startDate)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if endDate != "" {
+		uri += fmt.Sprintf("&end_date=%s", endDate)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -259,6 +221,7 @@ func (r *operation) GetByTransaction(
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -271,32 +234,6 @@ func (r *operation) GetByTransaction(
 	}
 
 	return &operationsResp, nil
-}
-
-func (r *operation) Delete(organizationID, ledgerID, operationID string) error {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations/%s",
-		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, operationID)
-
-	req, err := http.NewRequest(http.MethodDelete, uri, nil)
-	if err != nil {
-		return errors.New("creating request: " + err.Error())
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
-
-	resp, err := r.Factory.HTTPClient.Do(req)
-	if err != nil {
-		return errors.New("making DELETE request: " + err.Error())
-	}
-
-	defer resp.Body.Close()
-
-	if err := checkResponse(resp, http.StatusNoContent); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (r *operation) ListByIDs(organizationID, ledgerID string, ids []string) ([]*mmodel.Operation, error) {

@@ -317,10 +317,12 @@ func (r *transaction) Update(
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
+	body := bytes.NewReader(jsonData)
+
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
 		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
 
-	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest(http.MethodPatch, uri, body)
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -331,66 +333,6 @@ func (r *transaction) Update(
 	resp, err := r.Factory.HTTPClient.Do(req)
 	if err != nil {
 		return nil, errors.New("making PATCH request: " + err.Error())
-	}
-	defer resp.Body.Close()
-
-	if err := checkResponse(resp, http.StatusOK); err != nil {
-		return nil, err
-	}
-
-	var respStr mmodel.Transaction
-	if err := json.NewDecoder(resp.Body).Decode(&respStr); err != nil {
-		return nil, errors.New("decoding response JSON:" + err.Error())
-	}
-
-	// Extract status code
-	extractStatusCode(&respStr)
-
-	return &respStr, nil
-}
-
-func (r *transaction) Delete(organizationID, ledgerID, transactionID string) error {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s",
-		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
-
-	req, err := http.NewRequest(http.MethodDelete, uri, nil)
-	if err != nil {
-		return errors.New("creating request: " + err.Error())
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
-
-	resp, err := r.Factory.HTTPClient.Do(req)
-	if err != nil {
-		return errors.New("making DELETE request: " + err.Error())
-	}
-
-	defer resp.Body.Close()
-
-	if err := checkResponse(resp, http.StatusNoContent); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Commit marks a transaction as committed
-func (r *transaction) Commit(organizationID, ledgerID, transactionID string) (*mmodel.Transaction, error) {
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/%s/commit",
-		r.ensureBaseURL(), organizationID, ledgerID, transactionID)
-
-	req, err := http.NewRequest(http.MethodPost, uri, nil)
-	if err != nil {
-		return nil, errors.New("creating request: " + err.Error())
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
-
-	resp, err := r.Factory.HTTPClient.Do(req)
-	if err != nil {
-		return nil, errors.New("making POST request: " + err.Error())
 	}
 	defer resp.Body.Close()
 
