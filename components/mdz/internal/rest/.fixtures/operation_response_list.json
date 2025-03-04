@@ -1,0 +1,64 @@
+{
+  "items": [
+    {
+      "id": "01932167-d43f-8g8c-d2ge-f7h848e64c94",
+      "transactionId": "01932161-h6df-8g2c-b83g-74ee8g7405f4",
+      "accountId": "01932159-f4bd-7e0a-971e-52cc6e528312",
+      "assetCode": "BRL",
+      "amount": {
+        "amount": 500,
+        "scale": 2
+      },
+      "balance": {
+        "available": 1000,
+        "onHold": 0,
+        "scale": 2
+      },
+      "balanceAfter": {
+        "available": 500,
+        "onHold": 0,
+        "scale": 2
+      },
+      "type": "DEBIT",
+      "status": {
+        "code": "COMPLETED",
+        "description": "Operation completed successfully"
+      },
+      "organizationId": "0192fc1d-f34d-78c9-9654-83e497349241",
+      "ledgerId": "01930218-bfb7-74fe-ba00-e52a17e9fb4e",
+      "createdAt": "2024-11-06T15:30:24.421664Z",
+      "updatedAt": "2024-11-06T15:30:24.421664Z"
+    },
+    {
+      "id": "01932168-e54g-9h9d-e3hf-g8i959f75d05",
+      "transactionId": "01932162-i7eg-9h3d-c94h-85ff9h8516g5",
+      "accountId": "01932160-g5ce-7f1b-982f-63dd7f639423",
+      "assetCode": "BRL",
+      "amount": {
+        "amount": 500,
+        "scale": 2
+      },
+      "balance": {
+        "available": 1000,
+        "onHold": 0,
+        "scale": 2
+      },
+      "balanceAfter": {
+        "available": 1500,
+        "onHold": 0,
+        "scale": 2
+      },
+      "type": "CREDIT",
+      "status": {
+        "code": "COMPLETED",
+        "description": "Operation completed successfully"
+      },
+      "organizationId": "0192fc1d-f34d-78c9-9654-83e497349241",
+      "ledgerId": "01930218-bfb7-74fe-ba00-e52a17e9fb4e",
+      "createdAt": "2024-11-06T15:30:24.421664Z",
+      "updatedAt": "2024-11-06T15:30:24.421664Z"
+    }
+  ],
+  "page": 1,
+  "limit": 2
+}

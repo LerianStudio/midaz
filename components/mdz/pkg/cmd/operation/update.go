@@ -83,12 +83,12 @@ func (f *factoryOperationUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoOperation.Update(f.OrganizationID, f.LedgerID, f.TransactionID, f.OperationID, operation)
+	_, err := f.repoOperation.Update(f.OrganizationID, f.LedgerID, f.TransactionID, f.OperationID, operation)
 	if err != nil {
 		return errors.CommandError("operation update", err)
 	}
 
-	output.FormatAndPrint(f.factory, resp, "Operation", output.Updated)
+	output.FormatAndPrint(f.factory, "The Operation has been successfully updated.", "Operation", output.Updated)
 
 	return nil
 }

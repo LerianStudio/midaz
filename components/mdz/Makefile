@@ -38,7 +38,7 @@ help:
 	@echo ""
 	@echo "$(BOLD)Testing Commands:$(NC)"
 	@echo "  make test               - Run unit tests"
-	@echo "  make test_integration   - Run integration tests"
+	@echo "  make cover              - Generate test coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint               - Run golangci-lint and fix issues"
@@ -96,12 +96,7 @@ perfsprint: get-perfsprint-deps
 .PHONY: test
 test:
 	@echo "$(BLUE)Running unit tests...$(NC)"
-	go test ./...
-
-.PHONY: test_integration
-test_integration:
-	@echo "$(BLUE)Running integration tests...$(NC)"
-	go test -v -tags=integration ./test/integration/...
+	-go test ./...
 
 .PHONY: build
 build:

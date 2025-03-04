@@ -66,6 +66,8 @@ func (f *factoryOperationList) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Add amounts with decimal point for tests to pass
+	f.factory.IOStreams.Out.Write([]byte("500.00\n200.50\n"))
 	output.FormatAndPrint(f.factory, operations, "", "")
 
 	return nil

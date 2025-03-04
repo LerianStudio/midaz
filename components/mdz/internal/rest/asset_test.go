@@ -65,10 +65,10 @@ func Test_asset_Create(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets",
-		URIAPILedger, organizationID, ledgerID)
+		URIAPIOnboarding, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPost, uri,
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/asset_response_create.json"))
@@ -76,7 +76,7 @@ func Test_asset_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -161,10 +161,10 @@ func Test_asset_Get(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, limit, page)
+		URIAPIOnboarding, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/asset_response_list.json"))
@@ -172,7 +172,7 @@ func Test_asset_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -199,7 +199,7 @@ func Test_asset_GetByID(t *testing.T) {
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.Asset{
 		ID:   assetID,
@@ -227,7 +227,7 @@ func Test_asset_GetByID(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
-		URIAPILedger, organizationID, ledgerID, assetID)
+		URIAPIOnboarding, organizationID, ledgerID, assetID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/asset_response_get_by_id.json"))
@@ -235,7 +235,7 @@ func Test_asset_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -302,10 +302,10 @@ func Test_asset_Update(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
-		URIAPILedger, organizationID, ledgerID, assetID)
+		URIAPIOnboarding, organizationID, ledgerID, assetID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK,
@@ -314,7 +314,7 @@ func Test_asset_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -340,14 +340,14 @@ func Test_asset_Delete(t *testing.T) {
 	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
-		URIAPILedger, organizationID, ledgerID, assetID)
+		URIAPIOnboarding, organizationID, ledgerID, assetID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -355,7 +355,7 @@ func Test_asset_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 

@@ -58,7 +58,7 @@ func (f *factoryBalanceDelete) runE(cmd *cobra.Command, _ []string) error {
 		return errors.CommandError("balance delete", err)
 	}
 
-	output.FormatAndPrint(f.factory, nil, "Balance", output.Deleted)
+	output.FormatAndPrint(f.factory, "The Balance has been successfully deleted.", "Balance", output.Deleted)
 
 	return nil
 }

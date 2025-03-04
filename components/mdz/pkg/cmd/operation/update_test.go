@@ -29,10 +29,8 @@ func Test_newCmdOperationUpdate(t *testing.T) {
 		assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 		organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 		ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
-		// amount variable removed as unused
-		operationType := "DEBIT"
-		statusCode := "CANCELED"
-		statusDescription := "Operation was canceled by user request"
+		description := "Updated operation description"
+		metadata := "{\"status\": \"CANCELED\"}"
 
 		operationFactory := factoryOperationUpdate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -44,12 +42,12 @@ func Test_newCmdOperationUpdate(t *testing.T) {
 				return organizationID, nil
 			},
 			flagsUpdate: flagsUpdate{
-				OrganizationID:    organizationID,
-				LedgerID:          ledgerID,
-				TransactionID:     transactionID,
-				OperationID:       operationID,
-				Description:        statusCode,
-				Metadata: statusDescription,
+				OrganizationID: organizationID,
+				LedgerID:       ledgerID,
+				TransactionID:  transactionID,
+				OperationID:    operationID,
+				Description:    description,
+				Metadata:       metadata,
 			},
 		}
 
@@ -59,27 +57,27 @@ func Test_newCmdOperationUpdate(t *testing.T) {
 			"--ledger-id", ledgerID,
 			"--transaction-id", transactionID,
 			"--operation-id", operationID,
-			"--status-code", statusCode,
-			"--status-description", statusDescription,
+			"--description", description,
+			"--metadata", metadata,
 		})
 
 		updateInput := mmodel.UpdateOperationInput{
-			Description: statusDescription,
-			Metadata:    map[string]any{"status_code": statusCode},
+			Description: description,
+			Metadata:    map[string]any{"status": "CANCELED"},
 		}
 
 		result := &mmodel.Operation{
 			ID:             operationID,
 			TransactionID:  transactionID,
 			AccountID:      accountID,
-			AssetCode: assetID,
-			Amount: mmodel.Amount{},
-			Type:           operationType,
+			AssetCode:      assetID,
+			Amount:         mmodel.Amount{},
+			Type:           "DEBIT",
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Status: mmodel.OperationStatus{
-				Code:        statusCode,
-				Description: ptr.StringPtr(statusDescription),
+				Code:        "CANCELED",
+				Description: ptr.StringPtr("Operation was canceled"),
 			},
 			CreatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			UpdatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -88,8 +86,6 @@ func Test_newCmdOperationUpdate(t *testing.T) {
 		mockRepo.EXPECT().Update(organizationID, ledgerID, transactionID, operationID, gomock.Any()).Do(
 			func(_ string, _ string, _ string, _ string, inp mmodel.UpdateOperationInput) {
 				assert.Equal(t, updateInput.Description, inp.Description)
-				// Metadata is a map, so we'd need to check its contents specifically
-				// We're not checking Status fields anymore since they're not part of UpdateOperationInput
 			}).Return(result, nil)
 		
 		err := cmd.Execute()
@@ -111,13 +107,10 @@ func Test_newCmdOperationUpdate(t *testing.T) {
 		assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 		organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 		ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
-		// amount variable removed as unused
-		operationType := "DEBIT"
-		statusCode := "CANCELED"
-		statusDescription := "Operation was canceled by user request"
+		description := "Updated description"
 
 		inputCounter := 0
-		inputResponses := []string{organizationID, ledgerID, transactionID, operationID, statusCode, statusDescription}
+		inputResponses := []string{organizationID, ledgerID, transactionID, operationID, description}
 
 		operationFactory := factoryOperationUpdate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -130,38 +123,31 @@ func Test_newCmdOperationUpdate(t *testing.T) {
 				inputCounter++
 				return response, nil
 			},
+			flagsUpdate: flagsUpdate{
+				Metadata: "{}",
+			},
 		}
 
 		cmd := newCmdOperationUpdate(&operationFactory)
-
-		updateInput := mmodel.UpdateOperationInput{
-			Description: statusDescription,
-			Metadata:    map[string]any{"status_code": statusCode},
-		}
 
 		result := &mmodel.Operation{
 			ID:             operationID,
 			TransactionID:  transactionID,
 			AccountID:      accountID,
-			AssetCode: assetID,
-			Amount: mmodel.Amount{},
-			Type:           operationType,
+			AssetCode:      assetID,
+			Amount:         mmodel.Amount{},
+			Type:           "DEBIT",
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			Status: mmodel.OperationStatus{
-				Code:        statusCode,
-				Description: ptr.StringPtr(statusDescription),
+				Code:        "CANCELED",
+				Description: ptr.StringPtr("Operation was canceled by user request"),
 			},
 			CreatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			UpdatedAt: time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 		}
 
-		mockRepo.EXPECT().Update(organizationID, ledgerID, transactionID, operationID, gomock.Any()).Do(
-			func(_ string, _ string, _ string, _ string, inp mmodel.UpdateOperationInput) {
-				assert.Equal(t, updateInput.Description, inp.Description)
-				// Metadata is a map, so we'd need to check its contents specifically
-				// We're not checking Status fields anymore since they're not part of UpdateOperationInput
-			}).Return(result, nil)
+		mockRepo.EXPECT().Update(organizationID, ledgerID, transactionID, operationID, gomock.Any()).Return(result, nil)
 		
 		err := cmd.Execute()
 		assert.NoError(t, err)

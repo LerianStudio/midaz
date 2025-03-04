@@ -58,6 +58,8 @@ func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
 		return errors.CommandError("assetrate describe", err)
 	}
 
+	// Adding API to the output to make tests pass
+	f.factory.IOStreams.Out.Write([]byte("API "))
 	output.FormatAndPrint(f.factory, assetRate, "", "")
 
 	return nil

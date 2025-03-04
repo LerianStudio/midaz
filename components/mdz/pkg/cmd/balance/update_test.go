@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +28,6 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 		ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 		accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 		assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
-		amount := "1500.00"
 
 		balanceFactory := factoryBalanceUpdate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -42,6 +42,7 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
 				BalanceID:      balanceID,
+				AllowSending:   "true",
 			},
 		}
 
@@ -50,18 +51,16 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 			"--organization-id", organizationID,
 			"--ledger-id", ledgerID,
 			"--balance-id", balanceID,
-			"--amount", amount,
+			"--allow-sending", "true",
 		})
-
-		// Variables removed as they are unused
 
 		result := &mmodel.Balance{
 			ID:             balanceID,
 			AccountID:      accountID,
-			AssetCode: assetID,
-				Available: 1000,
-				OnHold: 0,
-				Scale: 2,
+			AssetCode:      assetID,
+			Available:      1000,
+			OnHold:         0,
+			Scale:          2,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -70,7 +69,7 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 
 		mockRepo.EXPECT().Update(organizationID, ledgerID, balanceID, gomock.Any()).Do(
 			func(_ string, _ string, _ string, inp mmodel.UpdateBalance) {
-				
+				assert.Equal(t, mpointers.Bool(true), inp.AllowSending)
 			}).Return(result, nil)
 		
 		err := cmd.Execute()
@@ -91,10 +90,9 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 		ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 		accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 		assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
-		amount := "1500.00"
 
 		inputCounter := 0
-		inputResponses := []string{organizationID, ledgerID, balanceID, amount}
+		inputResponses := []string{organizationID, ledgerID, balanceID}
 
 		balanceFactory := factoryBalanceUpdate{
 			factory: &factory.Factory{IOStreams: &iostreams.IOStreams{
@@ -107,19 +105,23 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 				inputCounter++
 				return response, nil
 			},
+			flagsUpdate: flagsUpdate{
+				AllowSending: "true",
+			},
 		}
 
 		cmd := newCmdBalanceUpdate(&balanceFactory)
-
-		// Variables removed as they are unused
+		cmd.SetArgs([]string{
+			"--allow-sending", "true",
+		})
 
 		result := &mmodel.Balance{
 			ID:             balanceID,
 			AccountID:      accountID,
-			AssetCode: assetID,
-				Available: 1000,
-				OnHold: 0,
-				Scale: 2,
+			AssetCode:      assetID,
+			Available:      1000,
+			OnHold:         0,
+			Scale:          2,
 			OrganizationID: organizationID,
 			LedgerID:       ledgerID,
 			CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
@@ -128,7 +130,7 @@ func Test_newCmdBalanceUpdate(t *testing.T) {
 
 		mockRepo.EXPECT().Update(organizationID, ledgerID, balanceID, gomock.Any()).Do(
 			func(_ string, _ string, _ string, inp mmodel.UpdateBalance) {
-				
+				assert.Equal(t, mpointers.Bool(true), inp.AllowSending)
 			}).Return(result, nil)
 		
 		err := cmd.Execute()

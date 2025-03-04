@@ -64,15 +64,15 @@ func TestCreateOrganization(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
-	httpmock.RegisterResponder(http.MethodPost, URIAPILedger+"/v1/organizations",
+	httpmock.RegisterResponder(http.MethodPost, URIAPIOnboarding+"/v1/organizations",
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/organization_response_create.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -96,7 +96,7 @@ func TestCreateOrganization(t *testing.T) {
 
 func TestOrganizationGetByID(t *testing.T) {
 	organizationID := "0192c559-62f4-738b-9be5-262b71f6375a"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	metadata := map[string]any{
 		"bitcoin": "1R4DvodZi68SxKbvNeQGCkaPj25Ryumy",
@@ -118,13 +118,13 @@ func TestOrganizationGetByID(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder(http.MethodGet, URIAPILedger+"/v1/organizations/"+organizationID,
+	httpmock.RegisterResponder(http.MethodGet, URIAPIOnboarding+"/v1/organizations/"+organizationID,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/organization_response_get_by_id.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -185,16 +185,16 @@ func TestOrganizationUpdate(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 	organizationID := "1a259e90-8f28-491d-8c09-c047293b1a0f"
 
-	httpmock.RegisterResponder(http.MethodPatch, URIAPILedger+"/v1/organizations/"+organizationID,
+	httpmock.RegisterResponder(http.MethodPatch, URIAPIOnboarding+"/v1/organizations/"+organizationID,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/organization_response_update.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -219,16 +219,16 @@ func Test_organization_Delete(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 	organizationID := "1a259e90-8f28-491d-8c09-c047293b1a0f"
 
-	httpmock.RegisterResponder(http.MethodDelete, URIAPILedger+"/v1/organizations/"+organizationID,
+	httpmock.RegisterResponder(http.MethodDelete, URIAPIOnboarding+"/v1/organizations/"+organizationID,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -244,7 +244,7 @@ func Test_organization_Delete(t *testing.T) {
 
 func Test_organization_Get(t *testing.T) {
 	organizationID := "0192c559-62f4-738b-9be5-262b71f6375a"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	limit := 5
 	page := 1
@@ -277,13 +277,13 @@ func Test_organization_Get(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder(http.MethodGet, URIAPILedger+"/v1/organizations?limit=5&page=1",
+	httpmock.RegisterResponder(http.MethodGet, URIAPIOnboarding+"/v1/organizations?limit=5&page=1",
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/organization_response_get_by_id.json"))
 
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 

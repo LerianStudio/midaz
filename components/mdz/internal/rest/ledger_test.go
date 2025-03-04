@@ -54,9 +54,9 @@ func Test_ledger_Create(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers", URIAPILedger, organizationID)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers", URIAPIOnboarding, organizationID)
 
 	httpmock.RegisterResponder(http.MethodPost, uri,
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/ledger_response.json"))
@@ -64,7 +64,7 @@ func Test_ledger_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -165,9 +165,9 @@ func Test_ledger_List(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d", URIAPILedger, organizationID, limit, page)
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers?limit=%d&page=%d", URIAPIOnboarding, organizationID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/ledger_response_list.json"))
@@ -175,7 +175,7 @@ func Test_ledger_List(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -201,7 +201,7 @@ func Test_ledger_GetByID(t *testing.T) {
 	ledgerID := "0192e362-b270-7158-a647-7a59e4e26a27"
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.Ledger{
 		ID:             ledgerID,
@@ -226,7 +226,7 @@ func Test_ledger_GetByID(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
-		URIAPILedger, organizationID, ledgerID)
+		URIAPIOnboarding, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/ledger_response_item.json"))
@@ -234,7 +234,7 @@ func Test_ledger_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -289,11 +289,11 @@ func Test_ledger_Update(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
-		URIAPILedger, organizationID, ledgerID)
+		URIAPIOnboarding, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/ledger_response_update.json"))
@@ -301,7 +301,7 @@ func Test_ledger_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -324,14 +324,14 @@ func Test_ledger_Update(t *testing.T) {
 func Test_ledger_Delete(t *testing.T) {
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
-		URIAPILedger, organizationID, ledgerID)
+		URIAPIOnboarding, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -339,7 +339,7 @@ func Test_ledger_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 

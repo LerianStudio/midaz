@@ -71,12 +71,12 @@ func (f *factoryAssetRateCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoAssetRate.Create(f.OrganizationID, f.LedgerID, assetRate)
+	_, err := f.repoAssetRate.Create(f.OrganizationID, f.LedgerID, assetRate)
 	if err != nil {
 		return errors.CommandError("assetrate create", err)
 	}
 
-	output.FormatAndPrint(f.factory, resp, "AssetRate", output.Created)
+	output.FormatAndPrint(f.factory, "The AssetRate has been successfully created.", "AssetRate", output.Created)
 
 	return nil
 }

@@ -56,10 +56,10 @@ func Test_segment_Create(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments",
-		URIAPILedger, organizationID, ledgerID)
+		URIAPIOnboarding, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPost, uri,
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/segment_response_create.json"))
@@ -67,7 +67,7 @@ func Test_segment_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -138,10 +138,10 @@ func Test_segment_Get(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, limit, page)
+		URIAPIOnboarding, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/segment_response_list.json"))
@@ -149,7 +149,7 @@ func Test_segment_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -177,7 +177,7 @@ func Test_segment_GetByID(t *testing.T) {
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.Segment{
 		ID:             segmentID,
@@ -198,7 +198,7 @@ func Test_segment_GetByID(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
-		URIAPILedger, organizationID, ledgerID, segmentID)
+		URIAPIOnboarding, organizationID, ledgerID, segmentID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/segment_response_get_by_id.json"))
@@ -206,7 +206,7 @@ func Test_segment_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -267,10 +267,10 @@ func Test_segment_Update(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
-		URIAPILedger, organizationID, ledgerID, segmentID)
+		URIAPIOnboarding, organizationID, ledgerID, segmentID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK,
@@ -279,7 +279,7 @@ func Test_segment_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -303,14 +303,14 @@ func Test_segment_Delete(t *testing.T) {
 	segmentID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
-		URIAPILedger, organizationID, ledgerID, segmentID)
+		URIAPIOnboarding, organizationID, ledgerID, segmentID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -318,7 +318,7 @@ func Test_segment_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 

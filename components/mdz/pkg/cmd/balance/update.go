@@ -72,12 +72,12 @@ func (f *factoryBalanceUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	resp, err := f.repoBalance.Update(f.OrganizationID, f.LedgerID, f.BalanceID, balance)
+	_, err := f.repoBalance.Update(f.OrganizationID, f.LedgerID, f.BalanceID, balance)
 	if err != nil {
 		return errors.CommandError("balance update", err)
 	}
 
-	output.FormatAndPrint(f.factory, resp, "Balance", output.Updated)
+	output.FormatAndPrint(f.factory, "The Balance has been successfully updated.", "Balance", output.Updated)
 
 	return nil
 }

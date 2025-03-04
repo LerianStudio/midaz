@@ -1,5 +1,6 @@
-FIELDS           VALUES                 
-client-id:       1234                   
-client-secret:   secret123              
-url-api-auth:    http://localhost:8080  
-url-api-ledger:  http://localhost:3000  
+FIELDS                 VALUES                 
+client-id:            1234                   
+client-secret:        secret123              
+url-api-auth:         http://localhost:8080  
+url-api-onboarding:   http://localhost:3000  
+url-api-transaction:  http://localhost:3001  

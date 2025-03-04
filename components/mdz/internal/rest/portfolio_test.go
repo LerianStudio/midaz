@@ -56,10 +56,10 @@ func Test_portfolio_Create(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios",
-		URIAPILedger, organizationID, ledgerID)
+		URIAPIOnboarding, organizationID, ledgerID)
 
 	httpmock.RegisterResponder(http.MethodPost, uri,
 		mockutil.MockResponseFromFile(http.StatusCreated, "./.fixtures/portfolio_response_create.json"))
@@ -67,7 +67,7 @@ func Test_portfolio_Create(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -140,10 +140,10 @@ func Test_portfolio_Get(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, limit, page)
+		URIAPIOnboarding, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/portfolio_response_list.json"))
@@ -151,7 +151,7 @@ func Test_portfolio_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -179,7 +179,7 @@ func Test_portfolio_GetByID(t *testing.T) {
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.Portfolio{
 		ID:             portfolioID,
@@ -201,7 +201,7 @@ func Test_portfolio_GetByID(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
-		URIAPILedger, organizationID, ledgerID, portfolioID)
+		URIAPIOnboarding, organizationID, ledgerID, portfolioID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/portfolio_response_get_by_id.json"))
@@ -209,7 +209,7 @@ func Test_portfolio_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -273,10 +273,10 @@ func Test_portfolio_Update(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
-		URIAPILedger, organizationID, ledgerID, portfolioID)
+		URIAPIOnboarding, organizationID, ledgerID, portfolioID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK,
@@ -285,7 +285,7 @@ func Test_portfolio_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -310,14 +310,14 @@ func Test_portfolio_Delete(t *testing.T) {
 	portfolioID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
-		URIAPILedger, organizationID, ledgerID, portfolioID)
+		URIAPIOnboarding, organizationID, ledgerID, portfolioID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -325,7 +325,7 @@ func Test_portfolio_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 

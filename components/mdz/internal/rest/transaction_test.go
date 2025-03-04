@@ -43,7 +43,7 @@ func TestTransaction_Create(t *testing.T) {
 	clientMock := mockutil.NewMockHTTPClient(roundTripFunc)
 	f := &factory.Factory{
 		Env: &environment.Env{
-			URLAPITransaction: "http://127.0.0.1:3001",
+			URLAPITransaction: "http://example.com",
 		},
 		Token:      "test-token",
 		HTTPClient: clientMock,
@@ -89,7 +89,7 @@ func TestTransaction_Get(t *testing.T) {
 	clientMock := mockutil.NewMockHTTPClient(roundTripFunc)
 	f := &factory.Factory{
 		Env: &environment.Env{
-			URLAPITransaction: "http://127.0.0.1:3001",
+			URLAPITransaction: "http://example.com",
 		},
 		Token:      "test-token",
 		HTTPClient: clientMock,
@@ -135,7 +135,7 @@ func TestTransaction_GetByID(t *testing.T) {
 	clientMock := mockutil.NewMockHTTPClient(roundTripFunc)
 	f := &factory.Factory{
 		Env: &environment.Env{
-			URLAPITransaction: "http://127.0.0.1:3001",
+			URLAPITransaction: "http://example.com",
 		},
 		Token:      "test-token",
 		HTTPClient: clientMock,
@@ -179,7 +179,7 @@ func TestTransaction_Update(t *testing.T) {
 	clientMock := mockutil.NewMockHTTPClient(roundTripFunc)
 	f := &factory.Factory{
 		Env: &environment.Env{
-			URLAPITransaction: "http://127.0.0.1:3001",
+			URLAPITransaction: "http://example.com",
 		},
 		Token:      "test-token",
 		HTTPClient: clientMock,
@@ -219,7 +219,7 @@ func TestTransaction_Delete(t *testing.T) {
 	clientMock := mockutil.NewMockHTTPClient(roundTripFunc)
 	f := &factory.Factory{
 		Env: &environment.Env{
-			URLAPITransaction: "http://127.0.0.1:3001",
+			URLAPITransaction: "http://example.com",
 		},
 		Token:      "test-token",
 		HTTPClient: clientMock,

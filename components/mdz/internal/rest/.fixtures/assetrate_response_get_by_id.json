@@ -1,0 +1,10 @@
+{
+  "from": "BRL",
+  "to": "USD",
+  "rate": 4.97,
+  "externalId": "ext-rate-12345",
+  "organizationId": "0192e250-ed9d-7e5c-a614-9b294151b572",
+  "ledgerId": "0192e251-328d-7390-99f5-5c54980115ed",
+  "createdAt": "2024-11-06T15:30:24.421664Z",
+  "updatedAt": "2024-11-06T15:30:24.421664Z"
+}

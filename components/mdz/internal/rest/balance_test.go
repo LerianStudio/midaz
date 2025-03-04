@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/mockutil"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +37,8 @@ func Test_balance_Get(t *testing.T) {
 				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
+				AllowSending:   true,
+				AllowReceiving: true,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
@@ -49,6 +52,8 @@ func Test_balance_Get(t *testing.T) {
 				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
+				AllowSending:   true,
+				AllowReceiving: true,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
@@ -59,10 +64,10 @@ func Test_balance_Get(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, limit, page)
+		URIAPIOnboarding, organizationID, ledgerID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/balance_response_list.json"))
@@ -70,7 +75,7 @@ func Test_balance_Get(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -101,14 +106,20 @@ func Test_balance_GetByID(t *testing.T) {
 	accountID := "01932159-f4bd-7e0a-971e-52cc6e528312"
 	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	expectedResult := &mmodel.Balance{
 		ID:             balanceID,
 		AccountID:      accountID,
 		AssetCode:      assetID,
+		Available:      1000,
+		OnHold:         0,
+		Scale:          2,
+		Version:        1,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
+		AllowSending:   true,
+		AllowReceiving: true,
 		CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 		UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 	}
@@ -118,7 +129,7 @@ func Test_balance_GetByID(t *testing.T) {
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		URIAPILedger, organizationID, ledgerID, balanceID)
+		URIAPIOnboarding, organizationID, ledgerID, balanceID)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/balance_response_get_by_id.json"))
@@ -126,7 +137,7 @@ func Test_balance_GetByID(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -172,6 +183,8 @@ func Test_balance_GetByAccount(t *testing.T) {
 				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
+				AllowSending:   true,
+				AllowReceiving: true,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
@@ -185,6 +198,8 @@ func Test_balance_GetByAccount(t *testing.T) {
 				Version:        1,
 				OrganizationID: organizationID,
 				LedgerID:       ledgerID,
+				AllowSending:   true,
+				AllowReceiving: true,
 				CreatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 				UpdatedAt:      time.Date(2024, 11, 06, 15, 30, 24, 421664000, time.UTC),
 			},
@@ -195,10 +210,10 @@ func Test_balance_GetByAccount(t *testing.T) {
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances?limit=%d&page=%d",
-		URIAPILedger, organizationID, ledgerID, accountID, limit, page)
+		URIAPIOnboarding, organizationID, ledgerID, accountID, limit, page)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/balance_response_by_account.json"))
@@ -206,7 +221,7 @@ func Test_balance_GetByAccount(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -238,24 +253,32 @@ func Test_balance_Update(t *testing.T) {
 	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	// amount removed as unused
 
-	inp := mmodel.UpdateBalance{}
+	inp := mmodel.UpdateBalance{
+		AllowSending: mpointers.Bool(true),
+	}
 
 	expectedResult := &mmodel.Balance{
 		ID:             balanceID,
 		AccountID:      accountID,
 		AssetCode:      assetID,
+		Available:      1000,
+		OnHold:         0,
+		Scale:          2,
+		Version:        1,
 		LedgerID:       ledgerID,
 		OrganizationID: organizationID,
+		AllowSending:   true,
+		AllowReceiving: true,
 	}
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		URIAPILedger, organizationID, ledgerID, balanceID)
+		URIAPIOnboarding, organizationID, ledgerID, balanceID)
 
 	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK,
@@ -264,7 +287,7 @@ func Test_balance_Update(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
@@ -291,14 +314,14 @@ func Test_balance_Delete(t *testing.T) {
 	balanceID := "01932165-b21d-7e6a-b0fc-d5f625c42a72"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
-	URIAPILedger := "http://127.0.0.1:3000"
+	URIAPIOnboarding := "http://127.0.0.1:3000"
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s",
-		URIAPILedger, organizationID, ledgerID, balanceID)
+		URIAPIOnboarding, organizationID, ledgerID, balanceID)
 
 	httpmock.RegisterResponder(http.MethodDelete, uri,
 		httpmock.NewStringResponder(http.StatusNoContent, ""))
@@ -306,7 +329,7 @@ func Test_balance_Delete(t *testing.T) {
 	factory := &factory.Factory{
 		HTTPClient: client,
 		Env: &environment.Env{
-			URLAPIOnboarding: URIAPILedger,
+			URLAPIOnboarding: URIAPIOnboarding,
 		},
 	}
 
