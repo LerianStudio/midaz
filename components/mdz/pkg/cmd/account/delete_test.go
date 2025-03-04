@@ -35,7 +35,6 @@ func Test_newCmdAccountDelete(t *testing.T) {
 		cmd.SetArgs([]string{
 			"--organization-id", "321",
 			"--ledger-id", "123",
-			"--portfolio-id", "12312",
 			"--account-id", "444",
 		})
 

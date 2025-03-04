@@ -118,7 +118,7 @@ func newCmdTransactionCommit(i *injectFacCommit) *cobra.Command {
 			// Convert to API transaction model for display
 			txnAPI := model.AsTransaction(txn)
 			fmt.Printf("Successfully committed transaction: %s\n", txnAPI.ID)
-			fmt.Printf("Status: %s\n", txnAPI.Status)
+			fmt.Printf("Status: %s\n", txnAPI.Status.Code)
 			return nil
 		},
 	}

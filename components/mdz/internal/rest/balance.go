@@ -230,6 +230,94 @@ func (r *balance) Delete(organizationID, ledgerID, balanceID string) error {
 	return nil
 }
 
+func (r *balance) ListByAccountIDs(organizationID, ledgerID string, accountIDs []string) ([]*mmodel.Balance, error) {
+	// Convert account IDs to query parameters
+	if len(accountIDs) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
+	// Use comma-separated account IDs in a query parameter
+	accountIDsStr := ""
+	for i, id := range accountIDs {
+		if i > 0 {
+			accountIDsStr += ","
+		}
+		accountIDsStr += id
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/accounts?accountIds=%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, accountIDsStr)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var balancesResp []*mmodel.Balance
+	if err := json.NewDecoder(resp.Body).Decode(&balancesResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return balancesResp, nil
+}
+
+func (r *balance) ListByAliases(organizationID, ledgerID string, aliases []string) ([]*mmodel.Balance, error) {
+	// Convert aliases to query parameters
+	if len(aliases) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
+	// Use comma-separated aliases in a query parameter
+	aliasesStr := ""
+	for i, alias := range aliases {
+		if i > 0 {
+			aliasesStr += ","
+		}
+		aliasesStr += alias
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/aliases?aliases=%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, aliasesStr)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var balancesResp []*mmodel.Balance
+	if err := json.NewDecoder(resp.Body).Decode(&balancesResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return balancesResp, nil
+}
+
 // NewBalance creates a new balance REST client
 func NewBalance(f *factory.Factory) *balance {
 	return &balance{f}

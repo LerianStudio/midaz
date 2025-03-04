@@ -170,6 +170,39 @@ func (r *transaction) GetByID(
 
 func (r *transaction) GetByParentID(
 	organizationID, ledgerID, parentID string,
+) (*mmodel.Transaction, error) {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/parent/%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, parentID)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var transactionResp mmodel.Transaction
+	if err := json.NewDecoder(resp.Body).Decode(&transactionResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &transactionResp, nil
+}
+
+// GetByParentIDPaginated gets child transactions for a parent transaction with pagination
+func (r *transaction) GetByParentIDPaginated(
+	organizationID, ledgerID, parentID string,
 	limit, page int,
 	sortOrder, startDate, endDate string,
 ) (*mmodel.Transactions, error) {
@@ -331,6 +364,50 @@ func (r *transaction) Revert(organizationID, ledgerID, transactionID string) (*m
 	}
 
 	return &transactionResp, nil
+}
+
+func (r *transaction) ListByIDs(organizationID, ledgerID string, ids []string) ([]*mmodel.Transaction, error) {
+	// Convert IDs to query parameters
+	if len(ids) == 0 {
+		return []*mmodel.Transaction{}, nil
+	}
+
+	// Use comma-separated IDs in a query parameter
+	idsStr := ""
+	for i, id := range ids {
+		if i > 0 {
+			idsStr += ","
+		}
+		idsStr += id
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions/list?ids=%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, idsStr)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var transactionsResp []*mmodel.Transaction
+	if err := json.NewDecoder(resp.Body).Decode(&transactionsResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return transactionsResp, nil
 }
 
 // NewTransaction creates a new transaction REST client

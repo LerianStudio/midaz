@@ -114,16 +114,37 @@ func (o *listByParentOptions) run() (*mmodel.Transactions, error) {
 		return nil, nil
 	}
 
-	return o.factory.Transaction().GetByParentID(
-		o.organizationID,
-		o.ledgerID,
-		o.parentID,
-		o.limit,
-		o.page,
-		o.sortOrder,
-		o.startDate,
-		o.endDate,
-	)
+	// Use the GetByParentIDPaginated method directly
+	txn := o.factory.Transaction()
+	
+	// Check if the GetByParentIDPaginated method exists on the transaction object
+	if txnWithPagination, ok := interface{}(txn).(interface {
+		GetByParentIDPaginated(string, string, string, int, int, string, string, string) (*mmodel.Transactions, error)
+	}); ok {
+		return txnWithPagination.GetByParentIDPaginated(
+			o.organizationID,
+			o.ledgerID,
+			o.parentID,
+			o.limit,
+			o.page,
+			o.sortOrder,
+			o.startDate,
+			o.endDate,
+		)
+	}
+	
+	// Fallback to getting a single transaction if the paginated method is not available
+	singleTxn, err := txn.GetByParentID(o.organizationID, o.ledgerID, o.parentID)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Convert single transaction to transactions list
+	return &mmodel.Transactions{
+		Items: []mmodel.Transaction{*singleTxn},
+		Page:  1,
+		Limit: 1,
+	}, nil
 }
 
 type injectFacListByParent struct {
@@ -186,7 +207,7 @@ func newCmdTransactionListByParent(i *injectFacListByParent) *cobra.Command {
 						data = append(data, []string{
 							apiTxn.ID,
 							utils.TruncateString(apiTxn.Description, 30),
-							apiTxn.Status,
+							apiTxn.Status.Code,
 							apiTxn.Type,
 							apiTxn.CreatedAt.Format("2006-01-02 15:04:05"),
 						})

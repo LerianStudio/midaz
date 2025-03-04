@@ -15,6 +15,47 @@ type operation struct {
 	Factory *factory.Factory
 }
 
+func (r *operation) Create(
+	organizationID, ledgerID string,
+	operation *mmodel.Operation,
+) (*mmodel.Operation, error) {
+	jsonData, err := json.Marshal(operation)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling JSON: %v", err)
+	}
+
+	body := bytes.NewReader(jsonData)
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID)
+
+	req, err := http.NewRequest(http.MethodPost, uri, body)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making POST request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusCreated); err != nil {
+		return nil, err
+	}
+
+	var operationResp mmodel.Operation
+	if err := json.NewDecoder(resp.Body).Decode(&operationResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return &operationResp, nil
+}
+
 func (r *operation) Get(
 	organizationID, ledgerID string,
 	limit, page int,
@@ -230,6 +271,76 @@ func (r *operation) GetByTransaction(
 	}
 
 	return &operationsResp, nil
+}
+
+func (r *operation) Delete(organizationID, ledgerID, operationID string) error {
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations/%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, operationID)
+
+	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+	if err != nil {
+		return errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return errors.New("making DELETE request: " + err.Error())
+	}
+
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusNoContent); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *operation) ListByIDs(organizationID, ledgerID string, ids []string) ([]*mmodel.Operation, error) {
+	// Convert IDs to query parameters
+	if len(ids) == 0 {
+		return []*mmodel.Operation{}, nil
+	}
+
+	// Use comma-separated IDs in a query parameter
+	idsStr := ""
+	for i, id := range ids {
+		if i > 0 {
+			idsStr += ","
+		}
+		idsStr += id
+	}
+
+	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations/list?ids=%s",
+		r.Factory.Env.URLAPITransaction, organizationID, ledgerID, idsStr)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, errors.New("creating request: " + err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
+
+	resp, err := r.Factory.HTTPClient.Do(req)
+	if err != nil {
+		return nil, errors.New("making GET request: " + err.Error())
+	}
+	defer resp.Body.Close()
+
+	if err := checkResponse(resp, http.StatusOK); err != nil {
+		return nil, err
+	}
+
+	var operationsResp []*mmodel.Operation
+	if err := json.NewDecoder(resp.Body).Decode(&operationsResp); err != nil {
+		return nil, errors.New("decoding response JSON:" + err.Error())
+	}
+
+	return operationsResp, nil
 }
 
 // NewOperation creates a new operation REST client
