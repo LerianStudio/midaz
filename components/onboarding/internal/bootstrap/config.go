@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"github.com/LerianStudio/auth-sdk/auth/middleware"
 
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
@@ -69,6 +70,8 @@ type Config struct {
 	RedisPort               string `env:"REDIS_PORT"`
 	RedisUser               string `env:"REDIS_USER"`
 	RedisPassword           string `env:"REDIS_PASSWORD"`
+	AuthEnabled             bool   `env:"AUTH_ENABLED"`
+	AuthHost                string `env:"AUTH_HOST"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -210,7 +213,12 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	httpApp := httpin.NewRouter(logger, telemetry, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
+	auth := &middleware.AuthClient{
+		AuthAddress: cfg.AuthHost,
+		AuthEnabled: cfg.AuthEnabled,
+	}
+
+	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 
 	serverAPI := NewServer(cfg, httpApp, logger, telemetry)
 
