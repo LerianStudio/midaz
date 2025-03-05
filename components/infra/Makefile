@@ -1,80 +1,85 @@
-service_name := infra-service
-bin_dir := ./.bin
-artifacts_dir := ./artifacts
+SERVICE_NAME := infra-service
+BIN_DIR := ./.bin
+ARTIFACTS_DIR := ./artifacts
 
-$(shell mkdir -p $(artifacts_dir))
+$(shell mkdir -p $(ARTIFACTS_DIR))
 
-DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
-DOCKER_MIN_VERSION := 20.10.13
+# Define the root directory of the project (if not already defined)
+MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
-DOCKER_CMD := $(shell \
-	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
-		echo "docker compose"; \
-	else \
-		echo "docker-compose"; \
-	fi \
-)
+# Include shared color definitions and utility functions
+include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
+include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 
 # Display available commands
 .PHONY: info
 info:
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                                       "
-	@echo "To run a specific command inside the infra container using make, you can execute:                                                     "
-	@echo "                                                                                                                                       "
-	@echo "make infra COMMAND=\"any\"                                                                                                            "
-	@echo "                                                                                                                                       "
-	@echo "This command will run the specified command inside the infra container. Replace \"any\" with the desired command you want to execute. "
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                         "
-	@echo "## Docker commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"build\"                                Builds all Docker images defined in docker-compose.yml."
-	@echo "  COMMAND=\"up\"                                   Starts and runs all services defined in docker-compose.yml."
-	@echo "  COMMAND=\"start\"                                Starts existing containers defined in docker-compose.yml without creating them."
-	@echo "  COMMAND=\"stop\"                                 Stops running containers defined in docker-compose.yml without removing them."
-	@echo "  COMMAND=\"down\"                                 Stops and removes containers, networks, and volumes defined in docker-compose.yml."
-	@echo "  COMMAND=\"destroy\"                              Stops and removes containers, networks, and volumes (including named volumes) defined in docker-compose.yml."
-	@echo "  COMMAND=\"restart\"                              Stops and removes containers, networks, and volumes, then starts all services in detached mode."
-	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
-	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                                       "
+	@echo ""
+	@echo "$(BOLD)Infra Service Commands$(NC)"
+	@echo ""
+	@echo "To run a specific command inside the infra container using make, you can execute:"
+	@echo ""
+	@echo "$(CYAN)make infra COMMAND=\"any\"$(NC)"
+	@echo ""
+	@echo "This command will run the specified command inside the infra container."
+	@echo "Replace \"any\" with the desired command you want to execute."
+	@echo ""
+	@echo "$(BOLD)## Docker commands:$(NC)"
+	@echo ""
+	@echo "  $(CYAN)COMMAND=\"build\"$(NC)                                Build Docker images"
+	@echo "  $(CYAN)COMMAND=\"up\"$(NC)                                   Start all services in detached mode"
+	@echo "  $(CYAN)COMMAND=\"start\"$(NC)                                Start existing containers"
+	@echo "  $(CYAN)COMMAND=\"stop\"$(NC)                                 Stop running containers"
+	@echo "  $(CYAN)COMMAND=\"down\"$(NC)                                 Stop and remove containers, networks, and volumes"
+	@echo "  $(CYAN)COMMAND=\"destroy\"$(NC)                              Stop and remove containers, networks, and all volumes"
+	@echo "  $(CYAN)COMMAND=\"restart\"$(NC)                              Restart all services"
+	@echo "  $(CYAN)COMMAND=\"logs\"$(NC)                                 Show and follow logs for all services"
+	@echo "  $(CYAN)COMMAND=\"ps\"$(NC)                                   List container status"
+	@echo ""
 
 # Docker Compose Commands
 .PHONY: build
 build:
+	@echo "$(BLUE)Building Docker images...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
 .PHONY: up
 up:
+	@echo "$(BLUE)Starting all services in detached mode...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 
 .PHONY: start
 start:
-	@docker compose -f docker-compose.yml start $(c)
+	@echo "$(BLUE)Starting existing containers...$(NC)"
+	@$(DOCKER_CMD) -f docker-compose.yml start $(c)
 
 .PHONY: down
 down:
+	@echo "$(BLUE)Stopping and removing containers, networks, and volumes...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
 
 .PHONY: destroy
 destroy:
+	@echo "$(BLUE)Stopping and removing containers, networks, and all volumes...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml down -v $(c)
 
 .PHONY: stop
 stop:
+	@echo "$(BLUE)Stopping running containers...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
 
 .PHONY: restart
 restart:
-	make stop && \
+	@echo "$(BLUE)Restarting all services...$(NC)"
+	@make stop && \
     make up
 
 .PHONY: logs
 logs:
+	@echo "$(BLUE)Showing logs for all services...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
 
 .PHONY: ps
 ps:
+	@echo "$(BLUE)Listing container status...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml ps
