@@ -2642,9 +2642,6 @@ const docTemplate = `{
         "UpdateOrganizationInput": {
             "description": "UpdateOrganizationInput is the input payload to update an organization.",
             "type": "object",
-            "required": [
-                "legalName"
-            ],
             "properties": {
                 "address": {
                     "$ref": "#/definitions/Address"

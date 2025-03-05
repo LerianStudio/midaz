@@ -12,16 +12,13 @@ CREATE TABLE IF NOT EXISTS balance (
   account_type                        TEXT NOT NULL,
   allow_sending                       BOOLEAN NOT NULL,
   allow_receiving                     BOOLEAN NOT NULL,
-  created_at                          TIMESTAMP WITH TIME ZONE,
-  updated_at                          TIMESTAMP WITH TIME ZONE,
+  created_at                          TIMESTAMP WITH TIME ZONE NOT NULL,
+  updated_at                          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   deleted_at                          TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_balance_id ON balance (organization_id, ledger_id, id);
-REINDEX INDEX idx_balance_id;
+CREATE INDEX idx_balance_organization_ledger_id ON balance (organization_id, ledger_id);
+REINDEX INDEX idx_balance_organization_ledger_id;
 
-CREATE INDEX idx_balance_alias ON balance (organization_id, ledger_id, alias);
-REINDEX INDEX idx_balance_alias;
-
-CREATE INDEX idx_balance_account_id ON balance (organization_id, ledger_id, account_id);
-REINDEX INDEX idx_balance_account_id;
+CREATE INDEX idx_balance_created_at ON balance (created_at);
+REINDEX INDEX idx_balance_created_at;

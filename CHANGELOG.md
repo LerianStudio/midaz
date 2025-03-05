@@ -1,3 +1,73 @@
+## [1.49.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.6...v1.49.0-beta.7) (2025-02-28)
+
+
+### Features
+
+* add flag feature to switch on/off telemetry; ([1b1cd10](https://github.com/LerianStudio/midaz/commit/1b1cd1008282913e71b013860329ac99e99886e1))
+* create new index from database; remove dockerfile platform to predefined redundant; ([8791e04](https://github.com/LerianStudio/midaz/commit/8791e042ef82aa03fa84b2015cf2077ac0685a25))
+
+
+### Bug Fixes
+
+* go sec; ([f18f629](https://github.com/LerianStudio/midaz/commit/f18f62931a9bbb340378601932865fe5144bbd46))
+* mongo max pool conn adjust and postgres add on config; ([ec09c48](https://github.com/LerianStudio/midaz/commit/ec09c482ef10c78f9c8b2df2d26f88ab5d313e43))
+* remove trillian; ([8141a70](https://github.com/LerianStudio/midaz/commit/8141a703d4d9ade594be1f24108cd58de713bb2a))
+
+## [1.49.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.5...v1.49.0-beta.6) (2025-02-27)
+
+
+### Features
+
+* add 5 works to consumer in rabbitmq and implement message persistent; ([1625d3b](https://github.com/LerianStudio/midaz/commit/1625d3b4aa22ad0889abdd23c97fa41e17714668))
+
+
+### Bug Fixes
+
+* make lint; ([b454376](https://github.com/LerianStudio/midaz/commit/b4543764ee6c3b4e7908fd455a01f553a2716b08))
+
+## [1.49.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.4...v1.49.0-beta.5) (2025-02-27)
+
+
+### Features
+
+* add new implements to dockerfile and increase ttl on valkey; ([b1bfb12](https://github.com/LerianStudio/midaz/commit/b1bfb12e35a434f8b0568b6740ffcf0cffafe264))
+
+## [1.49.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.3...v1.49.0-beta.4) (2025-02-27)
+
+
+### Features
+
+* change redis image to valkey and some adjusts on docker-compose; ([0d6494c](https://github.com/LerianStudio/midaz/commit/0d6494cd580693d321e164e1537425e2ea43ee61))
+* test create image when open pr; ([d90aaf5](https://github.com/LerianStudio/midaz/commit/d90aaf568de1fe2fbfaae6a185c8ba09e6aa9672))
+
+
+### Bug Fixes
+
+* add multi-arch to docker hub; ([69640e6](https://github.com/LerianStudio/midaz/commit/69640e6c87fbba0edd3e93dfbb10863f4fc4964e))
+* revert to when generating tags; ([daef69f](https://github.com/LerianStudio/midaz/commit/daef69fbfac87c7a6c179778edd90838f9ceb2eb))
+
+## [1.49.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.2...v1.49.0-beta.3) (2025-02-26)
+
+
+### Features
+
+* Implements feature to get balance on database or redis on cache ([b507a9d](https://github.com/LerianStudio/midaz/commit/b507a9da54f1972936765f9729c330b5c8d2c9ff))
+
+
+### Bug Fixes
+
+* update go mod and go sum; ([681589e](https://github.com/LerianStudio/midaz/commit/681589e40e1fa4de0fd64a6f4d88d1e718f74e67))
+
+## [1.49.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.1...v1.49.0-beta.2) (2025-02-25)
+
+
+### Bug Fixes
+
+* comment integrations test to refactor mdz after implement auth; ([d19c527](https://github.com/LerianStudio/midaz/commit/d19c5277df2db47603a5b900d31c190ca1cef374))
+* remove auth from template deploy; ([e692244](https://github.com/LerianStudio/midaz/commit/e692244d1a818d50b61e0279fb6e90595d344989))
+
+## [1.49.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.48.0...v1.49.0-beta.1) (2025-02-24)
+
 ## [1.48.0](https://github.com/LerianStudio/midaz/compare/v1.47.0...v1.48.0) (2025-02-21)
 
 

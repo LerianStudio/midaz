@@ -9,6 +9,12 @@ CREATE TABLE IF NOT EXISTS asset_rate (
     rate_scale                          NUMERIC NOT NULL,
     source                              TEXT,
     ttl                                 BIGINT NOT NULL,
-    created_at                          TIMESTAMP WITH TIME ZONE,
-    updated_at                          TIMESTAMP WITH TIME ZONE
-)
+    created_at                          TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at                          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_asset_rate_organization_ledger_id ON asset_rate (organization_id, ledger_id);
+REINDEX INDEX idx_asset_rate_organization_ledger_id;
+
+CREATE INDEX idx_asset_rate_created_at ON asset_rate (created_at);
+REINDEX INDEX idx_asset_rate_created_at;

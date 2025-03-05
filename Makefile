@@ -1,15 +1,13 @@
 # Define the root directory of the project
 MIDAZ_ROOT := $(shell pwd)
 
-AUDIT_DIR := ./components/audit
-AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
 MDZ_DIR := ./components/mdz
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(AUTH_DIR) $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(MDZ_DIR) $(AUDIT_DIR)
+COMPONENTS := $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(MDZ_DIR)
 
 # Include shared color definitions and utility functions
 include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
@@ -47,7 +45,6 @@ endef
 # Core Commands
 .PHONY: help
 help:
-	$(call print_logo)
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Midaz Project Management Commands$(NC)"
@@ -86,13 +83,10 @@ help:
 	@echo "  make stop                        - Stop all containers"
 	@echo "  make restart                     - Restart all containers (or build and start if images don't exist)"
 	@echo "  make rebuild-up                  - Rebuild and restart all services"
-	@echo "  make auth COMMAND=<cmd>          - Run command in auth service"
 	@echo "  make infra COMMAND=<cmd>         - Run command in infra service"
 	@echo "  make onboarding COMMAND=<cmd>    - Run command in onboarding service"
 	@echo "  make transaction COMMAND=<cmd>   - Run command in transaction service"
-	@echo "  make audit COMMAND=<cmd>         - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd>  - Run command across all services"
-
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
@@ -277,15 +271,10 @@ set-env:
 	@echo "$(YELLOW)WARNING:$(NC)"
 	@echo "$(YELLOW)Customize .env variables to fit your environment. Default values are for initial setup and may not be secure for production. Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
 	@echo "$(BLUE)Setting up environment files...$(NC)"
-	@for dir in $(COMPONENTS); do \
-		if [ -f "$$dir/.env.example" ]; then \
-			cp -r $$dir/.env.example $$dir/.env; \
-			echo "$(GREEN)Created $$dir/.env from example$(NC)"; \
-		else \
-			echo "$(YELLOW)Warning: $$dir/.env.example not found, creating empty .env file$(NC)"; \
-			touch $$dir/.env; \
-		fi; \
-	done
+	@cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
+	@cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env
+	@cp -r $(TRANSACTION_DIR)/.env.example $(TRANSACTION_DIR)/.env
+	@cp -r $(MDZ_DIR)/.env.example $(MDZ_DIR)/.env
 	@echo "$(BLUE)Environment files created successfully$(NC)"
 
 .PHONY: build
@@ -435,11 +424,6 @@ rebuild-up:
 	done
 	@echo "$(GREEN)All services rebuilt and restarted successfully$(NC)"
 
-.PHONY: auth
-auth:
-	@echo "$(BLUE)Executing command in auth service...$(NC)"
-	$(MAKE) -C $(AUTH_DIR) $(COMMAND)
-
 .PHONY: infra
 infra:
 	@echo "$(BLUE)Executing command in infra service...$(NC)"
@@ -455,17 +439,12 @@ transaction:
 	@echo "$(BLUE)Executing command in transaction service...$(NC)"
 	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
-.PHONY: audit
-audit:
-	@echo "$(BLUE)Executing command in audit service...$(NC)"
-	$(MAKE) -C $(AUDIT_DIR) $(COMMAND)
-
 .PHONY: all-services
 all-services:
 	@echo "$(BLUE)Executing command across all services...$(NC)"
-	@for dir in $(COMPONENTS); do \
-		$(MAKE) -C $$dir $(COMMAND) || exit 1; \
-	done
+	$(MAKE) -C $(INFRA_DIR) $(COMMAND) && \
+	$(MAKE) -C $(ONBOARDING_DIR) $(COMMAND) && \
+	$(MAKE) -C $(TRANSACTION_DIR) $(COMMAND)
 
 # Development Commands
 .PHONY: tidy
@@ -482,7 +461,6 @@ goreleaser:
 
 .PHONY: generate-docs-all
 generate-docs-all:
-	@echo "$(BLUE)Generating Swagger documentation for all services...$(NC)"
-	@for dir in $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(AUDIT_DIR); do \
-		$(MAKE) -C $$dir generate-docs || exit 1; \
-	done
+	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
+	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
+	$(MAKE) -C $(TRANSACTION_DIR) generate-docs

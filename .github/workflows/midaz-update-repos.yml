@@ -112,9 +112,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          cp midaz/components/audit/api/swagger.json LerianStudio.github.io/audit/
-          cp midaz/components/audit/api/openapi.yaml LerianStudio.github.io/audit/
-
           cp midaz/components/onboarding/api/swagger.json LerianStudio.github.io/onboarding/ 
           cp midaz/components/onboarding/api/openapi.yaml LerianStudio.github.io/onboarding/ 
           
@@ -137,7 +134,7 @@ jobs:
           
             git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
           
-            git add audit onboarding transaction
+            git add onboarding transaction
             git commit -S -m "Update openapi.yaml and swagger.json from Repositories"
           
             git push origin main

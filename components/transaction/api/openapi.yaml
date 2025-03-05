@@ -927,10 +927,13 @@ components:
       example:
         scale: 2
         asset: BRL
+        operation: operation
         value: 1000
       properties:
         asset:
           example: BRL
+          type: string
+        operation:
           type: string
         scale:
           example: 2
@@ -1079,6 +1082,7 @@ components:
             - amount:
                 scale: 2
                 asset: BRL
+                operation: operation
                 value: 1000
               metadata:
                 key: '{}'
@@ -1099,6 +1103,7 @@ components:
             - amount:
                 scale: 2
                 asset: BRL
+                operation: operation
                 value: 1000
               metadata:
                 key: '{}'
@@ -1122,6 +1127,7 @@ components:
             - amount:
                 scale: 2
                 asset: BRL
+                operation: operation
                 value: 1000
               metadata:
                 key: '{}'
@@ -1142,6 +1148,7 @@ components:
             - amount:
                 scale: 2
                 asset: BRL
+                operation: operation
                 value: 1000
               metadata:
                 key: '{}'
@@ -1191,6 +1198,7 @@ components:
         - amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -1211,6 +1219,7 @@ components:
         - amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -1246,6 +1255,7 @@ components:
         amount:
           scale: 2
           asset: BRL
+          operation: operation
           value: 1000
         metadata:
           key: '{}'
@@ -1297,6 +1307,7 @@ components:
         amount:
           scale: 2
           asset: BRL
+          operation: operation
           value: 1000
         metadata:
           key: '{}'
@@ -1449,6 +1460,7 @@ components:
           - amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -1469,6 +1481,7 @@ components:
           - amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -1492,6 +1505,7 @@ components:
           - amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -1512,6 +1526,7 @@ components:
           - amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -1575,6 +1590,7 @@ components:
         - amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -1595,6 +1611,7 @@ components:
         - amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -1643,7 +1660,7 @@ components:
       description: Transaction is a struct designed to store transaction data.
       example:
         template: Transaction template
-        amount: 1500.0
+        amount: 1500
         metadata:
           key: '{}'
         assetCode: BRL
@@ -1654,7 +1671,7 @@ components:
         - '@person1'
         chartOfAccountsGroupName: Chart of accounts group name
         parentTransactionId: 00000000-0000-0000-0000-000000000000
-        amountScale: 2.0
+        amountScale: 2
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         createdAt: 2021-01-01T00:00:00Z
@@ -1664,6 +1681,7 @@ components:
           amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -1695,6 +1713,7 @@ components:
           amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -1729,11 +1748,11 @@ components:
         updatedAt: 2021-01-01T00:00:00Z
       properties:
         amount:
-          example: 1500.0
-          type: number
+          example: 1500
+          type: integer
         amountScale:
-          example: 2.0
-          type: number
+          example: 2
+          type: integer
         assetCode:
           example: BRL
           type: string
@@ -1834,6 +1853,7 @@ components:
         available: 1500
         scale: 2
         allowSending: true
+        version: 1
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
@@ -1892,6 +1912,9 @@ components:
         updatedAt:
           example: 2021-01-01T00:00:00Z
           type: string
+        version:
+          example: 1
+          type: integer
       type: object
     mmodel.UpdateBalance:
       properties:
@@ -1923,6 +1946,7 @@ components:
           available: 1500
           scale: 2
           allowSending: true
+          version: 1
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
@@ -1940,6 +1964,7 @@ components:
           available: 1500
           scale: 2
           allowSending: true
+          version: 1
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
@@ -1978,6 +2003,7 @@ components:
           amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -2009,6 +2035,7 @@ components:
           amount:
             scale: 2
             asset: BRL
+            operation: operation
             value: 1000
           metadata:
             key: '{}'
@@ -2118,7 +2145,7 @@ components:
         page: '{}'
         items:
         - template: Transaction template
-          amount: 1500.0
+          amount: 1500
           metadata:
             key: '{}'
           assetCode: BRL
@@ -2129,7 +2156,7 @@ components:
           - '@person1'
           chartOfAccountsGroupName: Chart of accounts group name
           parentTransactionId: 00000000-0000-0000-0000-000000000000
-          amountScale: 2.0
+          amountScale: 2
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -2139,6 +2166,7 @@ components:
             amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -2170,6 +2198,7 @@ components:
             amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -2203,7 +2232,7 @@ components:
             description: Active status
           updatedAt: 2021-01-01T00:00:00Z
         - template: Transaction template
-          amount: 1500.0
+          amount: 1500
           metadata:
             key: '{}'
           assetCode: BRL
@@ -2214,7 +2243,7 @@ components:
           - '@person1'
           chartOfAccountsGroupName: Chart of accounts group name
           parentTransactionId: 00000000-0000-0000-0000-000000000000
-          amountScale: 2.0
+          amountScale: 2
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           createdAt: 2021-01-01T00:00:00Z
@@ -2224,6 +2253,7 @@ components:
             amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'
@@ -2255,6 +2285,7 @@ components:
             amount:
               scale: 2
               asset: BRL
+              operation: operation
               value: 1000
             metadata:
               key: '{}'

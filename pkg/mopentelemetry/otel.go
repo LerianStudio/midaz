@@ -35,6 +35,7 @@ type Telemetry struct {
 	MetricProvider            *sdkmetric.MeterProvider
 	LoggerProvider            *sdklog.LoggerProvider
 	shutdown                  func()
+	EnableTelemetry           bool
 }
 
 // NewResource creates a new resource with default attributes.
@@ -120,6 +121,12 @@ func (tl *Telemetry) ShutdownTelemetry() {
 // InitializeTelemetry initializes the telemetry providers and sets them globally. (Logger is being passed as a parameter because it not exists in the global context at this point to be injected)
 func (tl *Telemetry) InitializeTelemetry(logger mlog.Logger) *Telemetry {
 	ctx := context.Background()
+
+	if !tl.EnableTelemetry {
+		logger.Warn("Telemetry turned off ⚠️ ")
+
+		return nil
+	}
 
 	logger.Infof("Initializing telemetry...")
 
