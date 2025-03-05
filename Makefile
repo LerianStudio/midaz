@@ -115,6 +115,9 @@ help:
 	@echo "$(BOLD)Service Commands:$(NC)"
 	@echo "  make up                          - Start all services with Docker Compose"
 	@echo "  make down                        - Stop all services with Docker Compose"
+	@echo "  make start                       - Start all containers (or build and start if images don't exist)"
+	@echo "  make stop                        - Stop all containers"
+	@echo "  make restart                     - Restart all containers (or build and start if images don't exist)"
 	@echo "  make rebuild-up                  - Rebuild and restart all services"
 	@echo "  make auth COMMAND=<cmd>          - Run command in auth service"
 	@echo "  make infra COMMAND=<cmd>         - Run command in infra service"
@@ -122,7 +125,7 @@ help:
 	@echo "  make transaction COMMAND=<cmd>   - Run command in transaction service"
 	@echo "  make audit COMMAND=<cmd>         - Run command in audit service"
 	@echo "  make all-services COMMAND=<cmd>  - Run command across all services"
-	@echo "  make clean-docker                - Run command to clean docker"
+
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
@@ -380,6 +383,77 @@ down:
 	done
 	@echo "$(GREEN)All services stopped successfully$(NC)"
 
+.PHONY: start
+start:
+	@echo "$(BLUE)Starting all services...$(NC)"
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@containers_exist=true; \
+	for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			service_name=$$(basename $$dir); \
+			if ! docker ps -a --format '{{.Names}}' | grep -q "$$service_name"; then \
+				containers_exist=false; \
+				break; \
+			fi; \
+		fi; \
+	done; \
+	if [ "$$containers_exist" = "false" ]; then \
+		echo "$(YELLOW)Some containers don't exist. Running 'up' to build and start them...$(NC)"; \
+		$(MAKE) up; \
+	else \
+		for dir in $(COMPONENTS); do \
+			if [ -f "$$dir/docker-compose.yml" ]; then \
+				ENV_NAME=development $(DOCKER_CMD) -f $$dir/docker-compose.yml start; \
+			else \
+				echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
+			fi; \
+		done; \
+		echo "$(GREEN)All services started successfully$(NC)"; \
+	fi
+
+.PHONY: stop
+stop:
+	@echo "$(BLUE)Stopping all services...$(NC)"
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			ENV_NAME=development $(DOCKER_CMD) -f $$dir/docker-compose.yml stop; \
+		else \
+			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
+		fi; \
+	done
+	@echo "$(GREEN)All services stopped successfully$(NC)"
+
+.PHONY: restart
+restart:
+	@echo "$(BLUE)Restarting all services...$(NC)"
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	$(call check_env_files)
+	@containers_exist=true; \
+	for dir in $(COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			service_name=$$(basename $$dir); \
+			if ! docker ps -a --format '{{.Names}}' | grep -q "$$service_name"; then \
+				containers_exist=false; \
+				break; \
+			fi; \
+		fi; \
+	done; \
+	if [ "$$containers_exist" = "false" ]; then \
+		echo "$(YELLOW)Some containers don't exist. Running 'up' to build and start them...$(NC)"; \
+		$(MAKE) up; \
+	else \
+		for dir in $(COMPONENTS); do \
+			if [ -f "$$dir/docker-compose.yml" ]; then \
+				ENV_NAME=development $(DOCKER_CMD) -f $$dir/docker-compose.yml restart; \
+			else \
+				echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
+			fi; \
+		done; \
+		echo "$(GREEN)All services restarted successfully$(NC)"; \
+	fi
+
 .PHONY: rebuild-up
 rebuild-up:
 	@echo "$(BLUE)Rebuilding and restarting all services...$(NC)"
@@ -425,12 +499,6 @@ all-services:
 	@for dir in $(COMPONENTS); do \
 		$(MAKE) -C $$dir $(COMMAND) || exit 1; \
 	done
-
-.PHONY: clean-docker
-clean-docker:
-	@echo "$(BLUE)Cleaning Docker system and volumes...$(NC)"
-	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
-	docker system prune -a -f && docker volume prune -a -f
 
 # Development Commands
 .PHONY: tidy
