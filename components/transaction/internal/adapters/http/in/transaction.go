@@ -571,7 +571,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 				if pkg.IsUUID(blc.ID) && fromTo[i].Account == blc.ID {
 					accountMatches = true
 					logger.Infof("DEBUG: UUID match by balance.ID: %s", blc.ID)
-				} else if pkg.IsUUID(blc.AccountID) && fromTo[i].Account == blc.AccountID {
+				} 
+				
+				if !accountMatches && pkg.IsUUID(blc.AccountID) && fromTo[i].Account == blc.AccountID {
 					accountMatches = true
 					logger.Infof("DEBUG: UUID match by balance.AccountID: %s", blc.AccountID)
 				}
@@ -602,48 +604,65 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 					Scale:     &bat.Scale,
 				}
 
-				descr := fromTo[i].Description
-				if pkg.IsNilOrEmpty(&fromTo[i].Description) {
-					descr = parserDSL.Description
-				}
-
-				var typeOperation string
-				if fromTo[i].IsFrom {
-					typeOperation = constant.DEBIT
-				} else {
-					typeOperation = constant.CREDIT
-				}
-
 				operations = append(operations, &operation.Operation{
-					ID:              pkg.GenerateUUIDv7().String(),
-					TransactionID:   tran.ID,
-					Description:     descr,
-					Type:            typeOperation,
-					AssetCode:       parserDSL.Send.Asset,
-					ChartOfAccounts: fromTo[i].ChartOfAccounts,
-					Amount:          amount,
-					Balance:         balance,
-					BalanceAfter:    balanceAfter,
-					BalanceID:       blc.ID,
-					AccountID:       blc.AccountID,
-					AccountAlias:    blc.Alias,
-					OrganizationID:  blc.OrganizationID,
-					LedgerID:        blc.LedgerID,
-					CreatedAt:       time.Now(),
-					UpdatedAt:       time.Now(),
-					Metadata:        fromTo[i].Metadata,
+					ID:             pkg.GenerateUUIDv7().String(),
+					OrganizationID: organizationID.String(),
+					LedgerID:       ledgerID.String(),
+					TransactionID:  tran.ID,
+					ParentID:       nil,
+					AccountID:      blc.ID,
+					AccountAlias:   blc.Alias,
+					AssetCode:      blc.AssetCode,
+					Type:           fromTo[i].Operation,
+					Amount:         amount,
+					BalanceBefore:  balance,
+					BalanceAfter:   balanceAfter,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
 				})
 			}
 		}
 	}
 
-	tran.Source = validate.Sources
-	tran.Destination = validate.Destinations
-	tran.Operations = operations
+	err = handler.Command.CreateTransaction(ctx, organizationID, ledgerID, *tran, operations, transactionID.String())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to create transaction", err)
 
-	go handler.Command.SendBTOExecuteAsync(ctx, organizationID, ledgerID, &parserDSL, validate, balances, tran)
+		logger.Errorf("Failed to create transaction: %v", err.Error())
 
-	go handler.Command.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, tran.IDtoUUID())
+		return http.WithError(c, err)
+	}
 
+	tranID := tran.ID
+	tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, uuid.MustParse(tranID))
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to get transactions", err)
+
+		logger.Errorf("Failed to get transactions: %v", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	headerParams, err := http.ValidateParameters(c.Queries())
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate query parameters", err)
+
+		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	headerParams.Metadata = &bson.M{}
+
+	tran, err = handler.Query.GetOperationsByTransaction(ctx, organizationID, ledgerID, tran, *headerParams)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to retrieve Operations", err)
+
+		logger.Errorf("Failed to retrieve Operations with ID: %s, Error: %s", tran.ID, err.Error())
+
+		return http.WithError(c, err)
+	}
+
+	logger.Infof("Successfully created Transaction ID: %s, Operation count: %d", tran.ID, len(tran.Operations))
 	return http.Created(c, tran)
 }

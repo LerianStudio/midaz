@@ -48,8 +48,9 @@ func NewBalancePostgreSQLRepository(pc *mpostgres.PostgresConnection) *BalancePo
 		connection: pc,
 		tableName:  "balance",
 	}
-
-	_, err := c.connection.GetDB()
+	
+	var err error
+	_, err = c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -543,21 +544,21 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	var balances []BalancePostgreSQLModel
 
 	var query string
-	var queryArgs []interface{}
+	var queryArgs []any
 	
 	// We need to check both aliases and account IDs (if provided)
 	if len(aliases) > 0 && len(accountIDs) > 0 {
 		// If we have both, combine them in a single query with OR
 		query = "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND (alias = ANY($3) OR id = ANY($4) OR account_id = ANY($4)) AND deleted_at IS NULL FOR UPDATE"
-		queryArgs = []interface{}{organizationID, ledgerID, aliases, pq.Array(accountIDs)}
+		queryArgs = []any{organizationID, ledgerID, aliases, pq.Array(accountIDs)}
 	} else if len(aliases) > 0 {
 		// If we only have aliases
 		query = "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL FOR UPDATE"
-		queryArgs = []interface{}{organizationID, ledgerID, aliases}
+		queryArgs = []any{organizationID, ledgerID, aliases}
 	} else if len(accountIDs) > 0 {
 		// If we only have account IDs
 		query = "SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND (id = ANY($3) OR account_id = ANY($3)) AND deleted_at IS NULL FOR UPDATE"
-		queryArgs = []interface{}{organizationID, ledgerID, pq.Array(accountIDs)}
+		queryArgs = []any{organizationID, ledgerID, pq.Array(accountIDs)}
 	} else {
 		// No filters provided - this should not happen in normal usage
 		return errors.New("no account identifiers (aliases or IDs) provided for balance update")

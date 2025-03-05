@@ -45,6 +45,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		}
 		
 		logger.Infof("DEBUG: Found %d balances by accountIDs", len(balancesByIDs))
+		
 		for _, balance := range balancesByIDs {
 			logger.Infof("DEBUG: Balance found by accountID - ID: %s, AccountID: %s, Alias: %s", 
 			            balance.ID, balance.AccountID, balance.Alias)
@@ -64,6 +65,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		}
 		
 		logger.Infof("DEBUG: Found %d balances by aliases", len(balancesByAliases))
+		
 		for _, balance := range balancesByAliases {
 			logger.Infof("DEBUG: Balance found by alias - ID: %s, AccountID: %s, Alias: %s", 
 			            balance.ID, balance.AccountID, balance.Alias)
