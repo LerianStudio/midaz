@@ -1,3 +1,6 @@
+# Define the root directory of the project
+MIDAZ_ROOT := $(shell pwd)
+
 AUDIT_DIR := ./components/audit
 AUTH_DIR := ./components/auth
 INFRA_DIR := ./components/infra
@@ -8,49 +11,13 @@ TRANSACTION_DIR := ./components/transaction
 # Define a list of all component directories for easier iteration
 COMPONENTS := $(AUTH_DIR) $(INFRA_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(MDZ_DIR) $(AUDIT_DIR)
 
-BLUE := \033[36m
-NC := \033[0m
-BOLD := \033[1m
-RED := \033[31m
-MAGENTA := \033[35m
-YELLOW := \033[33m
-GREEN := \033[32m
-CYAN := \033[36m
-WHITE := \033[37m
-
-DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}' 2>/dev/null || echo "0.0.0")
-DOCKER_MIN_VERSION := 20.10.13
-
-# Use docker compose if version is >= 20.10.13, otherwise use docker-compose
-DOCKER_CMD := $(shell \
-	if command -v sort -V >/dev/null 2>&1 && [ "$$(printf '%s\n%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
-		echo "docker compose"; \
-	else \
-		echo "docker-compose"; \
-	fi \
-)
+# Include shared color definitions and utility functions
+include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
+include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 
 # Shell utility functions
 define print_logo
 	@cat $(PWD)/pkg/shell/logo.txt
-endef
-
-define border
-	@echo ""; \
-	len=$$(echo "$(1)" | wc -c); \
-	for i in $$(seq 1 $$((len + 4))); do \
-		printf "-"; \
-	done; \
-	echo ""; \
-	echo "  $(1)  "; \
-	for i in $$(seq 1 $$((len + 4))); do \
-		printf "-"; \
-	done; \
-	echo ""
-endef
-
-define title1
-	@$(call border, "📝 $(1)")
 endef
 
 # Check if a command exists

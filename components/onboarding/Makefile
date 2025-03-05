@@ -1,116 +1,130 @@
-service_name := onboarding-service
-bin_dir := ./.bin
-artifacts_dir := ./artifacts
+SERVICE_NAME := onboarding-service
+BIN_DIR := ./.bin
+ARTIFACTS_DIR := ./artifacts
 
-$(shell mkdir -p $(artifacts_dir))
+$(shell mkdir -p $(ARTIFACTS_DIR))
 
-DOCKER_VERSION := $(shell docker version --format '{{.Server.Version}}')
-DOCKER_MIN_VERSION := 20.10.13
+# Define the root directory of the project (if not already defined)
+MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 
-DOCKER_CMD := $(shell \
-	if [ "$(shell printf '%s\n' "$(DOCKER_MIN_VERSION)" "$(DOCKER_VERSION)" | sort -V | head -n1)" = "$(DOCKER_MIN_VERSION)" ]; then \
-		echo "docker compose"; \
-	else \
-		echo "docker-compose"; \
-	fi \
-)
+# Include shared color definitions and utility functions
+include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
+include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 
 # Display available commands
 .PHONY: info
 info:
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                                       "
-	@echo "To run a specific command inside the onboarding container using make, you can execute:                                                     "
-	@echo "                                                                                                                                       "
-	@echo "make onboarding COMMAND=\"any\"                                                                                                            "
-	@echo "                                                                                                                                       "
-	@echo "This command will run the specified command inside the onboarding container. Replace \"any\" with the desired command you want to execute. "
-	@echo "                                                                                                                         "
-	@echo "## Docker commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"build\"                                Builds all Docker images defined in docker-compose.yml."
-	@echo "  COMMAND=\"up\"                                   Starts and runs all services defined in docker-compose.yml."
-	@echo "  COMMAND=\"start\"                                Starts existing containers defined in docker-compose.yml without creating them."
-	@echo "  COMMAND=\"stop\"                                 Stops running containers defined in docker-compose.yml without removing them."
-	@echo "  COMMAND=\"down\"                                 Stops and removes containers, networks, and volumes defined in docker-compose.yml."
-	@echo "  COMMAND=\"destroy\"                              Stops and removes containers, networks, and volumes (including named volumes) defined in docker-compose.yml."
-	@echo "  COMMAND=\"restart\"                              Stops and removes containers, networks, and volumes, then starts all services in detached mode."
-	@echo "  COMMAND=\"logs\"                                 Shows the last 100 lines of logs and follows live log output for services defined in docker-compose.yml."
-	@echo "  COMMAND=\"logs-api\"                             Shows the last 100 lines of logs and follows live log output for the onboarding service defined in docker-compose.yml."
-	@echo "  COMMAND=\"ps\"                                   Lists the status of containers defined in docker-compose.yml."
-	@echo "                                                                                                                                       "
-	@echo "## App commands:"
-	@echo "                                                                                                                         "
-	@echo "  COMMAND=\"run\"                                  Executes the Go program in internal/main.go using .env configuration."
-	@echo "  COMMAND=\"test\"                                 Runs all Go tests in the project with verbose output."
-	@echo "  COMMAND=\"cover-html\"                           Generates an HTML report from Go test coverage data."
-	@echo "  COMMAND=\"tidy\"                                 Cleans and updates Go dependencies in the go.mod file."
-	@echo "  COMMAND=\"generate-docs\" 						  Generates Swagger API documentation and an OpenAPI Specification."
-	@echo "                                                                                                                                       "
-	@echo "                                                                                                                                       "
+	@echo ""
+	@echo "$(BOLD)Onboarding Service Commands$(NC)"
+	@echo ""
+	@echo "To run a specific command inside the onboarding container using make, you can execute:"
+	@echo ""
+	@echo "$(CYAN)make onboarding COMMAND=\"any\"$(NC)"
+	@echo ""
+	@echo "This command will run the specified command inside the onboarding container."
+	@echo "Replace \"any\" with the desired command you want to execute."
+	@echo ""
+	@echo "$(BOLD)## Docker commands:$(NC)"
+	@echo ""
+	@echo "  $(CYAN)COMMAND=\"build\"$(NC)                                Build Docker images"
+	@echo "  $(CYAN)COMMAND=\"up\"$(NC)                                   Start all services in detached mode"
+	@echo "  $(CYAN)COMMAND=\"start\"$(NC)                                Start existing containers"
+	@echo "  $(CYAN)COMMAND=\"stop\"$(NC)                                 Stop running containers"
+	@echo "  $(CYAN)COMMAND=\"down\"$(NC)                                 Stop and remove containers, networks, and volumes"
+	@echo "  $(CYAN)COMMAND=\"destroy\"$(NC)                              Stop and remove containers, networks, and all volumes"
+	@echo "  $(CYAN)COMMAND=\"restart\"$(NC)                              Restart all services"
+	@echo "  $(CYAN)COMMAND=\"logs\"$(NC)                                 Show and follow logs for all services"
+	@echo "  $(CYAN)COMMAND=\"logs-api\"$(NC)                             Show and follow logs for onboarding service"
+	@echo "  $(CYAN)COMMAND=\"ps\"$(NC)                                   List container status"
+	@echo ""
+	@echo "$(BOLD)## App commands:$(NC)"
+	@echo ""
+	@echo "  $(CYAN)COMMAND=\"run\"$(NC)                                  Run the application with .env config"
+	@echo "  $(CYAN)COMMAND=\"test\"$(NC)                                 Run all tests"
+	@echo "  $(CYAN)COMMAND=\"cover-html\"$(NC)                           Generate HTML test coverage report"
+	@echo "  $(CYAN)COMMAND=\"tidy\"$(NC)                                 Clean and update Go dependencies"
+	@echo "  $(CYAN)COMMAND=\"generate-docs\"$(NC)                        Generate Swagger API documentation"
+	@echo ""
 
 # Docker Compose Commands
 .PHONY: build
 build:
+	@echo "$(BLUE)Building Docker images...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
 
 .PHONY: up
 up:
+	@echo "$(BLUE)Starting all services in detached mode...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 
 .PHONY: start
 start:
-	@docker compose -f docker-compose.yml start $(c)
+	@echo "$(BLUE)Starting existing containers...$(NC)"
+	@$(DOCKER_CMD) -f docker-compose.yml start $(c)
 
 .PHONY: down
 down:
+	@echo "$(BLUE)Stopping and removing containers, networks, and volumes...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
 
 .PHONY: destroy
 destroy:
+	@echo "$(BLUE)Stopping and removing containers, networks, and all volumes...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml down -v $(c)
 
 .PHONY: stop
 stop:
+	@echo "$(BLUE)Stopping running containers...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
 
 .PHONY: restart
 restart:
-	make stop && \
+	@echo "$(BLUE)Restarting all services...$(NC)"
+	@make stop && \
     make up
 
 .PHONY: logs
 logs:
+	@echo "$(BLUE)Showing logs for all services...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
 
 .PHONY: logs-api
 logs-api:
-	@docker compose -f docker-compose.yml logs --tail=100 -f onboarding
+	@echo "$(BLUE)Showing logs for onboarding service...$(NC)"
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f onboarding
 
 .PHONY: ps
 ps:
+	@echo "$(BLUE)Listing container status...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml ps
 
 # App Commands
 .PHONY: run
 run:
+	@echo "$(BLUE)Running the application with .env config...$(NC)"
 	@go run cmd/app/main.go .env
 
 .PHONY: test
 test:
+	@echo "$(BLUE)Running all tests...$(NC)"
 	@go test -v ./...
 
 .PHONY: cover-html
 cover-html:
-	@go tool cover -html=$(artifacts_dir)/coverage.out -o $(artifacts_dir)/coverage.html
+	@echo "$(BLUE)Generating HTML test coverage report...$(NC)"
+	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
+	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
 
 .PHONY: tidy
 tidy:
+	@echo "$(BLUE)Cleaning and updating Go dependencies...$(NC)"
 	@go mod tidy
 
 .PHONY: generate-docs
 generate-docs:
+	$(call title1,"Generating Swagger API documentation")
 	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
 	@docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
