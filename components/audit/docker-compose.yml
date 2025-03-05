@@ -35,7 +35,7 @@ services:
       - ./db:/docker-entrypoint-initdb.d/:ro
     restart: always
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-P", "${TRILLIAN_DATABASE_PORT}", "-u", "${TRILLIAN_DATABASE_USER}", "--password=${TRILLIAN_DATABASE_PASSWORD}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-P", "${TRILLIAN_DATABASE_PORT}", "-u", "${TRILLIAN_DATABASE_USER}", "--password=${TRILLIAN_DATABASE_PASSWORD}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,13 +47,8 @@ services:
     depends_on:
       - midaz-audit-db
     image: gcr.io/trillian-opensource-ci/log_server
-    command: [
-      "--storage_system=mysql",
-      "--mysql_uri=${TRILLIAN_DATABASE_USER}:${TRILLIAN_DATABASE_PASSWORD}@tcp(midaz-audit-db:${TRILLIAN_DATABASE_PORT})/${TRILLIAN_DATABASE_NAME}",
-      "--rpc_endpoint=0.0.0.0:${TRILLIAN_GRPC_PORT}",
-      "--http_endpoint=0.0.0.0:${TRILLIAN_HTTP_PORT}",
-      "--alsologtostderr",
-    ]
+    platform: linux/amd64
+    command: [ "--storage_system=mysql", "--mysql_uri=${TRILLIAN_DATABASE_USER}:${TRILLIAN_DATABASE_PASSWORD}@tcp(midaz-audit-db:${TRILLIAN_DATABASE_PORT})/${TRILLIAN_DATABASE_NAME}", "--rpc_endpoint=0.0.0.0:${TRILLIAN_GRPC_PORT}", "--http_endpoint=0.0.0.0:${TRILLIAN_HTTP_PORT}", "--alsologtostderr" ]
     restart: always
     ports:
       - ${TRILLIAN_GRPC_PORT}:${TRILLIAN_GRPC_PORT}
@@ -64,16 +59,10 @@ services:
   midaz-audit-signer:
     container_name: midaz-audit-signer
     image: gcr.io/trillian-opensource-ci/log_signer
+    platform: linux/amd64
     depends_on:
       - midaz-audit-db
-    command: [
-      "--storage_system=mysql",
-      "--mysql_uri=${TRILLIAN_DATABASE_USER}:${TRILLIAN_DATABASE_PASSWORD}@tcp(midaz-audit-db:${TRILLIAN_DATABASE_PORT})/${TRILLIAN_DATABASE_NAME}",
-      "--rpc_endpoint=0.0.0.0:${TRILLIAN_GRPC_PORT}",
-      "--http_endpoint=0.0.0.0:${TRILLIAN_HTTP_PORT}",
-      "--force_master",
-      "--alsologtostderr",
-    ]
+    command: [ "--storage_system=mysql", "--mysql_uri=${TRILLIAN_DATABASE_USER}:${TRILLIAN_DATABASE_PASSWORD}@tcp(midaz-audit-db:${TRILLIAN_DATABASE_PORT})/${TRILLIAN_DATABASE_NAME}", "--rpc_endpoint=0.0.0.0:${TRILLIAN_GRPC_PORT}", "--http_endpoint=0.0.0.0:${TRILLIAN_HTTP_PORT}", "--force_master", "--alsologtostderr" ]
     restart: always
     ports:
       - ${TRILLIAN_SIGNER_PORT}:${TRILLIAN_HTTP_PORT}
@@ -82,6 +71,7 @@ services:
 
 volumes:
   audit-data:
+
 
 networks:
   audit_network:
