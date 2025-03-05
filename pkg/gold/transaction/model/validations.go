@@ -61,7 +61,23 @@ func ValidateBalancesRules(ctx context.Context, transaction Transaction, validat
 func validateBalance(balance *mmodel.Balance, dsl Transaction, from map[string]Amount) error {
 	for key := range from {
 		for _, f := range dsl.Send.Source.From {
-			if balance.ID == key || balance.Alias == key {
+			// Check regular string equality
+			accountMatches := balance.Alias == key
+			
+			// Special case for UUID comparison
+			if !accountMatches && pkg.IsUUID(key) {
+				// Check against both balance ID and account ID
+				if pkg.IsUUID(balance.ID) && key == balance.ID {
+					accountMatches = true
+				}
+				
+				// Also check the AccountID field if not matched yet
+				if !accountMatches && pkg.IsUUID(balance.AccountID) && key == balance.AccountID {
+					accountMatches = true
+				}
+			}
+			
+			if accountMatches {
 				blc := Balance{
 					Scale:     balance.Scale,
 					Available: balance.Available,
@@ -82,7 +98,20 @@ func validateBalance(balance *mmodel.Balance, dsl Transaction, from map[string]A
 
 func validateFromBalances(balance *mmodel.Balance, from map[string]Amount, asset string) error {
 	for key := range from {
-		if balance.ID == key || balance.Alias == key {
+		// Check regular string equality
+		accountMatches := balance.Alias == key
+		
+		// Special case for UUID comparison
+		if !accountMatches && pkg.IsUUID(key) {
+			// Direct comparison with both balance.ID and balance.AccountID
+			if pkg.IsUUID(balance.ID) && key == balance.ID {
+				accountMatches = true
+			} else if pkg.IsUUID(balance.AccountID) && key == balance.AccountID {
+				accountMatches = true
+			}
+		}
+		
+		if accountMatches {
 			if balance.AssetCode != asset {
 				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateFromAccounts")
 			}
@@ -102,7 +131,20 @@ func validateFromBalances(balance *mmodel.Balance, from map[string]Amount, asset
 
 func validateToBalances(balance *mmodel.Balance, to map[string]Amount, asset string) error {
 	for key := range to {
-		if balance.ID == key || balance.Alias == key {
+		// Check regular string equality
+		accountMatches := balance.Alias == key
+		
+		// Special case for UUID comparison
+		if !accountMatches && pkg.IsUUID(key) {
+			// Direct comparison with both balance.ID and balance.AccountID
+			if pkg.IsUUID(balance.ID) && key == balance.ID {
+				accountMatches = true
+			} else if pkg.IsUUID(balance.AccountID) && key == balance.AccountID {
+				accountMatches = true
+			}
+		}
+		
+		if accountMatches {
 			if balance.AssetCode != asset {
 				return pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, "validateToAccounts")
 			}
@@ -170,7 +212,20 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 
 	for _, balance := range balances {
 		for key := range fromTo {
-			if balance.ID == key || balance.Alias == key {
+			// Check regular string equality
+			accountMatches := balance.Alias == key
+			
+			// Special case for UUID comparison
+			if !accountMatches && pkg.IsUUID(key) {
+				// Direct comparison with both balance.ID and balance.AccountID
+				if pkg.IsUUID(balance.ID) && key == balance.ID {
+					accountMatches = true
+				} else if pkg.IsUUID(balance.AccountID) && key == balance.AccountID {
+					accountMatches = true
+				}
+			}
+			
+			if accountMatches {
 				blc := Balance{
 					Scale:     balance.Scale,
 					Available: balance.Available,
@@ -207,11 +262,18 @@ func UpdateBalances(operation string, fromTo map[string]Amount, balances []*mmod
 }
 
 // Scale func scale: (V * 10^ (S0-S1))
+// This function adjusts the value v from scale s0 to scale s1
+// Example: Scale(10000, 0, 2) = 1000000 (converts 10000 with 0 decimals to 1000000 with 2 decimals)
+// Example: Scale(10000, 2, 0) = 100 (converts 10000 with 2 decimals to 100 with 0 decimals)
 func Scale(v, s0, s1 int64) int64 {
+	// To normalize to a different scale, adjust the decimal point by multiplying
+	// When s1 > s0, we need more decimal places (multiply by 10^(s1-s0))
+	// When s1 < s0, we need fewer decimal places (divide by 10^(s0-s1))
 	return int64(float64(v) * math.Pow(10, float64(s1)-float64(s0)))
 }
 
-// UndoScale Function to undo the scale calculation
+// UndoScale Function to convert a float value to an integer with a given scale
+// Example: UndoScale(123.45, 2) = 12345 (converts 123.45 to 12345 with 2 decimal places)
 func UndoScale(v float64, s int64) int64 {
 	return int64(v * math.Pow(10, float64(s)))
 }

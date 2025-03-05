@@ -42,7 +42,20 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		}
 	}
 
-	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.Aliases, fromTo)
+	// Extract UUIDs and aliases for balance updating
+	var uuids []uuid.UUID
+	var aliases []string
+	
+	for _, item := range validate.Aliases {
+		if pkg.IsUUID(item) {
+			uuids = append(uuids, uuid.MustParse(item))
+		} else {
+			aliases = append(aliases, item)
+		}
+	}
+	
+	// Update the balances
+	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, aliases, uuids, fromTo)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
 

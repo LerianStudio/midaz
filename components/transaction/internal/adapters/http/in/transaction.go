@@ -562,7 +562,22 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 
 	for _, blc := range balances {
 		for i := range fromTo {
-			if fromTo[i].Account == blc.ID || fromTo[i].Account == blc.Alias {
+			// Check if account matches by ID or by alias
+			accountMatches := fromTo[i].Account == blc.Alias
+			
+			// Special case for UUID comparison 
+			if !accountMatches && pkg.IsUUID(fromTo[i].Account) {
+				// Direct comparison with both balance.ID and balance.AccountID
+				if pkg.IsUUID(blc.ID) && fromTo[i].Account == blc.ID {
+					accountMatches = true
+					logger.Infof("DEBUG: UUID match by balance.ID: %s", blc.ID)
+				} else if pkg.IsUUID(blc.AccountID) && fromTo[i].Account == blc.AccountID {
+					accountMatches = true
+					logger.Infof("DEBUG: UUID match by balance.AccountID: %s", blc.AccountID)
+				}
+			}
+			
+			if accountMatches {
 				logger.Infof("Creating operation for account id: %s", blc.ID)
 
 				balance := operation.Balance{

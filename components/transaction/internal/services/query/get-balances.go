@@ -24,8 +24,10 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 	for _, item := range validate.Aliases {
 		if pkg.IsUUID(item) {
+			logger.Infof("DEBUG: Found UUID in validate.Aliases: %s", item)
 			ids = append(ids, uuid.MustParse(item))
 		} else {
+			logger.Infof("DEBUG: Found alias in validate.Aliases: %s", item)
 			aliases = append(aliases, item)
 		}
 	}
@@ -41,6 +43,12 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 			return nil, err
 		}
+		
+		logger.Infof("DEBUG: Found %d balances by accountIDs", len(balancesByIDs))
+		for _, balance := range balancesByIDs {
+			logger.Infof("DEBUG: Balance found by accountID - ID: %s, AccountID: %s, Alias: %s", 
+			            balance.ID, balance.AccountID, balance.Alias)
+		}
 
 		balances = append(balances, balancesByIDs...)
 	}
@@ -53,6 +61,12 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
 
 			return nil, err
+		}
+		
+		logger.Infof("DEBUG: Found %d balances by aliases", len(balancesByAliases))
+		for _, balance := range balancesByAliases {
+			logger.Infof("DEBUG: Balance found by alias - ID: %s, AccountID: %s, Alias: %s", 
+			            balance.ID, balance.AccountID, balance.Alias)
 		}
 
 		balances = append(balances, balancesByAliases...)
