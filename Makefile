@@ -359,7 +359,11 @@ up:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@for dir in $(COMPONENTS); do \
-		$(DOCKER_CMD) -f $$dir/docker-compose.yml up --build -d; \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			$(DOCKER_CMD) -f $$dir/docker-compose.yml up --build -d; \
+		else \
+			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
+		fi; \
 	done
 	@echo "$(GREEN)All services started successfully$(NC)"
 
@@ -368,7 +372,11 @@ down:
 	@echo "$(BLUE)Stopping all services with Docker Compose...$(NC)"
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@for dir in $(COMPONENTS); do \
-		$(DOCKER_CMD) -f $$dir/docker-compose.yml down; \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			$(DOCKER_CMD) -f $$dir/docker-compose.yml down; \
+		else \
+			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
+		fi; \
 	done
 	@echo "$(GREEN)All services stopped successfully$(NC)"
 
@@ -378,7 +386,11 @@ rebuild-up:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	$(call check_env_files)
 	@for dir in $(COMPONENTS); do \
-		$(DOCKER_CMD) -f $$dir/docker-compose.yml up --build --force-recreate -d; \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			$(DOCKER_CMD) -f $$dir/docker-compose.yml up --build --force-recreate -d; \
+		else \
+			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
+		fi; \
 	done
 	@echo "$(GREEN)All services rebuilt and restarted successfully$(NC)"
 
