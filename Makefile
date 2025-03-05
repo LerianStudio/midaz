@@ -180,13 +180,15 @@ format:
 check-logs:
 	@echo "$(BLUE)Verifying error logging in usecases...$(NC)"
 	$(call title1,"STARTING LOGS ANALYZER")
-	@err=0; \
+	@find . -type f -path '*usecase*/*' -name '*.go' > /tmp/midaz_go_files.txt; \
+	err=0; \
 	while IFS= read -r path; do \
 		if grep -q 'err != nil' "$$path" && ! grep -qE '(logger\.Error|log\.Error)' "$$path" && [[ "$$path" != *"_test"* ]]; then \
 			err=1; \
 			echo "$$path"; \
 		fi; \
-	done < <(find . -type f -path '*usecase*/*' -name '*.go'); \
+	done < /tmp/midaz_go_files.txt; \
+	rm /tmp/midaz_go_files.txt; \
 	if [ $$err -eq 1 ]; then \
 		echo -e "\n$(RED)You need to log all errors inside usecases after they are handled. $(BOLD)[WARNING]$(NC)\n"; \
 		exit 1; \
@@ -201,6 +203,7 @@ check-tests:
 	@err=false; \
 	subdirs="components/*/internal/services/query components/*/internal/services/command"; \
 	for subdir in $$subdirs; do \
+		find "$$subdir" -type f -name "*.go" 2>/dev/null > /tmp/midaz_test_files.txt || echo "" > /tmp/midaz_test_files.txt; \
 		while IFS= read -r file; do \
 			if [[ "$$file" != *"_test.go" ]]; then \
 				test_file="$${file%.go}_test.go"; \
@@ -209,8 +212,9 @@ check-tests:
 					err=true; \
 				fi; \
 			fi; \
-		done < <(find "$$subdir" -type f -name "*.go" 2>/dev/null || echo ""); \
+		done < /tmp/midaz_test_files.txt; \
 	done; \
+	rm -f /tmp/midaz_test_files.txt; \
 	if [ "$$err" = true ]; then \
 		echo -e "\n$(RED)There are files without corresponding test files.$(NC)\n"; \
 		exit 1; \
