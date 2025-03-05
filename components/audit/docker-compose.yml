@@ -80,8 +80,6 @@ networks:
   infra_network:
     name: infra_network
     driver: bridge
-    external: true
   auth_network:
     name: auth_network
     driver: bridge
-    external: true
