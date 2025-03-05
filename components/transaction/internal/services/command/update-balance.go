@@ -44,8 +44,9 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 
 	// Extract UUIDs and aliases for balance updating
 	var uuids []uuid.UUID
+
 	var aliases []string
-	
+
 	for _, item := range validate.Aliases {
 		if pkg.IsUUID(item) {
 			uuids = append(uuids, uuid.MustParse(item))
@@ -53,7 +54,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			aliases = append(aliases, item)
 		}
 	}
-	
+
 	// Update the balances
 	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, aliases, uuids, fromTo)
 	if err != nil {

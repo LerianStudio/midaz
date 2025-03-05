@@ -48,9 +48,9 @@ func NewBalancePostgreSQLRepository(pc *mpostgres.PostgresConnection) *BalancePo
 		connection: pc,
 		tableName:  "balance",
 	}
-	
-	var err error
-	_, err = c.connection.GetDB()
+
+	// Check database connection
+	_, err := c.connection.GetDB()
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -148,7 +148,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 	for _, id := range accountIds {
 		logger.Infof("DEBUG: Looking up balance by accountId: %s", id.String())
 	}
-	
+
 	rows, err := db.QueryContext(
 		ctx,
 		"SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND (account_id = ANY($3) OR id = ANY($3)) AND deleted_at IS NULL ORDER BY created_at DESC",
@@ -446,7 +446,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 	for _, alias := range aliases {
 		logger.Infof("DEBUG: Looking up balance by alias: %s", alias)
 	}
-	
+
 	rows, err := db.QueryContext(
 		ctx,
 		"SELECT * FROM balance WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
@@ -501,7 +501,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 }
 
 // SelectForUpdate a Balance entity into Postgresql.
-func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, 
+func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID,
 	aliases []string, accountIDs []uuid.UUID, fromTo map[string]goldModel.Amount) error {
 	tracer := pkg.NewTracerFromContext(ctx)
 	logger := pkg.NewLoggerFromContext(ctx)
@@ -544,8 +544,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 	var balances []BalancePostgreSQLModel
 
 	var query string
+
 	var queryArgs []any
-	
+
 	// We need to check both aliases and account IDs (if provided)
 	if len(aliases) > 0 && len(accountIDs) > 0 {
 		// If we have both, combine them in a single query with OR
@@ -563,8 +564,9 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		// No filters provided - this should not happen in normal usage
 		return errors.New("no account identifiers (aliases or IDs) provided for balance update")
 	}
-	
+
 	logger.Infof("Executing balance update query: %s", query)
+
 	rows, err := tx.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to execute query", err)
@@ -614,15 +616,17 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 		// Determine the correct key to use when looking up balance operations
 		// For UUID-based identifiers, we need to find the matching key in the fromTo map
 		var matchingKey string
+
 		var found bool
-		
+
 		// First, try the alias as key (faster for most cases)
 		if _, exists := fromTo[balance.Alias]; exists {
 			matchingKey = balance.Alias
 			found = true
+
 			logger.Infof("Found matching key by alias: %s", matchingKey)
 		}
-		
+
 		// If not found by alias, try the IDs
 		if !found {
 			// Try to match with balance.ID
@@ -630,27 +634,29 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 				if _, exists := fromTo[balance.ID]; exists {
 					matchingKey = balance.ID
 					found = true
+
 					logger.Infof("Found matching key by balance.ID: %s", matchingKey)
 				}
 			}
-			
+
 			// Try to match with balance.AccountID
 			if !found && pkg.IsUUID(balance.AccountID) {
 				if _, exists := fromTo[balance.AccountID]; exists {
 					matchingKey = balance.AccountID
 					found = true
+
 					logger.Infof("Found matching key by balance.AccountID: %s", matchingKey)
 				}
 			}
 		}
-		
+
 		// Skip balance if no matching key found
 		if !found {
-			logger.Warnf("No matching key found for balance: id=%s, account_id=%s, alias=%s - skipping balance update", 
+			logger.Warnf("No matching key found for balance: id=%s, account_id=%s, alias=%s - skipping balance update",
 				balance.ID, balance.AccountID, balance.Alias)
 			continue
 		}
-		
+
 		// Update balance using the matching key
 		calculateBalances := goldModel.OperateBalances(fromTo[matchingKey],
 			goldModel.Balance{

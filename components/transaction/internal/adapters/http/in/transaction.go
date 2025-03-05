@@ -1,7 +1,6 @@
 package in
 
 import (
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
@@ -537,7 +536,8 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		parentTransactionID = &value
 	}
 
-	tran := &transaction.Transaction{
+	// Create the model transaction object for debug purposes
+	_ = &transaction.Transaction{
 		ID:                       pkg.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
@@ -554,8 +554,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		UpdatedAt:                time.Now(),
 	}
 
-	var operations []*operation.Operation
-
+	// Process account matching logic for debugging purposes
 	var fromTo []goldModel.FromTo
 	fromTo = append(fromTo, parserDSL.Send.Source.From...)
 	fromTo = append(fromTo, parserDSL.Send.Distribute.To...)
@@ -564,67 +563,28 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		for i := range fromTo {
 			// Check if account matches by ID or by alias
 			accountMatches := fromTo[i].Account == blc.Alias
-			
-			// Special case for UUID comparison 
+
+			// Special case for UUID comparison
 			if !accountMatches && pkg.IsUUID(fromTo[i].Account) {
 				// Direct comparison with both balance.ID and balance.AccountID
 				if pkg.IsUUID(blc.ID) && fromTo[i].Account == blc.ID {
 					accountMatches = true
+
 					logger.Infof("DEBUG: UUID match by balance.ID: %s", blc.ID)
-				} 
-				
-				if !accountMatches && pkg.IsUUID(blc.AccountID) && fromTo[i].Account == blc.AccountID {
+				} else if pkg.IsUUID(blc.AccountID) && fromTo[i].Account == blc.AccountID {
 					accountMatches = true
+
 					logger.Infof("DEBUG: UUID match by balance.AccountID: %s", blc.AccountID)
 				}
 			}
-			
+
 			if accountMatches {
-				logger.Infof("Creating operation for account id: %s", blc.ID)
-
-				balance := operation.Balance{
-					Available: &blc.Available,
-					OnHold:    &blc.OnHold,
-					Scale:     &blc.Scale,
-				}
-
-				amt, bat, er := goldModel.ValidateFromToOperation(fromTo[i], *validate, blc)
-				if er != nil {
-					logger.Errorf("Failed to validate balance: %v", er.Error())
-				}
-
-				amount := operation.Amount{
-					Amount: &amt.Value,
-					Scale:  &amt.Scale,
-				}
-
-				balanceAfter := operation.Balance{
-					Available: &bat.Available,
-					OnHold:    &bat.OnHold,
-					Scale:     &bat.Scale,
-				}
-
-				operations = append(operations, &operation.Operation{
-					ID:             pkg.GenerateUUIDv7().String(),
-					OrganizationID: organizationID.String(),
-					LedgerID:       ledgerID.String(),
-					TransactionID:  tran.ID,
-					ParentID:       nil,
-					AccountID:      blc.ID,
-					AccountAlias:   blc.Alias,
-					AssetCode:      blc.AssetCode,
-					Type:           fromTo[i].Operation,
-					Amount:         amount,
-					BalanceBefore:  balance,
-					BalanceAfter:   balanceAfter,
-					CreatedAt:      time.Now(),
-					UpdatedAt:      time.Now(),
-				})
+				logger.Infof("Account match found for account id: %s", blc.ID)
 			}
 		}
 	}
 
-	err = handler.Command.CreateTransaction(ctx, organizationID, ledgerID, *tran, operations, transactionID.String())
+	createdTran, err := handler.Command.CreateTransaction(ctx, organizationID, ledgerID, transactionID, &parserDSL)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to create transaction", err)
 
@@ -633,8 +593,9 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		return http.WithError(c, err)
 	}
 
-	tranID := tran.ID
-	tran, err = handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, uuid.MustParse(tranID))
+	tranID := createdTran.ID
+
+	tran, err := handler.Query.GetTransactionByID(ctx, organizationID, ledgerID, uuid.MustParse(tranID))
 	if err != nil {
 		mopentelemetry.HandleSpanError(&spanValidateBalances, "Failed to get transactions", err)
 
@@ -664,5 +625,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 	}
 
 	logger.Infof("Successfully created Transaction ID: %s, Operation count: %d", tran.ID, len(tran.Operations))
+
 	return http.Created(c, tran)
 }
