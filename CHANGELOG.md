@@ -1,3 +1,17 @@
+## [1.49.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.7...v1.49.0-beta.8) (2025-03-05)
+
+
+### Features
+
+* add auth module sdk to validate autorization; :sparkles: ([c363fcc](https://github.com/LerianStudio/midaz/commit/c363fcc29587ab4292437ed2704017146ee58632))
+* add index to parent_transaction_id on transaction; ([83db867](https://github.com/LerianStudio/midaz/commit/83db867bd4384db2cf3a8cecfc05fb878ca644b4))
+
+
+### Bug Fixes
+
+* create index to transaction_id to operation; ([b94ba29](https://github.com/LerianStudio/midaz/commit/b94ba295b47ae76b34940e54fb15330ba518ef27))
+* remove auth url from use on sdk; :bug: ([aa2a7e2](https://github.com/LerianStudio/midaz/commit/aa2a7e268c7ec031af623bfd759789db32b2aead))
+
 ## [1.49.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.6...v1.49.0-beta.7) (2025-02-28)
 
 
