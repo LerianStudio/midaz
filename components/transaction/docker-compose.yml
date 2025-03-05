@@ -12,16 +12,11 @@ services:
     volumes:
       - .:/usr/src/app
     networks:
-      - auth_network
       - infra_network
       - onboarding_network
       - transaction_network
 
 networks:
-  auth_network:
-    name: auth_network
-    driver: bridge
-    external: true
   infra_network:
     name: infra_network
     driver: bridge
