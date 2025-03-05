@@ -20,9 +20,11 @@ networks:
   auth_network:
     name: auth_network
     driver: bridge
+    external: true
   infra_network:
     name: infra_network
     driver: bridge
+    external: true
   onboarding_network:
     name: onboarding_network
     driver: bridge
