@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.23.2
 
 require (
+	github.com/LerianStudio/auth-sdk v1.0.9
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -13,7 +14,6 @@ require (
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/gofiber/fiber/v2 v2.52.6
-	github.com/google/trillian v1.7.1
 	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/jarcoal/httpmock v1.3.1
@@ -43,7 +43,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.34.0
 	go.uber.org/mock v0.5.0
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.36.5
 	gotest.tools v2.2.0+incompatible
 )
 
@@ -59,6 +58,7 @@ require (
 	github.com/corpix/uarand v0.0.0-20170723150923-031be390f409 // indirect
 	github.com/creack/pty v1.1.17 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/docker/docker v27.3.1+incompatible // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -89,13 +89,12 @@ require (
 	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250224174004-546df14abb99 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250224174004-546df14abb99 // indirect
+	google.golang.org/protobuf v1.36.5 // indirect
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/fatih/color v1.18.0
-	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -103,11 +102,6 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
-	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
-	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
-	github.com/lestrrat-go/httpcc v1.0.1 // indirect
-	github.com/lestrrat-go/iter v1.0.2 // indirect
-	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -128,15 +122,12 @@ require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/bxcodec/dbresolver/v2 v2.2.0
 	github.com/go-playground/validator v9.31.0+incompatible
-	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.18.2
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/lestrrat-go/jwx v1.2.30
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/cobra v1.9.1

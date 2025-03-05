@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS operation (
     FOREIGN KEY (transaction_id) REFERENCES "transaction" (id)
 );
 
+CREATE INDEX idx_operation_organization_transaction_id ON operation (transaction_id);
+REINDEX INDEX idx_operation_organization_transaction_id;
+
 CREATE INDEX idx_operation_organization_ledger_id ON operation (organization_id, ledger_id);
 REINDEX INDEX idx_operation_organization_ledger_id;
 
