@@ -360,7 +360,7 @@ up:
 	$(call check_env_files)
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			$(DOCKER_CMD) -f $$dir/docker-compose.yml up --build -d; \
+			ENV_NAME=development $(DOCKER_CMD) -f $$dir/docker-compose.yml up --build -d; \
 		else \
 			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
 		fi; \
@@ -373,7 +373,7 @@ down:
 	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			$(DOCKER_CMD) -f $$dir/docker-compose.yml down; \
+			ENV_NAME=development $(DOCKER_CMD) -f $$dir/docker-compose.yml down; \
 		else \
 			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
 		fi; \
@@ -387,7 +387,7 @@ rebuild-up:
 	$(call check_env_files)
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			$(DOCKER_CMD) -f $$dir/docker-compose.yml up --build --force-recreate -d; \
+			ENV_NAME=development $(DOCKER_CMD) -f $$dir/docker-compose.yml up --build --force-recreate -d; \
 		else \
 			echo "$(YELLOW)Skipping $$dir: No docker-compose.yml file found$(NC)"; \
 		fi; \
