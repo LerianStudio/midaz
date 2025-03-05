@@ -23,7 +23,7 @@ linters:
     - reassign
     - revive # Metalinter; drop-in replacement for golint.
     - stylecheck # Replacement for golint
-    - tenv # Detects using os.Setenv instead of t.Setenv.
+    - usetesting # Detects using os.Setenv instead of t.Setenv (replacement for tenv).
     - thelper # Detects test helpers without t.Helper().
     - tparallel # Detects inappropriate usage of t.Parallel().
     - unconvert # Detects unnecessary type conversions.
