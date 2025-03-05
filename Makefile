@@ -196,6 +196,23 @@ check-logs:
 		echo "$(GREEN)$(BOLD)[ok]$(NC) All good$(GREEN) ✔️$(NC)"; \
 	fi
 
+# TODO: add output files for tests to comply with the test coverage
+# TODO: add test coverage for missing components
+# ----------------------------------
+#    📝 STARTING TESTS ANALYZER  
+# ----------------------------------
+# Error: There is no test for the file components/onboarding/internal/services/query/query.go
+# Error: There is no test for the file components/transaction/internal/services/query/query.go
+# Error: There is no test for the file components/transaction/internal/services/query/get-balances.go
+# Error: There is no test for the file components/onboarding/internal/services/command/command.go
+# Error: There is no test for the file components/onboarding/internal/services/command/send-account-queue-transaction.go
+# Error: There is no test for the file components/transaction/internal/services/command/command.go
+# Error: There is no test for the file components/transaction/internal/services/command/create-balance-transaction-operations-async.go
+# Error: There is no test for the file components/transaction/internal/services/command/send-bto-execute-async.go
+# Error: There is no test for the file components/transaction/internal/services/command/create-idempotency-key.go
+# Error: There is no test for the file components/transaction/internal/services/command/send-log-transaction-audit-queue.go
+# Error: There is no test for the file components/transaction/internal/services/command/create-balance.go
+
 .PHONY: check-tests
 check-tests:
 	@echo "$(BLUE)Verifying test coverage for components...$(NC)"
