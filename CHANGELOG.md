@@ -1,3 +1,15 @@
+## [1.49.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.9...v1.49.0-beta.10) (2025-03-06)
+
+
+### Features
+
+* add a validations to cannot delete balance with funds; :sparkles: ([047de68](https://github.com/LerianStudio/midaz/commit/047de6860dd673cccd80076b395d762f9705f94f))
+
+
+### Bug Fixes
+
+* update go mod and sum; :bug: ([0ba596d](https://github.com/LerianStudio/midaz/commit/0ba596dd11cc99fb210d34af0231728412c8b629))
+
 ## [1.49.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.8...v1.49.0-beta.9) (2025-03-06)
 
 
