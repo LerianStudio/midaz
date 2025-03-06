@@ -2,17 +2,30 @@ apiVersion: 1
 
 # List of data sources to insert/update
 datasources:
-  # Prometheus/Mimir data source - LGTM uses internal paths
-  - name: Mimir
+  - name: Prometheus
     type: prometheus
     uid: mimir
     access: proxy
-    url: http://localhost:9009/prometheus
+    url: http://localhost:9090
+    isDefault: true
     jsonData:
       prometheusType: Prometheus
+    version: 1
     editable: true
 
-  # Tempo data source for traces
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://localhost:3100
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: traceID=(\w+)
+          name: TraceID
+    version: 1
+    editable: true
+
   - name: Tempo
     type: tempo
     uid: tempo
@@ -23,23 +36,10 @@ datasources:
         enabled: true
       tracesToLogs:
         datasourceUid: loki
-        tags: ['service.name', 'span.name']
-        spanStartTimeShift: '-1h'
-        spanEndTimeShift: '1h'
-        filterByTraceID: true
         filterBySpanID: true
-    editable: true
-
-  # Loki data source for logs
-  - name: Loki
-    type: loki
-    uid: loki
-    access: proxy
-    url: http://localhost:3100
-    jsonData:
-      derivedFields:
-        - datasourceUid: tempo
-          matcherRegex: "traceID=(\\w+)"
-          name: TraceID
-          url: "${__value.raw}"
+        filterByTraceID: true
+        spanEndTimeShift: 1h
+        spanStartTimeShift: -1h
+        tags: ['service.name', 'span.name']
+    version: 1
     editable: true
