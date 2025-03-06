@@ -1,3 +1,13 @@
+## [1.49.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.8...v1.49.0-beta.9) (2025-03-06)
+
+
+### Bug Fixes
+
+* adjust erros struct fields to lower case names; :bug: ([b5a9620](https://github.com/LerianStudio/midaz/commit/b5a9620e80c40d336d67a6125ee5f87fc50ef2b0))
+* change lib auth-sdk to auth-lib and replace on code; :bug: ([8644a5c](https://github.com/LerianStudio/midaz/commit/8644a5ca547f54fb8cdaa03fb6022e45256bf0fc))
+* makefiles and standardize the commands across all of them ([#566](https://github.com/LerianStudio/midaz/issues/566)) ([4d02cbe](https://github.com/LerianStudio/midaz/commit/4d02cbec22b325ebfac6a4958a5d3ee93bc7888e))
+* remove a inexistent lint usetesting to tenv; :bug: ([68bf4d5](https://github.com/LerianStudio/midaz/commit/68bf4d52fb6c9498e49567417726deb9d2215732))
+
 ## [1.49.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.7...v1.49.0-beta.8) (2025-03-05)
 
 
