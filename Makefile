@@ -83,6 +83,7 @@ help:
 	@echo "  make stop                        - Stop all containers"
 	@echo "  make restart                     - Restart all containers (or build and start if images don't exist)"
 	@echo "  make rebuild-up                  - Rebuild and restart all services"
+	@echo "  make clean-docker                - Remove all Docker containers, images, volumes, and networks related to the project"
 	@echo "  make infra COMMAND=<cmd>         - Run command in infra service"
 	@echo "  make onboarding COMMAND=<cmd>    - Run command in onboarding service"
 	@echo "  make transaction COMMAND=<cmd>   - Run command in transaction service"
@@ -465,3 +466,19 @@ generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
 	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
+
+.PHONY: clean-docker
+clean-docker:
+	@echo "$(BLUE)Removing all Docker containers, images, volumes, and networks related to the project...$(NC)"
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@echo "$(YELLOW)Stopping and removing all containers...$(NC)"
+	@docker ps -a --filter "name=midaz-" -q | xargs -r docker rm -f
+	@echo "$(YELLOW)Removing all project volumes...$(NC)"
+	@docker volume ls --filter "name=midaz_" -q | xargs -r docker volume rm
+	@echo "$(YELLOW)Removing all project networks...$(NC)"
+	@docker network ls --filter "name=infra_network" --filter "name=onboarding_network" --filter "name=transaction_network" -q | xargs -r docker network rm
+	@echo "$(YELLOW)Removing all project images...$(NC)"
+	@docker images --filter "reference=*midaz*" -q | xargs -r docker rmi -f
+	@echo "$(YELLOW)Pruning unused Docker resources...$(NC)"
+	@docker system prune -f
+	@echo "$(GREEN)All Docker resources related to the Midaz project have been cleaned successfully$(NC)"
