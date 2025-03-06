@@ -33,9 +33,9 @@ volumes:
 
 networks:
   infra_network:
-    name: infra_network
+    name: midaz_infra-network
     driver: bridge
     external: true
   onboarding_network:
-    name: onboarding_network
+    name: midaz_onboarding-network
     driver: bridge

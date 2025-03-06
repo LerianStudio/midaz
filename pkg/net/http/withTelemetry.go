@@ -24,6 +24,9 @@ import (
 // Define a custom context key for fiber.Ctx
 type fiberCtxKey struct{}
 
+// Define a custom key type for gRPC method
+type grpcMethodKey struct{}
+
 type TelemetryMiddleware struct {
 	Telemetry *mopentelemetry.Telemetry
 }
@@ -55,7 +58,7 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to collect metrics", err)
 
-			return WithError(c, err)
+			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 
 		return c.Next()
@@ -92,7 +95,7 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 		ctx = pkg.ContextWithTracer(ctx, tracer)
 
 		// Store gRPC method info in context for metrics
-		ctx = context.WithValue(ctx, "grpc_method", info.FullMethod)
+		ctx = context.WithValue(ctx, grpcMethodKey{}, info.FullMethod)
 
 		err := tm.collectMetrics(ctx)
 		if err != nil {
@@ -137,6 +140,7 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 
 		// Determine status code from error
 		statusCode := "OK"
+
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "gRPC request failed", err)
 			st, _ := status.FromError(err)

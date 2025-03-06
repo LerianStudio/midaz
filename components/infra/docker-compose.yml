@@ -212,5 +212,5 @@ volumes:
 
 networks:
   infra_network:
-    name: infra_network
+    name: midaz_infra-network
     driver: bridge
