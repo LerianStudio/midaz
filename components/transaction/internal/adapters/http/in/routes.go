@@ -1,7 +1,7 @@
 package in
 
 import (
-	"github.com/LerianStudio/auth-sdk/auth/middleware"
+	"github.com/LerianStudio/auth-lib/auth/middleware"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
