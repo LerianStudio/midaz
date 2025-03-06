@@ -2,8 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/LerianStudio/auth-sdk/auth/middleware"
-
+	"github.com/LerianStudio/auth-lib/auth/middleware"
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"

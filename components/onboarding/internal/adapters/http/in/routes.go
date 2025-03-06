@@ -1,7 +1,7 @@
 package in
 
 import (
-	"github.com/LerianStudio/auth-sdk/auth/middleware"
+	"github.com/LerianStudio/auth-lib/auth/middleware"
 	_ "github.com/LerianStudio/midaz/components/onboarding/api"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
