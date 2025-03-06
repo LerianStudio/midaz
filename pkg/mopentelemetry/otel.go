@@ -2,6 +2,9 @@ package mopentelemetry
 
 import (
 	"context"
+	"os"
+	"time"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -10,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -18,7 +22,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/metadata"
-	"os"
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -67,7 +70,15 @@ func (tl *Telemetry) newLoggerExporter(ctx context.Context) (*otlploggrpc.Export
 
 // newMetricExporter creates a new metric exporter that writes to stdout.
 func (tl *Telemetry) newMetricExporter(ctx context.Context) (*otlpmetricgrpc.Exporter, error) {
-	exp, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithEndpoint(tl.CollectorExporterEndpoint), otlpmetricgrpc.WithInsecure())
+	// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use the configured endpoint
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		endpoint = tl.CollectorExporterEndpoint
+	}
+
+	exp, err := otlpmetricgrpc.New(ctx,
+		otlpmetricgrpc.WithEndpoint(endpoint),
+		otlpmetricgrpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +88,15 @@ func (tl *Telemetry) newMetricExporter(ctx context.Context) (*otlpmetricgrpc.Exp
 
 // newTracerExporter creates a new tracer exporter that writes to stdout.
 func (tl *Telemetry) newTracerExporter(ctx context.Context) (*otlptrace.Exporter, error) {
-	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpoint(tl.CollectorExporterEndpoint), otlptracegrpc.WithInsecure())
+	// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use the configured endpoint
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		endpoint = tl.CollectorExporterEndpoint
+	}
+
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint(endpoint),
+		otlptracegrpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +214,9 @@ func (tl *Telemetry) InitializeTelemetry(logger mlog.Logger) *Telemetry {
 
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
+	// Start background system metrics collection
+	go tl.startBackgroundMetricsCollection(ctx, logger)
+
 	logger.Infof("Telemetry initialized ✅ ")
 
 	return &Telemetry{
@@ -202,6 +224,67 @@ func (tl *Telemetry) InitializeTelemetry(logger mlog.Logger) *Telemetry {
 		TracerProvider: tp,
 		MetricProvider: mp,
 		shutdown:       tl.shutdown,
+	}
+}
+
+// startBackgroundMetricsCollection collects system metrics on a regular interval
+func (tl *Telemetry) startBackgroundMetricsCollection(ctx context.Context, logger mlog.Logger) {
+	meter := otel.Meter(tl.ServiceName)
+
+	// CPU usage metric
+	cpuGauge, err := meter.Int64Gauge(
+		"system.cpu.usage",
+		metric.WithDescription("CPU usage in percentage"),
+		metric.WithUnit("percentage"),
+	)
+	if err != nil {
+		logger.Errorf("Failed to create CPU gauge: %v", err)
+		return
+	}
+
+	// Memory usage metric
+	memGauge, err := meter.Int64Gauge(
+		"system.mem.usage",
+		metric.WithDescription("Memory usage in percentage"),
+		metric.WithUnit("percentage"),
+	)
+	if err != nil {
+		logger.Errorf("Failed to create memory gauge: %v", err)
+		return
+	}
+
+	// Service info metric (for service discovery)
+	serviceInfo, err := meter.Int64UpDownCounter(
+		"service.info",
+		metric.WithDescription("Information about the service"),
+		metric.WithUnit("{info}"),
+	)
+	if err != nil {
+		logger.Errorf("Failed to create service info metric: %v", err)
+		return
+	}
+
+	// Record service information once
+	serviceAttributes := []attribute.KeyValue{
+		attribute.String("service.name", tl.ServiceName),
+		attribute.String("service.version", tl.ServiceVersion),
+		attribute.String("deployment.environment", tl.DeploymentEnv),
+	}
+	serviceInfo.Add(ctx, 1, metric.WithAttributes(serviceAttributes...))
+
+	// Run continuous collection at regular intervals
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Get CPU and memory metrics
+			pkg.GetCPUUsage(ctx, cpuGauge)
+			pkg.GetMemUsage(ctx, memGauge)
+		}
 	}
 }
 
