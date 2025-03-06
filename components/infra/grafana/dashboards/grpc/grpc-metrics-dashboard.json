@@ -25,7 +25,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "mimir"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -102,7 +102,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "mimir"
+                        "uid": "prometheus"
                     },
                     "editorMode": "builder",
                     "expr": "rate(grpc_server_started_total{service_name=~\"$service\"}[$__rate_interval])",
@@ -117,7 +117,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "mimir"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -195,7 +195,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "mimir"
+                        "uid": "prometheus"
                     },
                     "editorMode": "builder",
                     "expr": "histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])) by (le, grpc_method, service_name))",
@@ -206,7 +206,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "mimir"
+                        "uid": "prometheus"
                     },
                     "editorMode": "builder",
                     "expr": "histogram_quantile(0.50, sum(rate(grpc_server_handling_seconds_bucket{service_name=~\"$service\"}[$__rate_interval])) by (le, grpc_method, service_name))",
@@ -222,7 +222,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "mimir"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -299,7 +299,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "mimir"
+                        "uid": "prometheus"
                     },
                     "editorMode": "builder",
                     "expr": "sum(rate(grpc_server_handled_total{service_name=~\"$service\", grpc_code=\"OK\"}[$__rate_interval])) by (service_name, grpc_method)",
@@ -310,7 +310,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "mimir"
+                        "uid": "prometheus"
                     },
                     "editorMode": "builder",
                     "expr": "sum(rate(grpc_server_handled_total{service_name=~\"$service\", grpc_code!=\"OK\"}[$__rate_interval])) by (service_name, grpc_method, grpc_code)",
@@ -326,7 +326,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "mimir"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -377,7 +377,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "mimir"
+                        "uid": "prometheus"
                     },
                     "editorMode": "builder",
                     "expr": "sum by(grpc_method) (grpc_server_started_total{service_name=~\"$service\"})",
@@ -407,7 +407,7 @@
                 },
                 "datasource": {
                     "type": "prometheus",
-                    "uid": "mimir"
+                    "uid": "prometheus"
                 },
                 "definition": "label_values(service_name)",
                 "hide": 0,

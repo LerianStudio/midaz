@@ -4,7 +4,7 @@ apiVersion: 1
 datasources:
   - name: Prometheus
     type: prometheus
-    uid: mimir
+    uid: prometheus
     access: proxy
     url: http://localhost:9090
     isDefault: true

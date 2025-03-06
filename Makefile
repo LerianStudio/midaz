@@ -306,8 +306,9 @@ clean:
 	fi
 	
 	@echo "$(BLUE)Cleaning common build artifacts...$(NC)"
-	@find . -name "*.o" -o -name "*.a" -o -name "*.so" -o -name "*.test" -o -name "*.out" -o -name "coverage.html" -o -name "__debug_bin*" -type f -delete
-	@find . -path "*/dist/*" -o -path "*/.idea/*" -o -path "*/.vscode/*" -o -path "*/.run/*" -not -path "*/\.git/*" -exec rm -rf {} \; 2>/dev/null || true
+	@cd $(MIDAZ_ROOT)
+	@find . -name "*.o" -o -name "*.a" -o -name "*.env" -o -name "*.so" -o -name "*.test" -o -name "*.out" -o -name "coverage.html" -o -name "__debug_bin*" -type f -delete
+	@find . -path "*/dist/*" -o -path "*/.idea/*" -o -path "*/bin/*" -o -path "*/.vscode/*" -o -path "*/.run/*" -not -path "*/\.git/*" -exec rm -rf {} \; 2>/dev/null || true
 	
 	@echo "$(GREEN)All artifacts cleaned successfully$(NC)"
 
