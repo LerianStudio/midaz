@@ -146,17 +146,20 @@ services:
           cpus: '0.5'
           memory: 1G
     environment:
-      GF_SECURITY_ADMIN_USER: ${OTEL_LGTM_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${OTEL_LGTM_ADMIN_PASSWORD:-admin}
-      ENABLE_LOGS_GRAFANA: "true"
-      ENABLE_LOGS_LOKI: "true"
-      ENABLE_LOGS_TEMPO: "true"
-      ENABLE_LOGS_MIMIR: "true"
-      ENABLE_LOGS_OTELCOL: "true"
+      - GF_SECURITY_ADMIN_USER=${OTEL_LGTM_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${OTEL_LGTM_ADMIN_PASSWORD}
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_PATHS_PROVISIONING=/otel-lgtm/grafana/provisioning
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
       - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
+      - 3200:3200
+      - 9090:9090
+      - 8888:8888
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
       - ./grafana/run-grafana.sh:/otel-lgtm/run-grafana.sh
