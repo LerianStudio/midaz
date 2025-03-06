@@ -823,6 +823,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Transaction ambiguous account",
 			Message:    "Transaction can't be used same account in sources ans destinations",
 		},
+		constant.ErrBalancesCantDeleted: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrBalancesCantDeleted.Error(),
+			Title:      "Balance cannot be deleted",
+			Message:    "Balance cannot be deleted because it still has funds in it.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
