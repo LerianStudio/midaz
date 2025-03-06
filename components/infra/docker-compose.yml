@@ -167,6 +167,7 @@ services:
       - ./grafana/provisioning:/otel-lgtm/grafana/provisioning
       - ./otel/config/otel-collector-config.yaml:/otel-lgtm/etc/otelcol/config.yaml
       - ./otel/scripts/check-telemetry-health.sh:/otel-lgtm/check-telemetry-health.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test: [ "CMD-SHELL", "/otel-lgtm/check-telemetry-health.sh" ]
       interval: 30s
@@ -196,10 +197,13 @@ services:
 
 volumes:
   postgres-data:
+    name: midaz_postgres-data
   mongodb-data:
+    name: midaz_mongodb-data
   redis-data:
+    name: midaz_redis-data
   grafana-data:
-
+    name: midaz_grafana-data
 
 networks:
   infra_network:

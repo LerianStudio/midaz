@@ -22,10 +22,14 @@ services:
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
-      - .:/usr/src/app
+      - onboarding-data:/usr/src/app
     networks:
       - infra_network
       - onboarding_network
+
+volumes:
+  onboarding-data:
+    name: midaz_onboarding-data
 
 networks:
   infra_network:

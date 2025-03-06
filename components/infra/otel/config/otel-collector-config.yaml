@@ -15,6 +15,14 @@ receivers:
       disk:
       network:
       process:
+  
+  # Add Docker metrics collector
+  dockerstats:
+    collection_interval: 30s
+    endpoint: unix:///var/run/docker.sock
+    timeout: 20s
+    container_labels_to_metric_labels:
+      com.docker.compose.service: service_name
 
 processors:
   batch:
@@ -76,7 +84,7 @@ service:
       exporters: [otlp, otlphttp/traces, debug]
     
     metrics:
-      receivers: [otlp, hostmetrics]
+      receivers: [otlp, hostmetrics, dockerstats]
       processors: [memory_limiter, batch, resourcedetection, attributes]
       exporters: [otlp, otlphttp/metrics, debug]
     

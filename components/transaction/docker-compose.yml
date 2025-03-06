@@ -22,11 +22,15 @@ services:
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
-      - .:/usr/src/app
+      - transaction-data:/usr/src/app
     networks:
       - infra_network
       - onboarding_network
       - transaction_network
+
+volumes:
+  transaction-data:
+    name: midaz_transaction-data
 
 networks:
   infra_network:
