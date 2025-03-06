@@ -13,9 +13,11 @@ fi
 if [ -f /.dockerenv ]; then
   echo "Running health checks in container mode..."
   HOST="localhost"
+  GRAFANA_PORT="3000"  # Grafana runs on port 3000 inside the container
 else
   echo "Running health checks in host mode..."
   HOST="localhost"
+  GRAFANA_PORT="3100"  # Grafana is mapped to port 3100 on the host
 fi
 
 # Check if a service is healthy
@@ -44,7 +46,7 @@ CONTAINER="midaz-otel-lgtm"
 UNHEALTHY_COUNT=0
 
 # Check Grafana
-check_service $CONTAINER 3100 "/" || ((UNHEALTHY_COUNT++))
+check_service $CONTAINER $GRAFANA_PORT "/" || ((UNHEALTHY_COUNT++))
 
 # Check Tempo
 check_service $CONTAINER 3200 "/ready" || ((UNHEALTHY_COUNT++))

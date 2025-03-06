@@ -16,6 +16,7 @@ services:
       - ${MONGO_PORT}:${MONGO_PORT}
     volumes:
       - mongodb-data:/data/db
+      - mongodb-data:/data/configdb
     networks:
       - infra_network
 
@@ -105,6 +106,8 @@ services:
       fi
       exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
       "
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_REPLICA_USER} -p ${DB_REPLICA_PORT}" ]
       interval: 10s
@@ -198,6 +201,8 @@ services:
 volumes:
   postgres-data:
     name: midaz_postgres-data
+  postgres-replica-data:
+    name: midaz_postgres-replica-data
   mongodb-data:
     name: midaz_mongodb-data
   redis-data:

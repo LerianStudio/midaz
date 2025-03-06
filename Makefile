@@ -83,7 +83,7 @@ help:
 	@echo "  make stop                        - Stop all containers"
 	@echo "  make restart                     - Restart all containers (or build and start if images don't exist)"
 	@echo "  make rebuild-up                  - Rebuild and restart all services"
-	@echo "  make clean-docker                - Remove all Docker containers, images, volumes, and networks related to the project"
+	@echo "  make clean-docker                - Remove all Docker containers, images, volumes, and networks related"
 	@echo "  make infra COMMAND=<cmd>         - Run command in infra service"
 	@echo "  make onboarding COMMAND=<cmd>    - Run command in onboarding service"
 	@echo "  make transaction COMMAND=<cmd>   - Run command in transaction service"
