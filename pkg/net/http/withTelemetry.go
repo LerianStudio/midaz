@@ -119,7 +119,7 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 		duration := time.Since(startTime).Milliseconds()
 
 		// Record gRPC metrics
-		meter := otel.Meter(tm.ServiceName)
+		meter := otel.Meter(tm.Telemetry.ServiceName)
 
 		// gRPC request counter
 		grpcCounter, _ := meter.Int64Counter(
@@ -145,7 +145,7 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 
 		// Add attributes
 		attributes := []attribute.KeyValue{
-			attribute.String("service.name", tm.ServiceName),
+			attribute.String("service.name", tm.Telemetry.ServiceName),
 			attribute.String("grpc.method", info.FullMethod),
 			attribute.String("status_code", statusCode),
 		}
@@ -177,7 +177,7 @@ func (tm *TelemetryMiddleware) EndTracingSpansInterceptor() grpc.UnaryServerInte
 }
 
 func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
-	meter := otel.Meter(tm.ServiceName)
+	meter := otel.Meter(tm.Telemetry.ServiceName)
 
 	// CPU usage
 	cpuGauge, err := meter.Int64Gauge(
@@ -213,7 +213,7 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 
 		// Record HTTP request
 		attributes := []attribute.KeyValue{
-			attribute.String("service.name", tm.ServiceName),
+			attribute.String("service.name", tm.Telemetry.ServiceName),
 			attribute.String("path", fiberCtx.Path()),
 			attribute.String("method", fiberCtx.Method()),
 			attribute.String("status_code", strconv.Itoa(fiberCtx.Response().StatusCode())),
