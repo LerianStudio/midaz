@@ -1,0 +1,90 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  # Add host metrics collector
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+      memory:
+      disk:
+      network:
+      process:
+
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+  
+  # Add trace IDs to logs for correlation
+  resourcedetection:
+    detectors: [env]
+    timeout: 2s
+  
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  
+  # Add service name to metrics if missing
+  attributes:
+    actions:
+      - key: service.name
+        action: upsert
+        value: "midaz-service"
+        from_attribute: service_name
+
+exporters:
+  # Local debug exporter - helps troubleshoot
+  debug:
+    verbosity: detailed
+  
+  # OTLP exporter - This handles all telemetry signals in the LGTM container
+  otlp:
+    endpoint: "localhost:4317"
+    tls:
+      insecure: true
+  
+  # Add direct exporters to each backend
+  otlphttp/metrics:
+    endpoint: "http://localhost:9009/otlp"
+    tls:
+      insecure: true
+  
+  otlphttp/logs:
+    endpoint: "http://localhost:3100/loki/api/v1/push"
+    tls:
+      insecure: true
+  
+  otlphttp/traces:
+    endpoint: "http://localhost:4317"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    # Single pipeline for all telemetry data in the LGTM container
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resourcedetection, attributes]
+      exporters: [otlp, otlphttp/traces, debug]
+    
+    metrics:
+      receivers: [otlp, hostmetrics]
+      processors: [memory_limiter, batch, resourcedetection, attributes]
+      exporters: [otlp, otlphttp/metrics, debug]
+    
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resourcedetection, attributes]
+      exporters: [otlp, otlphttp/logs, debug]
+  
+  telemetry:
+    logs:
+      level: "debug"

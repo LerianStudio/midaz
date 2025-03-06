@@ -36,6 +36,15 @@ info:
 	@echo "  $(CYAN)COMMAND=\"logs\"$(NC)                                 Show and follow logs for all services"
 	@echo "  $(CYAN)COMMAND=\"ps\"$(NC)                                   List container status"
 	@echo ""
+	@echo "$(BOLD)## Telemetry maintenance and troubleshooting:$(NC)"
+	@echo ""
+	@echo "  $(CYAN)telemetry-health$(NC)                                 Check the health of the telemetry stack"
+	@echo "  $(CYAN)telemetry-fix$(NC)                                    Fix common telemetry issues (for maintenance)"
+	@echo "  $(CYAN)telemetry-update-datasource$(NC)                      Update the Grafana datasource (for maintenance)"
+	@echo "  $(CYAN)telemetry-update-dashboards$(NC)                      Update the Grafana dashboards (for maintenance)"
+	@echo "  $(CYAN)telemetry-check-ports$(NC)                            Check LGTM container ports and services"
+	@echo "  $(CYAN)telemetry-test-metrics$(NC)                           Send test metrics to OpenTelemetry collector"
+	@echo ""
 
 # Docker Compose Commands
 .PHONY: build
@@ -74,6 +83,13 @@ restart:
 	@make stop && \
     make up
 
+.PHONY: rebuild-up
+rebuild-up:
+	@echo "$(BLUE)Rebuilding and starting all services...$(NC)"
+	@make down && \
+    make build && \
+    make up
+
 .PHONY: logs
 logs:
 	@echo "$(BLUE)Showing logs for all services...$(NC)"
@@ -83,3 +99,34 @@ logs:
 ps:
 	@echo "$(BLUE)Listing container status...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml ps
+
+# Telemetry Commands (for maintenance and troubleshooting)
+.PHONY: telemetry-health
+telemetry-health:
+	@echo "$(BLUE)Checking telemetry health...$(NC)"
+	@./otel/scripts/check-telemetry-health.sh
+
+.PHONY: telemetry-fix
+telemetry-fix:
+	@echo "$(BLUE)Fixing telemetry issues (for maintenance)...$(NC)"
+	@./otel/scripts/fix-telemetry.sh
+
+.PHONY: telemetry-update-datasource
+telemetry-update-datasource:
+	@echo "$(BLUE)Updating Grafana datasource (for maintenance)...$(NC)"
+	@./otel/scripts/update-grafana-datasource.sh
+
+.PHONY: telemetry-update-dashboards
+telemetry-update-dashboards:
+	@echo "$(BLUE)Updating Grafana dashboards (for maintenance)...$(NC)"
+	@./otel/scripts/update-grafana-dashboards.sh
+
+.PHONY: telemetry-check-ports
+telemetry-check-ports:
+	@echo "$(BLUE)Checking LGTM container ports and services...$(NC)"
+	@./otel/scripts/check-lgtm-ports.sh
+
+.PHONY: telemetry-test-metrics
+telemetry-test-metrics:
+	@echo "$(BLUE)Sending test metrics to OpenTelemetry collector...$(NC)"
+	@./otel/scripts/test-metrics.sh
