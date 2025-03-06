@@ -105,8 +105,8 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "builder",
-                    "expr": "rate(http_server_request_count{service_name=~\"$service\"}[$__rate_interval])",
-                    "legendFormat": "{{service_name}}",
+                    "expr": "rate(http_server_request_count_total{service_name=~\"$service\"}[$__rate_interval])",
+                    "legendFormat": "{{service_name}} - {{method}} {{path}}",
                     "range": true,
                     "refId": "A"
                 }
@@ -167,8 +167,7 @@
                                 "value": 80
                             }
                         ]
-                    },
-                    "unit": "ms"
+                    }
                 },
                 "overrides": []
             },
@@ -178,7 +177,7 @@
                 "x": 12,
                 "y": 0
             },
-            "id": 2,
+            "id": 5,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -198,25 +197,13 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "builder",
-                    "expr": "http_server_request_duration_milliseconds{service_name=~\"$service\", quantile=\"0.95\"}",
-                    "legendFormat": "{{service_name}} - p95",
+                    "expr": "traces_spanmetrics_latency_sum{service=~\"$service\"} / traces_spanmetrics_latency_count{service=~\"$service\"}",
+                    "legendFormat": "{{service}} - {{span_name}}",
                     "range": true,
                     "refId": "A"
-                },
-                {
-                    "datasource": {
-                        "type": "prometheus",
-                        "uid": "prometheus"
-                    },
-                    "editorMode": "builder",
-                    "expr": "http_server_request_duration_milliseconds{service_name=~\"$service\", quantile=\"0.50\"}",
-                    "hide": false,
-                    "legendFormat": "{{service_name}} - p50",
-                    "range": true,
-                    "refId": "B"
                 }
             ],
-            "title": "HTTP Request Duration",
+            "title": "Average Span Duration",
             "type": "timeseries"
         },
         {
@@ -302,7 +289,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "builder",
-                    "expr": "rate(http_server_request_count{service_name=~\"$service\", status_code=~\"2..\"}[$__rate_interval])",
+                    "expr": "rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"2..\"}[$__rate_interval])",
                     "legendFormat": "{{service_name}} - 2xx",
                     "range": true,
                     "refId": "A"
@@ -313,7 +300,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "builder",
-                    "expr": "rate(http_server_request_count{service_name=~\"$service\", status_code=~\"4..\"}[$__rate_interval])",
+                    "expr": "rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"4..\"}[$__rate_interval])",
                     "hide": false,
                     "legendFormat": "{{service_name}} - 4xx",
                     "range": true,
@@ -325,7 +312,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "builder",
-                    "expr": "rate(http_server_request_count{service_name=~\"$service\", status_code=~\"5..\"}[$__rate_interval])",
+                    "expr": "rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"5..\"}[$__rate_interval])",
                     "hide": false,
                     "legendFormat": "{{service_name}} - 5xx",
                     "range": true,
@@ -392,7 +379,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "builder",
-                    "expr": "sum by(service_name) (http_server_request_count{service_name=~\"$service\"})",
+                    "expr": "sum by(service_name) (http_server_request_count_total{service_name=~\"$service\"})",
                     "legendFormat": "{{service_name}}",
                     "range": true,
                     "refId": "A"
@@ -400,6 +387,98 @@
             ],
             "title": "Total Requests by Service",
             "type": "bargauge"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 0,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 1,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 16
+            },
+            "id": 6,
+            "options": {
+                "legend": {
+                    "calcs": [],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "builder",
+                    "expr": "rate(traces_spanmetrics_calls_total{service=~\"$service\", span_name=~\"HTTP.*\"}[$__rate_interval])",
+                    "legendFormat": "{{service}} - {{span_name}}",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "HTTP Span Call Rate",
+            "type": "timeseries"
         }
     ],
     "refresh": "5s",

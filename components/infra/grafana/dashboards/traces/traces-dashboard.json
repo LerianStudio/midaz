@@ -41,7 +41,7 @@
                         "uid": "tempo"
                     },
                     "limit": 20,
-                    "queryType": "traceql",
+                    "queryType": "nativeSearch",
                     "refId": "A",
                     "search": "$search",
                     "serviceName": "$service"
@@ -208,8 +208,101 @@
         },
         {
             "datasource": {
-                "type": "tempo",
-                "uid": "tempo"
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 0,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 1,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    },
+                    "unit": "ms"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 24,
+                "x": 0,
+                "y": 16
+            },
+            "id": 4,
+            "options": {
+                "legend": {
+                    "calcs": [],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "builder",
+                    "expr": "traces_spanmetrics_latency_sum{service=~\"$service\"} / traces_spanmetrics_latency_count{service=~\"$service\"}",
+                    "legendFormat": "{{service}} - {{span_name}}",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Average Span Duration",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -267,9 +360,9 @@
                 "h": 8,
                 "w": 24,
                 "x": 0,
-                "y": 16
+                "y": 24
             },
-            "id": 4,
+            "id": 5,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -285,15 +378,17 @@
             "targets": [
                 {
                     "datasource": {
-                        "type": "tempo",
-                        "uid": "tempo"
+                        "type": "prometheus",
+                        "uid": "prometheus"
                     },
-                    "metric": "http_server_request_duration_milliseconds",
-                    "queryType": "metrics",
+                    "editorMode": "builder",
+                    "expr": "rate(traces_spanmetrics_calls_total{service=~\"$service\"}[$__rate_interval])",
+                    "legendFormat": "{{service}} - {{span_name}}",
+                    "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Request Duration",
+            "title": "Span Call Rate",
             "type": "timeseries"
         }
     ],

@@ -106,7 +106,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "system_cpu_usage{service_name=~\"$service\"}",
+                    "expr": "system_cpu_usage_percentage{service_name=~\"$service\"}",
                     "legendFormat": "{{service_name}} - CPU Usage",
                     "range": true,
                     "refId": "A"
@@ -199,7 +199,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "system_mem_usage{service_name=~\"$service\"}",
+                    "expr": "system_mem_usage_percentage{service_name=~\"$service\"}",
                     "legendFormat": "{{service_name}} - Memory Usage",
                     "range": true,
                     "refId": "A"
@@ -261,7 +261,8 @@
                                 "value": 80
                             }
                         ]
-                    }
+                    },
+                    "unit": "bytes"
                 },
                 "overrides": []
             },
@@ -271,7 +272,7 @@
                 "x": 0,
                 "y": 8
             },
-            "id": 3,
+            "id": 5,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -291,13 +292,13 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "rate(http_server_request_count{service_name=~\"$service\"}[5m])",
-                    "legendFormat": "{{service_name}} - {{method}} {{path}} ({{status_code}})",
+                    "expr": "otelcol_process_memory_rss",
+                    "legendFormat": "OTEL Collector - Memory Usage",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Request Rate",
+            "title": "OTEL Collector Memory Usage",
             "type": "timeseries"
         },
         {
@@ -364,7 +365,7 @@
                 "x": 12,
                 "y": 8
             },
-            "id": 4,
+            "id": 7,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -384,13 +385,13 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "rate(container_cpu_usage_seconds_total{container=~\"midaz-.*\"}[5m]) * 100",
-                    "legendFormat": "{{container}} - CPU Usage",
+                    "expr": "rate(otelcol_process_cpu_seconds_total[5m]) * 100",
+                    "legendFormat": "OTEL Collector - CPU Usage",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "Container CPU Usage",
+            "title": "OTEL Collector CPU Usage",
             "type": "timeseries"
         },
         {
@@ -446,18 +447,17 @@
                                 "value": 80
                             }
                         ]
-                    },
-                    "unit": "bytes"
+                    }
                 },
                 "overrides": []
             },
             "gridPos": {
                 "h": 8,
-                "w": 12,
+                "w": 24,
                 "x": 0,
                 "y": 16
             },
-            "id": 5,
+            "id": 8,
             "options": {
                 "legend": {
                     "calcs": [],
@@ -477,101 +477,8 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "container_memory_usage_bytes{container=~\"midaz-.*\"}",
-                    "legendFormat": "{{container}} - Memory Usage",
-                    "range": true,
-                    "refId": "A"
-                }
-            ],
-            "title": "Container Memory Usage",
-            "type": "timeseries"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
-                        "mode": "palette-classic"
-                    },
-                    "custom": {
-                        "axisCenteredZero": false,
-                        "axisColorMode": "text",
-                        "axisLabel": "",
-                        "axisPlacement": "auto",
-                        "barAlignment": 0,
-                        "drawStyle": "line",
-                        "fillOpacity": 10,
-                        "gradientMode": "none",
-                        "hideFrom": {
-                            "legend": false,
-                            "tooltip": false,
-                            "viz": false
-                        },
-                        "lineInterpolation": "linear",
-                        "lineWidth": 1,
-                        "pointSize": 5,
-                        "scaleDistribution": {
-                            "type": "linear"
-                        },
-                        "showPoints": "auto",
-                        "spanNulls": false,
-                        "stacking": {
-                            "group": "A",
-                            "mode": "none"
-                        },
-                        "thresholdsStyle": {
-                            "mode": "off"
-                        }
-                    },
-                    "mappings": [],
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            {
-                                "color": "green",
-                                "value": null
-                            },
-                            {
-                                "color": "red",
-                                "value": 80
-                            }
-                        ]
-                    },
-                    "unit": "bytes"
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 12,
-                "x": 12,
-                "y": 16
-            },
-            "id": 6,
-            "options": {
-                "legend": {
-                    "calcs": [],
-                    "displayMode": "list",
-                    "placement": "bottom",
-                    "showLegend": true
-                },
-                "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
-                }
-            },
-            "targets": [
-                {
-                    "datasource": {
-                        "type": "prometheus",
-                        "uid": "prometheus"
-                    },
-                    "editorMode": "code",
-                    "expr": "rate(container_network_receive_bytes_total{container=~\"midaz-.*\"}[5m])",
-                    "legendFormat": "{{container}} - Network Receive",
+                    "expr": "rate(otelcol_receiver_accepted_spans_total[5m])",
+                    "legendFormat": "Accepted Spans",
                     "range": true,
                     "refId": "A"
                 },
@@ -581,14 +488,14 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "rate(container_network_transmit_bytes_total{container=~\"midaz-.*\"}[5m])",
+                    "expr": "rate(otelcol_exporter_sent_spans_total[5m])",
                     "hide": false,
-                    "legendFormat": "{{container}} - Network Transmit",
+                    "legendFormat": "Exported Spans",
                     "range": true,
                     "refId": "B"
                 }
             ],
-            "title": "Container Network I/O",
+            "title": "OTEL Collector Spans Processing",
             "type": "timeseries"
         }
     ],
