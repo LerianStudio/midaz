@@ -714,6 +714,7 @@ func (r *BalancePostgreSQLRepository) Delete(ctx context.Context, organizationID
 	)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "failed to execute delete query", err)
+
 		return err
 	}
 

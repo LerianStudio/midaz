@@ -18,7 +18,7 @@ import (
 )
 
 type TelemetryMiddleware struct {
-	*mopentelemetry.Telemetry
+	Telemetry *mopentelemetry.Telemetry
 }
 
 // NewTelemetryMiddleware creates a new instance of TelemetryMiddleware.
@@ -125,14 +125,14 @@ func (tm *TelemetryMiddleware) EndTracingSpansInterceptor() grpc.UnaryServerInte
 }
 
 func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
-	cpuGauge, err := otel.Meter(tm.ServiceName).Int64Gauge("system.cpu.usage", metric.WithUnit("percentage"))
+	cpuGauge, err := otel.Meter(tm.Telemetry.ServiceName).Int64Gauge("system.cpu.usage", metric.WithUnit("percentage"))
 	if err != nil {
 		return err
 	}
 
 	go pkg.GetCPUUsage(ctx, cpuGauge)
 
-	memGauge, err := otel.Meter(tm.ServiceName).Int64Gauge("system.mem.usage", metric.WithUnit("percentage"))
+	memGauge, err := otel.Meter(tm.Telemetry.ServiceName).Int64Gauge("system.mem.usage", metric.WithUnit("percentage"))
 	if err != nil {
 		return err
 	}

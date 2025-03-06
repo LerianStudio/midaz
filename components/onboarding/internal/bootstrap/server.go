@@ -34,8 +34,8 @@ func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopen
 
 // Run runs the server.
 func (s *Server) Run(l *pkg.Launcher) error {
-	s.InitializeTelemetry(s.Logger)
-	defer s.ShutdownTelemetry()
+	s.Telemetry.InitializeTelemetry(s.Logger)
+	defer s.Telemetry.ShutdownTelemetry()
 
 	defer func() {
 		if err := s.Logger.Sync(); err != nil {
