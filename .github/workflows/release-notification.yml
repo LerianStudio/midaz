@@ -1,7 +1,11 @@
 name: "Release Notifications"
 on:
-  release:
-    types: [published]
+  #release:
+    #types: [published]
+  branches:
+      - fix/release-notification-workflow 
+      
+
 
 jobs:
   github-releases-to-discord:
