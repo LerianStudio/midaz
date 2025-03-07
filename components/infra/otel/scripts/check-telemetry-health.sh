@@ -26,17 +26,24 @@ check_service() {
   local port=$2
   local url=$3
   local expected_status=${4:-200}
+  local service_name=${5:-"Service"}
+  local accept_multiple_statuses=${6:-false}
+  local additional_status=${7:-0}
 
-  echo "Checking service in container $container on port $port..."
+  echo "Checking $service_name in container $container on port $port..."
   
   # Use curl to check if the service is responding
   status=$(curl -s -o /dev/null -w "%{http_code}" http://$HOST:$port$url)
   
-  if [ "$status" -eq "$expected_status" ]; then
-    echo "✅ Service in container $container is healthy (status: $status)"
+  if [ "$status" -eq "$expected_status" ] || ( [ "$accept_multiple_statuses" = true ] && [ "$status" -eq "$additional_status" ] ); then
+    echo "✅ $service_name in container $container is healthy (status: $status)"
     return 0
   else
-    echo "❌ Service in container $container is unhealthy (status: $status, expected: $expected_status)"
+    if [ "$accept_multiple_statuses" = true ]; then
+      echo "❌ $service_name in container $container is unhealthy (status: $status, expected: $expected_status or $additional_status)"
+    else
+      echo "❌ $service_name in container $container is unhealthy (status: $status, expected: $expected_status)"
+    fi
     return 1
   fi
 }
@@ -46,17 +53,13 @@ CONTAINER="midaz-otel-lgtm"
 UNHEALTHY_COUNT=0
 
 # Check Grafana
-check_service $CONTAINER $GRAFANA_PORT "/" || ((UNHEALTHY_COUNT++))
+check_service $CONTAINER $GRAFANA_PORT "/" 302 "Grafana" false 0 || ((UNHEALTHY_COUNT++))
 
 # Check Tempo
-check_service $CONTAINER 3200 "/ready" || ((UNHEALTHY_COUNT++))
+check_service $CONTAINER 3200 "/ready" 200 "Tempo" false 0 || ((UNHEALTHY_COUNT++))
 
 # Check Prometheus
-check_service $CONTAINER 9090 "/-/healthy" || ((UNHEALTHY_COUNT++))
-
-# Check Loki
-
-# Check OpenTelemetry Collector
+check_service $CONTAINER 9090 "/-/healthy" 200 "Prometheus" false 0 || ((UNHEALTHY_COUNT++))
 
 # Report overall health
 if [ $UNHEALTHY_COUNT -eq 0 ]; then

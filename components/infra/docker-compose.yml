@@ -24,9 +24,9 @@ services:
     container_name: midaz-redis
     image: valkey/valkey:latest
     restart: always
-    env_file:
-      - .env
     environment:
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
       - REDIS_USER=${REDIS_USER}
       - REDIS_PASSWORD=${REDIS_PASSWORD}
     command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}", "--port", "${REDIS_PORT}" ]
@@ -129,7 +129,7 @@ services:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
     environment:
-      - DATABASES_HOST=localhost
+      - DATABASES_HOST=${DATABASES_HOST}
     networks:
       - infra_network
     depends_on:
@@ -151,21 +151,21 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${OTEL_LGTM_ADMIN_USER}
       - GF_SECURITY_ADMIN_PASSWORD=${OTEL_LGTM_ADMIN_PASSWORD}
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-      - GF_AUTH_DISABLE_LOGIN_FORM=false
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
-      - GF_PATHS_PROVISIONING=/otel-lgtm/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=${GF_AUTH_ANONYMOUS_ENABLED}
+      - GF_AUTH_DISABLE_LOGIN_FORM=${GF_AUTH_DISABLE_LOGIN_FORM}
+      - GF_FEATURE_TOGGLES_ENABLE=${GF_FEATURE_TOGGLES_ENABLE}
+      - GF_PATHS_PROVISIONING=${GF_PATHS_PROVISIONING}
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
       - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
-      - 3200:3200
-      - 9090:9090
-      - 8888:8888
+      - ${OTEL_TEMPO_PORT}:${OTEL_TEMPO_PORT}
+      - ${OTEL_PROMETHEUS_PORT}:${OTEL_PROMETHEUS_PORT}
+      - ${OTEL_GRAFANA_DEBUG_PORT}:${OTEL_GRAFANA_DEBUG_PORT}
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
       - ./grafana/run-grafana.sh:/otel-lgtm/run-grafana.sh
+      - ./grafana/init-grafana.sh:/otel-lgtm/grafana/init-grafana.sh
       - ./grafana/dashboards:/otel-lgtm/grafana/dashboards
       - ./grafana/provisioning:/otel-lgtm/grafana/provisioning
       - ./otel/config/otel-collector-config.yaml:/otel-lgtm/etc/otelcol/config.yaml

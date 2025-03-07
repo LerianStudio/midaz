@@ -269,8 +269,9 @@ check-envs:
 .PHONY: set-env
 set-env:
 	@echo "$(BLUE)Setting up environment files for all components...$(NC)"
-	@echo "$(YELLOW)WARNING:$(NC)"
-	@echo "$(YELLOW)Customize .env variables to fit your environment. Default values are for initial setup and may not be secure for production. Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
+	@echo "$(YELLOW)WARNING: Customize .env variables to fit your environment.$(NC)"
+	@echo "$(YELLOW)WARNING: Default values are for initial setup and may not be secure for production.$(NC)"
+	@echo "$(YELLOW)WARNING: Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
 	@echo "$(BLUE)Setting up environment files...$(NC)"
 	@cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
 	@cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env

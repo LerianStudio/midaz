@@ -7,18 +7,6 @@ services:
       dockerfile: ./components/transaction/Dockerfile
     env_file:
       - .env
-    environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
-      - RABBITMQ_HOST=${RABBITMQ_HOST}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=midaz-otel-lgtm:4317
-      - OTEL_ENABLE_TELEMETRY=true
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:

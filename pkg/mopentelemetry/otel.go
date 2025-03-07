@@ -2,7 +2,6 @@ package mopentelemetry
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -60,7 +59,12 @@ func (tl *Telemetry) newResource() (*sdkresource.Resource, error) {
 
 // NewLoggerExporter creates a new logger exporter that writes to stdout.
 func (tl *Telemetry) newLoggerExporter(ctx context.Context) (*otlploggrpc.Exporter, error) {
-	exporter, err := otlploggrpc.New(ctx, otlploggrpc.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")), otlploggrpc.WithInsecure())
+	// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use the configured endpoint
+	endpoint := pkg.GetenvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", tl.CollectorExporterEndpoint)
+
+	exporter, err := otlploggrpc.New(ctx,
+		otlploggrpc.WithEndpoint(endpoint),
+		otlploggrpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +75,7 @@ func (tl *Telemetry) newLoggerExporter(ctx context.Context) (*otlploggrpc.Export
 // newMetricExporter creates a new metric exporter that writes to stdout.
 func (tl *Telemetry) newMetricExporter(ctx context.Context) (*otlpmetricgrpc.Exporter, error) {
 	// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use the configured endpoint
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if endpoint == "" {
-		endpoint = tl.CollectorExporterEndpoint
-	}
+	endpoint := pkg.GetenvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", tl.CollectorExporterEndpoint)
 
 	exp, err := otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithEndpoint(endpoint),
@@ -89,10 +90,7 @@ func (tl *Telemetry) newMetricExporter(ctx context.Context) (*otlpmetricgrpc.Exp
 // newTracerExporter creates a new tracer exporter that writes to stdout.
 func (tl *Telemetry) newTracerExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 	// Check if OTEL_EXPORTER_OTLP_ENDPOINT is set, otherwise use the configured endpoint
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if endpoint == "" {
-		endpoint = tl.CollectorExporterEndpoint
-	}
+	endpoint := pkg.GetenvOrDefault("OTEL_EXPORTER_OTLP_ENDPOINT", tl.CollectorExporterEndpoint)
 
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithEndpoint(endpoint),

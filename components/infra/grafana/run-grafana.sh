@@ -23,5 +23,21 @@ export GF_LOG_LEVEL=${GF_LOG_LEVEL:-info}
 # Enable debug mode for troubleshooting
 # export GF_LOG_LEVEL=debug
 
+# Start Grafana in the background
 cd ./grafana || exit
-run_with_logging "Grafana ${GRAFANA_VERSION}" "${ENABLE_LOGS_GRAFANA:-false}" ./bin/grafana server
+run_with_logging "Grafana ${GRAFANA_VERSION}" "${ENABLE_LOGS_GRAFANA:-false}" ./bin/grafana server &
+
+# Store the Grafana PID
+GRAFANA_PID=$!
+
+# Run the initialization script in the background
+(
+  # Wait for Grafana to be ready
+  sleep 30
+  
+  # Run the initialization script
+  /otel-lgtm/grafana/init-grafana.sh
+) &
+
+# Wait for Grafana to exit
+wait $GRAFANA_PID

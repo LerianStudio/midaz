@@ -39,11 +39,6 @@ info:
 	@echo "$(BOLD)## Telemetry maintenance and troubleshooting:$(NC)"
 	@echo ""
 	@echo "  $(CYAN)telemetry-health$(NC)                                 Check the health of the telemetry stack"
-	@echo "  $(CYAN)telemetry-fix$(NC)                                    Fix common telemetry issues (for maintenance)"
-	@echo "  $(CYAN)telemetry-update-datasource$(NC)                      Update the Grafana datasource (for maintenance)"
-	@echo "  $(CYAN)telemetry-update-dashboards$(NC)                      Update the Grafana dashboards (for maintenance)"
-	@echo "  $(CYAN)telemetry-check-ports$(NC)                            Check LGTM container ports and services"
-	@echo "  $(CYAN)telemetry-test-metrics$(NC)                           Send test metrics to OpenTelemetry collector"
 	@echo ""
 
 # Docker Compose Commands
@@ -106,27 +101,14 @@ telemetry-health:
 	@echo "$(BLUE)Checking telemetry health...$(NC)"
 	@./otel/scripts/check-telemetry-health.sh
 
-.PHONY: telemetry-fix
-telemetry-fix:
-	@echo "$(BLUE)Fixing telemetry issues (for maintenance)...$(NC)"
-	@./otel/scripts/fix-telemetry.sh
 
-.PHONY: telemetry-update-datasource
-telemetry-update-datasource:
-	@echo "$(BLUE)Updating Grafana datasource (for maintenance)...$(NC)"
-	@./otel/scripts/update-grafana-datasource.sh
+.PHONY: telemetry-restart
+telemetry-restart:
+	@echo "$(BLUE)Restarting OTEL LGTM container...$(NC)"
+	@$(DOCKER_CMD) -f docker-compose.yml restart midaz-otel-lgtm
+	@echo "$(BLUE)Waiting for OTEL LGTM container to be ready...$(NC)"
+	@sleep 10
+	@echo "$(BLUE)Checking telemetry health...$(NC)"
+	@./otel/scripts/check-telemetry-health.sh || true
+	@echo "$(BLUE)OTEL LGTM container restarted. Grafana should be accessible at http://localhost:3100 with credentials midaz:lerian$(NC)"
 
-.PHONY: telemetry-update-dashboards
-telemetry-update-dashboards:
-	@echo "$(BLUE)Updating Grafana dashboards (for maintenance)...$(NC)"
-	@./otel/scripts/update-grafana-dashboards.sh
-
-.PHONY: telemetry-check-ports
-telemetry-check-ports:
-	@echo "$(BLUE)Checking LGTM container ports and services...$(NC)"
-	@./otel/scripts/check-lgtm-ports.sh
-
-.PHONY: telemetry-test-metrics
-telemetry-test-metrics:
-	@echo "$(BLUE)Sending test metrics to OpenTelemetry collector...$(NC)"
-	@./otel/scripts/test-metrics.sh
