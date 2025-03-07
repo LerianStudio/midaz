@@ -2,7 +2,8 @@ name: "Release Notifications"
 on:
   #release:
     #types: [published]
-  branches:
+  push:  
+    branches:
       - fix/release-notification-workflow 
       
 
