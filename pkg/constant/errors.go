@@ -98,7 +98,7 @@ var (
 	ErrTransactionIDIsAlreadyARevert            = errors.New("0088")
 	ErrTransactionCantRevert                    = errors.New("0089")
 	ErrTransactionAmbiguous                     = errors.New("0090")
-	ErrBalanceIDNotFound                        = errors.New("0091")
+	ErrParentIDSameID                           = errors.New("0091")
 	ErrNoBalancesFound                          = errors.New("0092")
 	ErrBalancesCantDeleted                      = errors.New("0093")
 )
