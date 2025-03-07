@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+	"github.com/LerianStudio/auth-lib/auth/middleware"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
@@ -13,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mmongo"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mpostgres"
@@ -39,12 +39,15 @@ type Config struct {
 	ReplicaDBPassword          string `env:"DB_REPLICA_PASSWORD"`
 	ReplicaDBName              string `env:"DB_REPLICA_NAME"`
 	ReplicaDBPort              string `env:"DB_REPLICA_PORT"`
+	MaxOpenConnections         int    `env:"DB_MAX_OPEN_CONNS"`
+	MaxIdleConnections         int    `env:"DB_MAX_IDLE_CONNS"`
 	MongoURI                   string `env:"MONGO_URI"`
 	MongoDBHost                string `env:"MONGO_HOST"`
 	MongoDBName                string `env:"MONGO_NAME"`
 	MongoDBUser                string `env:"MONGO_USER"`
 	MongoDBPassword            string `env:"MONGO_PASSWORD"`
 	MongoDBPort                string `env:"MONGO_PORT"`
+	MaxPoolSize                int    `env:"MONGO_MAX_POOL_SIZE"`
 	CasdoorAddress             string `env:"CASDOOR_ADDRESS"`
 	CasdoorClientID            string `env:"CASDOOR_CLIENT_ID"`
 	CasdoorClientSecret        string `env:"CASDOOR_CLIENT_SECRET"`
@@ -64,10 +67,13 @@ type Config struct {
 	OtelServiceVersion         string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
 	OtelDeploymentEnv          string `env:"OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT"`
 	OtelColExporterEndpoint    string `env:"OTEL_EXPORTER_OTLP_ENDPOINT"`
+	EnableTelemetry            bool   `env:"ENABLE_TELEMETRY"`
 	RedisHost                  string `env:"REDIS_HOST"`
 	RedisPort                  string `env:"REDIS_PORT"`
 	RedisUser                  string `env:"REDIS_USER"`
 	RedisPassword              string `env:"REDIS_PASSWORD"`
+	AuthEnabled                bool   `env:"AUTH_ENABLED"`
+	AuthHost                   string `env:"AUTH_HOST"`
 }
 
 // InitServers initiate http and grpc servers.
@@ -86,17 +92,7 @@ func InitServers() *Service {
 		ServiceVersion:            cfg.OtelServiceVersion,
 		DeploymentEnv:             cfg.OtelDeploymentEnv,
 		CollectorExporterEndpoint: cfg.OtelColExporterEndpoint,
-	}
-
-	casDoorConnection := &mcasdoor.CasdoorConnection{
-		JWKUri:           cfg.JWKAddress,
-		Endpoint:         cfg.CasdoorAddress,
-		ClientID:         cfg.CasdoorClientID,
-		ClientSecret:     cfg.CasdoorClientSecret,
-		OrganizationName: cfg.CasdoorOrganizationName,
-		ApplicationName:  cfg.CasdoorApplicationName,
-		ModelName:        cfg.CasdoorModelName,
-		Logger:           logger,
+		EnableTelemetry:           cfg.EnableTelemetry,
 	}
 
 	postgreSourcePrimary := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
@@ -112,15 +108,22 @@ func InitServers() *Service {
 		ReplicaDBName:           cfg.ReplicaDBName,
 		Component:               ApplicationName,
 		Logger:                  logger,
+		MaxOpenConnections:      cfg.MaxOpenConnections,
+		MaxIdleConnections:      cfg.MaxIdleConnections,
 	}
 
 	mongoSource := fmt.Sprintf("%s://%s:%s@%s:%s/",
 		cfg.MongoURI, cfg.MongoDBUser, cfg.MongoDBPassword, cfg.MongoDBHost, cfg.MongoDBPort)
 
+	if cfg.MaxPoolSize <= 0 {
+		cfg.MaxPoolSize = 100
+	}
+
 	mongoConnection := &mmongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
+		MaxPoolSize:            uint64(cfg.MaxPoolSize),
 	}
 
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
@@ -200,7 +203,12 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	app := in.NewRouter(logger, telemetry, casDoorConnection, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
+	auth := &middleware.AuthClient{
+		AuthAddress: cfg.AuthHost,
+		AuthEnabled: cfg.AuthEnabled,
+	}
+
+	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 
 	server := NewServer(cfg, app, logger, telemetry)
 

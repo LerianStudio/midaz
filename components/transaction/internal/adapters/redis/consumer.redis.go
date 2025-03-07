@@ -211,52 +211,65 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		  end
 		
 		  return {
+			ID = balance.ID,
 			Available = total,
 			OnHold = balance.OnHold,
 			Scale = scale,
 			Version = balance.Version + 1,
-			AccountType = balance.AccountType
+			AccountType = balance.AccountType,
+            AllowSending = balance.AllowSending,
+            AllowReceiving = balance.AllowReceiving,
+			AssetCode = balance.AssetCode,
+            AccountID = balance.AccountID,
 		  }
 		end
-		
-		local ttl = 3600        
-		local key = KEYS[1]
-		
-		local amount = {
-		  Asset = ARGV[1],
-		  Available = tonumber(ARGV[2]),
-		  Scale = tonumber(ARGV[3])
-		}
-	
-		local balance = {
-		  Available = tonumber(ARGV[4]),
-		  OnHold = tonumber(ARGV[5]),
-		  Scale = tonumber(ARGV[6]),
-          Version = tonumber(ARGV[7]),
-		  AccountType = ARGV[8]
-		}
-		
-		local operation = ARGV[9]
-		
-		local currentValue = redis.call("GET", key)
-		if not currentValue then
-		  local balanceEncoded = cjson.encode(balance)
-		  redis.call("SET", key, balanceEncoded, "EX", ttl)
-		else
-		  balance = cjson.decode(currentValue)
-		end
-		
-		local finalBalance = OperateBalances(amount, balance, operation)
-		
-		if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
-		  return redis.error_reply("0018")
-		end
-		
-		local finalBalanceEncoded = cjson.encode(finalBalance)
-		redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
 
-		local balanceEncoded = cjson.encode(balance)
-		return balanceEncoded
+		local function main()
+			local ttl = 3600        
+			local key = KEYS[1]
+			local operation = ARGV[1]
+			
+			local amount = {
+			  Asset = ARGV[2],
+			  Available = tonumber(ARGV[3]),
+			  Scale = tonumber(ARGV[4])
+			}
+		
+			local balance = {
+              ID = ARGV[5],
+			  Available = tonumber(ARGV[6]),
+			  OnHold = tonumber(ARGV[7]),
+			  Scale = tonumber(ARGV[8]),
+			  Version = tonumber(ARGV[9]),
+			  AccountType = ARGV[10],
+		      AllowSending = tonumber(ARGV[11]),
+		      AllowReceiving = tonumber(ARGV[12]),
+              AssetCode = ARGV[13],
+              AccountID = ARGV[14],
+			}
+
+			local currentValue = redis.call("GET", key)
+			if not currentValue then
+			  local balanceEncoded = cjson.encode(balance)
+			  redis.call("SET", key, balanceEncoded, "EX", ttl)
+			else
+			  balance = cjson.decode(currentValue)
+			end
+			
+			local finalBalance = OperateBalances(amount, balance, operation)
+			
+			if finalBalance.Available < 0 and finalBalance.AccountType ~= "external" then
+			  return redis.error_reply("0018")
+			end
+			
+			local finalBalanceEncoded = cjson.encode(finalBalance)
+			redis.call("SET", key, finalBalanceEncoded, "EX", ttl)
+	
+			local balanceEncoded = cjson.encode(balance)
+			return balanceEncoded
+		end
+
+		return main()
 	`)
 
 	rds, err := rr.conn.GetClient(ctx)
@@ -268,16 +281,31 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		return nil, err
 	}
 
+	allowSending := 0
+	if balance.AllowSending {
+		allowSending = 1
+	}
+
+	allowReceiving := 0
+	if balance.AllowReceiving {
+		allowReceiving = 1
+	}
+
 	args := []any{
+		operation,
 		amount.Asset,
 		strconv.FormatInt(amount.Value, 10),
 		strconv.FormatInt(amount.Scale, 10),
+		balance.ID,
 		strconv.FormatInt(balance.Available, 10),
 		strconv.FormatInt(balance.OnHold, 10),
 		strconv.FormatInt(balance.Scale, 10),
 		strconv.FormatInt(balance.Version, 10),
 		balance.AccountType,
-		operation,
+		allowSending,
+		allowReceiving,
+		balance.AssetCode,
+		balance.AccountID,
 	}
 
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
@@ -296,7 +324,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	logger.Infof("result type: %T", result)
 	logger.Infof("result value: %v", result)
 
-	var b mmodel.Balance
+	b := mmodel.BalanceRedis{}
 
 	var balanceJSON string
 	switch v := result.(type) {
@@ -314,15 +342,21 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
 
-		logger.Fatalf("Error to Deserialization json: %v", err)
+		logger.Errorf("Error to Deserialization json: %v", err)
 
 		return nil, err
 	}
 
+	balance.ID = b.ID
+	balance.AccountID = b.AccountID
 	balance.Available = b.Available
 	balance.OnHold = b.OnHold
 	balance.Scale = b.Scale
 	balance.Version = b.Version
+	balance.AccountType = b.AccountType
+	balance.AllowSending = b.AllowSending == 1
+	balance.AllowReceiving = b.AllowReceiving == 1
+	balance.AssetCode = b.AssetCode
 
 	return &balance, nil
 }

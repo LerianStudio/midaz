@@ -11,11 +11,11 @@ import (
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
 // You can use it to representing a Database not found, cache not found or any other repository.
 type EntityNotFoundError struct {
-	EntityType string
-	Title      string
-	Message    string
-	Code       string
-	Err        error
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 // Error implements the error interface.
@@ -44,10 +44,10 @@ func (e EntityNotFoundError) Unwrap() error {
 // You can use it to representing a Database not found, cache not found or any other repository.
 type ValidationError struct {
 	EntityType string `json:"entityType,omitempty"`
-	Title      string
-	Message    string
-	Code       string
-	Err        error `json:"err,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 // Error implements the error interface.
@@ -67,11 +67,11 @@ func (e ValidationError) Unwrap() error {
 // EntityConflictError records an error indicating an entity already exists in some repository
 // You can use it to representing a Database conflict, cache or any other repository.
 type EntityConflictError struct {
-	EntityType string
-	Title      string
-	Message    string
-	Code       string
-	Err        error
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 // Error implements the error interface.
@@ -116,11 +116,11 @@ func (e ForbiddenError) Error() string {
 
 // UnprocessableOperationError indicates an operation that couldn't be performant because it's invalid.
 type UnprocessableOperationError struct {
-	EntityType string
-	Title      string
-	Message    string
-	Code       string
-	Err        error
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 func (e UnprocessableOperationError) Error() string {
@@ -129,11 +129,11 @@ func (e UnprocessableOperationError) Error() string {
 
 // HTTPError indicates a http error raised in a http client.
 type HTTPError struct {
-	EntityType string
-	Title      string
-	Message    string
-	Code       string
-	Err        error
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 func (e HTTPError) Error() string {
@@ -168,9 +168,11 @@ func (e InternalServerError) Error() string {
 
 // ResponseError is a struct used to return errors to the client.
 type ResponseError struct {
-	Code    int    `json:"code,omitempty"`
-	Title   string `json:"title,omitempty"`
-	Message string `json:"message,omitempty"`
+	EntityType string `json:"entityType,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Code       string `json:"code,omitempty"`
+	Err        error  `json:"err,omitempty"`
 }
 
 // Error returns the message of the ResponseError.
@@ -185,8 +187,9 @@ func (r ResponseError) Error() string {
 type ValidationKnownFieldsError struct {
 	EntityType string           `json:"entityType,omitempty"`
 	Title      string           `json:"title,omitempty"`
-	Code       string           `json:"code,omitempty"`
 	Message    string           `json:"message,omitempty"`
+	Code       string           `json:"code,omitempty"`
+	Err        error            `json:"err,omitempty"`
 	Fields     FieldValidations `json:"fields,omitempty"`
 }
 
@@ -205,8 +208,9 @@ type FieldValidations map[string]string
 type ValidationUnknownFieldsError struct {
 	EntityType string        `json:"entityType,omitempty"`
 	Title      string        `json:"title,omitempty"`
-	Code       string        `json:"code,omitempty"`
 	Message    string        `json:"message,omitempty"`
+	Code       string        `json:"code,omitempty"`
+	Err        error         `json:"err,omitempty"`
 	Fields     UnknownFields `json:"fields,omitempty"`
 }
 
@@ -818,6 +822,18 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Code:       constant.ErrTransactionAmbiguous.Error(),
 			Title:      "Transaction ambiguous account",
 			Message:    "Transaction can't be used same account in sources ans destinations",
+		},
+		constant.ErrBalancesCantDeleted: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrBalancesCantDeleted.Error(),
+			Title:      "Balance cannot be deleted",
+			Message:    "Balance cannot be deleted because it still has funds in it.",
+		},
+		constant.ErrParentIDSameID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrParentIDSameID.Error(),
+			Title:      "ID cannot be used as the parent ID",
+			Message:    "The provided ID cannot be used as the parent ID. Please choose a different one.",
 		},
 	}
 

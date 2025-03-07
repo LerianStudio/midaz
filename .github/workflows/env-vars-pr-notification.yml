@@ -36,7 +36,7 @@ jobs:
           CHANGED=false
 
           # Verificando se os arquivos .env.example mudaram
-          for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(audit|auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
+          for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
             # Exibindo qual arquivo estamos verificando
             echo "Checking file: $file"
             

@@ -1,20 +1,21 @@
 package in
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
-	fiberSwagger "github.com/swaggo/fiber-swagger"
-
+	"github.com/LerianStudio/auth-lib/auth/middleware"
 	_ "github.com/LerianStudio/midaz/components/onboarding/api"
-	"github.com/LerianStudio/midaz/pkg/mcasdoor"
 	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
 )
 
+const midazName = "midaz"
+
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.CasdoorConnection, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
+func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
@@ -23,50 +24,49 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, cc *mcasdoor.Casdoo
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
 	f.Use(http.WithHTTPLogging(http.WithCustomLogger(lg)))
-	jwt := http.NewJWTMiddleware(cc)
 
 	// Organizations
-	f.Post("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))
-	f.Patch("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))
-	f.Get("/v1/organizations", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), oh.GetAllOrganizations)
-	f.Get("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.ParseUUIDPathParameters, oh.GetOrganizationByID)
-	f.Delete("/v1/organizations/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("organization"), http.ParseUUIDPathParameters, oh.DeleteOrganizationByID)
+	f.Post("/v1/organizations", auth.Authorize(midazName, "organizations", "post"), http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))
+	f.Patch("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateOrganizationInput), oh.UpdateOrganization))
+	f.Get("/v1/organizations", auth.Authorize(midazName, "organizations", "get"), oh.GetAllOrganizations)
+	f.Get("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "get"), http.ParseUUIDPathParameters, oh.GetOrganizationByID)
+	f.Delete("/v1/organizations/:id", auth.Authorize(midazName, "organizations", "delete"), http.ParseUUIDPathParameters, oh.DeleteOrganizationByID)
 
 	// Ledgers
-	f.Post("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))
-	f.Get("/v1/organizations/:organization_id/ledgers", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), http.ParseUUIDPathParameters, lh.GetAllLedgers)
-	f.Get("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), http.ParseUUIDPathParameters, lh.GetLedgerByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("ledger"), http.ParseUUIDPathParameters, lh.DeleteLedgerByID)
+	f.Post("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateLedgerInput), lh.CreateLedger))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateLedgerInput), lh.UpdateLedger))
+	f.Get("/v1/organizations/:organization_id/ledgers", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters, lh.GetAllLedgers)
+	f.Get("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "get"), http.ParseUUIDPathParameters, lh.GetLedgerByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:id", auth.Authorize(midazName, "ledgers", "delete"), http.ParseUUIDPathParameters, lh.DeleteLedgerByID)
 
 	// Assets
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAssetInput), ih.UpdateAsset))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), http.ParseUUIDPathParameters, ih.GetAllAssets)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), http.ParseUUIDPathParameters, ih.GetAssetByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("asset"), http.ParseUUIDPathParameters, ih.DeleteAssetByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", auth.Authorize(midazName, "assets", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAssetInput), ih.CreateAsset))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", auth.Authorize(midazName, "assets", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAssetInput), ih.UpdateAsset))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets", auth.Authorize(midazName, "assets", "get"), http.ParseUUIDPathParameters, ih.GetAllAssets)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", auth.Authorize(midazName, "assets", "get"), http.ParseUUIDPathParameters, ih.GetAssetByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/assets/:id", auth.Authorize(midazName, "assets", "delete"), http.ParseUUIDPathParameters, ih.DeleteAssetByID)
 
 	// Portfolios
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdatePortfolioInput), ph.UpdatePortfolio))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.GetAllPortfolios)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.GetPortfolioByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("portfolio"), http.ParseUUIDPathParameters, ph.DeletePortfolioByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", auth.Authorize(midazName, "portfolios", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreatePortfolioInput), ph.CreatePortfolio))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", auth.Authorize(midazName, "portfolios", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdatePortfolioInput), ph.UpdatePortfolio))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios", auth.Authorize(midazName, "portfolios", "get"), http.ParseUUIDPathParameters, ph.GetAllPortfolios)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", auth.Authorize(midazName, "portfolios", "get"), http.ParseUUIDPathParameters, ph.GetPortfolioByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/portfolios/:id", auth.Authorize(midazName, "portfolios", "delete"), http.ParseUUIDPathParameters, ph.DeletePortfolioByID)
 
 	// Segment
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.GetAllSegments)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.GetSegmentByID)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("segment"), http.ParseUUIDPathParameters, sh.DeleteSegmentByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", auth.Authorize(midazName, "segments", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateSegmentInput), sh.CreateSegment))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", auth.Authorize(midazName, "segments", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateSegmentInput), sh.UpdateSegment))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments", auth.Authorize(midazName, "segments", "get"), http.ParseUUIDPathParameters, sh.GetAllSegments)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", auth.Authorize(midazName, "segments", "get"), http.ParseUUIDPathParameters, sh.GetSegmentByID)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/segments/:id", auth.Authorize(midazName, "segments", "delete"), http.ParseUUIDPathParameters, sh.DeleteSegmentByID)
 
 	// Accounts
-	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))
-	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccount))
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAllAccounts)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAccountByID)
-	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.GetAccountByAlias)
-	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", jwt.ProtectHTTP(), jwt.WithPermissionHTTP("account"), http.ParseUUIDPathParameters, ah.DeleteAccountByID)
+	f.Post("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", auth.Authorize(midazName, "accounts", "post"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.CreateAccountInput), ah.CreateAccount))
+	f.Patch("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", auth.Authorize(midazName, "accounts", "patch"), http.ParseUUIDPathParameters, http.WithBody(new(mmodel.UpdateAccountInput), ah.UpdateAccount))
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts", auth.Authorize(midazName, "accounts", "get"), http.ParseUUIDPathParameters, ah.GetAllAccounts)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", auth.Authorize(midazName, "accounts", "get"), http.ParseUUIDPathParameters, ah.GetAccountByID)
+	f.Get("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/alias/:alias", auth.Authorize(midazName, "accounts", "get"), http.ParseUUIDPathParameters, ah.GetAccountByAlias)
+	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", auth.Authorize(midazName, "accounts", "delete"), http.ParseUUIDPathParameters, ah.DeleteAccountByID)
 
 	// Health
 	f.Get("/health", http.Ping)

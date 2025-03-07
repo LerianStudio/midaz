@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/LerianStudio/midaz/pkg"
 
@@ -108,7 +109,9 @@ func InternalServerError(c *fiber.Ctx, code, title, message string) error {
 
 // JSONResponseError sends a JSON formatted error response with a custom error struct.
 func JSONResponseError(c *fiber.Ctx, err pkg.ResponseError) error {
-	return c.Status(err.Code).JSON(err)
+	code, _ := strconv.Atoi(err.Code)
+
+	return c.Status(code).JSON(err)
 }
 
 // JSONResponse sends a custom status code and body as a JSON response.

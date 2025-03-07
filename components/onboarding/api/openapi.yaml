@@ -2162,8 +2162,6 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/Status'
-      required:
-      - legalName
       type: object
     UpdatePortfolioInput:
       description: UpdatePortfolioInput is the input payload to update a portfolio.

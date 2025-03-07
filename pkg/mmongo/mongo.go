@@ -16,13 +16,17 @@ type MongoConnection struct {
 	Connected              bool
 	Database               string
 	Logger                 mlog.Logger
+	MaxPoolSize            uint64
 }
 
 // Connect keeps a singleton connection with mongodb.
 func (mc *MongoConnection) Connect(ctx context.Context) error {
 	mc.Logger.Info("Connecting to mongodb...")
 
-	clientOptions := options.Client().ApplyURI(mc.ConnectionStringSource)
+	clientOptions := options.
+		Client().
+		ApplyURI(mc.ConnectionStringSource).
+		SetMaxPoolSize(mc.MaxPoolSize)
 
 	noSQLDB, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {

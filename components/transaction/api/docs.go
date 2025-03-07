@@ -1331,6 +1331,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "BRL"
                 },
+                "operation": {
+                    "type": "string"
+                },
                 "scale": {
                     "type": "integer",
                     "minimum": 0,
@@ -1772,11 +1775,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 1500
                 },
                 "amountScale": {
-                    "type": "number",
+                    "type": "integer",
                     "example": 2
                 },
                 "assetCode": {
@@ -1953,6 +1956,10 @@ const docTemplate = `{
                 "updatedAt": {
                     "type": "string",
                     "example": "2021-01-01T00:00:00Z"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },

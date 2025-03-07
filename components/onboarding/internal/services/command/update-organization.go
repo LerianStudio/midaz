@@ -28,6 +28,16 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		uoi.ParentOrganizationID = nil
 	}
 
+	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
+		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, "UpdateOrganizationByID")
+
+		mopentelemetry.HandleSpanError(&span, "ID cannot be used as the parent ID.", err)
+
+		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
+
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
+	}
+
 	if !uoi.Address.IsEmpty() {
 		if err := pkg.ValidateCountryAddress(uoi.Address.Country); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate address country", err)
