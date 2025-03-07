@@ -1,3 +1,10 @@
+## [1.49.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.12...v1.49.0-beta.13) (2025-03-07)
+
+
+### Bug Fixes
+
+* discord mentions only when surrounded doble pipes ([70322e6](https://github.com/LerianStudio/midaz/commit/70322e6ddec05eecdc42073c24df5adc9c69a8f8))
+
 ## [1.49.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.11...v1.49.0-beta.12) (2025-03-07)
 
 
