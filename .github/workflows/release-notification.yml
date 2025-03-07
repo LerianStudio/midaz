@@ -23,7 +23,7 @@ jobs:
           webhook_url: ${{ secrets.DISCORD_BETA_WEBHOOK_URL }}
           color: "2105893"
           username: "Release Changelog"
-          content: "@beta-release-notification"
+          content: "||@beta-release-notification||"
           footer_timestamp: true
 
       - name: Releases to Discord
@@ -33,7 +33,7 @@ jobs:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
           color: "2105893"
           username: "Release Changelog"
-          content: "@release-notification"
+          content: "||@release-notification||"
           footer_timestamp: true
 
       - name: Install GitHub CLI
