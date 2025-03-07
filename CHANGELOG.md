@@ -1,3 +1,10 @@
+## [1.49.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.11...v1.49.0-beta.12) (2025-03-07)
+
+
+### Features
+
+* enhance release notifications for beta and stable releases on discord ([394947c](https://github.com/LerianStudio/midaz/commit/394947c4e80600e877a43bed06bca1a6d6ed1c7e))
+
 ## [1.49.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.10...v1.49.0-beta.11) (2025-03-07)
 
 
