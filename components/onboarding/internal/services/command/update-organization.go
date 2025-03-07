@@ -28,7 +28,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		uoi.ParentOrganizationID = nil
 	}
 
-	if *uoi.ParentOrganizationID == id.String() {
+	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
 		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, "UpdateOrganizationByID")
 
 		mopentelemetry.HandleSpanError(&span, "ID cannot be used as the parent ID.", err)
