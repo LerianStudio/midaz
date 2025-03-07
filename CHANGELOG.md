@@ -1,3 +1,18 @@
+## [1.49.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.10...v1.49.0-beta.11) (2025-03-07)
+
+
+### Features
+
+* use the account id if the alias is nil; ([5c8e8f3](https://github.com/LerianStudio/midaz/commit/5c8e8f3bca4012ef66dce5347f09ccd817707874))
+
+
+### Bug Fixes
+
+* add validation nil; :bug: ([b4aaa04](https://github.com/LerianStudio/midaz/commit/b4aaa042a8acb64eef2464153853106fd664017c))
+* cannot permit use same organization id as parent; :bug: ([03b160c](https://github.com/LerianStudio/midaz/commit/03b160ca657661060829e20529ada3123e821d28))
+* update auth-lib to newest version; :bug: ([9827ee4](https://github.com/LerianStudio/midaz/commit/9827ee4a3bd5852912141f3f5e3953f70851bccd))
+* update lint; :bug: ([58ced6f](https://github.com/LerianStudio/midaz/commit/58ced6fefc43be9deb984e2a9c6e0c2a2f1af49e))
+
 ## [1.49.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.9...v1.49.0-beta.10) (2025-03-06)
 
 
