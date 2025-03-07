@@ -78,6 +78,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	var alias *string
 	if !pkg.IsNilOrEmpty(cai.Alias) {
 		alias = cai.Alias
+		
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
