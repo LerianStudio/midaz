@@ -17,7 +17,7 @@ type CreateAccountInput struct {
 	PortfolioID     *string        `json:"portfolioId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	SegmentID       *string        `json:"segmentId" validate:"omitempty,uuid" example:"00000000-0000-0000-0000-000000000000"`
 	Status          Status         `json:"status"`
-	Alias           *string        `json:"alias" validate:"required,max=100,prohibitedexternalaccountprefix" example:"@person1"`
+	Alias           *string        `json:"alias" validate:"omitempty,max=100,prohibitedexternalaccountprefix" example:"@person1"`
 	Type            string         `json:"type" validate:"required" example:"creditCard"`
 	Metadata        map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
 } // @name CreateAccountInput

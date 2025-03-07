@@ -64,8 +64,13 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
+	ID := pkg.GenerateUUIDv7().String()
+	if account.ID != "" {
+		ID = account.ID
+	}
+
 	*t = AccountPostgreSQLModel{
-		ID:                pkg.GenerateUUIDv7().String(),
+		ID:                ID,
 		Name:              account.Name,
 		ParentAccountID:   account.ParentAccountID,
 		EntityID:          account.EntityID,

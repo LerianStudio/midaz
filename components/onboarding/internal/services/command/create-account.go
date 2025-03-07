@@ -73,19 +73,25 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 	}
 
+	ID := pkg.GenerateUUIDv7().String()
+
+	var alias *string
 	if !pkg.IsNilOrEmpty(cai.Alias) {
+		alias = cai.Alias
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
 
 			return nil, err
 		}
+	} else {
+		alias = &ID
 	}
 
 	account := &mmodel.Account{
-		ID:              pkg.GenerateUUIDv7().String(),
+		ID:              ID,
 		AssetCode:       cai.AssetCode,
-		Alias:           cai.Alias,
+		Alias:           alias,
 		Name:            cai.Name,
 		Type:            cai.Type,
 		ParentAccountID: cai.ParentAccountID,
