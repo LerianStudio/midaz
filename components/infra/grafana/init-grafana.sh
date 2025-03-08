@@ -27,10 +27,28 @@ for i in $(seq 1 $MAX_RETRIES); do
   sleep $RETRY_INTERVAL
 done
 
+# Function to check if a datasource exists
+datasource_exists() {
+  local datasource_name=$1
+  local response=$(curl -s -u "$GRAFANA_USER:$GRAFANA_PASSWORD" $GRAFANA_URL/api/datasources/name/$datasource_name)
+  
+  if echo "$response" | grep -q "Data source not found"; then
+    return 1
+  else
+    return 0
+  fi
+}
+
 # Function to create a datasource
 create_datasource() {
   local datasource_file=$1
   local datasource_name=$(grep -o '"name": "[^"]*"' $datasource_file | head -1 | cut -d'"' -f4)
+  
+  # Check if datasource already exists
+  if datasource_exists "$datasource_name"; then
+    echo "Datasource '$datasource_name' already exists, skipping creation"
+    return
+  fi
   
   echo "Creating datasource: $datasource_name"
   
@@ -65,7 +83,8 @@ create_dashboard() {
 # Create datasources
 echo "Creating datasources..."
 for datasource in /otel-lgtm/grafana/provisioning/datasources/*.yaml; do
-  create_datasource $datasource
+  # Skip YAML files, as they're handled by Grafana's provisioning
+  echo "Skipping YAML datasource file: $datasource (handled by provisioning)"
 done
 
 # Create dashboards
