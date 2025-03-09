@@ -4,8 +4,8 @@ source ./logging.sh
 
 # Use environment variables with defaults
 export GF_AUTH_ANONYMOUS_ENABLED=${GF_AUTH_ANONYMOUS_ENABLED:-false}
-export GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
-export GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
+export GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-midaz}
+export GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-lerian}
 
 # Set up paths
 export GF_PATHS_HOME=${GF_PATHS_HOME:-/data/grafana}

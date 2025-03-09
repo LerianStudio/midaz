@@ -4,28 +4,11 @@
 # It should be run after Grafana is started
 
 # Set default values for environment variables
-GRAFANA_URL=${GRAFANA_URL:-http://localhost:3100}
+GRAFANA_URL=${GRAFANA_URL:-http://localhost:3000}
 GRAFANA_USER=${GRAFANA_USER:-midaz}
 GRAFANA_PASSWORD=${GRAFANA_PASSWORD:-lerian}
 MAX_RETRIES=30
 RETRY_INTERVAL=5
-
-echo "Waiting for Grafana to be ready..."
-# Wait for Grafana to be ready
-for i in $(seq 1 $MAX_RETRIES); do
-  if curl -s -o /dev/null -w "%{http_code}" $GRAFANA_URL/api/health | grep -q "200"; then
-    echo "Grafana is ready!"
-    break
-  fi
-  
-  if [ $i -eq $MAX_RETRIES ]; then
-    echo "Timed out waiting for Grafana to be ready"
-    exit 1
-  fi
-  
-  echo "Waiting for Grafana to be ready... (Attempt $i/$MAX_RETRIES)"
-  sleep $RETRY_INTERVAL
-done
 
 # Function to check if a datasource exists
 datasource_exists() {

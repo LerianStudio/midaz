@@ -40,7 +40,7 @@
                     "showLineNumbers": false,
                     "showMiniMap": false
                 },
-                "content": "# Midaz HTTP Monitoring Dashboard\n\nThis dashboard provides insights into HTTP requests across the Midaz application. Monitor request rates, response times, status codes, and errors to ensure optimal performance and reliability.",
+                "content": "# Midaz HTTP Monitoring Dashboard\n\nThis dashboard provides insights into HTTP requests across the Midaz application. Monitor request rates, response times, status codes, and errors to ensure optimal performance and reliability.\n\n**Note:** Some metrics like HTTP duration are not currently available in Prometheus. Only request count metrics are shown.",
                 "mode": "markdown"
             },
             "pluginVersion": "10.0.3",
@@ -135,8 +135,8 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_requests_total[5m])) by (service)",
-                    "legendFormat": "{{service}}",
+                    "expr": "sum(rate(http_server_request_count_total[5m])) by (service_name)",
+                    "legendFormat": "{{service_name}}",
                     "range": true,
                     "refId": "A"
                 }
@@ -232,8 +232,8 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (service, le)) * 1000",
-                    "legendFormat": "{{service}} - p95",
+                    "expr": "# Duration metrics not available\n# Original query: histogram_quantile(0.95, sum(rate(http_server_duration_bucket[5m])) by (service_name, le)) * 1000",
+                    "legendFormat": "{{service_name}} - p95 (not available)",
                     "range": true,
                     "refId": "A"
                 },
@@ -243,14 +243,14 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "histogram_quantile(0.50, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (service, le)) * 1000",
+                    "expr": "# Duration metrics not available\n# Original query: histogram_quantile(0.50, sum(rate(http_server_duration_bucket[5m])) by (service_name, le)) * 1000",
                     "hide": false,
-                    "legendFormat": "{{service}} - p50",
+                    "legendFormat": "{{service_name}} - p50 (not available)",
                     "range": true,
                     "refId": "B"
                 }
             ],
-            "title": "HTTP Response Time",
+            "title": "HTTP Response Time (Metrics Not Available)",
             "type": "timeseries"
         },
         {
@@ -310,8 +310,8 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(increase(http_server_requests_total[1h])) by (status)",
-                    "legendFormat": "{{status}}",
+                    "expr": "sum(increase(http_server_request_count_total[1h])) by (status_code)",
+                    "legendFormat": "{{status_code}}",
                     "range": true,
                     "refId": "A"
                 }
@@ -382,7 +382,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_server_requests_total[5m]))",
+                    "expr": "sum(rate(http_server_request_count_total{status_code=~\"5..\"}[5m])) / sum(rate(http_server_request_count_total[5m]))",
                     "legendFormat": "Error Rate",
                     "range": true,
                     "refId": "A"
@@ -478,7 +478,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_requests_total[5m])) by (path)",
+                    "expr": "sum(rate(http_server_request_count_total[5m])) by (path)",
                     "legendFormat": "{{path}}",
                     "range": true,
                     "refId": "A"
@@ -545,7 +545,7 @@
                     "type": "prometheus",
                     "uid": "prometheus"
                 },
-                "definition": "label_values(http_server_requests_total, service)",
+                "definition": "label_values(http_server_request_count_total, service_name)",
                 "hide": 0,
                 "includeAll": true,
                 "label": "Service",
@@ -553,7 +553,7 @@
                 "name": "service",
                 "options": [],
                 "query": {
-                    "query": "label_values(http_server_requests_total, service)",
+                    "query": "label_values(http_server_request_count_total, service_name)",
                     "refId": "StandardVariableQuery"
                 },
                 "refresh": 1,
