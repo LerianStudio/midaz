@@ -679,6 +679,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	}()
 
 	for _, balance := range balances {
+
 		var updates []string
 
 		var args []any
@@ -732,7 +733,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 
 			return err
 		}
-
 	}
 
 	return nil

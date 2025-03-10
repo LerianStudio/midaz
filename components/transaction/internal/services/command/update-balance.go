@@ -90,6 +90,7 @@ func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledger
 	}
 
 	newBalances := make([]*mmodel.Balance, 0)
+
 	for _, balance := range balances {
 		calculateBalances := goldModel.OperateBalances(fromTo[balance.Alias],
 			goldModel.Balance{
