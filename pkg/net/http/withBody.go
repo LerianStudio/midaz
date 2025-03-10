@@ -173,7 +173,7 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 	validPathParamsMap := make(map[string]any)
 
 	for param, value := range params {
-		if !pkg.Contains[string](cn.UUIDPathParameters, param) {
+		if !pkg.Contains(cn.UUIDPathParameters, param) {
 			validPathParamsMap[param] = value
 			continue
 		}

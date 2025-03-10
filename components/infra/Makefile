@@ -36,6 +36,10 @@ info:
 	@echo "  $(CYAN)COMMAND=\"logs\"$(NC)                                 Show and follow logs for all services"
 	@echo "  $(CYAN)COMMAND=\"ps\"$(NC)                                   List container status"
 	@echo ""
+	@echo "$(BOLD)## Telemetry maintenance and troubleshooting:$(NC)"
+	@echo ""
+	@echo "  $(CYAN)telemetry-health$(NC)                                 Check the health of the telemetry stack"
+	@echo ""
 
 # Docker Compose Commands
 .PHONY: build
@@ -74,6 +78,13 @@ restart:
 	@make stop && \
     make up
 
+.PHONY: rebuild-up
+rebuild-up:
+	@echo "$(BLUE)Rebuilding and starting all services...$(NC)"
+	@make down && \
+    make build && \
+    make up
+
 .PHONY: logs
 logs:
 	@echo "$(BLUE)Showing logs for all services...$(NC)"
@@ -83,3 +94,21 @@ logs:
 ps:
 	@echo "$(BLUE)Listing container status...$(NC)"
 	@$(DOCKER_CMD) -f docker-compose.yml ps
+
+# Telemetry Commands (for maintenance and troubleshooting)
+.PHONY: telemetry-health
+telemetry-health:
+	@echo "$(BLUE)Checking telemetry health...$(NC)"
+	@./otel/scripts/check-telemetry-health.sh
+
+
+.PHONY: telemetry-restart
+telemetry-restart:
+	@echo "$(BLUE)Restarting OTEL LGTM container...$(NC)"
+	@$(DOCKER_CMD) -f docker-compose.yml restart midaz-otel-lgtm
+	@echo "$(BLUE)Waiting for OTEL LGTM container to be ready...$(NC)"
+	@sleep 10
+	@echo "$(BLUE)Checking telemetry health...$(NC)"
+	@./otel/scripts/check-telemetry-health.sh || true
+	@echo "$(BLUE)OTEL LGTM container restarted. Grafana should be accessible at http://localhost:3100 with credentials midaz:lerian$(NC)"
+
