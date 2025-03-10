@@ -1,10 +1,7 @@
 name: "Release Notifications"
 on:
-  # release:
-  #   types: [published]
-  push:
-    branches:
-      - fix/release-notification-workflow
+  release:
+    types: [published]
 
 jobs:
   github-release-notification:
