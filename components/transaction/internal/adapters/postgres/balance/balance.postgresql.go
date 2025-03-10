@@ -678,7 +678,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		}
 	}()
 	for _, balance := range balances {
-
 		var updates []string
 
 		var args []any
