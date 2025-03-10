@@ -1,3 +1,19 @@
+## [1.50.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.49.0...v1.50.0-beta.1) (2025-03-10)
+
+
+### Features
+
+* implement new fast way to improve balance update values; :sparkles: ([f64195a](https://github.com/LerianStudio/midaz/commit/f64195a1c499571a367cc711ea726c442ef5193c))
+
+
+### Bug Fixes
+
+* lint; :bug: ([1b0b7b5](https://github.com/LerianStudio/midaz/commit/1b0b7b5e2a3e544f4c174b2d230104edd275f214))
+* lint; :bug: ([dea31c0](https://github.com/LerianStudio/midaz/commit/dea31c0e21d23e98459209b69ef1ca5406a5b301))
+* lint; :bug: ([cf83e14](https://github.com/LerianStudio/midaz/commit/cf83e14d3ef09dea1aec0f80d4280725447ed0ea))
+* lint; :bug: ([4b21161](https://github.com/LerianStudio/midaz/commit/4b21161b8bfe4e98d4b09616475070b8ca721d02))
+* update migrations error when don't have files on dir; :bug: ([fd629ad](https://github.com/LerianStudio/midaz/commit/fd629adf9a042ad820fdf1e36e5485faf32033a0))
+
 ## [1.49.0](https://github.com/LerianStudio/midaz/compare/v1.48.0...v1.49.0) (2025-03-07)
 
 
