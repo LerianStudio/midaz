@@ -27,7 +27,7 @@ jobs:
         run: |
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
           echo "Raw release: $RAW_RELEASE"
-          echo "{name}={value}" >> $RAW_RELEASE
+          echo "tag=$RAW_RELEASE" >> $GITHUB_OUTPUT
 
       - name: Beta releases to Discord
         uses: SethCohen/github-releases-to-discord@v1.13.1
