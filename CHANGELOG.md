@@ -1,3 +1,75 @@
+## [1.49.0](https://github.com/LerianStudio/midaz/compare/v1.48.0...v1.49.0) (2025-03-07)
+
+
+### Features
+
+* add 5 works to consumer in rabbitmq and implement message persistent; ([1625d3b](https://github.com/LerianStudio/midaz/commit/1625d3b4aa22ad0889abdd23c97fa41e17714668))
+* add a validations to cannot delete balance with funds; :sparkles: ([047de68](https://github.com/LerianStudio/midaz/commit/047de6860dd673cccd80076b395d762f9705f94f))
+* add auth module sdk to validate autorization; :sparkles: ([c363fcc](https://github.com/LerianStudio/midaz/commit/c363fcc29587ab4292437ed2704017146ee58632))
+* add flag feature to switch on/off telemetry; ([1b1cd10](https://github.com/LerianStudio/midaz/commit/1b1cd1008282913e71b013860329ac99e99886e1))
+* add index to parent_transaction_id on transaction; ([83db867](https://github.com/LerianStudio/midaz/commit/83db867bd4384db2cf3a8cecfc05fb878ca644b4))
+* add new implements to dockerfile and increase ttl on valkey; ([b1bfb12](https://github.com/LerianStudio/midaz/commit/b1bfb12e35a434f8b0568b6740ffcf0cffafe264))
+* change redis image to valkey and some adjusts on docker-compose; ([0d6494c](https://github.com/LerianStudio/midaz/commit/0d6494cd580693d321e164e1537425e2ea43ee61))
+* create new index from database; remove dockerfile platform to predefined redundant; ([8791e04](https://github.com/LerianStudio/midaz/commit/8791e042ef82aa03fa84b2015cf2077ac0685a25))
+* enhance release notifications for beta and stable releases on discord ([394947c](https://github.com/LerianStudio/midaz/commit/394947c4e80600e877a43bed06bca1a6d6ed1c7e))
+* Implements feature to get balance on database or redis on cache ([b507a9d](https://github.com/LerianStudio/midaz/commit/b507a9da54f1972936765f9729c330b5c8d2c9ff))
+* test create image when open pr; ([d90aaf5](https://github.com/LerianStudio/midaz/commit/d90aaf568de1fe2fbfaae6a185c8ba09e6aa9672))
+* use the account id if the alias is nil; ([5c8e8f3](https://github.com/LerianStudio/midaz/commit/5c8e8f3bca4012ef66dce5347f09ccd817707874))
+
+
+### Bug Fixes
+
+* add multi-arch to docker hub; ([69640e6](https://github.com/LerianStudio/midaz/commit/69640e6c87fbba0edd3e93dfbb10863f4fc4964e))
+* add validation nil; :bug: ([b4aaa04](https://github.com/LerianStudio/midaz/commit/b4aaa042a8acb64eef2464153853106fd664017c))
+* adjust erros struct fields to lower case names; :bug: ([b5a9620](https://github.com/LerianStudio/midaz/commit/b5a9620e80c40d336d67a6125ee5f87fc50ef2b0))
+* cannot permit use same organization id as parent; :bug: ([03b160c](https://github.com/LerianStudio/midaz/commit/03b160ca657661060829e20529ada3123e821d28))
+* change lib auth-sdk to auth-lib and replace on code; :bug: ([8644a5c](https://github.com/LerianStudio/midaz/commit/8644a5ca547f54fb8cdaa03fb6022e45256bf0fc))
+* comment integrations test to refactor mdz after implement auth; ([d19c527](https://github.com/LerianStudio/midaz/commit/d19c5277df2db47603a5b900d31c190ca1cef374))
+* create index to transaction_id to operation; ([b94ba29](https://github.com/LerianStudio/midaz/commit/b94ba295b47ae76b34940e54fb15330ba518ef27))
+* discord mentions only when surrounded doble pipes ([70322e6](https://github.com/LerianStudio/midaz/commit/70322e6ddec05eecdc42073c24df5adc9c69a8f8))
+* go sec; ([f18f629](https://github.com/LerianStudio/midaz/commit/f18f62931a9bbb340378601932865fe5144bbd46))
+* make lint; ([b454376](https://github.com/LerianStudio/midaz/commit/b4543764ee6c3b4e7908fd455a01f553a2716b08))
+* makefiles and standardize the commands across all of them ([#566](https://github.com/LerianStudio/midaz/issues/566)) ([4d02cbe](https://github.com/LerianStudio/midaz/commit/4d02cbec22b325ebfac6a4958a5d3ee93bc7888e))
+* mongo max pool conn adjust and postgres add on config; ([ec09c48](https://github.com/LerianStudio/midaz/commit/ec09c482ef10c78f9c8b2df2d26f88ab5d313e43))
+* remove a inexistent lint usetesting to tenv; :bug: ([68bf4d5](https://github.com/LerianStudio/midaz/commit/68bf4d52fb6c9498e49567417726deb9d2215732))
+* remove auth from template deploy; ([e692244](https://github.com/LerianStudio/midaz/commit/e692244d1a818d50b61e0279fb6e90595d344989))
+* remove auth url from use on sdk; :bug: ([aa2a7e2](https://github.com/LerianStudio/midaz/commit/aa2a7e268c7ec031af623bfd759789db32b2aead))
+* remove trillian; ([8141a70](https://github.com/LerianStudio/midaz/commit/8141a703d4d9ade594be1f24108cd58de713bb2a))
+* revert to when generating tags; ([daef69f](https://github.com/LerianStudio/midaz/commit/daef69fbfac87c7a6c179778edd90838f9ceb2eb))
+* update auth-lib to newest version; :bug: ([9827ee4](https://github.com/LerianStudio/midaz/commit/9827ee4a3bd5852912141f3f5e3953f70851bccd))
+* update go mod and go sum; ([681589e](https://github.com/LerianStudio/midaz/commit/681589e40e1fa4de0fd64a6f4d88d1e718f74e67))
+* update go mod and sum; :bug: ([0ba596d](https://github.com/LerianStudio/midaz/commit/0ba596dd11cc99fb210d34af0231728412c8b629))
+* update lint; :bug: ([58ced6f](https://github.com/LerianStudio/midaz/commit/58ced6fefc43be9deb984e2a9c6e0c2a2f1af49e))
+
+## [1.49.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.12...v1.49.0-beta.13) (2025-03-07)
+
+
+### Bug Fixes
+
+* discord mentions only when surrounded doble pipes ([70322e6](https://github.com/LerianStudio/midaz/commit/70322e6ddec05eecdc42073c24df5adc9c69a8f8))
+
+## [1.49.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.11...v1.49.0-beta.12) (2025-03-07)
+
+
+### Features
+
+* enhance release notifications for beta and stable releases on discord ([394947c](https://github.com/LerianStudio/midaz/commit/394947c4e80600e877a43bed06bca1a6d6ed1c7e))
+
+## [1.49.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.10...v1.49.0-beta.11) (2025-03-07)
+
+
+### Features
+
+* use the account id if the alias is nil; ([5c8e8f3](https://github.com/LerianStudio/midaz/commit/5c8e8f3bca4012ef66dce5347f09ccd817707874))
+
+
+### Bug Fixes
+
+* add validation nil; :bug: ([b4aaa04](https://github.com/LerianStudio/midaz/commit/b4aaa042a8acb64eef2464153853106fd664017c))
+* cannot permit use same organization id as parent; :bug: ([03b160c](https://github.com/LerianStudio/midaz/commit/03b160ca657661060829e20529ada3123e821d28))
+* update auth-lib to newest version; :bug: ([9827ee4](https://github.com/LerianStudio/midaz/commit/9827ee4a3bd5852912141f3f5e3953f70851bccd))
+* update lint; :bug: ([58ced6f](https://github.com/LerianStudio/midaz/commit/58ced6fefc43be9deb984e2a9c6e0c2a2f1af49e))
+
 ## [1.49.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.49.0-beta.9...v1.49.0-beta.10) (2025-03-06)
 
 

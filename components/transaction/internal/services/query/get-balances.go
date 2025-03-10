@@ -19,36 +19,11 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
 	defer span.End()
 
-	var ids []uuid.UUID
-
-	var aliases []string
-
 	balances := make([]*mmodel.Balance, 0)
 
-	balancesRedis, newValidateAliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, validate.Aliases)
+	balancesRedis, aliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, validate.Aliases)
 	if len(balancesRedis) > 0 {
 		balances = append(balances, balancesRedis...)
-	}
-
-	for _, item := range newValidateAliases {
-		if pkg.IsUUID(item) {
-			ids = append(ids, uuid.MustParse(item))
-		} else {
-			aliases = append(aliases, item)
-		}
-	}
-
-	if len(ids) > 0 {
-		balancesByIDs, err := uc.BalanceRepo.ListByAccountIDs(ctx, organizationID, ledgerID, ids)
-		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get balances", err)
-
-			logger.Error("Failed to get balances on database", err.Error())
-
-			return nil, err
-		}
-
-		balances = append(balances, balancesByIDs...)
 	}
 
 	if len(aliases) > 0 {

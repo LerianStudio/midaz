@@ -5,8 +5,8 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
-github.com/LerianStudio/auth-lib v1.4.0 h1:CIz2Tytaxnhg27AQlh0eSKweqfhpKtpwPQ5jeq/yusQ=
-github.com/LerianStudio/auth-lib v1.4.0/go.mod h1:2SdwvGwbuYY8g65HRA0n2Z3MWekJS2jgrbfPnjO8PQE=
+github.com/LerianStudio/auth-lib v1.5.0 h1:RiacGSxJXsa/kKdL0obC+iBqIIeyAQw6Dy2bnkJ9z0A=
+github.com/LerianStudio/auth-lib v1.5.0/go.mod h1:2SdwvGwbuYY8g65HRA0n2Z3MWekJS2jgrbfPnjO8PQE=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=

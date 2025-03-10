@@ -829,6 +829,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Balance cannot be deleted",
 			Message:    "Balance cannot be deleted because it still has funds in it.",
 		},
+		constant.ErrParentIDSameID: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrParentIDSameID.Error(),
+			Title:      "ID cannot be used as the parent ID",
+			Message:    "The provided ID cannot be used as the parent ID. Please choose a different one.",
+		},
 	}
 
 	if mappedError, found := errorMap[err]; found {
