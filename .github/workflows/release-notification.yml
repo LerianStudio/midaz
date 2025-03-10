@@ -5,6 +5,8 @@ on:
       - fix/release-notification-workflow 
   #release:
     #types: [published]
+      
+
 
 jobs:
   github-release-notification:
