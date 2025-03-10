@@ -32,6 +32,7 @@ type Repository interface {
 	ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]goldModel.Amount) error
+	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 }
@@ -629,6 +630,105 @@ func (r *BalancePostgreSQLRepository) SelectForUpdate(ctx context.Context, organ
 			}
 
 			logger.Errorf("Err or zero rows affected: %v", err)
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// BalancesUpdate updates the balances in the database.
+func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	tracer := pkg.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "postgres.update_balances")
+	defer span.End()
+
+	db, err := r.connection.GetDB()
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+
+		return err
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		mopentelemetry.HandleSpanError(&span, "Failed to init balances", err)
+
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			rollbackErr := tx.Rollback()
+			if rollbackErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to init balances", rollbackErr)
+
+				logger.Errorf("err on rollback: %v", rollbackErr)
+			}
+		} else {
+			commitErr := tx.Commit()
+			if commitErr != nil {
+				mopentelemetry.HandleSpanError(&span, "Failed to init balances", commitErr)
+
+				logger.Errorf("err on commit: %v", commitErr)
+			}
+		}
+	}()
+
+	for _, balance := range balances {
+		var updates []string
+
+		var args []any
+
+		updates = append(updates, "available = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balance.Available)
+
+		updates = append(updates, "on_hold = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balance.OnHold)
+
+		updates = append(updates, "scale = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balance.Scale)
+
+		updates = append(updates, "version = $"+strconv.Itoa(len(args)+1))
+		args = append(args, balance.Version)
+
+		updates = append(updates, "updated_at = $"+strconv.Itoa(len(args)+1))
+		args = append(args, time.Now(), organizationID, ledgerID, balance.ID, balance.Version)
+
+		queryUpdate := `UPDATE balance SET ` + strings.Join(updates, ", ") +
+			` WHERE organization_id = $` + strconv.Itoa(len(args)-3) +
+			` AND ledger_id = $` + strconv.Itoa(len(args)-2) +
+			` AND id = $` + strconv.Itoa(len(args)-1) +
+			` AND version < $` + strconv.Itoa(len(args)) +
+			` AND deleted_at IS NULL`
+
+		result, err := tx.ExecContext(ctx, queryUpdate, args...)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Err on result exec content", err)
+
+			logger.Errorf("Err on result exec content: %v", err)
+
+			return err
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			mopentelemetry.HandleSpanError(&span, "Err ", err)
+
+			if err == nil {
+				err = sql.ErrNoRows
+			}
+
+			logger.Errorf("Err: %v", err)
+
+			return err
+		}
+
+		if rowsAffected == 0 {
+			logger.Infof("Err or zero rows affected")
 
 			return err
 		}
