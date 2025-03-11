@@ -97,9 +97,9 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	logger.Infof("Trying to create new operations")
 
 	for _, oper := range tran.Operations {
-		_, er := uc.OperationRepo.Create(ctxProcessOperation, oper)
-		if er != nil {
-			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", er)
+		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
+		if err != nil {
+			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
 
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -107,7 +107,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 				continue
 			} else {
-				logger.Errorf("Error creating operation: %v", er)
+				logger.Errorf("Error creating operation: %v", err)
 
 				return err
 			}
@@ -115,7 +115,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", er)
+			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
 
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
