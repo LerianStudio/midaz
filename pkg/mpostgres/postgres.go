@@ -6,7 +6,6 @@ import (
 	"go.uber.org/zap"
 	"net/url"
 	"path/filepath"
-	"strings"
 	"time"
 
 	// File system migration source. We need to import it to be able to use it as source in migrate.NewWithSourceInstance
@@ -99,15 +98,8 @@ func (pc *PostgresConnection) Connect() error {
 		return err
 	}
 
-	if err := m.Up(); err != nil {
-		if errors.Is(err, migrate.ErrNoChange) {
-			pc.Logger.Info("No new migrations found. Skipping...")
-		} else if strings.Contains(err.Error(), "file does not exist") {
-			pc.Logger.Warn("No migration files found. Skipping migration step...")
-		} else {
-			pc.Logger.Error("Migration failed", zap.Error(err))
-			return err
-		}
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return err
 	}
 
 	if err := connectionDB.Ping(); err != nil {
