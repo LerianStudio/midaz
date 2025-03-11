@@ -1,3 +1,16 @@
+## [1.50.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.1...v1.50.0-beta.2) (2025-03-11)
+
+
+### Bug Fixes
+
+* resotred workflow trigger to original ([17e88db](https://github.com/LerianStudio/midaz/commit/17e88db5c42bd165b3799b9c1516eb21c80a14a1))
+* restored workflow steps ([8a4d3f7](https://github.com/LerianStudio/midaz/commit/8a4d3f7999bb1e91ff8a74bde40bb1005b1edbb1))
+* run workflow on branch push to test ([c0fb3bf](https://github.com/LerianStudio/midaz/commit/c0fb3bf44c6d5db9facf2515d521517ff9587682))
+* trying to comment users on discord release channel ([2d37f05](https://github.com/LerianStudio/midaz/commit/2d37f05fb45616b94e878c68ae410abb72d3461f))
+* update Discord webhook action and comment mentioning format ([5296b86](https://github.com/LerianStudio/midaz/commit/5296b8602cd02b7133def0f87a157aabaad1c1cf))
+* update output format for release notification workflow ([b50b79f](https://github.com/LerianStudio/midaz/commit/b50b79f5eba2cd2dbefc5aa65d910ab7858aae9d))
+* update release notification workflow for Discord integration ([9ad5597](https://github.com/LerianStudio/midaz/commit/9ad5597351b7c2b35812b3ab179dbce809818f63))
+
 ## [1.50.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.49.0...v1.50.0-beta.1) (2025-03-10)
 
 
