@@ -195,7 +195,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
-	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, nil, id)
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
 

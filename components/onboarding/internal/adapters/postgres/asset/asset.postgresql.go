@@ -29,7 +29,7 @@ import (
 //go:generate mockgen --destination=asset.mock.go --package=asset . Repository
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
-	FindAllWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error)
 	FindByNameOrCode(ctx context.Context, organizationID, ledgerID uuid.UUID, name, code string) (bool, error)
@@ -166,8 +166,8 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	return false, nil
 }
 
-// FindAllWithDeleted retrieves Asset entities from the database with soft-deleted records.
-func (r *AssetPostgreSQLRepository) FindAllWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error) {
+// FindAll retrieves Asset entities from the database with soft-deleted records.
+func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
@@ -184,6 +184,7 @@ func (r *AssetPostgreSQLRepository) FindAllWithDeleted(ctx context.Context, orga
 
 	findAll := squirrel.Select("*").
 		From(r.tableName).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
