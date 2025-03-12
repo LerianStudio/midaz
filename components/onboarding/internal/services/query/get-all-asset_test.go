@@ -48,7 +48,7 @@ func TestGetAllAssets(t *testing.T) {
 			name: "success - assets retrieved with metadata",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 					Return([]*mmodel.Asset{
 						{ID: "asset1"},
 						{ID: "asset2"},
@@ -73,7 +73,7 @@ func TestGetAllAssets(t *testing.T) {
 			name: "failure - assets not found",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -84,7 +84,7 @@ func TestGetAllAssets(t *testing.T) {
 			name: "failure - repository error retrieving assets",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 					Return(nil, errors.New("failed to retrieve assets")).
 					Times(1)
 			},
@@ -95,7 +95,7 @@ func TestGetAllAssets(t *testing.T) {
 			name: "failure - metadata retrieval error",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAllWithDeleted(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
 					Return([]*mmodel.Asset{
 						{ID: "asset1"},
 						{ID: "asset2"},

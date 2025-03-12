@@ -552,6 +552,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger mlog.L
 		Body:                     parserDSL,
 		CreatedAt:                time.Now(),
 		UpdatedAt:                time.Now(),
+		Metadata:                 parserDSL.Metadata,
 	}
 
 	var operations []*operation.Operation
