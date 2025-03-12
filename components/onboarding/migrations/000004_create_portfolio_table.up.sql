@@ -14,5 +14,6 @@ CREATE TABLE IF NOT EXISTS portfolio
     FOREIGN KEY (organization_id) REFERENCES organization (id)
 );
 
-CREATE INDEX idx_portfolio_created_at ON portfolio (created_at);
-REINDEX INDEX idx_portfolio_created_at;
+CREATE INDEX idx_portfolio_id ON portfolio (organization_id, ledger_id, id, deleted_at, created_at);
+REINDEX INDEX idx_portfolio_id;
+
