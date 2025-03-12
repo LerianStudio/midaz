@@ -1,3 +1,19 @@
+## [1.50.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.2...v1.50.0-beta.3) (2025-03-12)
+
+
+### Bug Fixes
+
+* add indexes and reindex commands for balance table :bug: ([d579867](https://github.com/LerianStudio/midaz/commit/d57986753a9ba9c0e11275abee0047a1b8af25f3))
+* add metadata save on mongodb; rollback migrations on postgresql; :bug: ([7c726dc](https://github.com/LerianStudio/midaz/commit/7c726dcdec3dacddc78e8d34e23d97853c466ad9))
+* add more index in account to improve performance; :bug: ([1aff75d](https://github.com/LerianStudio/midaz/commit/1aff75d65599e98c62b2a1877e268f99a7434b02))
+* add new index; :bug: ([8bfb1dd](https://github.com/LerianStudio/midaz/commit/8bfb1ddd9620cd37df99c191eae87321e4f0cad7))
+* handle migration errors gracefully :bug: ([e464a75](https://github.com/LerianStudio/midaz/commit/e464a75875f02ae0ccd9d3fb4b0f6a1bd4580fd4))
+* remove old reference from ledger grpc error message; :bug: ([1d0e762](https://github.com/LerianStudio/midaz/commit/1d0e762ec5bb325b6307397dafe4fcb86b82d7a4))
+* remove pgbouncer; :bug: ([ca05b31](https://github.com/LerianStudio/midaz/commit/ca05b31518c66dd8ed7d8741c5f787d278872965))
+* some wrong variables references; :bug: ([8ed8750](https://github.com/LerianStudio/midaz/commit/8ed875043702869af09ba14e000f8acfc08da94a))
+* unit tests; :bug: ([6742706](https://github.com/LerianStudio/midaz/commit/67427063505dafc61542f79b129343205f9bc451))
+* update all gets to using deleted_at is null; :bug: ([4fd4940](https://github.com/LerianStudio/midaz/commit/4fd4940e2cdd0a7987c50441215c529cad772fba))
+
 ## [1.50.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.1...v1.50.0-beta.2) (2025-03-11)
 
 
