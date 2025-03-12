@@ -29,9 +29,9 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	if len(aliases) > 0 {
 		balancesByAliases, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get account by alias gRPC on Ledger", err)
+			mopentelemetry.HandleSpanError(&span, "Failed to get account by alias on balance database", err)
 
-			logger.Error("Failed to get account by alias gRPC on Ledger", err.Error())
+			logger.Error("Failed to get account by alias on balance database", err.Error())
 
 			return nil, err
 		}
