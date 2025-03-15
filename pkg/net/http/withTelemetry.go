@@ -61,7 +61,35 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 
-		return c.Next()
+		// Track the start time for duration measurement
+		startTime := time.Now()
+
+		// Process the request
+		err = c.Next()
+
+		// Calculate request duration
+		duration := time.Since(startTime).Milliseconds()
+
+		// Record HTTP duration metrics
+		meter := otel.Meter(tm.Telemetry.ServiceName)
+
+		// HTTP duration histogram
+		httpDuration, _ := meter.Int64Histogram(
+			"http_server_duration",
+			metric.WithDescription("Duration of HTTP requests"),
+			metric.WithUnit("ms"),
+		)
+
+		// Record HTTP duration with the same attributes as request count
+		attributes := []attribute.KeyValue{
+			attribute.String("service.name", tm.Telemetry.ServiceName),
+			attribute.String("path", c.Path()),
+			attribute.String("method", c.Method()),
+			attribute.String("status_code", strconv.Itoa(c.Response().StatusCode())),
+		}
+		httpDuration.Record(ctx, duration, metric.WithAttributes(attributes...))
+
+		return err
 	}
 }
 
@@ -207,7 +235,7 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 	if fiberCtx, ok := ctx.Value(fiberCtxKey{}).(*fiber.Ctx); ok {
 		// Track HTTP request metrics
 		httpCounter, err := meter.Int64Counter(
-			"http.server.request_count",
+			"http_server_request_count",
 			metric.WithDescription("Number of HTTP requests"),
 			metric.WithUnit("{request}"),
 		)

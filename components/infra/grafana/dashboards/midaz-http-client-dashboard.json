@@ -40,7 +40,7 @@
                     "showLineNumbers": false,
                     "showMiniMap": false
                 },
-                "content": "# Midaz HTTP Client Dashboard\n\nThis dashboard monitors outgoing HTTP requests from Midaz services to external systems and dependencies. Track client request rates, response times, error rates, and connection metrics to ensure reliable communication with external services.\n\n**Note:** HTTP client metrics are not currently available in Prometheus. Some panels show server metrics instead, and others show placeholders.",
+                "content": "# Midaz HTTP Client Dashboard\n\nThis dashboard monitors outgoing HTTP requests from Midaz services to external systems and dependencies. Track client request rates, response times, error rates, and connection metrics to ensure reliable communication with external services.\n\n**Note:** HTTP client metrics are not currently available in Prometheus. Some panels show server metrics instead, and others show placeholders. Server metrics are now fully available with both request counts and durations.",
                 "mode": "markdown"
             },
             "pluginVersion": "10.0.3",
@@ -135,7 +135,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m])) by (service_name)",
+                    "expr": "sum(rate(http_server_request_count{service_name=~\"$service\"}[5m])) by (service_name)",
                     "legendFormat": "{{service_name}}",
                     "range": true,
                     "refId": "A"
@@ -310,7 +310,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(increase(http_server_request_count_total{service_name=~\"$service\"}[1h])) by (status_code)",
+                    "expr": "sum(increase(http_server_request_count{service_name=~\"$service\"}[1h])) by (status_code)",
                     "legendFormat": "{{status_code}}",
                     "range": true,
                     "refId": "A"
@@ -382,7 +382,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"5..\"}[5m])) / sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m]))",
+                    "expr": "sum(rate(http_server_request_count{service_name=~\"$service\", status_code=~\"5..\"}[5m])) / sum(rate(http_server_request_count{service_name=~\"$service\"}[5m]))",
                     "legendFormat": "Error Rate",
                     "range": true,
                     "refId": "A"
@@ -478,7 +478,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m])) by (host)",
+                    "expr": "sum(rate(http_server_request_count{service_name=~\"$service\"}[5m])) by (host)",
                     "legendFormat": "{{host}}",
                     "range": true,
                     "refId": "A"
@@ -553,7 +553,7 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"5..\"}[5m])) by (host) / sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m])) by (host)",
+                    "expr": "sum(rate(http_server_request_count{service_name=~\"$service\", status_code=~\"5..\"}[5m])) by (host) / sum(rate(http_server_request_count{service_name=~\"$service\"}[5m])) by (host)",
                     "legendFormat": "{{host}}",
                     "range": true,
                     "refId": "A"
@@ -823,7 +823,7 @@
                     "type": "prometheus",
                     "uid": "prometheus"
                 },
-                "definition": "label_values(http_server_request_count_total, service_name)",
+                "definition": "label_values(http_server_request_count, service_name)",
                 "hide": 0,
                 "includeAll": true,
                 "label": "Service",
@@ -831,7 +831,7 @@
                 "name": "service",
                 "options": [],
                 "query": {
-                    "query": "label_values(http_server_request_count_total, service_name)",
+                    "query": "label_values(http_server_request_count, service_name)",
                     "refId": "StandardVariableQuery"
                 },
                 "refresh": 1,
