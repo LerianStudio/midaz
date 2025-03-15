@@ -159,6 +159,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	findAll := squirrel.Select("*").
 		From(r.tableName).
+		Where(squirrel.Eq{"deleted_at": nil}).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID))
 
@@ -356,7 +357,7 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	return acc.ToEntity(), nil
 }
 
-// FindAlias retrieves an Account entity from the database using the provided Alias (including soft-deleted ones).
+// FindAlias retrieves an Account entity from the database using the provided Alias.
 func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -370,7 +371,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		return nil, err
 	}
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3"
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = $3 AND deleted_at IS NULL"
 	args := []any{organizationID, ledgerID, alias}
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
@@ -457,7 +458,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	return false, nil
 }
 
-// ListByIDs retrieves Accounts entities from the database (including soft-deleted ones) using the provided IDs.
+// ListByIDs retrieves Accounts entities from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	tracer := pkg.NewTracerFromContext(ctx)
 
@@ -473,7 +474,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	var accounts []*mmodel.Account
 
-	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3)"
+	query := "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL"
 	args := []any{organizationID, ledgerID, ids}
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {

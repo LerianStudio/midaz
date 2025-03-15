@@ -4,7 +4,8 @@ on:
     types: [published]
 
 jobs:
-  github-releases-to-discord:
+  github-release-notification:
+    name: Notify Discord and Slack of New Release
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/create-github-app-token@v1
@@ -16,26 +17,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Beta releases to Discord
-        uses: SethCohen/github-releases-to-discord@v1.13.1
-        if: contains(github.ref, '-beta.')
-        with:
-          webhook_url: ${{ secrets.DISCORD_BETA_WEBHOOK_URL }}
-          color: "2105893"
-          username: "Release Changelog"
-          content: "||@beta-release-notification||"
-          footer_timestamp: true
-
-      - name: Releases to Discord
-        uses: SethCohen/github-releases-to-discord@v1.13.1
-        if: ${{ !contains(github.ref, '-beta.') }}
-        with:
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          color: "2105893"
-          username: "Release Changelog"
-          content: "||@release-notification||"
-          footer_timestamp: true
-
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
@@ -46,14 +27,34 @@ jobs:
         run: |
           RAW_RELEASE=$(gh release list --repo $GITHUB_REPOSITORY --limit 1 --json tagName --jq '.[0].tagName')
           echo "Raw release: $RAW_RELEASE"
-          echo "::set-output name=tag::$RAW_RELEASE"
+          echo "tag=$RAW_RELEASE" >> $GITHUB_OUTPUT
+
+      - name: Beta releases to Discord
+        uses: SethCohen/github-releases-to-discord@v1.13.1
+        if: contains(github.ref, '-beta.')
+        with:
+          webhook_url: ${{ secrets.DISCORD_BETA_WEBHOOK_URL }}
+          color: "2105893"
+          username: "Release Changelog"
+          content: "<@&1346912481829982229>"
+          footer_timestamp: true
+
+      - name: Releases to Discord
+        uses: SethCohen/github-releases-to-discord@v1.16.2
+        if: ${{ !contains(github.ref, '-beta.') }}
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          color: "2105893"
+          username: "Release Changelog"
+          content: "<@&1346912737380274176>"
+          footer_timestamp: true
 
       - name: Notify Slack of New Release
         uses: rtCamp/action-slack-notify@v2
         env:
-          SLACK_CHANNEL: "lerian-product-release" # Channel of Slack
+          SLACK_CHANNEL: "lerian-product-release"
           SLACK_COLOR: "#36a64f"
           SLACK_ICON_EMOJI: ":rocket"
           SLACK_TITLE: "Midaz New Release: ${{ steps.latest_release.outputs.tag }}"
           SLACK_MESSAGE: "🎉 *Nova Release Publicada!* \n \n <https://github.com/${{ github.repository }}/releases/tag/${{ steps.latest_release.outputs.tag }} | *Clique aqui para detalhes*>"
-          SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }} # Webhook Release Notification
+          SLACK_WEBHOOK: ${{ secrets.RELEASE_WEBHOOK_NOTIFICATION_URL }}

@@ -1,3 +1,48 @@
+## [1.50.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.2...v1.50.0-beta.3) (2025-03-12)
+
+
+### Bug Fixes
+
+* add indexes and reindex commands for balance table :bug: ([d579867](https://github.com/LerianStudio/midaz/commit/d57986753a9ba9c0e11275abee0047a1b8af25f3))
+* add metadata save on mongodb; rollback migrations on postgresql; :bug: ([7c726dc](https://github.com/LerianStudio/midaz/commit/7c726dcdec3dacddc78e8d34e23d97853c466ad9))
+* add more index in account to improve performance; :bug: ([1aff75d](https://github.com/LerianStudio/midaz/commit/1aff75d65599e98c62b2a1877e268f99a7434b02))
+* add new index; :bug: ([8bfb1dd](https://github.com/LerianStudio/midaz/commit/8bfb1ddd9620cd37df99c191eae87321e4f0cad7))
+* handle migration errors gracefully :bug: ([e464a75](https://github.com/LerianStudio/midaz/commit/e464a75875f02ae0ccd9d3fb4b0f6a1bd4580fd4))
+* remove old reference from ledger grpc error message; :bug: ([1d0e762](https://github.com/LerianStudio/midaz/commit/1d0e762ec5bb325b6307397dafe4fcb86b82d7a4))
+* remove pgbouncer; :bug: ([ca05b31](https://github.com/LerianStudio/midaz/commit/ca05b31518c66dd8ed7d8741c5f787d278872965))
+* some wrong variables references; :bug: ([8ed8750](https://github.com/LerianStudio/midaz/commit/8ed875043702869af09ba14e000f8acfc08da94a))
+* unit tests; :bug: ([6742706](https://github.com/LerianStudio/midaz/commit/67427063505dafc61542f79b129343205f9bc451))
+* update all gets to using deleted_at is null; :bug: ([4fd4940](https://github.com/LerianStudio/midaz/commit/4fd4940e2cdd0a7987c50441215c529cad772fba))
+
+## [1.50.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.1...v1.50.0-beta.2) (2025-03-11)
+
+
+### Bug Fixes
+
+* resotred workflow trigger to original ([17e88db](https://github.com/LerianStudio/midaz/commit/17e88db5c42bd165b3799b9c1516eb21c80a14a1))
+* restored workflow steps ([8a4d3f7](https://github.com/LerianStudio/midaz/commit/8a4d3f7999bb1e91ff8a74bde40bb1005b1edbb1))
+* run workflow on branch push to test ([c0fb3bf](https://github.com/LerianStudio/midaz/commit/c0fb3bf44c6d5db9facf2515d521517ff9587682))
+* trying to comment users on discord release channel ([2d37f05](https://github.com/LerianStudio/midaz/commit/2d37f05fb45616b94e878c68ae410abb72d3461f))
+* update Discord webhook action and comment mentioning format ([5296b86](https://github.com/LerianStudio/midaz/commit/5296b8602cd02b7133def0f87a157aabaad1c1cf))
+* update output format for release notification workflow ([b50b79f](https://github.com/LerianStudio/midaz/commit/b50b79f5eba2cd2dbefc5aa65d910ab7858aae9d))
+* update release notification workflow for Discord integration ([9ad5597](https://github.com/LerianStudio/midaz/commit/9ad5597351b7c2b35812b3ab179dbce809818f63))
+
+## [1.50.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.49.0...v1.50.0-beta.1) (2025-03-10)
+
+
+### Features
+
+* implement new fast way to improve balance update values; :sparkles: ([f64195a](https://github.com/LerianStudio/midaz/commit/f64195a1c499571a367cc711ea726c442ef5193c))
+
+
+### Bug Fixes
+
+* lint; :bug: ([1b0b7b5](https://github.com/LerianStudio/midaz/commit/1b0b7b5e2a3e544f4c174b2d230104edd275f214))
+* lint; :bug: ([dea31c0](https://github.com/LerianStudio/midaz/commit/dea31c0e21d23e98459209b69ef1ca5406a5b301))
+* lint; :bug: ([cf83e14](https://github.com/LerianStudio/midaz/commit/cf83e14d3ef09dea1aec0f80d4280725447ed0ea))
+* lint; :bug: ([4b21161](https://github.com/LerianStudio/midaz/commit/4b21161b8bfe4e98d4b09616475070b8ca721d02))
+* update migrations error when don't have files on dir; :bug: ([fd629ad](https://github.com/LerianStudio/midaz/commit/fd629adf9a042ad820fdf1e36e5485faf32033a0))
+
 ## [1.49.0](https://github.com/LerianStudio/midaz/compare/v1.48.0...v1.49.0) (2025-03-07)
 
 

@@ -119,23 +119,6 @@ services:
     networks:
       - infra_network
 
-  midaz-pgbouncer:
-    image: edoburu/pgbouncer
-    container_name: midaz-pgbouncer
-    restart: always
-    ports:
-      - ${DB_PGBOUNCER_PORT}:${DB_PGBOUNCER_PORT}
-    volumes:
-      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-    environment:
-      - DATABASES_HOST=${DATABASES_HOST}
-    networks:
-      - infra_network
-    depends_on:
-      - midaz-postgres-primary
-      - midaz-postgres-replica
-
   midaz-otel-lgtm:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
