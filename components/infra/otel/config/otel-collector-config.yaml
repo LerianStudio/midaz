@@ -29,10 +29,15 @@ processors:
     send_batch_size: 1000
     timeout: 10s
   
-  # Add trace IDs to logs for correlation
+  # Enhanced resource detection for more context
   resourcedetection:
-    detectors: [env]
-    timeout: 2s
+    detectors: [env, system, docker]
+    timeout: 5s
+    override: true
+    system:
+      hostname_sources: [os, dns, cname]
+    docker:
+      enabled_attributes: [container.id, container.image.name, container.name]
   
   # Memory limiter to prevent OOM
   memory_limiter:
@@ -40,13 +45,54 @@ processors:
     limit_percentage: 80
     spike_limit_percentage: 25
   
-  # Add service name to metrics if missing
+  # Enhanced attribute processing
   attributes:
     actions:
+      # Ensure service name is present
       - key: service.name
         action: upsert
         value: "midaz-service"
         from_attribute: service_name
+      
+      # Extract and normalize HTTP path for better grouping
+      - key: http.route
+        action: extract_pattern
+        pattern: "^/v\\d+/[^/]+/[^/]+/[^/]+/?.*$"
+        from_attribute: http.target
+      
+      # Add deployment environment if missing
+      - key: deployment.environment
+        action: upsert
+        value: "unknown"
+        from_attribute: OTEL_RESOURCE_DEPLOYMENT_ENVIRONMENT
+      
+      # Add transaction type tag for business metrics
+      - key: transaction.type
+        action: upsert
+        value: "${transaction_type}"
+        from_attribute: business.transaction.type
+      
+      # Extract status code ranges for easier filtering
+      - key: http.status_class
+        action: insert
+        value: "2xx"
+        pattern_match: "^2\\d\\d$"
+        from_attribute: http.status_code
+      - key: http.status_class
+        action: insert
+        value: "3xx"
+        pattern_match: "^3\\d\\d$"
+        from_attribute: http.status_code
+      - key: http.status_class
+        action: insert
+        value: "4xx"
+        pattern_match: "^4\\d\\d$"
+        from_attribute: http.status_code
+      - key: http.status_class
+        action: insert
+        value: "5xx"
+        pattern_match: "^5\\d\\d$"
+        from_attribute: http.status_code
 
 exporters:
   # Local debug exporter - helps troubleshoot
@@ -60,10 +106,12 @@ exporters:
       insecure: true
   
   # Add direct exporters to each backend
-  otlphttp/metrics:
-    endpoint: "http://localhost:9009/otlp"
-    tls:
-      insecure: true
+  prometheus:
+    endpoint: "localhost:9090"
+    namespace: "otel"
+    send_timestamps: true
+    metric_expiration: 180m
+    enable_open_metrics: true
   
   otlphttp/logs:
     endpoint: "http://localhost:3100/loki/api/v1/push"
@@ -86,7 +134,7 @@ service:
     metrics:
       receivers: [otlp, hostmetrics, dockerstats]
       processors: [memory_limiter, batch, resourcedetection, attributes]
-      exporters: [otlp, otlphttp/metrics, debug]
+      exporters: [otlp, prometheus, debug]
     
     logs:
       receivers: [otlp]
@@ -96,3 +144,5 @@ service:
   telemetry:
     logs:
       level: "debug"
+    
+  # Note: No need to configure internal metrics endpoint as it's handled by the LGTM container itself

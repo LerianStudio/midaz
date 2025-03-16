@@ -40,12 +40,25 @@
                     "showLineNumbers": false,
                     "showMiniMap": false
                 },
-                "content": "# Midaz HTTP Client Dashboard\n\nThis dashboard monitors outgoing HTTP requests from Midaz services to external systems and dependencies. Track client request rates, response times, error rates, and connection metrics to ensure reliable communication with external services.\n\n**Note:** HTTP client metrics are not currently available in Prometheus. Some panels show server metrics instead, and others show placeholders. Server metrics are now fully available with both request counts and durations.",
+                "content": "# Midaz Database Performance Dashboard\n\nThis dashboard provides detailed metrics about database performance across the Midaz platform. Monitor query performance, connection pool usage, error rates, and more for both PostgreSQL and MongoDB databases.",
                 "mode": "markdown"
             },
             "pluginVersion": "10.0.3",
             "title": "Dashboard Information",
             "type": "text"
+        },
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 4
+            },
+            "id": 2,
+            "panels": [],
+            "title": "PostgreSQL Metrics",
+            "type": "row"
         },
         {
             "datasource": {
@@ -72,12 +85,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -101,7 +114,7 @@
                             }
                         ]
                     },
-                    "unit": "reqps"
+                    "unit": "short"
                 },
                 "overrides": []
             },
@@ -109,9 +122,9 @@
                 "h": 8,
                 "w": 12,
                 "x": 0,
-                "y": 4
+                "y": 5
             },
-            "id": 2,
+            "id": 3,
             "options": {
                 "legend": {
                     "calcs": [
@@ -135,13 +148,14 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m])) by (service_name)",
-                    "legendFormat": "{{service_name}}",
+                    "expr": "sum(rate(db_postgresql_active_queries[5m])) by (db_operation)",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Server Request Rate by Service (Client metrics not available)",
+            "title": "PostgreSQL Query Rate by Operation",
             "type": "timeseries"
         },
         {
@@ -169,12 +183,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -206,9 +220,9 @@
                 "h": 8,
                 "w": 12,
                 "x": 12,
-                "y": 4
+                "y": 5
             },
-            "id": 3,
+            "id": 4,
             "options": {
                 "legend": {
                     "calcs": [
@@ -232,8 +246,9 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "# Duration metrics not available\n# Original query: histogram_quantile(0.95, sum(rate(http_client_duration_milliseconds_bucket{service_name=~\"$service\"}[5m])) by (service_name, le)) * 1000",
-                    "legendFormat": "{{service_name}} - p95 (not available)",
+                    "expr": "histogram_quantile(0.95, sum(rate(db_postgresql_query_duration_bucket[5m])) by (db_operation, le))",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}} p95",
                     "range": true,
                     "refId": "A"
                 },
@@ -243,153 +258,16 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "# Duration metrics not available\n# Original query: histogram_quantile(0.50, sum(rate(http_client_duration_milliseconds_bucket{service_name=~\"$service\"}[5m])) by (service_name, le)) * 1000",
+                    "expr": "histogram_quantile(0.50, sum(rate(db_postgresql_query_duration_bucket[5m])) by (db_operation, le))",
                     "hide": false,
-                    "legendFormat": "{{service_name}} - p50 (not available)",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}} p50",
                     "range": true,
                     "refId": "B"
                 }
             ],
-            "title": "HTTP Client Response Time (Metrics Not Available)",
+            "title": "PostgreSQL Query Duration by Operation",
             "type": "timeseries"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
-                        "mode": "palette-classic"
-                    },
-                    "custom": {
-                        "hideFrom": {
-                            "legend": false,
-                            "tooltip": false,
-                            "viz": false
-                        }
-                    },
-                    "mappings": []
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 12,
-                "x": 0,
-                "y": 12
-            },
-            "id": 4,
-            "options": {
-                "displayLabels": [
-                    "percent"
-                ],
-                "legend": {
-                    "displayMode": "list",
-                    "placement": "right",
-                    "showLegend": true
-                },
-                "pieType": "pie",
-                "reduceOptions": {
-                    "calcs": [
-                        "lastNotNull"
-                    ],
-                    "fields": "",
-                    "values": false
-                },
-                "tooltip": {
-                    "mode": "single",
-                    "sort": "none"
-                }
-            },
-            "targets": [
-                {
-                    "datasource": {
-                        "type": "prometheus",
-                        "uid": "prometheus"
-                    },
-                    "editorMode": "code",
-                    "expr": "sum(increase(http_server_request_count_total{service_name=~\"$service\"}[1h])) by (status_code)",
-                    "legendFormat": "{{status_code}}",
-                    "range": true,
-                    "refId": "A"
-                }
-            ],
-            "title": "HTTP Server Status Codes (1h) (Client metrics not available)",
-            "type": "piechart"
-        },
-        {
-            "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-            },
-            "fieldConfig": {
-                "defaults": {
-                    "color": {
-                        "mode": "thresholds"
-                    },
-                    "mappings": [],
-                    "thresholds": {
-                        "mode": "absolute",
-                        "steps": [
-                            {
-                                "color": "green",
-                                "value": null
-                            },
-                            {
-                                "color": "yellow",
-                                "value": 0.01
-                            },
-                            {
-                                "color": "orange",
-                                "value": 0.05
-                            },
-                            {
-                                "color": "red",
-                                "value": 0.1
-                            }
-                        ]
-                    },
-                    "unit": "percentunit"
-                },
-                "overrides": []
-            },
-            "gridPos": {
-                "h": 8,
-                "w": 12,
-                "x": 12,
-                "y": 12
-            },
-            "id": 5,
-            "options": {
-                "orientation": "auto",
-                "reduceOptions": {
-                    "calcs": [
-                        "lastNotNull"
-                    ],
-                    "fields": "",
-                    "values": false
-                },
-                "showThresholdLabels": false,
-                "showThresholdMarkers": true
-            },
-            "pluginVersion": "10.0.3",
-            "targets": [
-                {
-                    "datasource": {
-                        "type": "prometheus",
-                        "uid": "prometheus"
-                    },
-                    "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"5..\"}[5m])) / sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m]))",
-                    "legendFormat": "Error Rate",
-                    "range": true,
-                    "refId": "A"
-                }
-            ],
-            "title": "HTTP Server Error Rate (5xx) (Client metrics not available)",
-            "type": "gauge"
         },
         {
             "datasource": {
@@ -416,12 +294,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -445,17 +323,17 @@
                             }
                         ]
                     },
-                    "unit": "reqps"
+                    "unit": "short"
                 },
                 "overrides": []
             },
             "gridPos": {
                 "h": 8,
-                "w": 24,
+                "w": 8,
                 "x": 0,
-                "y": 20
+                "y": 13
             },
-            "id": 6,
+            "id": 5,
             "options": {
                 "legend": {
                     "calcs": [
@@ -478,13 +356,26 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m])) by (host)",
-                    "legendFormat": "{{host}}",
+                    "expr": "db_postgresql_connections_total{db_name=~\"$database\"}",
+                    "instant": false,
+                    "legendFormat": "Total Connections - {{db_name}}",
                     "range": true,
                     "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "db_postgresql_connections_idle{db_name=~\"$database\"}",
+                    "instant": false,
+                    "legendFormat": "Idle Connections - {{db_name}}",
+                    "range": true,
+                    "refId": "B"
                 }
             ],
-            "title": "HTTP Server Request Rate by Host (Client metrics not available)",
+            "title": "PostgreSQL Connection Pool",
             "type": "timeseries"
         },
         {
@@ -495,7 +386,37 @@
             "fieldConfig": {
                 "defaults": {
                     "color": {
-                        "mode": "thresholds"
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
                     },
                     "mappings": [],
                     "thresholds": {
@@ -506,28 +427,84 @@
                                 "value": null
                             },
                             {
-                                "color": "yellow",
-                                "value": 0.01
-                            },
-                            {
-                                "color": "orange",
-                                "value": 0.05
-                            },
-                            {
                                 "color": "red",
-                                "value": 0.1
+                                "value": 80
                             }
                         ]
                     },
-                    "unit": "percentunit"
+                    "unit": "short"
                 },
                 "overrides": []
             },
             "gridPos": {
                 "h": 8,
-                "w": 24,
-                "x": 0,
-                "y": 28
+                "w": 8,
+                "x": 8,
+                "y": 13
+            },
+            "id": 6,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "min"
+                    ],
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "sum(rate(db_postgresql_query_errors[5m])) / sum(rate(db_postgresql_query_duration_count[5m]))",
+                    "instant": false,
+                    "legendFormat": "Error Rate",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "PostgreSQL Query Error Rate",
+            "type": "gauge"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "continuous-BlYlRd"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    },
+                    "unit": "ms"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 13
             },
             "id": 7,
             "options": {
@@ -537,7 +514,7 @@
                 "orientation": "horizontal",
                 "reduceOptions": {
                     "calcs": [
-                        "lastNotNull"
+                        "mean"
                     ],
                     "fields": "",
                     "values": false
@@ -553,14 +530,28 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count_total{service_name=~\"$service\", status_code=~\"5..\"}[5m])) by (host) / sum(rate(http_server_request_count_total{service_name=~\"$service\"}[5m])) by (host)",
-                    "legendFormat": "{{host}}",
+                    "expr": "avg(db_postgresql_query_duration_sum{db_operation=~\"$operation\"} / db_postgresql_query_duration_count{db_operation=~\"$operation\"}) by (db_operation) * 1000",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Server Error Rate by Host (Client metrics not available)",
+            "title": "Average Query Duration by Operation",
             "type": "bargauge"
+        },
+        {
+            "collapsed": false,
+            "gridPos": {
+                "h": 1,
+                "w": 24,
+                "x": 0,
+                "y": 21
+            },
+            "id": 8,
+            "panels": [],
+            "title": "MongoDB Metrics",
+            "type": "row"
         },
         {
             "datasource": {
@@ -587,12 +578,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -615,7 +606,8 @@
                                 "value": 80
                             }
                         ]
-                    }
+                    },
+                    "unit": "short"
                 },
                 "overrides": []
             },
@@ -623,14 +615,15 @@
                 "h": 8,
                 "w": 12,
                 "x": 0,
-                "y": 36
+                "y": 22
             },
-            "id": 8,
+            "id": 9,
             "options": {
                 "legend": {
                     "calcs": [
                         "mean",
-                        "max"
+                        "max",
+                        "min"
                     ],
                     "displayMode": "table",
                     "placement": "bottom",
@@ -648,13 +641,14 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "# Client metrics not available",
-                    "legendFormat": "{{service_name}} (not available)",
+                    "expr": "sum(rate(db_mongodb_active_operations[5m])) by (db_operation)",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Client In-Flight Requests (Metrics Not Available)",
+            "title": "MongoDB Operation Rate",
             "type": "timeseries"
         },
         {
@@ -682,12 +676,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -710,7 +704,8 @@
                                 "value": 80
                             }
                         ]
-                    }
+                    },
+                    "unit": "ms"
                 },
                 "overrides": []
             },
@@ -718,9 +713,120 @@
                 "h": 8,
                 "w": 12,
                 "x": 12,
-                "y": 36
+                "y": 22
             },
-            "id": 9,
+            "id": 10,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "mean",
+                        "max",
+                        "min"
+                    ],
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "histogram_quantile(0.95, sum(rate(db_mongodb_operation_duration_bucket[5m])) by (db_operation, le))",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}} p95",
+                    "range": true,
+                    "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "histogram_quantile(0.50, sum(rate(db_mongodb_operation_duration_bucket[5m])) by (db_operation, le))",
+                    "hide": false,
+                    "instant": false,
+                    "legendFormat": "{{db_operation}} p50",
+                    "range": true,
+                    "refId": "B"
+                }
+            ],
+            "title": "MongoDB Operation Duration",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 30
+            },
+            "id": 11,
             "options": {
                 "legend": {
                     "calcs": [
@@ -743,8 +849,9 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "# Client metrics not available",
-                    "legendFormat": "{{service_name}} - Pool Size (not available)",
+                    "expr": "db_mongodb_connection_pool_size{db_name=~\"$mongo_database\"}",
+                    "instant": false,
+                    "legendFormat": "Total Connections - {{db_name}}",
                     "range": true,
                     "refId": "A"
                 },
@@ -754,15 +861,148 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "# Client metrics not available",
-                    "hide": false,
-                    "legendFormat": "{{service_name}} - Idle (not available)",
+                    "expr": "db_mongodb_connection_pool_in_use{db_name=~\"$mongo_database\"}",
+                    "instant": false,
+                    "legendFormat": "In-Use Connections - {{db_name}}",
                     "range": true,
                     "refId": "B"
                 }
             ],
-            "title": "HTTP Client Connection Pool (Metrics Not Available)",
+            "title": "MongoDB Connection Pool",
             "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "thresholds"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "orange",
+                                "value": 0.01
+                            },
+                            {
+                                "color": "red",
+                                "value": 0.05
+                            }
+                        ]
+                    },
+                    "unit": "percentunit"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 30
+            },
+            "id": 12,
+            "options": {
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "mean"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showThresholdLabels": false,
+                "showThresholdMarkers": true
+            },
+            "pluginVersion": "10.0.3",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "sum(rate(db_mongodb_operation_errors[5m])) / sum(rate(db_mongodb_operation_duration_count[5m]))",
+                    "instant": false,
+                    "legendFormat": "Error Rate",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "MongoDB Operation Error Rate",
+            "type": "gauge"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "continuous-BlYlRd"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    },
+                    "unit": "ms"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 30
+            },
+            "id": 13,
+            "options": {
+                "displayMode": "gradient",
+                "minVizHeight": 10,
+                "minVizWidth": 0,
+                "orientation": "horizontal",
+                "reduceOptions": {
+                    "calcs": [
+                        "mean"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showUnfilled": true,
+                "text": {}
+            },
+            "pluginVersion": "10.0.3",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "avg(db_mongodb_operation_duration_sum{db_operation=~\"$mongo_operation\"} / db_mongodb_operation_duration_count{db_operation=~\"$mongo_operation\"}) by (db_operation) * 1000",
+                    "instant": false,
+                    "legendFormat": "{{db_operation}}",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Average Operation Duration by Operation",
+            "type": "bargauge"
         },
         {
             "datasource": {
@@ -773,9 +1013,9 @@
                 "h": 8,
                 "w": 24,
                 "x": 0,
-                "y": 44
+                "y": 38
             },
-            "id": 10,
+            "id": 14,
             "options": {
                 "dedupStrategy": "none",
                 "enableLogDetails": true,
@@ -793,12 +1033,12 @@
                         "uid": "P8E80F9AEF21F6940"
                     },
                     "editorMode": "builder",
-                    "expr": "{container=~\"midaz.*\", service=~\"$service\"} |= \"HTTP client\" |= \"error\"",
+                    "expr": "{container=~\"midaz.*\"} |= \"Error\" |= \"database\"",
                     "queryType": "range",
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Client Error Logs",
+            "title": "Database Error Logs",
             "type": "logs"
         }
     ],
@@ -806,10 +1046,10 @@
     "schemaVersion": 38,
     "style": "dark",
     "tags": [
-        "http",
+        "database",
         "monitoring",
         "midaz",
-        "client"
+        "performance"
     ],
     "templating": {
         "list": [
@@ -823,15 +1063,96 @@
                     "type": "prometheus",
                     "uid": "prometheus"
                 },
-                "definition": "label_values(http_server_request_count_total, service_name)",
+                "definition": "label_values(db_postgresql_connections_total, db_name)",
                 "hide": 0,
                 "includeAll": true,
-                "label": "Service",
+                "label": "PostgreSQL Database",
                 "multi": false,
-                "name": "service",
+                "name": "database",
                 "options": [],
                 "query": {
-                    "query": "label_values(http_server_request_count_total, service_name)",
+                    "query": "label_values(db_postgresql_connections_total, db_name)",
+                    "refId": "StandardVariableQuery"
+                },
+                "refresh": 1,
+                "regex": "",
+                "skipUrlSync": false,
+                "sort": 1,
+                "type": "query"
+            },
+            {
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "definition": "label_values(db_postgresql_query_duration_count, db_operation)",
+                "hide": 0,
+                "includeAll": true,
+                "label": "PostgreSQL Operation",
+                "multi": false,
+                "name": "operation",
+                "options": [],
+                "query": {
+                    "query": "label_values(db_postgresql_query_duration_count, db_operation)",
+                    "refId": "StandardVariableQuery"
+                },
+                "refresh": 1,
+                "regex": "",
+                "skipUrlSync": false,
+                "sort": 1,
+                "type": "query"
+            },
+            {
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "definition": "label_values(db_mongodb_connection_pool_size, db_name)",
+                "hide": 0,
+                "includeAll": true,
+                "label": "MongoDB Database",
+                "multi": false,
+                "name": "mongo_database",
+                "options": [],
+                "query": {
+                    "query": "label_values(db_mongodb_connection_pool_size, db_name)",
+                    "refId": "StandardVariableQuery"
+                },
+                "refresh": 1,
+                "regex": "",
+                "skipUrlSync": false,
+                "sort": 1,
+                "type": "query"
+            },
+            {
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "definition": "label_values(db_mongodb_operation_duration_count, db_operation)",
+                "hide": 0,
+                "includeAll": true,
+                "label": "MongoDB Operation",
+                "multi": false,
+                "name": "mongo_operation",
+                "options": [],
+                "query": {
+                    "query": "label_values(db_mongodb_operation_duration_count, db_operation)",
                     "refId": "StandardVariableQuery"
                 },
                 "refresh": 1,
@@ -861,8 +1182,8 @@
         ]
     },
     "timezone": "",
-    "title": "Midaz HTTP Client Monitoring",
-    "uid": "midaz-http-client-monitoring",
+    "title": "Midaz Database Performance",
+    "uid": "midaz-database-performance",
     "version": 1,
     "weekStart": ""
 }

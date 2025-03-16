@@ -40,7 +40,7 @@
                     "showLineNumbers": false,
                     "showMiniMap": false
                 },
-                "content": "# Midaz HTTP Monitoring Dashboard\n\nThis dashboard provides insights into HTTP requests across the Midaz application. Monitor request rates, response times, status codes, and errors to ensure optimal performance and reliability.",
+                "content": "# Midaz Message Queue Dashboard\n\nThis dashboard provides monitoring for RabbitMQ message queues used by Midaz services. Monitor message rates, queue depths, consumer counts, and processing times to ensure reliable message delivery and processing.",
                 "mode": "markdown"
             },
             "pluginVersion": "10.0.3",
@@ -72,12 +72,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -101,7 +101,7 @@
                             }
                         ]
                     },
-                    "unit": "reqps"
+                    "unit": "short"
                 },
                 "overrides": []
             },
@@ -116,8 +116,7 @@
                 "legend": {
                     "calcs": [
                         "mean",
-                        "max",
-                        "min"
+                        "max"
                     ],
                     "displayMode": "table",
                     "placement": "bottom",
@@ -135,13 +134,13 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count[5m])) by (service_name)",
-                    "legendFormat": "{{service_name}}",
+                    "expr": "rabbitmq_queue_messages{queue=~\"$queue\"}",
+                    "legendFormat": "{{queue}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Request Rate",
+            "title": "Queue Depth",
             "type": "timeseries"
         },
         {
@@ -169,12 +168,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -198,7 +197,7 @@
                             }
                         ]
                     },
-                    "unit": "ms"
+                    "unit": "msg/s"
                 },
                 "overrides": []
             },
@@ -213,8 +212,7 @@
                 "legend": {
                     "calcs": [
                         "mean",
-                        "max",
-                        "min"
+                        "max"
                     ],
                     "displayMode": "table",
                     "placement": "bottom",
@@ -232,8 +230,8 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_bucket[5m])) by (service_name, le))",
-                    "legendFormat": "{{service_name}} - p95",
+                    "expr": "rate(rabbitmq_queue_messages_published_total{queue=~\"$queue\"}[5m])",
+                    "legendFormat": "{{queue}} - published",
                     "range": true,
                     "refId": "A"
                 },
@@ -243,14 +241,14 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "histogram_quantile(0.50, sum(rate(http_server_duration_bucket[5m])) by (service_name, le))",
+                    "expr": "rate(rabbitmq_queue_messages_delivered_total{queue=~\"$queue\"}[5m])",
                     "hide": false,
-                    "legendFormat": "{{service_name}} - p50",
+                    "legendFormat": "{{queue}} - delivered",
                     "range": true,
                     "refId": "B"
                 }
             ],
-            "title": "HTTP Response Time",
+            "title": "Message Rate",
             "type": "timeseries"
         },
         {
@@ -264,39 +262,69 @@
                         "mode": "palette-classic"
                     },
                     "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "gradientMode": "none",
                         "hideFrom": {
                             "legend": false,
                             "tooltip": false,
                             "viz": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
                         }
                     },
-                    "mappings": []
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    },
+                    "unit": "short"
                 },
                 "overrides": []
             },
             "gridPos": {
                 "h": 8,
-                "w": 12,
+                "w": 8,
                 "x": 0,
                 "y": 12
             },
             "id": 4,
             "options": {
-                "displayLabels": [
-                    "percent"
-                ],
                 "legend": {
-                    "displayMode": "list",
-                    "placement": "right",
-                    "showLegend": true
-                },
-                "pieType": "pie",
-                "reduceOptions": {
                     "calcs": [
-                        "lastNotNull"
+                        "mean",
+                        "max"
                     ],
-                    "fields": "",
-                    "values": false
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "showLegend": true
                 },
                 "tooltip": {
                     "mode": "single",
@@ -310,14 +338,110 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(increase(http_server_request_count[1h])) by (status_code)",
-                    "legendFormat": "{{status_code}}",
+                    "expr": "rabbitmq_queue_consumers{queue=~\"$queue\"}",
+                    "legendFormat": "{{queue}}",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Status Codes (1h)",
-            "type": "piechart"
+            "title": "Consumer Count",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "palette-classic"
+                    },
+                    "custom": {
+                        "axisCenteredZero": false,
+                        "axisColorMode": "text",
+                        "axisLabel": "",
+                        "axisPlacement": "auto",
+                        "barAlignment": 0,
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "gradientMode": "none",
+                        "hideFrom": {
+                            "legend": false,
+                            "tooltip": false,
+                            "viz": false
+                        },
+                        "lineInterpolation": "linear",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "showPoints": "auto",
+                        "spanNulls": false,
+                        "stacking": {
+                            "group": "A",
+                            "mode": "none"
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "red",
+                                "value": 80
+                            }
+                        ]
+                    },
+                    "unit": "msg/s"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 12
+            },
+            "id": 5,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "mean",
+                        "max"
+                    ],
+                    "displayMode": "table",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "rate(rabbitmq_queue_messages_redelivered_total{queue=~\"$queue\"}[5m])",
+                    "legendFormat": "{{queue}}",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Message Redelivery Rate",
+            "type": "timeseries"
         },
         {
             "datasource": {
@@ -357,11 +481,11 @@
             },
             "gridPos": {
                 "h": 8,
-                "w": 12,
-                "x": 12,
+                "w": 8,
+                "x": 16,
                 "y": 12
             },
-            "id": 5,
+            "id": 6,
             "options": {
                 "orientation": "auto",
                 "reduceOptions": {
@@ -382,14 +506,142 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count{status_code=~\"5..\"}[5m])) / sum(rate(http_server_request_count[5m]))",
+                    "expr": "sum(rate(rabbitmq_queue_messages_redelivered_total{queue=~\"$queue\"}[5m])) / sum(rate(rabbitmq_queue_messages_delivered_total{queue=~\"$queue\"}[5m]))",
                     "legendFormat": "Error Rate",
                     "range": true,
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Error Rate (5xx)",
+            "title": "Message Processing Error Rate",
             "type": "gauge"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "continuous-GrYlRd"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 20
+            },
+            "id": 7,
+            "options": {
+                "displayMode": "gradient",
+                "minVizHeight": 10,
+                "minVizWidth": 0,
+                "orientation": "horizontal",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showUnfilled": true,
+                "text": {}
+            },
+            "pluginVersion": "10.0.3",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "rabbitmq_queue_messages{queue=~\"$queue\"}",
+                    "instant": false,
+                    "legendFormat": "{{queue}}",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Queue Depth by Queue",
+            "type": "bargauge"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "color": {
+                        "mode": "continuous-BlYlRd"
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    },
+                    "unit": "ms"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 20
+            },
+            "id": 8,
+            "options": {
+                "displayMode": "gradient",
+                "minVizHeight": 10,
+                "minVizWidth": 0,
+                "orientation": "horizontal",
+                "reduceOptions": {
+                    "calcs": [
+                        "mean"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showUnfilled": true,
+                "text": {}
+            },
+            "pluginVersion": "10.0.3",
+            "targets": [
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "avg_over_time(histogram_quantile(0.95, sum(rate(consumer_handler_duration_bucket{handler=~\"$handler\"}[5m])) by (handler, le))[1h])",
+                    "instant": false,
+                    "legendFormat": "{{handler}}",
+                    "range": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Message Processing Time by Handler (p95)",
+            "type": "bargauge"
         },
         {
             "datasource": {
@@ -416,12 +668,12 @@
                             "viz": false
                         },
                         "lineInterpolation": "linear",
-                        "lineWidth": 1,
+                        "lineWidth": 2,
                         "pointSize": 5,
                         "scaleDistribution": {
                             "type": "linear"
                         },
-                        "showPoints": "never",
+                        "showPoints": "auto",
                         "spanNulls": false,
                         "stacking": {
                             "group": "A",
@@ -445,7 +697,7 @@
                             }
                         ]
                     },
-                    "unit": "reqps"
+                    "unit": "ms"
                 },
                 "overrides": []
             },
@@ -453,12 +705,13 @@
                 "h": 8,
                 "w": 24,
                 "x": 0,
-                "y": 20
+                "y": 28
             },
-            "id": 6,
+            "id": 9,
             "options": {
                 "legend": {
                     "calcs": [
+                        "min",
                         "mean",
                         "max"
                     ],
@@ -478,13 +731,27 @@
                         "uid": "prometheus"
                     },
                     "editorMode": "code",
-                    "expr": "sum(rate(http_server_request_count[5m])) by (path)",
-                    "legendFormat": "{{path}}",
+                    "expr": "histogram_quantile(0.95, sum(rate(consumer_handler_duration_bucket{handler=~\"$handler\"}[5m])) by (handler, le))",
+                    "instant": false,
+                    "legendFormat": "{{handler}} - p95",
                     "range": true,
                     "refId": "A"
+                },
+                {
+                    "datasource": {
+                        "type": "prometheus",
+                        "uid": "prometheus"
+                    },
+                    "editorMode": "code",
+                    "expr": "histogram_quantile(0.50, sum(rate(consumer_handler_duration_bucket{handler=~\"$handler\"}[5m])) by (handler, le))",
+                    "hide": false,
+                    "instant": false,
+                    "legendFormat": "{{handler}} - p50",
+                    "range": true,
+                    "refId": "B"
                 }
             ],
-            "title": "HTTP Request Rate by Path",
+            "title": "Message Processing Time by Handler",
             "type": "timeseries"
         },
         {
@@ -496,9 +763,9 @@
                 "h": 8,
                 "w": 24,
                 "x": 0,
-                "y": 28
+                "y": 36
             },
-            "id": 7,
+            "id": 10,
             "options": {
                 "dedupStrategy": "none",
                 "enableLogDetails": true,
@@ -516,12 +783,12 @@
                         "uid": "P8E80F9AEF21F6940"
                     },
                     "editorMode": "builder",
-                    "expr": "{container=~\"midaz.*\"} |= \"HTTP\" |= \"status=5\"",
+                    "expr": "{container=~\"midaz.*\"} |= \"Error\" |= \"queue\"",
                     "queryType": "range",
                     "refId": "A"
                 }
             ],
-            "title": "HTTP Error Logs",
+            "title": "Queue Error Logs",
             "type": "logs"
         }
     ],
@@ -529,9 +796,10 @@
     "schemaVersion": 38,
     "style": "dark",
     "tags": [
-        "http",
+        "queue",
         "monitoring",
-        "midaz"
+        "midaz",
+        "rabbitmq"
     ],
     "templating": {
         "list": [
@@ -545,14 +813,44 @@
                     "type": "prometheus",
                     "uid": "prometheus"
                 },
-                "definition": "label_values(http_server_request_count, service_name)",
+                "definition": "label_values(rabbitmq_queue_messages, queue)",
                 "hide": 0,
                 "includeAll": true,
-                "label": "Service",
+                "label": "Queue",
                 "multi": false,
-                "name": "service",
+                "name": "queue",
                 "options": [],
-                "query": "label_values(http_server_request_count, service_name)",
+                "query": {
+                    "query": "label_values(rabbitmq_queue_messages, queue)",
+                    "refId": "StandardVariableQuery"
+                },
+                "refresh": 1,
+                "regex": "",
+                "skipUrlSync": false,
+                "sort": 1,
+                "type": "query"
+            },
+            {
+                "current": {
+                    "selected": false,
+                    "text": "All",
+                    "value": "$__all"
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "definition": "label_values(consumer_handler_duration_count, handler)",
+                "hide": 0,
+                "includeAll": true,
+                "label": "Handler",
+                "multi": false,
+                "name": "handler",
+                "options": [],
+                "query": {
+                    "query": "label_values(consumer_handler_duration_count, handler)",
+                    "refId": "StandardVariableQuery"
+                },
                 "refresh": 1,
                 "regex": "",
                 "skipUrlSync": false,
@@ -580,8 +878,8 @@
         ]
     },
     "timezone": "",
-    "title": "Midaz HTTP Monitoring",
-    "uid": "midaz-http-monitoring",
+    "title": "Midaz Message Queue",
+    "uid": "midaz-message-queue",
     "version": 1,
     "weekStart": ""
 }

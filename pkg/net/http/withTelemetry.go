@@ -83,6 +83,7 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 		// Record HTTP duration with the same attributes as request count
 		attributes := []attribute.KeyValue{
 			attribute.String("service.name", tm.Telemetry.ServiceName),
+			attribute.String("http.route", pkg.ReplaceUUIDWithPlaceholder(c.Path())),
 			attribute.String("path", c.Path()),
 			attribute.String("method", c.Method()),
 			attribute.String("status_code", strconv.Itoa(c.Response().StatusCode())),
@@ -246,6 +247,7 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 		// Record HTTP request
 		attributes := []attribute.KeyValue{
 			attribute.String("service.name", tm.Telemetry.ServiceName),
+			attribute.String("http.route", pkg.ReplaceUUIDWithPlaceholder(fiberCtx.Path())),
 			attribute.String("path", fiberCtx.Path()),
 			attribute.String("method", fiberCtx.Method()),
 			attribute.String("status_code", strconv.Itoa(fiberCtx.Response().StatusCode())),

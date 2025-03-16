@@ -170,6 +170,7 @@ func InitServers() *Service {
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
+		ServiceName:     cfg.OtelServiceName,
 	}
 
 	queryUseCase := &query.UseCase{

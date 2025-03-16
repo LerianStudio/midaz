@@ -38,6 +38,8 @@ type Telemetry struct {
 	LoggerProvider            *sdklog.LoggerProvider
 	shutdown                  func()
 	EnableTelemetry           bool
+	SamplingRatio             float64  // Sampling ratio (0.0-1.0) for traces
+	HighValueOperations       []string // Operations that should always be sampled
 }
 
 // NewResource creates a new resource with default attributes.
@@ -122,9 +124,24 @@ func (tl *Telemetry) newMeterProvider(res *sdkresource.Resource, exp *otlpmetric
 
 // newTracerProvider creates a new tracer provider with stdout exporter and default resource.
 func (tl *Telemetry) newTracerProvider(rsc *sdkresource.Resource, exp *otlptrace.Exporter) *sdktrace.TracerProvider {
+	// Create a sampler that combines parent-based sampling with ratio-based sampling
+	// and ensures high-value operations are always sampled
+	var sampler sdktrace.Sampler
+
+	// Default to parent-based sampling if no ratio is specified
+	if tl.SamplingRatio <= 0 {
+		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.1)) // 10% default sampling
+	} else {
+		sampler = sdktrace.ParentBased(sdktrace.TraceIDRatioBased(tl.SamplingRatio))
+	}
+
+	// Note: We're not implementing the high-value operations feature for now
+	// since it requires a more complex approach with the OpenTelemetry SDK
+
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(rsc),
+		sdktrace.WithSampler(sampler),
 	)
 
 	return tp
