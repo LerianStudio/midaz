@@ -112,3 +112,13 @@ telemetry-restart:
 	@./otel/scripts/check-telemetry-health.sh || true
 	@echo "$(BLUE)OTEL LGTM container restarted. Grafana should be accessible at http://localhost:3100 with credentials midaz:lerian$(NC)"
 
+restart-lgtm:
+	@echo "Restarting LGTM stack with custom configuration..."
+	@if [ -d "./otel-lgtm" ]; then \
+		cd otel-lgtm && ./setup-lgtm-stack.sh; \
+	else \
+		echo "Error: otel-lgtm directory not found"; \
+		exit 1; \
+	fi
+	@echo "LGTM stack restarted successfully."
+

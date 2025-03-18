@@ -123,32 +123,34 @@ services:
     container_name: midaz-otel-lgtm
     image: grafana/otel-lgtm:latest
     restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
-    environment:
-      - GF_SECURITY_ADMIN_USER=${OTEL_LGTM_ADMIN_USER}
-      - GF_SECURITY_ADMIN_PASSWORD=${OTEL_LGTM_ADMIN_PASSWORD}
-      - GF_AUTH_ANONYMOUS_ENABLED=${GF_AUTH_ANONYMOUS_ENABLED}
-      - GF_AUTH_DISABLE_LOGIN_FORM=${GF_AUTH_DISABLE_LOGIN_FORM}
-      - GF_FEATURE_TOGGLES_ENABLE=${GF_FEATURE_TOGGLES_ENABLE}
-      - GF_PATHS_PROVISIONING=${GF_PATHS_PROVISIONING}
     ports:
       - ${OTEL_LGTM_EXTERNAL_PORT}:${OTEL_LGTM_INTERNAL_PORT}
       - ${OTEL_LGTM_RECEIVER_GRPC_PORT}:${OTEL_LGTM_RECEIVER_GRPC_PORT}
       - ${OTEL_LGTM_RECEIVER_HTTP_PORT}:${OTEL_LGTM_RECEIVER_HTTP_PORT}
-      - ${OTEL_TEMPO_PORT}:${OTEL_TEMPO_PORT}
-      - ${OTEL_PROMETHEUS_PORT}:${OTEL_PROMETHEUS_PORT}
-      - ${OTEL_GRAFANA_DEBUG_PORT}:${OTEL_GRAFANA_DEBUG_PORT}
+      - 8889:8889  # Prometheus metrics exporter port
+      - 9090:9090  # Prometheus port
+      - 3200:3200  # Tempo port
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
+      - ./otel-lgtm/config/custom-otelcol-config.yaml:/otel-lgtm/custom-otelcol-config.yaml
+      - ./otel-lgtm/grafana/dashboards:/otel-lgtm/grafana/provisioning/dashboards
     networks:
       - infra_network
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=${GF_AUTH_ANONYMOUS_ENABLED}
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_FEATURE_TOGGLES_ENABLE=tempoSearch,tempoBackendSearch,tracesToLogs,logsToTraces
+      - ENABLE_LOGS_OTELCOL=true
+    command: >
+      sh -c "
+        cd /otel-lgtm && 
+        ./run-prometheus.sh &
+        ./run-tempo.sh &
+        ./run-loki.sh &
+        ./otelcol-contrib/otelcol-contrib --config=file:./custom-otelcol-config.yaml > /tmp/otelcol.log 2>&1 &
+        ./run-grafana.sh
+      "
 
   midaz-rabbitmq:
     image: rabbitmq:4.0-management-alpine
