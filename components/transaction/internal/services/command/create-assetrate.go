@@ -9,6 +9,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
 )
@@ -18,19 +19,40 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
 	defer span.End()
+
+	// Record operation metrics
+	uc.recordBusinessMetrics(ctx, "assetrate_operation_attempt",
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+		attribute.String("from_asset", cari.From),
+		attribute.String("to_asset", cari.To),
+		attribute.String("source", *cari.Source))
 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
 
 	if err := pkg.ValidateCode(cari.From); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
 
+		// Record error
+		uc.recordTransactionError(ctx, "validation_error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("error_detail", "invalid_from_code"))
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	if err := pkg.ValidateCode(cari.To); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset code", err)
+
+		// Record error
+		uc.recordTransactionError(ctx, "validation_error",
+			attribute.String("to_asset", cari.To),
+			attribute.String("error_detail", "invalid_to_code"))
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
@@ -48,6 +70,18 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		mopentelemetry.HandleSpanError(&span, "Failed to find asset rate by currency pair", err)
 
 		logger.Errorf("Error creating asset rate: %v", err)
+
+		// Record error
+		uc.recordTransactionError(ctx, "find_error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error_detail", err.Error()))
+
+		// Record duration with error
+		uc.recordTransactionDuration(ctx, startTime, "assetrate_operation", "error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error", "find_error"))
 
 		return nil, err
 	}
@@ -71,12 +105,31 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 			logger.Errorf("Error updating asset rate: %v", err)
 
+			// Record error
+			uc.recordTransactionError(ctx, "update_error",
+				attribute.String("assetrate_id", arFound.ID),
+				attribute.String("from_asset", cari.From),
+				attribute.String("to_asset", cari.To),
+				attribute.String("error_detail", err.Error()))
+
+			// Record duration with error
+			uc.recordTransactionDuration(ctx, startTime, "assetrate_update", "error",
+				attribute.String("assetrate_id", arFound.ID),
+				attribute.String("from_asset", cari.From),
+				attribute.String("to_asset", cari.To),
+				attribute.String("error", "update_error"))
+
 			return nil, err
 		}
 
 		if cari.Metadata != nil {
 			if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
 				mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+
+				// Record error
+				uc.recordTransactionError(ctx, "metadata_validation_error",
+					attribute.String("assetrate_id", arFound.ID),
+					attribute.String("error_detail", err.Error()))
 
 				return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 			}
@@ -94,11 +147,30 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 				logger.Errorf("Error into creating asset rate metadata: %v", err)
 
+				// Record error
+				uc.recordTransactionError(ctx, "metadata_creation_error",
+					attribute.String("assetrate_id", arFound.ID),
+					attribute.String("error_detail", err.Error()))
+
 				return nil, err
 			}
 
 			arFound.Metadata = cari.Metadata
 		}
+
+		// Record success metrics
+		uc.recordBusinessMetrics(ctx, "assetrate_update_success",
+			attribute.String("assetrate_id", arFound.ID),
+			attribute.String("from_asset", arFound.From),
+			attribute.String("to_asset", arFound.To),
+			attribute.String("source", *arFound.Source),
+			attribute.Float64("rate", arFound.Rate))
+
+		// Record duration
+		uc.recordTransactionDuration(ctx, startTime, "assetrate_update", "success",
+			attribute.String("assetrate_id", arFound.ID),
+			attribute.String("from_asset", arFound.From),
+			attribute.String("to_asset", arFound.To))
 
 		return arFound, nil
 	}
@@ -131,12 +203,29 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 		logger.Errorf("Error creating asset rate: %v", err)
 
+		// Record error
+		uc.recordTransactionError(ctx, "creation_error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error_detail", err.Error()))
+
+		// Record duration with error
+		uc.recordTransactionDuration(ctx, startTime, "assetrate_create", "error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error", "creation_error"))
+
 		return nil, err
 	}
 
 	if cari.Metadata != nil {
 		if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+
+			// Record error
+			uc.recordTransactionError(ctx, "metadata_validation_error",
+				attribute.String("assetrate_id", assetRate.ID),
+				attribute.String("error_detail", err.Error()))
 
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		}
@@ -154,11 +243,30 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 			logger.Errorf("Error into creating asset rate metadata: %v", err)
 
+			// Record error
+			uc.recordTransactionError(ctx, "metadata_creation_error",
+				attribute.String("assetrate_id", assetRate.ID),
+				attribute.String("error_detail", err.Error()))
+
 			return nil, err
 		}
 
 		assetRate.Metadata = cari.Metadata
 	}
+
+	// Record success metrics
+	uc.recordBusinessMetrics(ctx, "assetrate_create_success",
+		attribute.String("assetrate_id", assetRate.ID),
+		attribute.String("from_asset", assetRate.From),
+		attribute.String("to_asset", assetRate.To),
+		attribute.String("source", *assetRate.Source),
+		attribute.Float64("rate", assetRate.Rate))
+
+	// Record duration
+	uc.recordTransactionDuration(ctx, startTime, "assetrate_create", "success",
+		attribute.String("assetrate_id", assetRate.ID),
+		attribute.String("from_asset", assetRate.From),
+		attribute.String("to_asset", assetRate.To))
 
 	return assetRate, nil
 }

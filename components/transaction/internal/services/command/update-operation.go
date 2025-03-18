@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
 )
@@ -19,8 +21,18 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.update_operation")
 	defer span.End()
+
+	// Record operation metrics
+	uc.recordBusinessMetrics(ctx, "operation_update_attempt",
+		attribute.String("operation_id", operationID.String()),
+		attribute.String("transaction_id", transactionID.String()),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()))
 
 	logger.Infof("Trying to update operation: %v", uoi)
 
@@ -34,6 +46,18 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error updating op on repo by id: %v", err)
 
+		// Record error
+		uc.recordTransactionError(ctx, "operation_update_error",
+			attribute.String("operation_id", operationID.String()),
+			attribute.String("transaction_id", transactionID.String()),
+			attribute.String("error_detail", err.Error()))
+
+		// Record transaction duration with error status
+		uc.recordTransactionDuration(ctx, startTime, "operation_update", "error",
+			attribute.String("operation_id", operationID.String()),
+			attribute.String("transaction_id", transactionID.String()),
+			attribute.String("error", "update_error"))
+
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
@@ -45,6 +69,18 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		if err := pkg.CheckMetadataKeyAndValueLength(100, uoi.Metadata); err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
 
+			// Record error
+			uc.recordTransactionError(ctx, "metadata_validation_error",
+				attribute.String("operation_id", operationID.String()),
+				attribute.String("transaction_id", transactionID.String()),
+				attribute.String("error_detail", err.Error()))
+
+			// Record transaction duration with error status
+			uc.recordTransactionDuration(ctx, startTime, "operation_update", "error",
+				attribute.String("operation_id", operationID.String()),
+				attribute.String("transaction_id", transactionID.String()),
+				attribute.String("error", "metadata_validation_error"))
+
 			return nil, err
 		}
 
@@ -52,11 +88,35 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb operation", err)
 
+			// Record error
+			uc.recordTransactionError(ctx, "metadata_update_error",
+				attribute.String("operation_id", operationID.String()),
+				attribute.String("transaction_id", transactionID.String()),
+				attribute.String("error_detail", err.Error()))
+
+			// Record transaction duration with error status
+			uc.recordTransactionDuration(ctx, startTime, "operation_update", "error",
+				attribute.String("operation_id", operationID.String()),
+				attribute.String("transaction_id", transactionID.String()),
+				attribute.String("error", "metadata_update_error"))
+
 			return nil, err
 		}
 
 		operationUpdated.Metadata = uoi.Metadata
 	}
+
+	// Record transaction duration with success status
+	uc.recordTransactionDuration(ctx, startTime, "operation_update", "success",
+		attribute.String("operation_id", operationID.String()),
+		attribute.String("transaction_id", transactionID.String()))
+
+	// Record business metric for operation update success
+	uc.recordBusinessMetrics(ctx, "operation_update_success",
+		attribute.String("operation_id", operationID.String()),
+		attribute.String("transaction_id", transactionID.String()),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()))
 
 	return operationUpdated, nil
 }
