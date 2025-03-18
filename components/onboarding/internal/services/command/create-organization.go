@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
@@ -15,8 +16,15 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.create_organization")
 	defer span.End()
+
+	// Record operation metrics
+	uc.recordOnboardingMetrics(ctx, "organization", "create",
+		attribute.String("organization_name", coi.LegalName))
 
 	logger.Infof("Trying to create organization: %v", coi)
 
@@ -40,6 +48,11 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	if err := pkg.ValidateCountryAddress(coi.Address.Country); err != nil {
 		mopentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "organization", "validation_error",
+			attribute.String("organization_name", coi.LegalName),
+			attribute.String("error_detail", "invalid_country_address"))
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
@@ -60,6 +73,11 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "organization", "span_attributes_error",
+			attribute.String("organization_name", coi.LegalName),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
@@ -68,6 +86,11 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		mopentelemetry.HandleSpanError(&span, "Failed to create organization on repository", err)
 
 		logger.Errorf("Error creating organization: %v", err)
+
+		// Record error
+		uc.recordOnboardingError(ctx, "organization", "creation_error",
+			attribute.String("organization_name", coi.LegalName),
+			attribute.String("error_detail", err.Error()))
 
 		return nil, err
 	}
@@ -78,10 +101,20 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 		logger.Errorf("Error creating organization metadata: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "organization", "metadata_error",
+			attribute.String("organization_id", org.ID),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
 	org.Metadata = metadata
+
+	// Record successful completion and duration
+	uc.recordOnboardingDuration(ctx, startTime, "organization", "create", "success",
+		attribute.String("organization_id", org.ID),
+		attribute.String("organization_name", org.LegalName))
 
 	return org, nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -50,7 +51,7 @@ func (uc *UseCase) recordBusinessMetrics(ctx context.Context, action string, att
 
 	// Create metric for transaction counts by type
 	txCounter, _ := meter.Int64Counter(
-		"business.transaction.count",
+		mopentelemetry.GetMetricName("business", "transaction", "count", "total"),
 		metric.WithDescription("Number of transactions by type"),
 		metric.WithUnit("{transaction}"),
 	)
@@ -77,7 +78,7 @@ func (uc *UseCase) recordTransactionDuration(ctx context.Context, startTime time
 
 	// Create duration histogram
 	txDuration, _ := meter.Int64Histogram(
-		"business.transaction.duration",
+		mopentelemetry.GetMetricName("business", "transaction", "duration", "milliseconds"),
 		metric.WithDescription("Duration of transaction processing"),
 		metric.WithUnit("ms"),
 	)
@@ -102,7 +103,7 @@ func (uc *UseCase) recordBalanceUpdates(ctx context.Context, assetCode string, a
 
 	// Create counters for total value moved by asset
 	balanceValueCounter, _ := meter.Float64Counter(
-		"business.balance.value_moved",
+		mopentelemetry.GetMetricName("business", "balance", "value", "moved"),
 		metric.WithDescription("Total value moved by asset"),
 		metric.WithUnit("unit"),
 	)
@@ -111,4 +112,28 @@ func (uc *UseCase) recordBalanceUpdates(ctx context.Context, assetCode string, a
 	balanceValueCounter.Add(ctx, amount, metric.WithAttributes(
 		attribute.String("asset_code", assetCode),
 	))
+}
+
+// recordTransactionError records error metrics for transactions
+func (uc *UseCase) recordTransactionError(ctx context.Context, errorType string, attributes ...attribute.KeyValue) {
+	// Create meter
+	meter := otel.Meter(uc.ServiceName)
+
+	// Create error counter
+	txErrorCounter, _ := meter.Int64Counter(
+		mopentelemetry.GetMetricName("business", "transaction", "errors", "count"),
+		metric.WithDescription("Number of transaction errors by type"),
+		metric.WithUnit("{error}"),
+	)
+
+	// Set base attributes
+	baseAttrs := []attribute.KeyValue{
+		attribute.String("error_type", errorType),
+	}
+
+	// Combine with additional attributes
+	allAttrs := append(baseAttrs, attributes...)
+
+	// Record the metric
+	txErrorCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
 }

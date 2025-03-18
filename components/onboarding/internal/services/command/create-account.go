@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateAccount creates a new account persists data in the repository.
@@ -17,8 +18,18 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.create_account")
 	defer span.End()
+
+	// Record operation metrics
+	uc.recordOnboardingMetrics(ctx, "account", "create",
+		attribute.String("account_type", cai.Type),
+		attribute.String("asset_code", cai.AssetCode),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()))
 
 	logger.Infof("Trying to create account: %v", cai)
 
@@ -29,6 +40,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if err := pkg.ValidateAccountType(cai.Type); err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to validate account type", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "account", "validation_error",
+			attribute.String("account_type", cai.Type),
+			attribute.String("error_detail", "invalid_type"))
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
@@ -37,6 +53,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	isAsset, _ := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, "", cai.AssetCode)
 	if !isAsset {
 		mopentelemetry.HandleSpanError(&span, "Failed to find asset", constant.ErrAssetCodeNotFound)
+
+		// Record error
+		uc.recordOnboardingError(ctx, "account", "validation_error",
+			attribute.String("asset_code", cai.AssetCode),
+			attribute.String("error_detail", "asset_not_found"))
 
 		return nil, pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
@@ -52,6 +73,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 			logger.Errorf("Error find portfolio to get Entity ID: %v", err)
 
+			// Record error
+			uc.recordOnboardingError(ctx, "account", "portfolio_error",
+				attribute.String("portfolio_id", *cai.PortfolioID),
+				attribute.String("error_detail", err.Error()))
+
 			return nil, err
 		}
 
@@ -63,11 +89,21 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find parent account", err)
 
+			// Record error
+			uc.recordOnboardingError(ctx, "account", "parent_account_error",
+				attribute.String("parent_account_id", *cai.ParentAccountID),
+				attribute.String("error_detail", err.Error()))
+
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		if acc.AssetCode != cai.AssetCode {
 			mopentelemetry.HandleSpanError(&span, "Failed to validate parent account", constant.ErrMismatchedAssetCode)
+
+			// Record error
+			uc.recordOnboardingError(ctx, "account", "validation_error",
+				attribute.String("parent_account_id", *cai.ParentAccountID),
+				attribute.String("error_detail", "mismatched_asset_code"))
 
 			return nil, pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
 		}
@@ -82,6 +118,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		_, err := uc.AccountRepo.FindByAlias(ctx, organizationID, ledgerID, *cai.Alias)
 		if err != nil {
 			mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+
+			// Record error
+			uc.recordOnboardingError(ctx, "account", "alias_error",
+				attribute.String("alias", *cai.Alias),
+				attribute.String("error_detail", err.Error()))
 
 			return nil, err
 		}
@@ -112,6 +153,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 		logger.Errorf("Error creating account: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "account", "creation_error",
+			attribute.String("account_name", cai.Name),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
@@ -121,6 +167,11 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 		logger.Errorf("Error creating account metadata: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "account", "metadata_error",
+			attribute.String("account_id", acc.ID),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
@@ -128,6 +179,13 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Sending account to transaction queue...")
 	uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
+
+	// Record successful completion and duration
+	uc.recordOnboardingDuration(ctx, startTime, "account", "create", "success",
+		attribute.String("account_id", acc.ID),
+		attribute.String("account_name", acc.Name),
+		attribute.String("account_type", acc.Type),
+		attribute.String("asset_code", acc.AssetCode))
 
 	return acc, nil
 }

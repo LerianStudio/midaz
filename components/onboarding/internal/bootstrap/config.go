@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
+
 	"github.com/LerianStudio/auth-lib/auth/middleware"
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
@@ -169,6 +170,7 @@ func InitServers() *Service {
 		MetadataRepo:     metadataMongoDBRepository,
 		RabbitMQRepo:     producerRabbitMQRepository,
 		RedisRepo:        redisConsumerRepository,
+		ServiceName:      cfg.OtelServiceName,
 	}
 
 	queryUseCase := &query.UseCase{

@@ -2,6 +2,7 @@ package mopentelemetry
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -248,7 +249,7 @@ func (tl *Telemetry) startBackgroundMetricsCollection(ctx context.Context, logge
 
 	// CPU usage metric
 	cpuGauge, err := meter.Int64Gauge(
-		"system.cpu.usage",
+		GetMetricName("system", "resource", "usage", "cpu"),
 		metric.WithDescription("CPU usage in percentage"),
 		metric.WithUnit("percentage"),
 	)
@@ -259,7 +260,7 @@ func (tl *Telemetry) startBackgroundMetricsCollection(ctx context.Context, logge
 
 	// Memory usage metric
 	memGauge, err := meter.Int64Gauge(
-		"system.mem.usage",
+		GetMetricName("system", "resource", "usage", "memory"),
 		metric.WithDescription("Memory usage in percentage"),
 		metric.WithUnit("percentage"),
 	)
@@ -270,7 +271,7 @@ func (tl *Telemetry) startBackgroundMetricsCollection(ctx context.Context, logge
 
 	// Service info metric (for service discovery)
 	serviceInfo, err := meter.Int64UpDownCounter(
-		"service.info",
+		GetMetricName("service", "metadata", "info", "instance"),
 		metric.WithDescription("Information about the service"),
 		metric.WithUnit("{info}"),
 	)
@@ -362,4 +363,10 @@ func ExtractContext(ctx context.Context) context.Context {
 	}
 
 	return ctx
+}
+
+// GetMetricName returns a standardized metric name following the format:
+// [component].[subcomponent].[metric_type].[name]
+func GetMetricName(component, subcomponent, metricType, name string) string {
+	return fmt.Sprintf("%s.%s.%s.%s", component, subcomponent, metricType, name)
 }

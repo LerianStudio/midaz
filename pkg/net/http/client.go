@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -95,7 +96,7 @@ func (c *InstrumentedClient) Do(req *http.Request) (*http.Response, error) {
 	// Record metrics for in-flight requests
 	meter := otel.Meter(c.serviceName)
 	inFlightRequests, _ := meter.Int64UpDownCounter(
-		"http_client_in_flight_requests",
+		mopentelemetry.GetMetricName("http", "client", "requests", "in_flight"),
 		metric.WithDescription("Number of in-flight HTTP requests"),
 		metric.WithUnit("{request}"),
 	)
@@ -105,7 +106,7 @@ func (c *InstrumentedClient) Do(req *http.Request) (*http.Response, error) {
 
 	// Create request counter
 	requestCounter, _ := meter.Int64Counter(
-		"http_client_request_count",
+		mopentelemetry.GetMetricName("http", "client", "requests", "total"),
 		metric.WithDescription("Number of HTTP requests"),
 		metric.WithUnit("{request}"),
 	)
@@ -121,7 +122,7 @@ func (c *InstrumentedClient) Do(req *http.Request) (*http.Response, error) {
 
 	// Create duration histogram
 	httpDuration, _ := meter.Int64Histogram(
-		"http_client_duration",
+		mopentelemetry.GetMetricName("http", "client", "duration", "milliseconds"),
 		metric.WithDescription("Duration of HTTP requests"),
 		metric.WithUnit("ms"),
 	)
@@ -191,13 +192,13 @@ func (c *InstrumentedClient) trackConnectionPoolMetrics() {
 
 	// Connection pool metrics
 	poolSizeGauge, _ := meter.Int64Gauge(
-		"http_client_conn_pool_size",
+		mopentelemetry.GetMetricName("http", "client", "connection_pool", "size"),
 		metric.WithDescription("HTTP client connection pool size"),
 		metric.WithUnit("{connection}"),
 	)
 
 	idleConnGauge, _ := meter.Int64Gauge(
-		"http_client_idle_conns",
+		mopentelemetry.GetMetricName("http", "client", "connection_pool", "idle"),
 		metric.WithDescription("HTTP client idle connections"),
 		metric.WithUnit("{connection}"),
 	)

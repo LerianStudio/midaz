@@ -75,7 +75,7 @@ func (tm *TelemetryMiddleware) WithTelemetry(tl *mopentelemetry.Telemetry) fiber
 
 		// HTTP duration histogram
 		httpDuration, _ := meter.Int64Histogram(
-			"http_server_duration",
+			mopentelemetry.GetMetricName("http", "server", "duration", "milliseconds"),
 			metric.WithDescription("Duration of HTTP requests"),
 			metric.WithUnit("ms"),
 		)
@@ -155,14 +155,14 @@ func (tm *TelemetryMiddleware) WithTelemetryInterceptor(tl *mopentelemetry.Telem
 
 		// gRPC request counter
 		grpcCounter, _ := meter.Int64Counter(
-			"grpc.server.request_count",
+			mopentelemetry.GetMetricName("grpc", "server", "requests", "total"),
 			metric.WithDescription("Number of gRPC requests"),
 			metric.WithUnit("{request}"),
 		)
 
 		// gRPC duration histogram
 		grpcDuration, _ := meter.Int64Histogram(
-			"grpc.server.duration",
+			mopentelemetry.GetMetricName("grpc", "server", "duration", "milliseconds"),
 			metric.WithDescription("Duration of gRPC requests"),
 			metric.WithUnit("ms"),
 		)
@@ -214,7 +214,7 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 
 	// CPU usage
 	cpuGauge, err := meter.Int64Gauge(
-		"system.cpu.usage",
+		mopentelemetry.GetMetricName("system", "resource", "usage", "cpu"),
 		metric.WithDescription("CPU usage in percentage"),
 		metric.WithUnit("percentage"),
 	)
@@ -224,7 +224,7 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 
 	// Memory usage
 	memGauge, err := meter.Int64Gauge(
-		"system.mem.usage",
+		mopentelemetry.GetMetricName("system", "resource", "usage", "memory"),
 		metric.WithDescription("Memory usage in percentage"),
 		metric.WithUnit("percentage"),
 	)
@@ -236,7 +236,7 @@ func (tm *TelemetryMiddleware) collectMetrics(ctx context.Context) error {
 	if fiberCtx, ok := ctx.Value(fiberCtxKey{}).(*fiber.Ctx); ok {
 		// Track HTTP request metrics
 		httpCounter, err := meter.Int64Counter(
-			"http_server_request_count",
+			mopentelemetry.GetMetricName("http", "server", "requests", "total"),
 			metric.WithDescription("Number of HTTP requests"),
 			metric.WithUnit("{request}"),
 		)

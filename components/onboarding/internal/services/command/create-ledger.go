@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
 )
@@ -17,8 +18,16 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
-	span.End()
+	defer span.End() // Fix: Use defer to ensure span is ended properly
+
+	// Record operation metrics
+	uc.recordOnboardingMetrics(ctx, "ledger", "create",
+		attribute.String("ledger_name", cli.Name),
+		attribute.String("organization_id", organizationID.String()))
 
 	logger.Infof("Trying to create ledger: %v", cli)
 
@@ -39,6 +48,11 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "ledger", "find_error",
+			attribute.String("ledger_name", cli.Name),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
@@ -56,6 +70,11 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "ledger", "creation_error",
+			attribute.String("ledger_name", cli.Name),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
@@ -67,10 +86,20 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "ledger", "metadata_error",
+			attribute.String("ledger_id", led.ID),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
 	led.Metadata = metadata
+
+	// Record successful completion and duration
+	uc.recordOnboardingDuration(ctx, startTime, "ledger", "create", "success",
+		attribute.String("ledger_id", led.ID),
+		attribute.String("ledger_name", led.Name))
 
 	return led, nil
 }

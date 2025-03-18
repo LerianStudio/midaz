@@ -65,7 +65,7 @@ func (p *PostgresTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, da
 
 	// Create metric for active queries
 	activeQueries, _ := meter.Int64UpDownCounter(
-		"db.postgresql.active_queries",
+		mopentelemetry.GetMetricName("db", "postgresql", "queries", "active"),
 		metric.WithDescription("Number of active PostgreSQL queries"),
 		metric.WithUnit("{query}"),
 	)
@@ -115,21 +115,21 @@ func (p *PostgresTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data
 
 	// Create metric for active queries
 	activeQueries, _ := meter.Int64UpDownCounter(
-		"db.postgresql.active_queries",
+		mopentelemetry.GetMetricName("db", "postgresql", "queries", "active"),
 		metric.WithDescription("Number of active PostgreSQL queries"),
 		metric.WithUnit("{query}"),
 	)
 
 	// Create metric for query duration
 	queryDuration, _ := meter.Int64Histogram(
-		"db.postgresql.query_duration",
+		mopentelemetry.GetMetricName("db", "postgresql", "queries", "duration"),
 		metric.WithDescription("Duration of PostgreSQL queries"),
 		metric.WithUnit("ms"),
 	)
 
 	// Create metric for query errors
 	queryErrors, _ := meter.Int64Counter(
-		"db.postgresql.query_errors",
+		mopentelemetry.GetMetricName("db", "postgresql", "queries", "errors"),
 		metric.WithDescription("Number of PostgreSQL query errors"),
 		metric.WithUnit("{error}"),
 	)
@@ -182,13 +182,13 @@ func collectPoolMetrics(pool *pgxpool.Pool, config PostgresConfig) {
 
 	// Pool metrics
 	totalConnections, _ := meter.Int64Gauge(
-		"db.postgresql.connections.total",
+		mopentelemetry.GetMetricName("db", "postgresql", "connections", "total"),
 		metric.WithDescription("Total connections in the PostgreSQL pool"),
 		metric.WithUnit("{connection}"),
 	)
 
 	idleConnections, _ := meter.Int64Gauge(
-		"db.postgresql.connections.idle",
+		mopentelemetry.GetMetricName("db", "postgresql", "connections", "idle"),
 		metric.WithDescription("Idle connections in the PostgreSQL pool"),
 		metric.WithUnit("{connection}"),
 	)

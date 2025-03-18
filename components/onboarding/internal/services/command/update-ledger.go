@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
 )
@@ -19,8 +21,16 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.update_ledger_by_id")
 	defer span.End()
+
+	// Record operation metrics
+	uc.recordOnboardingMetrics(ctx, "ledger", "update",
+		attribute.String("ledger_id", id.String()),
+		attribute.String("organization_id", organizationID.String()))
 
 	logger.Infof("Trying to update ledger: %v", uli)
 
@@ -36,6 +46,11 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "ledger", "update_error",
+			attribute.String("ledger_id", id.String()),
+			attribute.String("error_detail", err.Error()))
+
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
 		}
@@ -47,10 +62,20 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 	if err != nil {
 		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on repo", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "ledger", "update_metadata_error",
+			attribute.String("ledger_id", id.String()),
+			attribute.String("error_detail", err.Error()))
+
 		return nil, err
 	}
 
 	ledgerUpdated.Metadata = metadataUpdated
+
+	// Record successful completion and duration
+	uc.recordOnboardingDuration(ctx, startTime, "ledger", "update", "success",
+		attribute.String("ledger_id", id.String()),
+		attribute.String("ledger_name", ledgerUpdated.Name))
 
 	return ledgerUpdated, nil
 }

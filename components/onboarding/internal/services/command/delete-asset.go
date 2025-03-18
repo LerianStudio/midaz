@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
 )
@@ -19,8 +21,17 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 	logger := pkg.NewLoggerFromContext(ctx)
 	tracer := pkg.NewTracerFromContext(ctx)
 
+	// Start time for duration measurement
+	startTime := time.Now()
+
 	ctx, span := tracer.Start(ctx, "command.delete_asset_by_id")
 	defer span.End()
+
+	// Record operation metrics
+	uc.recordOnboardingMetrics(ctx, "asset", "delete",
+		attribute.String("asset_id", id.String()),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()))
 
 	logger.Infof("Remove asset for id: %s", id)
 
@@ -29,6 +40,11 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		mopentelemetry.HandleSpanError(&span, "Failed to get asset on repo by id", err)
 
 		logger.Errorf("Error getting asset on repo by id: %v", err)
+
+		// Record error
+		uc.recordOnboardingError(ctx, "asset", "find_error",
+			attribute.String("asset_id", id.String()),
+			attribute.String("error_detail", err.Error()))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
@@ -45,6 +61,11 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "asset", "list_account_error",
+			attribute.String("asset_id", id.String()),
+			attribute.String("error_detail", err.Error()))
+
 		return err
 	}
 
@@ -55,6 +76,12 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 			logger.Errorf("Error deleting asset external account: %v", err)
 
+			// Record error
+			uc.recordOnboardingError(ctx, "asset", "delete_account_error",
+				attribute.String("asset_id", id.String()),
+				attribute.String("account_id", acc[0].ID),
+				attribute.String("error_detail", err.Error()))
+
 			return err
 		}
 	}
@@ -64,12 +91,23 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 		logger.Errorf("Error deleting asset on repo by id: %v", err)
 
+		// Record error
+		uc.recordOnboardingError(ctx, "asset", "delete_error",
+			attribute.String("asset_id", id.String()),
+			attribute.String("error_detail", err.Error()))
+
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
 		}
 
 		return err
 	}
+
+	// Record successful completion and duration
+	uc.recordOnboardingDuration(ctx, startTime, "asset", "delete", "success",
+		attribute.String("asset_id", id.String()),
+		attribute.String("asset_code", asset.Code),
+		attribute.String("asset_type", asset.Type))
 
 	return nil
 }
