@@ -24,7 +24,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	defer spanUpdateBalances.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "balances_update_batch_attempt",
+	uc.RecordBalanceMetric(ctx, "balances_update_batch_attempt", "batch-update",
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.Int("balance_count", len(balances)))
@@ -36,7 +36,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
 
 		// Record error
-		uc.recordTransactionError(ctx, "balances_struct_conversion_error",
+		uc.RecordEntityError(ctx, "balance", "balances_struct_conversion_error", "batch-update",
 			attribute.String("error_detail", err.Error()))
 	}
 
@@ -66,22 +66,22 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		logger.Error("Failed to update balances on database", err.Error())
 
 		// Record error
-		uc.recordTransactionError(ctx, "balances_update_error",
+		uc.RecordEntityError(ctx, "balance", "balances_update_error", "batch-update",
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "balances_update_batch", "error",
+		uc.RecordTransactionDuration(ctx, startTime, "balances_update_batch", "error", "batch-update",
 			attribute.String("error", "database_update_failed"))
 
 		return err
 	}
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "balances_update_batch", "success",
+	uc.RecordTransactionDuration(ctx, startTime, "balances_update_batch", "success", "batch-update",
 		attribute.Int("balance_count", len(balances)))
 
 	// Record business metric for successful balance update
-	uc.recordBusinessMetrics(ctx, "balances_update_batch_success",
+	uc.RecordBalanceMetric(ctx, "balances_update_batch_success", "batch-update",
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.Int("balance_count", len(balances)))
@@ -101,7 +101,7 @@ func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledger
 	defer spanUpdateBalances.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "balances_update_new_attempt",
+	uc.RecordBalanceMetric(ctx, "balances_update_new_attempt", "batch-update",
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.Int("balance_count", len(balances)))
@@ -113,7 +113,7 @@ func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledger
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
 
 		// Record error
-		uc.recordTransactionError(ctx, "balances_struct_conversion_error",
+		uc.RecordEntityError(ctx, "balance", "balances_struct_conversion_error", "batch-update",
 			attribute.String("error_detail", err.Error()))
 	}
 
@@ -164,22 +164,22 @@ func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledger
 		logger.Error("Failed to update balances on database", err.Error())
 
 		// Record error
-		uc.recordTransactionError(ctx, "balances_update_error",
+		uc.RecordEntityError(ctx, "balance", "balances_update_error", "batch-update",
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "balances_update_new", "error",
+		uc.RecordTransactionDuration(ctx, startTime, "balances_update_new", "error", "batch-update",
 			attribute.String("error", "database_update_failed"))
 
 		return err
 	}
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "balances_update_new", "success",
+	uc.RecordTransactionDuration(ctx, startTime, "balances_update_new", "success", "batch-update",
 		attribute.Int("balance_count", len(newBalances)))
 
 	// Record business metric for successful balance update
-	uc.recordBusinessMetrics(ctx, "balances_update_new_success",
+	uc.RecordBalanceMetric(ctx, "balances_update_new_success", "batch-update",
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.Int("balance_count", len(newBalances)))
@@ -199,8 +199,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "balance_update_attempt",
-		attribute.String("balance_id", balanceID.String()),
+	uc.RecordBalanceMetric(ctx, "balance_update_attempt", balanceID.String(),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
 
@@ -213,25 +212,21 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		logger.Errorf("Error update balance: %v", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "balance_update_error",
-			attribute.String("balance_id", balanceID.String()),
+		uc.RecordEntityError(ctx, "balance", "balance_update_error", balanceID.String(),
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "balance_update", "error",
-			attribute.String("balance_id", balanceID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "balance_update", "error", balanceID.String(),
 			attribute.String("error", "database_update_failed"))
 
 		return err
 	}
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "balance_update", "success",
-		attribute.String("balance_id", balanceID.String()))
+	uc.RecordTransactionDuration(ctx, startTime, "balance_update", "success", balanceID.String())
 
 	// Record business metric for successful balance update
-	uc.recordBusinessMetrics(ctx, "balance_update_success",
-		attribute.String("balance_id", balanceID.String()),
+	uc.RecordBalanceMetric(ctx, "balance_update_success", balanceID.String(),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
 

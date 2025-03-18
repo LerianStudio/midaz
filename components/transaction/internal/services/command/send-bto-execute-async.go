@@ -28,8 +28,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	defer spanSendBTOQueue.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "bto_async_send_attempt",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionMetric(ctx, "bto_async_send_attempt", tran.ID,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("asset_code", tran.AssetCode),
@@ -49,13 +48,11 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "bto_marshal_error",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordEntityError(ctx, "transaction", "bto_marshal_error", tran.ID,
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "bto_async_send", "error",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordTransactionDuration(ctx, startTime, "bto_async_send", "error", tran.ID,
 			attribute.String("error", "marshal_error"))
 
 		logger.Fatalf("Failed to marshal validate to JSON string: %s", err.Error())
@@ -85,15 +82,13 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "bto_queue_send_error",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordEntityError(ctx, "transaction", "bto_queue_send_error", tran.ID,
 			attribute.String("exchange", exchange),
 			attribute.String("routing_key", routingKey),
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "bto_async_send", "error",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordTransactionDuration(ctx, startTime, "bto_async_send", "error", tran.ID,
 			attribute.String("error", "queue_send_error"))
 
 		logger.Errorf("Failed to send message: %s", err.Error())
@@ -101,16 +96,14 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	}
 
 	// Record success metrics
-	uc.recordBusinessMetrics(ctx, "bto_async_send_success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionMetric(ctx, "bto_async_send_success", tran.ID,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("asset_code", tran.AssetCode),
 		attribute.Int("balance_count", len(blc)))
 
 	// Record duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "bto_async_send", "success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionDuration(ctx, startTime, "bto_async_send", "success", tran.ID,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
 }

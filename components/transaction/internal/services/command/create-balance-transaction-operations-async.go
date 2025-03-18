@@ -28,7 +28,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	startTime := time.Now()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "bto_async_process_attempt",
+	uc.RecordTransactionMetric(ctx, "bto_async_process_attempt", "queue",
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()),
 		attribute.Int("queue_data_count", len(data.QueueData)))
@@ -43,12 +43,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
 			// Record error
-			uc.recordTransactionError(ctx, "bto_unmarshal_error",
-				attribute.String("queue_data_id", item.ID.String()),
+			uc.RecordEntityError(ctx, "transaction", "bto_unmarshal_error", item.ID.String(),
 				attribute.String("error_detail", err.Error()))
 
 			// Record duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "bto_async_process", "error",
+			uc.RecordTransactionDuration(ctx, startTime, "bto_async_process", "error", "queue",
 				attribute.String("error", "unmarshal_error"))
 
 			return err
@@ -64,8 +63,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	// Add transaction info to metrics
-	uc.recordBusinessMetrics(ctx, "bto_async_process_transaction",
-		attribute.String("transaction_id", transactionID),
+	uc.RecordTransactionMetric(ctx, "bto_async_process_transaction", transactionID,
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()),
 		attribute.String("asset_code", assetCode),
@@ -88,21 +86,18 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
 		// Record error
-		uc.recordTransactionError(ctx, "bto_balance_update_error",
-			attribute.String("transaction_id", transactionID),
+		uc.RecordEntityError(ctx, "transaction", "bto_balance_update_error", transactionID,
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "bto_async_process", "error",
-			attribute.String("transaction_id", transactionID),
+		uc.RecordTransactionDuration(ctx, startTime, "bto_async_process", "error", transactionID,
 			attribute.String("error", "balance_update_error"))
 
 		return err
 	}
 
 	// Record balance update duration
-	uc.recordTransactionDuration(ctx, balancesStartTime, "bto_balance_update", "success",
-		attribute.String("transaction_id", transactionID),
+	uc.RecordTransactionDuration(ctx, balancesStartTime, "bto_balance_update", "success", transactionID,
 		attribute.Int("balance_count", len(balances)))
 
 	transactionStartTime := time.Now()
@@ -131,37 +126,32 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			logger.Infof("Transaction already exists: %v", tran.ID)
 
 			// Record duplicate transaction
-			uc.recordBusinessMetrics(ctx, "bto_transaction_already_exists",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordTransactionMetric(ctx, "bto_transaction_already_exists", tran.ID,
 				attribute.String("organization_id", data.OrganizationID.String()),
 				attribute.String("ledger_id", data.LedgerID.String()))
 		} else {
 			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
 
 			// Record error
-			uc.recordTransactionError(ctx, "bto_transaction_creation_error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordEntityError(ctx, "transaction", "bto_transaction_creation_error", tran.ID,
 				attribute.String("error_detail", err.Error()))
 
 			// Record duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "bto_async_process", "error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordTransactionDuration(ctx, startTime, "bto_async_process", "error", tran.ID,
 				attribute.String("error", "transaction_creation_error"))
 
 			return err
 		}
 	} else {
 		// Record transaction creation success
-		uc.recordBusinessMetrics(ctx, "bto_transaction_created",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordTransactionMetric(ctx, "bto_transaction_created", tran.ID,
 			attribute.String("organization_id", data.OrganizationID.String()),
 			attribute.String("ledger_id", data.LedgerID.String()),
 			attribute.String("asset_code", tran.AssetCode))
 	}
 
 	// Record transaction creation duration
-	uc.recordTransactionDuration(ctx, transactionStartTime, "bto_transaction_creation", "success",
-		attribute.String("transaction_id", tran.ID))
+	uc.RecordTransactionDuration(ctx, transactionStartTime, "bto_transaction_creation", "success", tran.ID)
 
 	err = uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
@@ -170,13 +160,11 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
 		// Record error
-		uc.recordTransactionError(ctx, "bto_transaction_metadata_error",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordEntityError(ctx, "transaction", "bto_transaction_metadata_error", tran.ID,
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "bto_async_process", "error",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordTransactionDuration(ctx, startTime, "bto_async_process", "error", tran.ID,
 			attribute.String("error", "transaction_metadata_error"))
 
 		return err
@@ -206,8 +194,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 				logger.Errorf("Error creating operation: %v", err)
 
 				// Record error
-				uc.recordTransactionError(ctx, "bto_operation_creation_error",
-					attribute.String("transaction_id", tran.ID),
+				uc.RecordEntityError(ctx, "transaction", "bto_operation_creation_error", tran.ID,
 					attribute.String("operation_id", oper.ID),
 					attribute.String("error_detail", err.Error()))
 
@@ -216,8 +203,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 				// If all operations fail, consider it a total failure
 				if operationErrorCount == len(tran.Operations) {
 					// Record duration with error status
-					uc.recordTransactionDuration(ctx, startTime, "bto_async_process", "error",
-						attribute.String("transaction_id", tran.ID),
+					uc.RecordTransactionDuration(ctx, startTime, "bto_async_process", "error", tran.ID,
 						attribute.String("error", "all_operations_failed"))
 
 					return err
@@ -234,8 +220,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
 			// Record error but continue with other operations
-			uc.recordTransactionError(ctx, "bto_operation_metadata_error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordEntityError(ctx, "transaction", "bto_operation_metadata_error", tran.ID,
 				attribute.String("operation_id", oper.ID),
 				attribute.String("error_detail", err.Error()))
 
@@ -246,8 +231,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	// Record operations metrics
-	uc.recordBusinessMetrics(ctx, "bto_operations_created",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionMetric(ctx, "bto_operations_created", tran.ID,
 		attribute.Int("successful_operations", operationSuccessCount),
 		attribute.Int("duplicate_operations", operationDuplicateCount),
 		attribute.Int("failed_operations", operationErrorCount))
@@ -257,15 +241,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	if operationErrorCount > 0 {
 		operationStatus = "partial"
 	}
-	uc.recordTransactionDuration(ctx, operationsStartTime, "bto_operations_creation",
-		operationStatus,
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionDuration(ctx, operationsStartTime, "bto_operations_creation",
+		operationStatus, tran.ID,
 		attribute.Int("operation_count", len(tran.Operations)),
 		attribute.Int("success_count", operationSuccessCount))
 
 	// Record overall success metrics
-	uc.recordBusinessMetrics(ctx, "bto_async_process_success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionMetric(ctx, "bto_async_process_success", tran.ID,
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()),
 		attribute.String("asset_code", assetCode),
@@ -273,8 +255,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		attribute.Int("operation_count", len(tran.Operations)))
 
 	// Record overall duration
-	uc.recordTransactionDuration(ctx, startTime, "bto_async_process", "success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionDuration(ctx, startTime, "bto_async_process", "success", tran.ID,
 		attribute.Int("balance_count", len(balances)),
 		attribute.Int("operation_count", len(tran.Operations)))
 
@@ -291,14 +272,12 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger mlog.Logger, 
 		if err := pkg.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
 			// Record error
 			if ctx != nil {
-				uc.recordTransactionError(ctx, "metadata_validation_error",
-					attribute.String("entity_id", ID),
+				uc.RecordEntityError(ctx, "transaction", "metadata_validation_error", ID,
 					attribute.String("entity_type", collection),
 					attribute.String("error_detail", err.Error()))
 
 				// Record duration
-				uc.recordTransactionDuration(ctx, metadataStartTime, "metadata_creation", "error",
-					attribute.String("entity_id", ID),
+				uc.RecordTransactionDuration(ctx, metadataStartTime, "metadata_creation", "error", ID,
 					attribute.String("entity_type", collection),
 					attribute.String("error", "validation_error"))
 			}
@@ -318,14 +297,12 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger mlog.Logger, 
 
 			// Record error
 			if ctx != nil {
-				uc.recordTransactionError(ctx, "metadata_creation_error",
-					attribute.String("entity_id", ID),
+				uc.RecordEntityError(ctx, "transaction", "metadata_creation_error", ID,
 					attribute.String("entity_type", collection),
 					attribute.String("error_detail", err.Error()))
 
 				// Record duration
-				uc.recordTransactionDuration(ctx, metadataStartTime, "metadata_creation", "error",
-					attribute.String("entity_id", ID),
+				uc.RecordTransactionDuration(ctx, metadataStartTime, "metadata_creation", "error", ID,
 					attribute.String("entity_type", collection),
 					attribute.String("error", "database_error"))
 			}
@@ -334,8 +311,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger mlog.Logger, 
 
 		// Record duration for successful metadata creation
 		if ctx != nil {
-			uc.recordTransactionDuration(ctx, metadataStartTime, "metadata_creation", "success",
-				attribute.String("entity_id", ID),
+			uc.RecordTransactionDuration(ctx, metadataStartTime, "metadata_creation", "success", ID,
 				attribute.String("entity_type", collection))
 		}
 	}
@@ -350,7 +326,7 @@ func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
 	startTime := time.Now()
 
 	// Record attempt
-	uc.recordBusinessMetrics(ctx, "bto_async_wrapper_attempt",
+	uc.RecordTransactionMetric(ctx, "bto_async_wrapper_attempt", "queue",
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()))
 
@@ -359,24 +335,22 @@ func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "bto_async_wrapper_error",
-			attribute.String("organization_id", data.OrganizationID.String()),
+		uc.RecordEntityError(ctx, "transaction", "bto_async_wrapper_error", data.OrganizationID.String(),
 			attribute.String("ledger_id", data.LedgerID.String()),
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration
-		uc.recordTransactionDuration(ctx, startTime, "bto_async_wrapper", "error",
-			attribute.String("organization_id", data.OrganizationID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "bto_async_wrapper", "error", data.OrganizationID.String(),
 			attribute.String("ledger_id", data.LedgerID.String()),
 			attribute.String("error", "processing_error"))
 	} else {
 		// Record success
-		uc.recordBusinessMetrics(ctx, "bto_async_wrapper_success",
+		uc.RecordTransactionMetric(ctx, "bto_async_wrapper_success", data.OrganizationID.String(),
 			attribute.String("organization_id", data.OrganizationID.String()),
 			attribute.String("ledger_id", data.LedgerID.String()))
 
 		// Record duration
-		uc.recordTransactionDuration(ctx, startTime, "bto_async_wrapper", "success",
+		uc.RecordTransactionDuration(ctx, startTime, "bto_async_wrapper", "success", data.OrganizationID.String(),
 			attribute.String("organization_id", data.OrganizationID.String()),
 			attribute.String("ledger_id", data.LedgerID.String()))
 	}

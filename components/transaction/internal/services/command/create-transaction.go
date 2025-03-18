@@ -46,7 +46,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		parentTransactionID = &value
 
 		// Record parent transaction relationship
-		uc.recordBusinessMetrics(ctx, "transaction_with_parent",
+		uc.RecordTransactionMetric(ctx, "transaction_with_parent", value,
 			attribute.String("parent_transaction_id", value),
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()))
@@ -72,13 +72,11 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	// Record transaction data preparation duration
-	uc.recordTransactionDuration(ctx, initPhaseStartTime, "transaction_preparation", "success",
-		attribute.String("transaction_id", newTransactionID),
+	uc.RecordTransactionDuration(ctx, initPhaseStartTime, "transaction_preparation", "success", newTransactionID,
 		attribute.String("asset_code", t.Send.Asset))
 
 	// Expanded record business metric for transaction creation attempt
-	uc.recordBusinessMetrics(ctx, "transaction_create_attempt",
-		attribute.String("transaction_id", newTransactionID),
+	uc.RecordTransactionMetric(ctx, "transaction_create_attempt", newTransactionID,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("asset_code", t.Send.Asset),
@@ -98,24 +96,21 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error creating t: %v", err)
 
 		// Record error with more details
-		uc.recordTransactionError(ctx, "transaction_creation_error",
-			attribute.String("transaction_id", newTransactionID),
+		uc.RecordEntityError(ctx, "transaction", "transaction_creation_error", newTransactionID,
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
 			attribute.String("asset_code", t.Send.Asset),
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "create", "error",
-			attribute.String("transaction_id", newTransactionID),
+		uc.RecordTransactionDuration(ctx, startTime, "create", "error", newTransactionID,
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
 			attribute.String("error", err.Error()),
 		)
 
 		// Record business metric for transaction creation failure
-		uc.recordBusinessMetrics(ctx, "transaction_create_failure",
-			attribute.String("transaction_id", newTransactionID),
+		uc.RecordTransactionMetric(ctx, "transaction_create_failure", newTransactionID,
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
 			attribute.String("asset_code", t.Send.Asset),
@@ -126,8 +121,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	// Record database operation duration
-	uc.recordTransactionDuration(ctx, dbPhaseStartTime, "transaction_database_write", "success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionDuration(ctx, dbPhaseStartTime, "transaction_database_write", "success", tran.ID,
 		attribute.String("asset_code", t.Send.Asset))
 
 	// Start metadata phase timing
@@ -140,16 +134,14 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
 
 			// Record detailed error for metadata validation
-			uc.recordTransactionError(ctx, "metadata_validation_error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordEntityError(ctx, "transaction", "metadata_validation_error", tran.ID,
 				attribute.String("organization_id", organizationID.String()),
 				attribute.String("ledger_id", ledgerID.String()),
 				attribute.Int("metadata_field_count", len(t.Metadata)),
 				attribute.String("error_detail", err.Error()))
 
 			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "create", "error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordTransactionDuration(ctx, startTime, "create", "error", tran.ID,
 				attribute.String("organization_id", organizationID.String()),
 				attribute.String("ledger_id", ledgerID.String()),
 				attribute.String("error", "metadata_validation_failed"),
@@ -167,8 +159,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		// Record metadata size metrics
-		uc.recordBusinessMetrics(ctx, "transaction_metadata_size",
-			attribute.String("transaction_id", tran.ID),
+		uc.RecordTransactionMetric(ctx, "transaction_metadata_size", tran.ID,
 			attribute.Int("field_count", len(t.Metadata)))
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
@@ -176,16 +167,14 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 			logger.Errorf("Error into creating transactiont metadata: %v", err)
 
 			// Record detailed error for metadata creation
-			uc.recordTransactionError(ctx, "metadata_creation_error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordEntityError(ctx, "transaction", "metadata_creation_error", tran.ID,
 				attribute.String("organization_id", organizationID.String()),
 				attribute.String("ledger_id", ledgerID.String()),
 				attribute.Int("metadata_field_count", len(t.Metadata)),
 				attribute.String("error_detail", err.Error()))
 
 			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "create", "error",
-				attribute.String("transaction_id", tran.ID),
+			uc.RecordTransactionDuration(ctx, startTime, "create", "error", tran.ID,
 				attribute.String("organization_id", organizationID.String()),
 				attribute.String("ledger_id", ledgerID.String()),
 				attribute.String("error", "metadata_creation_failed"),
@@ -203,18 +192,16 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	if metadataProcessed {
 		metadataStatus = "success"
 	}
-	uc.recordTransactionDuration(ctx, metadataPhaseStartTime, "transaction_metadata_processing",
-		metadataStatus,
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionDuration(ctx, metadataPhaseStartTime, "transaction_metadata_processing",
+		metadataStatus, tran.ID,
 		attribute.Bool("metadata_processed", metadataProcessed))
 
 	// Record transaction value metrics
 	amount := *save.Amount
-	uc.recordBalanceUpdates(ctx, save.AssetCode, float64(amount))
+	uc.RecordBalanceUpdate(ctx, save.AssetCode, float64(amount), tran.ID)
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "create", "success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionDuration(ctx, startTime, "create", "success", tran.ID,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("asset_code", t.Send.Asset),
@@ -223,8 +210,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	)
 
 	// Expanded record business metric for transaction creation success
-	uc.recordBusinessMetrics(ctx, "transaction_create_success",
-		attribute.String("transaction_id", tran.ID),
+	uc.RecordTransactionMetric(ctx, "transaction_create_success", tran.ID,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("asset_code", t.Send.Asset),

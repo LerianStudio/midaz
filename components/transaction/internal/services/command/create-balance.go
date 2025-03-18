@@ -25,8 +25,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	defer span.End()
 
 	// Expanded operation metrics with more context
-	uc.recordBusinessMetrics(ctx, "balance_create_attempt",
-		attribute.String("account_id", data.AccountID.String()),
+	uc.RecordBalanceMetric(ctx, "create_attempt", data.AccountID.String(),
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()),
 		attribute.Int("queue_data_count", len(data.QueueData)))
@@ -49,13 +48,12 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
 			// Record error metric with item index
-			uc.recordTransactionError(ctx, "unmarshal_error",
-				attribute.String("account_id", item.ID.String()),
+			uc.RecordEntityError(ctx, "balance", "unmarshal_error", item.ID.String(),
 				attribute.String("error_detail", err.Error()),
 				attribute.Int("item_index", i))
 
-			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "create_balance", "error",
+			// Record balance duration with error status
+			uc.recordEntityDuration(ctx, "balance", startTime, "create", "error",
 				attribute.String("account_id", item.ID.String()),
 				attribute.String("error", "unmarshal_error"))
 
@@ -66,8 +64,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		}
 
 		// Record detailed account information for metrics
-		uc.recordBusinessMetrics(ctx, "balance_create_processing",
-			attribute.String("account_id", account.ID),
+		uc.RecordBalanceMetric(ctx, "create_processing", account.ID,
 			attribute.String("asset_code", account.AssetCode),
 			attribute.String("account_type", account.Type),
 			attribute.String("item_index", strconv.Itoa(i)))
@@ -92,17 +89,16 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				logger.Infof("Balance already exists: %v", balance.ID)
 
-				// Record business metric for balance already exists with more context
-				uc.recordBusinessMetrics(ctx, "balance_already_exists",
+				// Record business metric for balance already exists
+				uc.RecordBalanceMetric(ctx, "already_exists", account.ID,
 					attribute.String("balance_id", balance.ID),
-					attribute.String("account_id", account.ID),
 					attribute.String("asset_code", account.AssetCode),
 					attribute.String("account_type", account.Type),
 					attribute.String("organization_id", account.OrganizationID),
 					attribute.String("ledger_id", account.LedgerID))
 
 				// Record item duration
-				uc.recordTransactionDuration(ctx, itemStartTime, "create_balance_item", "duplicate",
+				uc.recordEntityDuration(ctx, "balance", itemStartTime, "create_item", "duplicate",
 					attribute.String("balance_id", balance.ID),
 					attribute.String("account_id", account.ID),
 					attribute.String("asset_code", account.AssetCode))
@@ -115,18 +111,17 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 				logger.Infof("Error creating balance on repo")
 
 				// Record error metric with more details
-				uc.recordTransactionError(ctx, "balance_creation_error",
+				uc.RecordEntityError(ctx, "balance", "creation_error", balance.ID,
 					attribute.String("account_id", account.ID),
 					attribute.String("asset_code", account.AssetCode),
-					attribute.String("balance_id", balance.ID),
 					attribute.String("error_detail", err.Error()),
 					attribute.Int("item_index", i))
 
-				// Record transaction duration with error status
-				uc.recordTransactionDuration(ctx, startTime, "create_balance", "error",
+				// Record balance duration with error status
+				uc.recordEntityDuration(ctx, "balance", startTime, "create", "error",
 					attribute.String("account_id", account.ID),
 					attribute.String("asset_code", account.AssetCode),
-					attribute.String("error", "balance_creation_error"))
+					attribute.String("error", "creation_error"))
 
 				// Increment error count
 				errorCount++
@@ -134,17 +129,16 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 				return err
 			}
 		} else {
-			// Record business metric for balance creation success with more context
-			uc.recordBusinessMetrics(ctx, "balance_create_success",
+			// Record business metric for balance creation success
+			uc.RecordBalanceMetric(ctx, "create_success", account.ID,
 				attribute.String("balance_id", balance.ID),
-				attribute.String("account_id", account.ID),
 				attribute.String("asset_code", account.AssetCode),
 				attribute.String("account_type", account.Type),
 				attribute.String("organization_id", account.OrganizationID),
 				attribute.String("ledger_id", account.LedgerID))
 
 			// Record item duration
-			uc.recordTransactionDuration(ctx, itemStartTime, "create_balance_item", "success",
+			uc.recordEntityDuration(ctx, "balance", itemStartTime, "create_item", "success",
 				attribute.String("balance_id", balance.ID),
 				attribute.String("account_id", account.ID),
 				attribute.String("asset_code", account.AssetCode))
@@ -155,8 +149,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 	}
 
 	// Record summary metrics
-	uc.recordBusinessMetrics(ctx, "balance_create_summary",
-		attribute.String("account_id", data.AccountID.String()),
+	uc.RecordBalanceMetric(ctx, "create_summary", data.AccountID.String(),
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()),
 		attribute.Int("success_count", successCount),
@@ -164,8 +157,8 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		attribute.Int("error_count", errorCount),
 		attribute.Int("total_count", len(data.QueueData)))
 
-	// Record transaction duration with success status and summary data
-	uc.recordTransactionDuration(ctx, startTime, "create_balance", "success",
+	// Record balance duration with success status and summary data
+	uc.recordEntityDuration(ctx, "balance", startTime, "create", "success",
 		attribute.String("account_id", data.AccountID.String()),
 		attribute.String("organization_id", data.OrganizationID.String()),
 		attribute.String("ledger_id", data.LedgerID.String()),

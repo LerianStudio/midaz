@@ -26,10 +26,9 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "assetrate_operation_attempt",
+	uc.RecordAssetRateMetric(ctx, "operation_attempt", cari.From,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
-		attribute.String("from_asset", cari.From),
 		attribute.String("to_asset", cari.To),
 		attribute.String("source", *cari.Source))
 
@@ -39,8 +38,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "validation_error",
-			attribute.String("from_asset", cari.From),
+		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.From,
+			attribute.String("error_detail", "invalid_from_code"))
+
+		// Record error
+		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.From,
 			attribute.String("error_detail", "invalid_from_code"))
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
@@ -50,7 +52,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		mopentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset code", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "validation_error",
+		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.To,
+			attribute.String("error_detail", "invalid_to_code"))
+
+		// Record error
+		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.To,
 			attribute.String("to_asset", cari.To),
 			attribute.String("error_detail", "invalid_to_code"))
 
@@ -72,13 +78,25 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		logger.Errorf("Error creating asset rate: %v", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "find_error",
+		uc.RecordEntityError(ctx, "assetrate", "find_error", cari.From+"-"+cari.To,
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error_detail", err.Error()))
+
+		// Record error
+		uc.RecordEntityError(ctx, "assetrate", "find_error", cari.From+"-"+cari.To,
 			attribute.String("from_asset", cari.From),
 			attribute.String("to_asset", cari.To),
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error
-		uc.recordTransactionDuration(ctx, startTime, "assetrate_operation", "error",
+		uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_operation", "error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error", "find_error"))
+
+		// Record duration with error
+		uc.recordEntityDuration(ctx, "assetrate", startTime, "operation", "error",
 			attribute.String("from_asset", cari.From),
 			attribute.String("to_asset", cari.To),
 			attribute.String("error", "find_error"))
@@ -106,14 +124,26 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			logger.Errorf("Error updating asset rate: %v", err)
 
 			// Record error
-			uc.recordTransactionError(ctx, "update_error",
-				attribute.String("assetrate_id", arFound.ID),
+			uc.RecordEntityError(ctx, "assetrate", "update_error", arFound.ID,
+				attribute.String("from_asset", cari.From),
+				attribute.String("to_asset", cari.To),
+				attribute.String("error_detail", err.Error()))
+
+			// Record error
+			uc.RecordEntityError(ctx, "assetrate", "update_error", arFound.ID,
 				attribute.String("from_asset", cari.From),
 				attribute.String("to_asset", cari.To),
 				attribute.String("error_detail", err.Error()))
 
 			// Record duration with error
-			uc.recordTransactionDuration(ctx, startTime, "assetrate_update", "error",
+			uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_update", "error",
+				attribute.String("assetrate_id", arFound.ID),
+				attribute.String("from_asset", cari.From),
+				attribute.String("to_asset", cari.To),
+				attribute.String("error", "update_error"))
+
+			// Record duration with error
+			uc.recordEntityDuration(ctx, "assetrate", startTime, "update", "error",
 				attribute.String("assetrate_id", arFound.ID),
 				attribute.String("from_asset", cari.From),
 				attribute.String("to_asset", cari.To),
@@ -127,8 +157,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 				mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
 
 				// Record error
-				uc.recordTransactionError(ctx, "metadata_validation_error",
-					attribute.String("assetrate_id", arFound.ID),
+				uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", arFound.ID,
+					attribute.String("error_detail", err.Error()))
+
+				// Record error
+				uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", arFound.ID,
 					attribute.String("error_detail", err.Error()))
 
 				return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
@@ -148,8 +181,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 				logger.Errorf("Error into creating asset rate metadata: %v", err)
 
 				// Record error
-				uc.recordTransactionError(ctx, "metadata_creation_error",
-					attribute.String("assetrate_id", arFound.ID),
+				uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", arFound.ID,
+					attribute.String("error_detail", err.Error()))
+
+				// Record error
+				uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", arFound.ID,
 					attribute.String("error_detail", err.Error()))
 
 				return nil, err
@@ -159,15 +195,27 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		}
 
 		// Record success metrics
-		uc.recordBusinessMetrics(ctx, "assetrate_update_success",
+		uc.RecordAssetRateMetric(ctx, "update_success", arFound.From,
 			attribute.String("assetrate_id", arFound.ID),
-			attribute.String("from_asset", arFound.From),
+			attribute.String("to_asset", arFound.To),
+			attribute.String("source", *arFound.Source),
+			attribute.Float64("rate", arFound.Rate))
+
+		// Record success metrics
+		uc.RecordAssetRateMetric(ctx, "update_success", arFound.From,
+			attribute.String("assetrate_id", arFound.ID),
 			attribute.String("to_asset", arFound.To),
 			attribute.String("source", *arFound.Source),
 			attribute.Float64("rate", arFound.Rate))
 
 		// Record duration
-		uc.recordTransactionDuration(ctx, startTime, "assetrate_update", "success",
+		uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_update", "success",
+			attribute.String("assetrate_id", arFound.ID),
+			attribute.String("from_asset", arFound.From),
+			attribute.String("to_asset", arFound.To))
+
+		// Record duration
+		uc.recordEntityDuration(ctx, "assetrate", startTime, "update", "success",
 			attribute.String("assetrate_id", arFound.ID),
 			attribute.String("from_asset", arFound.From),
 			attribute.String("to_asset", arFound.To))
@@ -204,13 +252,25 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		logger.Errorf("Error creating asset rate: %v", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "creation_error",
+		uc.RecordEntityError(ctx, "assetrate", "creation_error", cari.From+"-"+cari.To,
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error_detail", err.Error()))
+
+		// Record error
+		uc.RecordEntityError(ctx, "assetrate", "creation_error", cari.From+"-"+cari.To,
 			attribute.String("from_asset", cari.From),
 			attribute.String("to_asset", cari.To),
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error
-		uc.recordTransactionDuration(ctx, startTime, "assetrate_create", "error",
+		uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_create", "error",
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("error", "creation_error"))
+
+		// Record duration with error
+		uc.recordEntityDuration(ctx, "assetrate", startTime, "create", "error",
 			attribute.String("from_asset", cari.From),
 			attribute.String("to_asset", cari.To),
 			attribute.String("error", "creation_error"))
@@ -223,8 +283,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
 
 			// Record error
-			uc.recordTransactionError(ctx, "metadata_validation_error",
-				attribute.String("assetrate_id", assetRate.ID),
+			uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", assetRate.ID,
+				attribute.String("error_detail", err.Error()))
+
+			// Record error
+			uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", assetRate.ID,
 				attribute.String("error_detail", err.Error()))
 
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
@@ -244,8 +307,11 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			logger.Errorf("Error into creating asset rate metadata: %v", err)
 
 			// Record error
-			uc.recordTransactionError(ctx, "metadata_creation_error",
-				attribute.String("assetrate_id", assetRate.ID),
+			uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", assetRate.ID,
+				attribute.String("error_detail", err.Error()))
+
+			// Record error
+			uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", assetRate.ID,
 				attribute.String("error_detail", err.Error()))
 
 			return nil, err
@@ -255,15 +321,14 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	}
 
 	// Record success metrics
-	uc.recordBusinessMetrics(ctx, "assetrate_create_success",
+	uc.RecordAssetRateMetric(ctx, "create_success", assetRate.From,
 		attribute.String("assetrate_id", assetRate.ID),
-		attribute.String("from_asset", assetRate.From),
 		attribute.String("to_asset", assetRate.To),
 		attribute.String("source", *assetRate.Source),
 		attribute.Float64("rate", assetRate.Rate))
 
 	// Record duration
-	uc.recordTransactionDuration(ctx, startTime, "assetrate_create", "success",
+	uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_create", "success",
 		attribute.String("assetrate_id", assetRate.ID),
 		attribute.String("from_asset", assetRate.From),
 		attribute.String("to_asset", assetRate.To))

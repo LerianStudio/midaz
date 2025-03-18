@@ -28,8 +28,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "operation_update_attempt",
-		attribute.String("operation_id", operationID.String()),
+	uc.RecordOperationMetric(ctx, "operation_update_attempt", operationID.String(),
 		attribute.String("transaction_id", transactionID.String()),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
@@ -47,14 +46,12 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error updating op on repo by id: %v", err)
 
 		// Record error
-		uc.recordTransactionError(ctx, "operation_update_error",
-			attribute.String("operation_id", operationID.String()),
+		uc.RecordEntityError(ctx, "operation", "operation_update_error", operationID.String(),
 			attribute.String("transaction_id", transactionID.String()),
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "operation_update", "error",
-			attribute.String("operation_id", operationID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "operation_update", "error", operationID.String(),
 			attribute.String("transaction_id", transactionID.String()),
 			attribute.String("error", "update_error"))
 
@@ -70,14 +67,12 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
 
 			// Record error
-			uc.recordTransactionError(ctx, "metadata_validation_error",
-				attribute.String("operation_id", operationID.String()),
+			uc.RecordEntityError(ctx, "operation", "metadata_validation_error", operationID.String(),
 				attribute.String("transaction_id", transactionID.String()),
 				attribute.String("error_detail", err.Error()))
 
 			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "operation_update", "error",
-				attribute.String("operation_id", operationID.String()),
+			uc.RecordTransactionDuration(ctx, startTime, "operation_update", "error", operationID.String(),
 				attribute.String("transaction_id", transactionID.String()),
 				attribute.String("error", "metadata_validation_error"))
 
@@ -89,14 +84,12 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 			mopentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb operation", err)
 
 			// Record error
-			uc.recordTransactionError(ctx, "metadata_update_error",
-				attribute.String("operation_id", operationID.String()),
+			uc.RecordEntityError(ctx, "operation", "metadata_update_error", operationID.String(),
 				attribute.String("transaction_id", transactionID.String()),
 				attribute.String("error_detail", err.Error()))
 
 			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "operation_update", "error",
-				attribute.String("operation_id", operationID.String()),
+			uc.RecordTransactionDuration(ctx, startTime, "operation_update", "error", operationID.String(),
 				attribute.String("transaction_id", transactionID.String()),
 				attribute.String("error", "metadata_update_error"))
 
@@ -107,13 +100,11 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	}
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "operation_update", "success",
-		attribute.String("operation_id", operationID.String()),
+	uc.RecordTransactionDuration(ctx, startTime, "operation_update", "success", operationID.String(),
 		attribute.String("transaction_id", transactionID.String()))
 
 	// Record business metric for operation update success
-	uc.recordBusinessMetrics(ctx, "operation_update_success",
-		attribute.String("operation_id", operationID.String()),
+	uc.RecordOperationMetric(ctx, "operation_update_success", operationID.String(),
 		attribute.String("transaction_id", transactionID.String()),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))

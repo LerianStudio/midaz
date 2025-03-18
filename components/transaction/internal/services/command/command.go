@@ -44,16 +44,19 @@ type UseCase struct {
 	ServiceName string
 }
 
-// recordBusinessMetrics records business metrics related to transactions
-func (uc *UseCase) recordBusinessMetrics(ctx context.Context, action string, attributes ...attribute.KeyValue) {
+// recordEntityMetric is a generalized function to record metrics for any entity
+func (uc *UseCase) recordEntityMetric(ctx context.Context, entity string, action string, metricType string, value int64, attributes ...attribute.KeyValue) {
 	// Create meter
 	meter := otel.Meter(uc.ServiceName)
 
-	// Create metric for transaction counts by type
-	txCounter, _ := meter.Int64Counter(
-		mopentelemetry.GetMetricName("business", "transaction", "count", "total"),
-		metric.WithDescription("Number of transactions by type"),
-		metric.WithUnit("{transaction}"),
+	// Create metric name based on entity and metric type
+	metricName := mopentelemetry.GetMetricName("business", entity, metricType, "total")
+
+	// Create counter
+	counter, _ := meter.Int64Counter(
+		metricName,
+		metric.WithDescription(entity+" "+metricType+" by type"),
+		metric.WithUnit("{count}"),
 	)
 
 	// Set base attributes
@@ -65,11 +68,11 @@ func (uc *UseCase) recordBusinessMetrics(ctx context.Context, action string, att
 	allAttrs := append(baseAttrs, attributes...)
 
 	// Record the metric
-	txCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+	counter.Add(ctx, value, metric.WithAttributes(allAttrs...))
 }
 
-// recordTransactionDuration records duration metrics for transactions
-func (uc *UseCase) recordTransactionDuration(ctx context.Context, startTime time.Time, _ string, status string, attributes ...attribute.KeyValue) {
+// recordEntityDuration records duration metrics for any entity
+func (uc *UseCase) recordEntityDuration(ctx context.Context, entity string, startTime time.Time, action string, status string, attributes ...attribute.KeyValue) {
 	// Calculate duration
 	duration := time.Since(startTime).Milliseconds()
 
@@ -77,15 +80,15 @@ func (uc *UseCase) recordTransactionDuration(ctx context.Context, startTime time
 	meter := otel.Meter(uc.ServiceName)
 
 	// Create duration histogram
-	txDuration, _ := meter.Int64Histogram(
-		mopentelemetry.GetMetricName("business", "transaction", "duration", "milliseconds"),
-		metric.WithDescription("Duration of transaction processing"),
+	durationHistogram, _ := meter.Int64Histogram(
+		mopentelemetry.GetMetricName("business", entity, "duration", "milliseconds"),
+		metric.WithDescription("Duration of "+entity+" processing"),
 		metric.WithUnit("ms"),
 	)
 
 	// Set base attributes
 	baseAttrs := []attribute.KeyValue{
-		attribute.String("transaction_type", "create"), // hardcoded since it's always "create"
+		attribute.String("action", action),
 		attribute.String("status", status),
 	}
 
@@ -93,36 +96,34 @@ func (uc *UseCase) recordTransactionDuration(ctx context.Context, startTime time
 	allAttrs := append(baseAttrs, attributes...)
 
 	// Record the metric
-	txDuration.Record(ctx, duration, metric.WithAttributes(allAttrs...))
+	durationHistogram.Record(ctx, duration, metric.WithAttributes(allAttrs...))
 }
 
-// recordBalanceUpdates records metrics for balance updates
-func (uc *UseCase) recordBalanceUpdates(ctx context.Context, assetCode string, amount float64) {
+// recordEntityFloatValue records float value metrics for any entity
+func (uc *UseCase) recordEntityFloatValue(ctx context.Context, entity string, metricType string, value float64, attributes ...attribute.KeyValue) {
 	// Create meter
 	meter := otel.Meter(uc.ServiceName)
 
-	// Create counters for total value moved by asset
-	balanceValueCounter, _ := meter.Float64Counter(
-		mopentelemetry.GetMetricName("business", "balance", "value", "moved"),
-		metric.WithDescription("Total value moved by asset"),
+	// Create float value counter
+	valueCounter, _ := meter.Float64Counter(
+		mopentelemetry.GetMetricName("business", entity, metricType, "value"),
+		metric.WithDescription("Value metrics for "+entity),
 		metric.WithUnit("unit"),
 	)
 
-	// Record the metric with asset code
-	balanceValueCounter.Add(ctx, amount, metric.WithAttributes(
-		attribute.String("asset_code", assetCode),
-	))
+	// Record the metric
+	valueCounter.Add(ctx, value, metric.WithAttributes(attributes...))
 }
 
-// recordTransactionError records error metrics for transactions
-func (uc *UseCase) recordTransactionError(ctx context.Context, errorType string, attributes ...attribute.KeyValue) {
+// recordEntityError records error metrics for any entity
+func (uc *UseCase) recordEntityError(ctx context.Context, entity string, errorType string, attributes ...attribute.KeyValue) {
 	// Create meter
 	meter := otel.Meter(uc.ServiceName)
 
 	// Create error counter
-	txErrorCounter, _ := meter.Int64Counter(
-		mopentelemetry.GetMetricName("business", "transaction", "errors", "count"),
-		metric.WithDescription("Number of transaction errors by type"),
+	errorCounter, _ := meter.Int64Counter(
+		mopentelemetry.GetMetricName("business", entity, "errors", "count"),
+		metric.WithDescription("Number of "+entity+" errors by type"),
 		metric.WithUnit("{error}"),
 	)
 
@@ -135,5 +136,50 @@ func (uc *UseCase) recordTransactionError(ctx context.Context, errorType string,
 	allAttrs := append(baseAttrs, attributes...)
 
 	// Record the metric
-	txErrorCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+	errorCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+}
+
+// Entity-specific recording functions
+
+// RecordTransactionMetric records metrics for transaction entity
+func (uc *UseCase) RecordTransactionMetric(ctx context.Context, action string, transactionID string, attributes ...attribute.KeyValue) {
+	txAttrs := append(attributes, attribute.String("transaction_id", transactionID))
+	uc.recordEntityMetric(ctx, "transaction", action, "count", 1, txAttrs...)
+}
+
+// RecordTransactionDuration records duration for transaction processing
+func (uc *UseCase) RecordTransactionDuration(ctx context.Context, startTime time.Time, action string, status string, transactionID string, attributes ...attribute.KeyValue) {
+	txAttrs := append(attributes, attribute.String("transaction_id", transactionID))
+	uc.recordEntityDuration(ctx, "transaction", startTime, action, status, txAttrs...)
+}
+
+// RecordOperationMetric records metrics for operation entity
+func (uc *UseCase) RecordOperationMetric(ctx context.Context, action string, operationID string, attributes ...attribute.KeyValue) {
+	opAttrs := append(attributes, attribute.String("operation_id", operationID))
+	uc.recordEntityMetric(ctx, "operation", action, "count", 1, opAttrs...)
+}
+
+// RecordBalanceMetric records metrics for balance entity
+func (uc *UseCase) RecordBalanceMetric(ctx context.Context, action string, accountID string, attributes ...attribute.KeyValue) {
+	balAttrs := append(attributes, attribute.String("account_id", accountID))
+	uc.recordEntityMetric(ctx, "balance", action, "count", 1, balAttrs...)
+}
+
+// RecordBalanceUpdate records value updates for balance
+func (uc *UseCase) RecordBalanceUpdate(ctx context.Context, assetCode string, amount float64, accountID string) {
+	uc.recordEntityFloatValue(ctx, "balance", "update", amount,
+		attribute.String("asset_code", assetCode),
+		attribute.String("account_id", accountID))
+}
+
+// RecordAssetRateMetric records metrics for assetrate entity
+func (uc *UseCase) RecordAssetRateMetric(ctx context.Context, action string, assetCode string, attributes ...attribute.KeyValue) {
+	arAttrs := append(attributes, attribute.String("asset_code", assetCode))
+	uc.recordEntityMetric(ctx, "assetrate", action, "count", 1, arAttrs...)
+}
+
+// Record entity errors
+func (uc *UseCase) RecordEntityError(ctx context.Context, entity string, errorType string, entityID string, attributes ...attribute.KeyValue) {
+	errAttrs := append(attributes, attribute.String(entity+"_id", entityID))
+	uc.recordEntityError(ctx, entity, errorType, errAttrs...)
 }

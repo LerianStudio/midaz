@@ -28,8 +28,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "transaction_update_attempt",
-		attribute.String("transaction_id", transactionID.String()),
+	uc.RecordTransactionMetric(ctx, "update_attempt", transactionID.String(),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
 
@@ -46,14 +45,12 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		logger.Errorf("Error updating transaction on repo by id: %v", err)
 
 		// Record error metric
-		uc.recordTransactionError(ctx, "update_error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordEntityError(ctx, "transaction", "update_error", transactionID.String(),
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "update", "error",
-			attribute.String("transaction_id", transactionID.String()),
-			attribute.String("error", err.Error()))
+		uc.RecordTransactionDuration(ctx, startTime, "update", "error", transactionID.String(),
+			attribute.String("error", "update_error"))
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
@@ -67,13 +64,11 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
 
 			// Record error metric
-			uc.recordTransactionError(ctx, "metadata_validation_error",
-				attribute.String("transaction_id", transactionID.String()),
+			uc.RecordEntityError(ctx, "transaction", "metadata_validation_error", transactionID.String(),
 				attribute.String("error_detail", err.Error()))
 
 			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "update", "error",
-				attribute.String("transaction_id", transactionID.String()),
+			uc.RecordTransactionDuration(ctx, startTime, "update", "error", transactionID.String(),
 				attribute.String("error", "metadata_validation_failed"))
 
 			return nil, err
@@ -84,13 +79,11 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 			mopentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb transaction", err)
 
 			// Record error metric
-			uc.recordTransactionError(ctx, "metadata_update_error",
-				attribute.String("transaction_id", transactionID.String()),
+			uc.RecordEntityError(ctx, "transaction", "metadata_update_error", transactionID.String(),
 				attribute.String("error_detail", err.Error()))
 
 			// Record transaction duration with error status
-			uc.recordTransactionDuration(ctx, startTime, "update", "error",
-				attribute.String("transaction_id", transactionID.String()),
+			uc.RecordTransactionDuration(ctx, startTime, "update", "error", transactionID.String(),
 				attribute.String("error", "metadata_update_failed"))
 
 			return nil, err
@@ -100,12 +93,10 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "update", "success",
-		attribute.String("transaction_id", transactionID.String()))
+	uc.RecordTransactionDuration(ctx, startTime, "update", "success", transactionID.String())
 
 	// Record business metric for transaction update success
-	uc.recordBusinessMetrics(ctx, "transaction_update_success",
-		attribute.String("transaction_id", transactionID.String()),
+	uc.RecordTransactionMetric(ctx, "update_success", transactionID.String(),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
 
@@ -124,11 +115,10 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "transaction_status_update_attempt",
-		attribute.String("transaction_id", transactionID.String()),
+	uc.RecordTransactionMetric(ctx, "status_update_attempt", transactionID.String(),
+		attribute.String("status", description),
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-		attribute.String("status", description))
+		attribute.String("ledger_id", ledgerID.String()))
 
 	logger.Infof("Trying to update transaction using status: : %v", description)
 
@@ -148,14 +138,12 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 		logger.Errorf("Error updating status transaction on repo by id: %v", err)
 
 		// Record error metric
-		uc.recordTransactionError(ctx, "status_update_error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordEntityError(ctx, "transaction", "status_update_error", transactionID.String(),
 			attribute.String("status", description),
 			attribute.String("error_detail", err.Error()))
 
 		// Record transaction duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "status_update", "error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "status_update", "error", transactionID.String(),
 			attribute.String("status", description),
 			attribute.String("error", err.Error()))
 
@@ -167,16 +155,14 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 	}
 
 	// Record transaction duration with success status
-	uc.recordTransactionDuration(ctx, startTime, "status_update", "success",
-		attribute.String("transaction_id", transactionID.String()),
+	uc.RecordTransactionDuration(ctx, startTime, "status_update", "success", transactionID.String(),
 		attribute.String("status", description))
 
 	// Record business metric for transaction status update success
-	uc.recordBusinessMetrics(ctx, "transaction_status_update_success",
-		attribute.String("transaction_id", transactionID.String()),
+	uc.RecordTransactionMetric(ctx, "status_update_success", transactionID.String(),
+		attribute.String("status", description),
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-		attribute.String("status", description))
+		attribute.String("ledger_id", ledgerID.String()))
 
 	return nil, nil
 }

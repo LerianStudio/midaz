@@ -33,8 +33,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	defer spanLogTransaction.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "transaction_audit_log_attempt",
-		attribute.String("transaction_id", transactionID.String()),
+	uc.RecordTransactionMetric(ctx, "transaction_audit_log_attempt", transactionID.String(),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.Int("operation_count", len(operations)))
@@ -43,13 +42,11 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
 
 		// Record skipped metrics
-		uc.recordBusinessMetrics(ctx, "transaction_audit_log_skipped",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionMetric(ctx, "transaction_audit_log_skipped", transactionID.String(),
 			attribute.String("reason", "disabled_in_config"))
 
 		// Record duration with skipped status
-		uc.recordTransactionDuration(ctx, startTime, "transaction_audit_log", "skipped",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "skipped", transactionID.String(),
 			attribute.String("reason", "disabled_in_config"))
 
 		return
@@ -64,8 +61,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		marshal, err := json.Marshal(oLog)
 		if err != nil {
 			// Record error
-			uc.recordTransactionError(ctx, "audit_marshal_error",
-				attribute.String("transaction_id", transactionID.String()),
+			uc.RecordEntityError(ctx, "transaction", "audit_marshal_error", transactionID.String(),
 				attribute.String("operation_id", o.ID),
 				attribute.String("error_detail", err.Error()))
 
@@ -84,13 +80,11 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	// If all operations failed to marshal, record total failure
 	if len(operations) > 0 && len(queueData) == 0 {
 		// Record error
-		uc.recordTransactionError(ctx, "audit_all_operations_marshal_error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordEntityError(ctx, "transaction", "audit_all_operations_marshal_error", transactionID.String(),
 			attribute.Int("failed_operations", marshalErrorCount))
 
 		// Record duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "transaction_audit_log", "error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "error", transactionID.String(),
 			attribute.String("error", "all_operations_marshal_failed"))
 
 		logger.Errorf("All operations failed to marshal for transaction: %s", transactionID.String())
@@ -114,15 +108,13 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		queueMessage,
 	); err != nil {
 		// Record error
-		uc.recordTransactionError(ctx, "audit_queue_send_error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordEntityError(ctx, "transaction", "audit_queue_send_error", transactionID.String(),
 			attribute.String("exchange", exchange),
 			attribute.String("routing_key", routingKey),
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error status
-		uc.recordTransactionDuration(ctx, startTime, "transaction_audit_log", "error",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "error", transactionID.String(),
 			attribute.String("error", "queue_send_error"))
 
 		logger.Errorf("Failed to send audit message: %s", err.Error())
@@ -133,29 +125,25 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	// Record partial success if some operations failed to marshal
 	if marshalErrorCount > 0 {
 		// Record partial success metrics
-		uc.recordBusinessMetrics(ctx, "transaction_audit_log_partial",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionMetric(ctx, "transaction_audit_log_partial", transactionID.String(),
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
 			attribute.Int("successful_operations", len(queueData)),
 			attribute.Int("failed_operations", marshalErrorCount))
 
 		// Record duration with partial status
-		uc.recordTransactionDuration(ctx, startTime, "transaction_audit_log", "partial",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "partial", transactionID.String(),
 			attribute.Int("successful_operations", len(queueData)),
 			attribute.Int("failed_operations", marshalErrorCount))
 	} else {
 		// Record success metrics
-		uc.recordBusinessMetrics(ctx, "transaction_audit_log_success",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionMetric(ctx, "transaction_audit_log_success", transactionID.String(),
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
 			attribute.Int("operation_count", len(operations)))
 
 		// Record duration with success status
-		uc.recordTransactionDuration(ctx, startTime, "transaction_audit_log", "success",
-			attribute.String("transaction_id", transactionID.String()),
+		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "success", transactionID.String(),
 			attribute.Int("operation_count", len(operations)))
 	}
 }

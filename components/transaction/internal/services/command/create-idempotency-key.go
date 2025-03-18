@@ -22,7 +22,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "idempotency_key_check_attempt",
+	uc.RecordTransactionMetric(ctx, "idempotency_key_check_attempt", key,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("hash", hash))
@@ -38,14 +38,13 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {
 		// Record error metrics
-		uc.recordTransactionError(ctx, "idempotency_key_redis_error",
+		uc.RecordEntityError(ctx, "transaction", "idempotency_key_redis_error", key,
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
-			attribute.String("key", key),
 			attribute.String("error_detail", err.Error()))
 
 		// Record duration with error
-		uc.recordTransactionDuration(ctx, startTime, "idempotency_key", "error",
+		uc.RecordTransactionDuration(ctx, startTime, "idempotency_key", "error", key,
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()),
 			attribute.String("error", "redis_error"))
@@ -59,19 +58,17 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		mopentelemetry.HandleSpanError(&span, "Failed exists value on redis with this key", err)
 
 		// Record duplicate key metrics
-		uc.recordBusinessMetrics(ctx, "idempotency_key_duplicate",
+		uc.RecordTransactionMetric(ctx, "idempotency_key_duplicate", key,
 			attribute.String("organization_id", organizationID.String()),
-			attribute.String("ledger_id", ledgerID.String()),
-			attribute.String("key", key))
+			attribute.String("ledger_id", ledgerID.String()))
 
 		// Record transaction error
-		uc.recordTransactionError(ctx, "idempotency_key_duplicate",
+		uc.RecordEntityError(ctx, "transaction", "idempotency_key_duplicate", key,
 			attribute.String("organization_id", organizationID.String()),
-			attribute.String("ledger_id", ledgerID.String()),
-			attribute.String("key", key))
+			attribute.String("ledger_id", ledgerID.String()))
 
 		// Record duration with duplicate status
-		uc.recordTransactionDuration(ctx, startTime, "idempotency_key", "duplicate",
+		uc.RecordTransactionDuration(ctx, startTime, "idempotency_key", "duplicate", key,
 			attribute.String("organization_id", organizationID.String()),
 			attribute.String("ledger_id", ledgerID.String()))
 
@@ -79,14 +76,13 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	}
 
 	// Record success metrics
-	uc.recordBusinessMetrics(ctx, "idempotency_key_success",
+	uc.RecordTransactionMetric(ctx, "idempotency_key_success", key,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
-		attribute.String("key", key),
 		attribute.Int64("ttl_seconds", int64(ttl.Seconds())))
 
 	// Record duration with success
-	uc.recordTransactionDuration(ctx, startTime, "idempotency_key", "success",
+	uc.RecordTransactionDuration(ctx, startTime, "idempotency_key", "success", key,
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()))
 

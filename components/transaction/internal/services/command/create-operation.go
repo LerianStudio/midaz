@@ -29,7 +29,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	defer span.End()
 
 	// Record operation metrics
-	uc.recordBusinessMetrics(ctx, "operation_creation_attempt",
+	uc.RecordOperationMetric(ctx, "operation_creation_attempt", "batch",
 		attribute.String("transaction_id", transactionID),
 		attribute.String("asset_code", dsl.Send.Asset),
 		attribute.Int("balance_count", len(balances)))
@@ -61,7 +61,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					mopentelemetry.HandleSpanError(&span, "Failed to validate operation", er)
 
 					// Record error
-					uc.recordTransactionError(ctx, "operation_validation_error",
+					uc.RecordEntityError(ctx, "operation", "operation_validation_error", "validation_failed",
 						attribute.String("transaction_id", transactionID),
 						attribute.String("balance_id", blc.ID),
 						attribute.String("account_alias", blc.Alias),
@@ -121,7 +121,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					logger.Errorf("Error creating operation: %v", er)
 
 					// Record error
-					uc.recordTransactionError(ctx, "operation_creation_error",
+					uc.RecordEntityError(ctx, "operation", "operation_creation_error", "creation_failed",
 						attribute.String("transaction_id", transactionID),
 						attribute.String("balance_id", blc.ID),
 						attribute.String("account_alias", blc.Alias),
@@ -137,9 +137,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					mopentelemetry.HandleSpanError(&span, "Failed to create metadata on operation", er)
 
 					// Record error
-					uc.recordTransactionError(ctx, "operation_metadata_error",
-						attribute.String("transaction_id", transactionID),
-						attribute.String("operation_id", op.ID),
+					uc.RecordEntityError(ctx, "operation", "operation_metadata_error", op.ID,
+						attribute.String("entity_type", reflect.TypeOf(operation.Operation{}).Name()),
 						attribute.String("error_detail", er.Error()))
 
 					operationErrorCount++
@@ -157,26 +156,26 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 
 	// Record transaction duration and results
 	if operationErrorCount > 0 {
-		// Record transaction duration with partial success (some operations failed)
-		uc.recordTransactionDuration(ctx, startTime, "operation_creation", "partial",
+		// Record operation duration with partial success (some operations failed)
+		uc.recordEntityDuration(ctx, "operation", startTime, "creation", "partial",
 			attribute.String("transaction_id", transactionID),
 			attribute.Int("success_count", operationSuccessCount),
 			attribute.Int("error_count", operationErrorCount))
 
 		// Record business metrics for partial success
-		uc.recordBusinessMetrics(ctx, "operation_creation_partial",
+		uc.RecordOperationMetric(ctx, "creation_partial", "batch",
 			attribute.String("transaction_id", transactionID),
 			attribute.String("asset_code", dsl.Send.Asset),
 			attribute.Int("success_count", operationSuccessCount),
 			attribute.Int("error_count", operationErrorCount))
 	} else {
-		// Record transaction duration with full success
-		uc.recordTransactionDuration(ctx, startTime, "operation_creation", "success",
+		// Record operation duration with full success
+		uc.recordEntityDuration(ctx, "operation", startTime, "creation", "success",
 			attribute.String("transaction_id", transactionID),
 			attribute.Int("operation_count", len(operations)))
 
 		// Record business metrics for full success
-		uc.recordBusinessMetrics(ctx, "operation_creation_success",
+		uc.RecordOperationMetric(ctx, "creation_success", "batch",
 			attribute.String("transaction_id", transactionID),
 			attribute.String("asset_code", dsl.Send.Asset),
 			attribute.Int("operation_count", len(operations)))
@@ -195,8 +194,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, logger mlog.Logger, metad
 			// Record error only if we have a context and valid operation ID
 			if ctx != nil && o != nil && o.ID != "" {
 				// Record error
-				uc.recordTransactionError(ctx, "metadata_validation_error",
-					attribute.String("operation_id", o.ID),
+				uc.RecordEntityError(ctx, "operation", "metadata_validation_error", o.ID,
 					attribute.String("entity_type", reflect.TypeOf(operation.Operation{}).Name()),
 					attribute.String("error_detail", err.Error()))
 			}
@@ -217,8 +215,7 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, logger mlog.Logger, metad
 			// Record error only if we have a context and valid operation ID
 			if ctx != nil && o != nil && o.ID != "" {
 				// Record error
-				uc.recordTransactionError(ctx, "metadata_creation_error",
-					attribute.String("operation_id", o.ID),
+				uc.RecordEntityError(ctx, "operation", "metadata_creation_error", o.ID,
 					attribute.String("entity_type", reflect.TypeOf(operation.Operation{}).Name()),
 					attribute.String("error_detail", err.Error()))
 			}
