@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: "Midaz Dashboards"
+    orgId: 1
+    folder: "Midaz"
+    folderUid: "midaz"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /otel-lgtm/grafana/dashboards

@@ -23,6 +23,21 @@ export GF_LOG_LEVEL=${GF_LOG_LEVEL:-info}
 # Enable debug mode for troubleshooting
 # export GF_LOG_LEVEL=debug
 
+# Copy our provisioning files to the LGTM container
+echo "Copying provisioning files..."
+mkdir -p /otel-lgtm/grafana/provisioning/datasources
+mkdir -p /otel-lgtm/grafana/provisioning/dashboards
+mkdir -p /otel-lgtm/grafana/dashboards
+
+# Copy datasources
+cp /components/infra/grafana/provisioning/datasources/*.yaml /otel-lgtm/grafana/provisioning/datasources/
+
+# Copy dashboard provisioning config
+cp /components/infra/grafana/provisioning/dashboards/*.yaml /otel-lgtm/grafana/provisioning/dashboards/
+
+# Copy dashboards
+cp /components/infra/grafana/dashboards/*.json /otel-lgtm/grafana/dashboards/
+
 # Start Grafana in the background
 cd ./grafana || exit
 run_with_logging "Grafana ${GRAFANA_VERSION}" "${ENABLE_LOGS_GRAFANA:-false}" ./bin/grafana server &

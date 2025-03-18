@@ -130,8 +130,13 @@ services:
       - 8889:8889  # Prometheus metrics exporter port
       - 9090:9090  # Prometheus port
       - 3200:3200  # Tempo port
+      - 3100:3100  # Loki port
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
+      - ./grafana/provisioning:/otel-lgtm/grafana/provisioning
+      - ./grafana/dashboards:/otel-lgtm/grafana/dashboards
+      - ./grafana/init-grafana.sh:/otel-lgtm/grafana/init-grafana.sh
+      - ./grafana/run-grafana.sh:/otel-lgtm/grafana/run-grafana.sh
     networks:
       - infra_network
     environment:
