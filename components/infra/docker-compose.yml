@@ -132,6 +132,7 @@ services:
       - 9090:9090  # Prometheus port
       - 3200:3200  # Tempo port
     volumes:
+      - grafana-data:/otel-lgtm/grafana/data
       - ./grafana/dashboards:/otel-lgtm/grafana/dashboards:ro
       - ./grafana/provisioning:/otel-lgtm/grafana/provisioning:ro
       - ./grafana/setup.sh:/opt/setup.sh:ro
@@ -172,6 +173,8 @@ volumes:
     name: midaz_mongodb-data
   redis-data:
     name: midaz_redis-data
+  grafana-data:
+    name: midaz_grafana-data
 
 networks:
   infra_network:
