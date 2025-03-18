@@ -147,19 +147,6 @@ services:
       - ${OTEL_GRAFANA_DEBUG_PORT}:${OTEL_GRAFANA_DEBUG_PORT}
     volumes:
       - grafana-data:/otel-lgtm/grafana/data
-      - ./grafana/run-grafana.sh:/otel-lgtm/run-grafana.sh
-      - ./grafana/init-grafana.sh:/otel-lgtm/grafana/init-grafana.sh
-      - ./grafana/dashboards:/otel-lgtm/grafana/dashboards
-      - ./grafana/provisioning:/otel-lgtm/grafana/provisioning
-      - ./otel/config/otel-collector-config.yaml:/otel-lgtm/etc/otelcol/config.yaml
-      - ./otel/scripts/check-telemetry-health.sh:/otel-lgtm/check-telemetry-health.sh
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    healthcheck:
-      test: [ "CMD-SHELL", "/otel-lgtm/check-telemetry-health.sh" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
     networks:
       - infra_network
 
