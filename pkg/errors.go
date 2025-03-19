@@ -3,9 +3,8 @@ package pkg
 import (
 	"errors"
 	"fmt"
-	"strings"
-
 	"github.com/LerianStudio/midaz/pkg/constant"
+	"strings"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.

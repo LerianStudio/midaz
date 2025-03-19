@@ -1,13 +1,11 @@
 package transaction
 
 import (
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/LerianStudio/midaz/pkg/gold/parser"
+	"github.com/antlr4-go/antlr/v4"
 	"strconv"
 	"strings"
-
-	"github.com/LerianStudio/midaz/pkg/gold/parser"
-	"github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-
-	"github.com/antlr4-go/antlr/v4"
 )
 
 type TransactionVisitor struct {
@@ -41,9 +39,9 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(model.Send)
+	send := v.VisitSend(ctx.Send().(*parser.SendContext)).(libTransaction.Send)
 
-	transaction := model.Transaction{
+	transaction := libTransaction.Transaction{
 		ChartOfAccountsGroupName: v.VisitVisitChartOfAccountsGroupName(ctx.ChartOfAccountsGroupName().(*parser.ChartOfAccountsGroupNameContext)).(string),
 		Description:              description,
 		Code:                     code,
@@ -88,7 +86,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	metadata := make(map[string]any, len(ctx.AllPair()))
 
 	for _, pair := range ctx.AllPair() {
-		m := v.VisitPair(pair.(*parser.PairContext)).(model.Metadata)
+		m := v.VisitPair(pair.(*parser.PairContext)).(libTransaction.Metadata)
 		metadata[m.Key] = m.Value
 	}
 
@@ -96,7 +94,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 }
 
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
-	return model.Metadata{
+	return libTransaction.Metadata{
 		Key:   ctx.Key().GetText(),
 		Value: ctx.Value().GetText(),
 	}
@@ -114,13 +112,13 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
 	scl := v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string)
-	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(model.Source)
-	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(model.Distribute)
+	source := v.VisitSource(ctx.Source().(*parser.SourceContext)).(libTransaction.Source)
+	distribute := v.VisitDistribute(ctx.Distribute().(*parser.DistributeContext)).(libTransaction.Distribute)
 
 	value, _ := strconv.ParseInt(val, 10, 64)
 	scale, _ := strconv.ParseInt(scl, 10, 64)
 
-	return model.Send{
+	return libTransaction.Send{
 		Asset:      asset,
 		Value:      value,
 		Scale:      scale,
@@ -135,14 +133,14 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
 	}
 
-	froms := make([]model.FromTo, 0, len(ctx.AllFrom()))
+	froms := make([]libTransaction.FromTo, 0, len(ctx.AllFrom()))
 
 	for _, from := range ctx.AllFrom() {
-		f := v.VisitFrom(from.(*parser.FromContext)).(model.FromTo)
+		f := v.VisitFrom(from.(*parser.FromContext)).(libTransaction.FromTo)
 		froms = append(froms, f)
 	}
 
-	return model.Source{
+	return libTransaction.Source{
 		Remaining: remaining,
 		From:      froms,
 	}
@@ -171,7 +169,7 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	value, _ := strconv.ParseInt(val, 10, 64)
 	scale, _ := strconv.ParseInt(scl, 10, 64)
 
-	return model.Rate{
+	return libTransaction.Rate{
 		From:       from,
 		To:         to,
 		Value:      value,
@@ -192,7 +190,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	value, _ := strconv.ParseInt(val, 10, 64)
 	scale, _ := strconv.ParseInt(scl, 10, 64)
 
-	return model.Amount{
+	return libTransaction.Amount{
 		Asset: asset,
 		Value: value,
 		Scale: scale,
@@ -202,7 +200,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string), 10, 64)
 
-	return model.Share{
+	return libTransaction.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: 0,
 	}
@@ -212,7 +210,7 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string), 10, 64)
 	percentageOfPercentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string), 10, 64)
 
-	return model.Share{
+	return libTransaction.Share{
 		Percentage:             percentage,
 		PercentageOfPercentage: percentageOfPercentage,
 	}
@@ -231,34 +229,34 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	var amount model.Amount
+	var amount libTransaction.Amount
 
-	var share model.Share
+	var share libTransaction.Share
 
 	var remaining string
 
 	switch ctx.SendTypes().(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(model.Amount)
+		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(libTransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(model.Share)
+		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(libTransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(model.Share)
+		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(libTransaction.Share)
 	default:
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
 	}
 
-	var rate *model.Rate
+	var rate *libTransaction.Rate
 
 	if ctx.Rate() != nil {
-		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(libTransaction.Rate)
 
 		if !rateValue.IsEmpty() {
 			rate = &rateValue
 		}
 	}
 
-	return model.FromTo{
+	return libTransaction.FromTo{
 		Account:     account,
 		Amount:      &amount,
 		Share:       &share,
@@ -283,34 +281,34 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
 
-	var amount model.Amount
+	var amount libTransaction.Amount
 
-	var share model.Share
+	var share libTransaction.Share
 
 	var remaining string
 
 	switch ctx.SendTypes().(type) {
 	case *parser.AmountContext:
-		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(model.Amount)
+		amount = v.VisitAmount(ctx.SendTypes().(*parser.AmountContext)).(libTransaction.Amount)
 	case *parser.ShareIntContext:
-		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(model.Share)
+		share = v.VisitShareInt(ctx.SendTypes().(*parser.ShareIntContext)).(libTransaction.Share)
 	case *parser.ShareIntOfIntContext:
-		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(model.Share)
+		share = v.VisitShareIntOfInt(ctx.SendTypes().(*parser.ShareIntOfIntContext)).(libTransaction.Share)
 	default:
 		remaining = v.VisitRemaining(ctx.SendTypes().(*parser.RemainingContext)).(string)
 	}
 
-	var rate *model.Rate
+	var rate *libTransaction.Rate
 
 	if ctx.Rate() != nil {
-		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(model.Rate)
+		rateValue := v.VisitRate(ctx.Rate().(*parser.RateContext)).(libTransaction.Rate)
 
 		if !rateValue.IsEmpty() {
 			rate = &rateValue
 		}
 	}
 
-	return model.FromTo{
+	return libTransaction.FromTo{
 		Account:     account,
 		Amount:      &amount,
 		Share:       &share,
@@ -328,14 +326,14 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
 	}
 
-	tos := make([]model.FromTo, 0, len(ctx.AllTo()))
+	tos := make([]libTransaction.FromTo, 0, len(ctx.AllTo()))
 
 	for _, to := range ctx.AllTo() {
-		t := v.VisitTo(to.(*parser.ToContext)).(model.FromTo)
+		t := v.VisitTo(to.(*parser.ToContext)).(libTransaction.FromTo)
 		tos = append(tos, t)
 	}
 
-	return model.Distribute{
+	return libTransaction.Distribute{
 		Remaining: remaining,
 		To:        tos,
 	}

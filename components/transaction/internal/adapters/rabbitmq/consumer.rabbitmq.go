@@ -2,11 +2,11 @@ package rabbitmq
 
 import (
 	"context"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
-	"github.com/LerianStudio/midaz/pkg/net/http"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
+	libLog "github.com/LerianStudio/lib-commons/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 )
 
 const numWorkers = 5
@@ -24,14 +24,14 @@ type QueueHandlerFunc func(ctx context.Context, body []byte) error
 
 // ConsumerRoutes struct
 type ConsumerRoutes struct {
-	conn   *mrabbitmq.RabbitMQConnection
+	conn   *libRabbitmq.RabbitMQConnection
 	routes map[string]QueueHandlerFunc
-	mlog.Logger
-	mopentelemetry.Telemetry
+	libLog.Logger
+	libOpentelemetry.Telemetry
 }
 
 // NewConsumerRoutes creates a new instance of ConsumerRoutes.
-func NewConsumerRoutes(conn *mrabbitmq.RabbitMQConnection, logger mlog.Logger, telemetry *mopentelemetry.Telemetry) *ConsumerRoutes {
+func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *ConsumerRoutes {
 	cr := &ConsumerRoutes{
 		conn:      conn,
 		routes:    make(map[string]QueueHandlerFunc),
@@ -82,17 +82,17 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		for i := 0; i < numWorkers; i++ {
 			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
 				for msg := range messages {
-					midazID, found := msg.Headers[http.HeaderMidazID]
+					midazID, found := msg.Headers[libConstants.HeaderID]
 					if !found {
-						midazID = pkg.GenerateUUIDv7().String()
+						midazID = libCommons.GenerateUUIDv7().String()
 					}
 
 					log := cr.Logger.WithFields(
-						http.HeaderMidazID, midazID.(string),
+						libConstants.HeaderID, midazID.(string),
 					).WithDefaultMessageTemplate(midazID.(string) + " | ")
 
-					ctx := pkg.ContextWithLogger(
-						pkg.ContextWithMidazID(context.Background(), midazID.(string)),
+					ctx := libCommons.ContextWithLogger(
+						libCommons.ContextWithHeaderID(context.Background(), midazID.(string)),
 						log,
 					)
 

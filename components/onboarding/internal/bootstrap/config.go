@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/LerianStudio/auth-lib/auth/middleware"
+	"github.com/LerianStudio/lib-auth/auth/middleware"
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
@@ -213,8 +213,8 @@ func InitServers() *Service {
 	}
 
 	auth := &middleware.AuthClient{
-		AuthAddress: cfg.AuthHost,
-		AuthEnabled: cfg.AuthEnabled,
+		Address: cfg.AuthHost,
+		Enabled: cfg.AuthEnabled,
 	}
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)

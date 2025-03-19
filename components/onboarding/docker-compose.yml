@@ -14,6 +14,14 @@ services:
     networks:
       - infra_network
       - onboarding_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1g
+        reservations:
+          cpus: '0.5'
+          memory: 512m
 
 networks:
   infra_network:

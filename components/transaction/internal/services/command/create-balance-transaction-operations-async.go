@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libLog "github.com/LerianStudio/lib-commons/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/jackc/pgx/v5/pgconn"
 	"reflect"
 	"time"
@@ -19,8 +19,8 @@ import (
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	var t transaction.TransactionQueue
 
@@ -45,7 +45,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err := uc.UpdateBalancesNew(ctxProcessBalances, data.OrganizationID, data.LedgerID, *validate, balances)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
+		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
 
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
@@ -70,7 +70,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	_, err = uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
+		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -84,7 +84,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	err = uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create metadata on transaction", err)
+		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create metadata on transaction", err)
 
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
@@ -99,7 +99,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	for _, oper := range tran.Operations {
 		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
+			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
 
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -115,7 +115,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
+			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
 
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
@@ -127,9 +127,9 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 }
 
 // CreateMetadataAsync func that create metadata into operations
-func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger mlog.Logger, metadata map[string]any, ID string, collection string) error {
+func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
 	if metadata != nil {
-		if err := pkg.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
+		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
 			return err
 		}
 
@@ -152,7 +152,7 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger mlog.Logger, 
 }
 
 func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
-	logger := pkg.NewLoggerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
 	if err != nil {

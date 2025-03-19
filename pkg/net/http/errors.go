@@ -2,9 +2,7 @@ package http
 
 import (
 	"errors"
-
 	"github.com/LerianStudio/midaz/pkg"
-
 	"github.com/gofiber/fiber/v2"
 )
 

@@ -1,6 +1,7 @@
 package mmodel
 
 import (
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/google/uuid"
 	"time"
 )
@@ -60,4 +61,54 @@ type BalanceRedis struct {
 	AccountType    string `json:"accountType"`
 	AllowSending   int    `json:"allowSending"`
 	AllowReceiving int    `json:"allowReceiving"`
+}
+
+// ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
+func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
+	result := make([]*libTransaction.Balance, 0)
+	for _, balance := range balances {
+		result = append(result, &libTransaction.Balance{
+			ID:             balance.ID,
+			OrganizationID: balance.OrganizationID,
+			LedgerID:       balance.LedgerID,
+			AccountID:      balance.AccountID,
+			Alias:          balance.Alias,
+			AssetCode:      balance.AssetCode,
+			Available:      balance.Available,
+			OnHold:         balance.OnHold,
+			Scale:          balance.Scale,
+			Version:        balance.Version,
+			AccountType:    balance.AccountType,
+			AllowSending:   balance.AllowSending,
+			AllowReceiving: balance.AllowReceiving,
+			CreatedAt:      balance.CreatedAt,
+			UpdatedAt:      balance.UpdatedAt,
+			DeletedAt:      balance.DeletedAt,
+			Metadata:       balance.Metadata,
+		})
+	}
+	return result
+}
+
+// ConvertToLibBalance is a func that convert Balance to libTransaction.Balance
+func (b *Balance) ConvertToLibBalance() *libTransaction.Balance {
+	return &libTransaction.Balance{
+		ID:             b.ID,
+		OrganizationID: b.OrganizationID,
+		LedgerID:       b.LedgerID,
+		AccountID:      b.AccountID,
+		Alias:          b.Alias,
+		AssetCode:      b.AssetCode,
+		Available:      b.Available,
+		OnHold:         b.OnHold,
+		Scale:          b.Scale,
+		Version:        b.Version,
+		AccountType:    b.AccountType,
+		AllowSending:   b.AllowSending,
+		AllowReceiving: b.AllowReceiving,
+		CreatedAt:      b.CreatedAt,
+		UpdatedAt:      b.UpdatedAt,
+		DeletedAt:      b.DeletedAt,
+		Metadata:       b.Metadata,
+	}
 }
