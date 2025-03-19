@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
@@ -19,79 +17,68 @@ import (
 // UpdateOperation update an operation from the repository by given id.
 func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID, uoi *operation.UpdateOperationInput) (*operation.Operation, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create an operation telemetry entity
+	op := uc.Telemetry.NewOperationOperation("update", operationID.String())
 
-	ctx, span := tracer.Start(ctx, "command.update_operation")
-	defer span.End()
-
-	// Record operation metrics
-	uc.RecordOperationMetric(ctx, "operation_update_attempt", operationID.String(),
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("transaction_id", transactionID.String()),
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Trying to update operation: %v", uoi)
 
-	op := &operation.Operation{
+	oper := &operation.Operation{
 		Description: uoi.Description,
 	}
 
-	operationUpdated, err := uc.OperationRepo.Update(ctx, organizationID, ledgerID, transactionID, operationID, op)
+	operationUpdated, err := uc.OperationRepo.Update(ctx, organizationID, ledgerID, transactionID, operationID, oper)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update operation on repo by id", err)
+		// Record error
+		op.RecordError(ctx, "operation_update_error", err)
 
 		logger.Errorf("Error updating op on repo by id: %v", err)
 
-		// Record error
-		uc.RecordEntityError(ctx, "operation", "operation_update_error", operationID.String(),
-			attribute.String("transaction_id", transactionID.String()),
-			attribute.String("error_detail", err.Error()))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "operation_update", "error", operationID.String(),
-			attribute.String("transaction_id", transactionID.String()),
-			attribute.String("error", "update_error"))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, reflect.TypeOf(operation.Operation{}).Name())
+			// Handle not found error specially
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrOperationIDNotFound, reflect.TypeOf(operation.Operation{}).Name())
+
+			op.End(ctx, "failed")
+
+			return nil, notFoundErr
 		}
+
+		op.End(ctx, "failed")
 
 		return nil, err
 	}
 
 	if len(uoi.Metadata) > 0 {
 		if err := pkg.CheckMetadataKeyAndValueLength(100, uoi.Metadata); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+			// Record metadata validation error
+			op.RecordError(ctx, "metadata_validation_error", err)
+			op.End(ctx, "failed")
 
-			// Record error
-			uc.RecordEntityError(ctx, "operation", "metadata_validation_error", operationID.String(),
-				attribute.String("transaction_id", transactionID.String()),
-				attribute.String("error_detail", err.Error()))
-
-			// Record transaction duration with error status
-			uc.RecordTransactionDuration(ctx, startTime, "operation_update", "error", operationID.String(),
-				attribute.String("transaction_id", transactionID.String()),
-				attribute.String("error", "metadata_validation_error"))
+			logger.Errorf("Error validating metadata: %v", err)
 
 			return nil, err
 		}
 
 		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String(), uoi.Metadata)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb operation", err)
+			// Record metadata update error
+			op.RecordError(ctx, "metadata_update_error", err)
+			op.End(ctx, "failed")
 
-			// Record error
-			uc.RecordEntityError(ctx, "operation", "metadata_update_error", operationID.String(),
-				attribute.String("transaction_id", transactionID.String()),
-				attribute.String("error_detail", err.Error()))
-
-			// Record transaction duration with error status
-			uc.RecordTransactionDuration(ctx, startTime, "operation_update", "error", operationID.String(),
-				attribute.String("transaction_id", transactionID.String()),
-				attribute.String("error", "metadata_update_error"))
+			logger.Errorf("Error updating metadata: %v", err)
 
 			return nil, err
 		}
@@ -99,15 +86,8 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		operationUpdated.Metadata = uoi.Metadata
 	}
 
-	// Record transaction duration with success status
-	uc.RecordTransactionDuration(ctx, startTime, "operation_update", "success", operationID.String(),
-		attribute.String("transaction_id", transactionID.String()))
-
-	// Record business metric for operation update success
-	uc.RecordOperationMetric(ctx, "operation_update_success", operationID.String(),
-		attribute.String("transaction_id", transactionID.String()),
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return operationUpdated, nil
 }

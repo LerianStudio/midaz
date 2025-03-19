@@ -2,11 +2,9 @@ package command
 
 import (
 	"context"
-	"time"
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -14,34 +12,31 @@ import (
 // DeleteBalance delete balance in the repository.
 func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) error {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a balance operation telemetry entity
+	op := uc.Telemetry.NewBalanceOperation("delete", balanceID.String())
 
-	ctx, span := tracer.Start(ctx, "exec.delete_balance")
-	defer span.End()
-
-	// Record operation metrics
-	uc.RecordBalanceMetric(ctx, "balance_delete_attempt", balanceID.String(),
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Trying to delete balance")
 
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get balance on repo by id", err)
+		// Record error
+		op.RecordError(ctx, "balance_find_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Error getting balance: %v", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balance_find_error", balanceID.String(),
-			attribute.String("error_detail", err.Error()))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "balance_delete", "error", balanceID.String(),
-			attribute.String("error", "find_error"))
 
 		return err
 	}
@@ -49,51 +44,41 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	if balance != nil && (balance.Available != 0 || balance.OnHold != 0) {
 		err = pkg.ValidateBusinessError(constant.ErrBalancesCantDeleted, "DeleteBalance")
 
-		mopentelemetry.HandleSpanError(&span, "Balance cannot be deleted because it still has funds in it.", err)
+		// Record validation error with funds detail
+		op.RecordError(ctx, "balance_validation_error", err)
+		op.WithAttributes(
+			attribute.String("error_detail", "balance_has_funds"),
+			attribute.Int64("available", balance.Available),
+			attribute.Int64("on_hold", balance.OnHold),
+		)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Error deleting balance: %v", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balance_validation_error", balanceID.String(),
-			attribute.String("error_detail", "balance_has_funds"),
-			attribute.Int64("available", int64(balance.Available)),
-			attribute.Int64("on_hold", int64(balance.OnHold)))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "balance_delete", "error", balanceID.String(),
-			attribute.String("error", "balance_has_funds"))
 
 		return err
 	}
 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to delete balance on repo", err)
+		// Record error
+		op.RecordError(ctx, "balance_delete_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Error delete balance: %v", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balance_delete_error", balanceID.String(),
-			attribute.String("error_detail", err.Error()))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "balance_delete", "error", balanceID.String(),
-			attribute.String("error", "delete_error"))
 
 		return err
 	}
 
-	// Record transaction duration with success status
-	uc.RecordTransactionDuration(ctx, startTime, "balance_delete", "success", balanceID.String(),
-		attribute.String("asset_code", balance.AssetCode),
-		attribute.String("account_id", balance.AccountID))
+	// Add balance details to telemetry
+	if balance != nil {
+		op.WithAttributes(
+			attribute.String("asset_code", balance.AssetCode),
+			attribute.String("account_id", balance.AccountID),
+		)
+	}
 
-	// Record business metric for balance delete success
-	uc.RecordBalanceMetric(ctx, "balance_delete_success", balance.AccountID,
-		attribute.String("balance_id", balanceID.String()),
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-		attribute.String("asset_code", balance.AssetCode))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil
 }

@@ -14,8 +14,46 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// EntityTelemetry handles all telemetry operations for business entities
+type EntityTelemetry struct {
+	// ServiceName is used to identify the service in telemetry data
+	ServiceName string
+}
+
+// EntityOperation represents an operation being performed on an entity
+type EntityOperation struct {
+	// Entity is the name of the entity (e.g., "transaction", "balance", "operation")
+	Entity string
+
+	// Action is the operation being performed (e.g., "create", "update", "delete")
+	Action string
+
+	// ID is the identifier of the entity instance (e.g., transaction ID, account ID)
+	ID string
+
+	// IDLabel is the label for the ID attribute (e.g., "transaction_id", "account_id")
+	IDLabel string
+
+	// StartTime is when the operation started, used for duration calculation
+	StartTime time.Time
+
+	// Status represents the outcome of the operation (e.g., "success", "failure")
+	Status string
+
+	// Additional attributes to include in telemetry
+	Attributes []attribute.KeyValue
+
+	// Span for tracing, created when StartTrace is called
+	span trace.Span
+
+	// Context with the span, created when StartTrace is called
+	ctx context.Context
+}
 
 // UseCase is a struct that aggregates various repositories for simplified access in use case implementations.
 type UseCase struct {
@@ -42,144 +80,234 @@ type UseCase struct {
 
 	// ServiceName is used for telemetry
 	ServiceName string
+
+	// Telemetry for easy access in use cases
+	Telemetry *EntityTelemetry
 }
 
-// recordEntityMetric is a generalized function to record metrics for any entity
-func (uc *UseCase) recordEntityMetric(ctx context.Context, entity string, action string, metricType string, value int64, attributes ...attribute.KeyValue) {
-	// Create meter
-	meter := otel.Meter(uc.ServiceName)
+// NewUseCase creates a new UseCase with initialized telemetry
+func NewUseCase(serviceName string, transactionRepo transaction.Repository, operationRepo operation.Repository,
+	assetRateRepo assetrate.Repository, balanceRepo balance.Repository, metadataRepo mongodb.Repository,
+	rabbitMQRepo rabbitmq.ProducerRepository, redisRepo redis.RedisRepository) *UseCase {
+	uc := &UseCase{
+		ServiceName:     serviceName,
+		TransactionRepo: transactionRepo,
+		OperationRepo:   operationRepo,
+		AssetRateRepo:   assetRateRepo,
+		BalanceRepo:     balanceRepo,
+		MetadataRepo:    metadataRepo,
+		RabbitMQRepo:    rabbitMQRepo,
+		RedisRepo:       redisRepo,
+		Telemetry:       &EntityTelemetry{ServiceName: serviceName},
+	}
 
-	// Create metric name based on entity and metric type
-	metricName := mopentelemetry.GetMetricName("business", entity, metricType, "total")
+	return uc
+}
+
+// NewEntityOperation creates a new EntityOperation instance
+func (et *EntityTelemetry) NewEntityOperation(entity, action, id string) *EntityOperation {
+	return &EntityOperation{
+		Entity:     entity,
+		Action:     action,
+		ID:         id,
+		IDLabel:    entity + "_id",
+		StartTime:  time.Now(),
+		Attributes: []attribute.KeyValue{},
+	}
+}
+
+// WithAttribute adds a custom attribute to the EntityOperation
+func (eo *EntityOperation) WithAttribute(key string, value string) *EntityOperation {
+	eo.Attributes = append(eo.Attributes, attribute.String(key, value))
+	return eo
+}
+
+// WithAttributes adds multiple custom attributes to the EntityOperation
+func (eo *EntityOperation) WithAttributes(attributes ...attribute.KeyValue) *EntityOperation {
+	eo.Attributes = append(eo.Attributes, attributes...)
+	return eo
+}
+
+// StartTrace begins a trace span for this operation
+func (eo *EntityOperation) StartTrace(ctx context.Context) context.Context {
+	// Create standard attributes with entity and operation information
+	attrs := append(eo.Attributes,
+		attribute.String("entity", eo.Entity),
+		attribute.String("action", eo.Action),
+		attribute.String(eo.IDLabel, eo.ID))
+
+	// Create a span for the operation
+	tracer := otel.Tracer("business." + eo.Entity)
+	eo.ctx, eo.span = tracer.Start(
+		ctx,
+		eo.Entity+"."+eo.Action,
+		trace.WithAttributes(attrs...),
+	)
+
+	return eo.ctx
+}
+
+// RecordSystemicMetric records a count-based metric for this operation
+func (eo *EntityOperation) RecordSystemicMetric(ctx context.Context) {
+	// Create meter
+	meter := otel.Meter("business." + eo.Entity)
+
+	// Create metric name for systemic events
+	metricName := mopentelemetry.GetMetricName("business", eo.Entity, "count", "total")
 
 	// Create counter
 	counter, _ := meter.Int64Counter(
 		metricName,
-		metric.WithDescription(entity+" "+metricType+" by type"),
+		metric.WithDescription(eo.Entity+" operations count by type"),
 		metric.WithUnit("{count}"),
 	)
 
-	// Set base attributes
+	// Prepare base attributes
 	baseAttrs := []attribute.KeyValue{
-		attribute.String("action", action),
+		attribute.String("action", eo.Action),
+		attribute.String(eo.IDLabel, eo.ID),
 	}
 
 	// Combine with additional attributes
-	allAttrs := append(baseAttrs, attributes...)
+	allAttrs := append(baseAttrs, eo.Attributes...)
 
 	// Record the metric
-	counter.Add(ctx, value, metric.WithAttributes(allAttrs...))
+	counter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
 }
 
-// recordEntityDuration records duration metrics for any entity
-func (uc *UseCase) recordEntityDuration(ctx context.Context, entity string, startTime time.Time, action string, status string, attributes ...attribute.KeyValue) {
-	// Calculate duration
-	duration := time.Since(startTime).Milliseconds()
-
+// RecordBusinessMetric records a business-related metric with a float value
+func (eo *EntityOperation) RecordBusinessMetric(ctx context.Context, metricType string, value float64) {
 	// Create meter
-	meter := otel.Meter(uc.ServiceName)
+	meter := otel.Meter("business." + eo.Entity)
 
-	// Create duration histogram
-	durationHistogram, _ := meter.Int64Histogram(
-		mopentelemetry.GetMetricName("business", entity, "duration", "milliseconds"),
-		metric.WithDescription("Duration of "+entity+" processing"),
-		metric.WithUnit("ms"),
-	)
+	// Create metric name for business metrics
+	metricName := mopentelemetry.GetMetricName("business", eo.Entity, metricType, "value")
 
-	// Set base attributes
-	baseAttrs := []attribute.KeyValue{
-		attribute.String("action", action),
-		attribute.String("status", status),
-	}
-
-	// Combine with additional attributes
-	allAttrs := append(baseAttrs, attributes...)
-
-	// Record the metric
-	durationHistogram.Record(ctx, duration, metric.WithAttributes(allAttrs...))
-}
-
-// recordEntityFloatValue records float value metrics for any entity
-func (uc *UseCase) recordEntityFloatValue(ctx context.Context, entity string, metricType string, value float64, attributes ...attribute.KeyValue) {
-	// Create meter
-	meter := otel.Meter(uc.ServiceName)
-
-	// Create float value counter
+	// Create value counter
 	valueCounter, _ := meter.Float64Counter(
-		mopentelemetry.GetMetricName("business", entity, metricType, "value"),
-		metric.WithDescription("Value metrics for "+entity),
+		metricName,
+		metric.WithDescription("Business metrics for "+eo.Entity),
 		metric.WithUnit("unit"),
 	)
 
-	// Record the metric
-	valueCounter.Add(ctx, value, metric.WithAttributes(attributes...))
-}
-
-// recordEntityError records error metrics for any entity
-func (uc *UseCase) recordEntityError(ctx context.Context, entity string, errorType string, attributes ...attribute.KeyValue) {
-	// Create meter
-	meter := otel.Meter(uc.ServiceName)
-
-	// Create error counter
-	errorCounter, _ := meter.Int64Counter(
-		mopentelemetry.GetMetricName("business", entity, "errors", "count"),
-		metric.WithDescription("Number of "+entity+" errors by type"),
-		metric.WithUnit("{error}"),
-	)
-
-	// Set base attributes
+	// Prepare base attributes
 	baseAttrs := []attribute.KeyValue{
-		attribute.String("error_type", errorType),
+		attribute.String("action", eo.Action),
+		attribute.String(eo.IDLabel, eo.ID),
 	}
 
 	// Combine with additional attributes
-	allAttrs := append(baseAttrs, attributes...)
+	allAttrs := append(baseAttrs, eo.Attributes...)
 
 	// Record the metric
+	valueCounter.Add(ctx, value, metric.WithAttributes(allAttrs...))
+}
+
+// End completes the operation, recording duration and ending the trace span
+func (eo *EntityOperation) End(ctx context.Context, status string) {
+	// Set status for this operation
+	eo.Status = status
+
+	// Record duration metrics
+	eo.recordDuration(ctx)
+
+	// If we have an active span, finish it
+	if eo.span != nil {
+		defer eo.span.End()
+
+		// Add final status to span
+		eo.span.SetAttributes(attribute.String("status", status))
+
+		// Set span status (success or error)
+		if status != "success" {
+			eo.span.SetStatus(codes.Error, "Operation failed with status: "+status)
+		} else {
+			eo.span.SetStatus(codes.Ok, "")
+		}
+	}
+}
+
+// RecordError records an error for this operation
+func (eo *EntityOperation) RecordError(ctx context.Context, errorType string, err error) {
+	// Create meter
+	meter := otel.Meter("business." + eo.Entity)
+
+	// Create error counter
+	errorCounter, _ := meter.Int64Counter(
+		mopentelemetry.GetMetricName("business", eo.Entity, "errors", "count"),
+		metric.WithDescription("Number of "+eo.Entity+" errors by type"),
+		metric.WithUnit("{error}"),
+	)
+
+	// Prepare base attributes
+	baseAttrs := []attribute.KeyValue{
+		attribute.String("error_type", errorType),
+		attribute.String(eo.IDLabel, eo.ID),
+	}
+
+	// Combine with additional attributes
+	allAttrs := append(baseAttrs, eo.Attributes...)
+
+	// Record the error metric
 	errorCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+
+	// If we have an active span, record the error there too
+	if eo.span != nil {
+		eo.span.SetStatus(codes.Error, errorType+": "+err.Error())
+		eo.span.RecordError(err)
+	}
 }
 
-// Entity-specific recording functions
+// recordDuration records the duration of this operation
+func (eo *EntityOperation) recordDuration(ctx context.Context) {
+	// Calculate duration
+	duration := time.Since(eo.StartTime).Milliseconds()
 
-// RecordTransactionMetric records metrics for transaction entity
-func (uc *UseCase) RecordTransactionMetric(ctx context.Context, action string, transactionID string, attributes ...attribute.KeyValue) {
-	txAttrs := append(attributes, attribute.String("transaction_id", transactionID))
-	uc.recordEntityMetric(ctx, "transaction", action, "count", 1, txAttrs...)
+	// Create meter
+	meter := otel.Meter("business." + eo.Entity)
+
+	// Create duration histogram
+	durationHistogram, _ := meter.Int64Histogram(
+		mopentelemetry.GetMetricName("business", eo.Entity, "duration", "milliseconds"),
+		metric.WithDescription("Duration of "+eo.Entity+" processing"),
+		metric.WithUnit("ms"),
+	)
+
+	// Prepare base attributes
+	baseAttrs := []attribute.KeyValue{
+		attribute.String("action", eo.Action),
+		attribute.String("status", eo.Status),
+		attribute.String(eo.IDLabel, eo.ID),
+	}
+
+	// Combine with additional attributes
+	allAttrs := append(baseAttrs, eo.Attributes...)
+
+	// Record the duration
+	durationHistogram.Record(ctx, duration, metric.WithAttributes(allAttrs...))
 }
 
-// RecordTransactionDuration records duration for transaction processing
-func (uc *UseCase) RecordTransactionDuration(ctx context.Context, startTime time.Time, action string, status string, transactionID string, attributes ...attribute.KeyValue) {
-	txAttrs := append(attributes, attribute.String("transaction_id", transactionID))
-	uc.recordEntityDuration(ctx, "transaction", startTime, action, status, txAttrs...)
+// Convenience methods for common entities
+
+// NewTransactionOperation creates an operation for transaction entity
+func (et *EntityTelemetry) NewTransactionOperation(action, transactionID string) *EntityOperation {
+	return et.NewEntityOperation("transaction", action, transactionID)
 }
 
-// RecordOperationMetric records metrics for operation entity
-func (uc *UseCase) RecordOperationMetric(ctx context.Context, action string, operationID string, attributes ...attribute.KeyValue) {
-	opAttrs := append(attributes, attribute.String("operation_id", operationID))
-	uc.recordEntityMetric(ctx, "operation", action, "count", 1, opAttrs...)
+// NewBalanceOperation creates an operation for balance entity
+func (et *EntityTelemetry) NewBalanceOperation(action, accountID string) *EntityOperation {
+	return et.NewEntityOperation("balance", action, accountID)
 }
 
-// RecordBalanceMetric records metrics for balance entity
-func (uc *UseCase) RecordBalanceMetric(ctx context.Context, action string, accountID string, attributes ...attribute.KeyValue) {
-	balAttrs := append(attributes, attribute.String("account_id", accountID))
-	uc.recordEntityMetric(ctx, "balance", action, "count", 1, balAttrs...)
+// NewOperationOperation creates an operation for operation entity
+func (et *EntityTelemetry) NewOperationOperation(action, operationID string) *EntityOperation {
+	return et.NewEntityOperation("operation", action, operationID)
 }
 
-// RecordBalanceUpdate records value updates for balance
-func (uc *UseCase) RecordBalanceUpdate(ctx context.Context, assetCode string, amount float64, accountID string) {
-	uc.recordEntityFloatValue(ctx, "balance", "update", amount,
-		attribute.String("asset_code", assetCode),
-		attribute.String("account_id", accountID))
-}
+// NewAssetRateOperation creates an operation for assetrate entity
+func (et *EntityTelemetry) NewAssetRateOperation(action, assetCode string) *EntityOperation {
+	op := et.NewEntityOperation("assetrate", action, assetCode)
+	op.IDLabel = "asset_code" // Override default ID label
 
-// RecordAssetRateMetric records metrics for assetrate entity
-func (uc *UseCase) RecordAssetRateMetric(ctx context.Context, action string, assetCode string, attributes ...attribute.KeyValue) {
-	arAttrs := append(attributes, attribute.String("asset_code", assetCode))
-	uc.recordEntityMetric(ctx, "assetrate", action, "count", 1, arAttrs...)
-}
-
-// Record entity errors
-func (uc *UseCase) RecordEntityError(ctx context.Context, entity string, errorType string, entityID string, attributes ...attribute.KeyValue) {
-	errAttrs := append(attributes, attribute.String(entity+"_id", entityID))
-	uc.recordEntityError(ctx, entity, errorType, errAttrs...)
+	return op
 }

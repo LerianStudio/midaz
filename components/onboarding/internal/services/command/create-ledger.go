@@ -16,18 +16,26 @@ import (
 // CreateLedger creates a new ledger persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new ledger operation with telemetry
+	ledgerID := pkg.GenerateUUIDv7().String() // Generate ID for telemetry
+	op := uc.Telemetry.NewLedgerOperation("create", ledgerID)
 
-	ctx, span := tracer.Start(ctx, "command.create_ledger")
-	defer span.End() // Fix: Use defer to ensure span is ended properly
-
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "ledger", "create",
+	// Add important attributes for telemetry
+	op.WithAttributes(
 		attribute.String("ledger_name", cli.Name),
-		attribute.String("organization_id", organizationID.String()))
+		attribute.String("organization_id", organizationID.String()),
+	)
+
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Trying to create ledger: %v", cli)
 
@@ -44,19 +52,19 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to find ledger by name", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "ledger", "find_error",
-			attribute.String("ledger_name", cli.Name),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "find_error", err)
 
 		return nil, err
 	}
 
 	ledger := &mmodel.Ledger{
+		ID:             ledgerID, // Use the previously generated ID
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
@@ -66,14 +74,13 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create ledger", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "ledger", "creation_error",
-			attribute.String("ledger_name", cli.Name),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "creation_error", err)
 
 		return nil, err
 	}
@@ -82,24 +89,21 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create ledger metadata", err)
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "ledger", "metadata_error",
-			attribute.String("ledger_id", led.ID),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "metadata_error", err)
 
 		return nil, err
 	}
 
 	led.Metadata = metadata
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "ledger", "create", "success",
-		attribute.String("ledger_id", led.ID),
-		attribute.String("ledger_name", led.Name))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return led, nil
 }

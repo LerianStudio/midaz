@@ -8,7 +8,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/google/uuid"
@@ -17,48 +16,44 @@ import (
 // CreateOrUpdateAssetRate creates or updates an asset rate.
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a rate operation telemetry entity
+	op := uc.Telemetry.NewAssetRateOperation("upsert", cari.From+"-"+cari.To)
 
-	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
-	defer span.End()
-
-	// Record operation metrics
-	uc.RecordAssetRateMetric(ctx, "operation_attempt", cari.From,
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
+		attribute.String("from_asset", cari.From),
 		attribute.String("to_asset", cari.To),
-		attribute.String("source", *cari.Source))
+		attribute.String("source", *cari.Source),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
 
 	if err := pkg.ValidateCode(cari.From); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.From,
-			attribute.String("error_detail", "invalid_from_code"))
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.From,
-			attribute.String("error_detail", "invalid_from_code"))
+		// Record validation error
+		op.RecordError(ctx, "validation_error", err)
+		op.WithAttribute("error_detail", "invalid_from_code")
+		op.End(ctx, "failed")
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	if err := pkg.ValidateCode(cari.To); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset code", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.To,
-			attribute.String("error_detail", "invalid_to_code"))
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "validation_error", cari.To,
+		// Record validation error
+		op.RecordError(ctx, "validation_error", err)
+		op.WithAttributes(
+			attribute.String("error_detail", "invalid_to_code"),
 			attribute.String("to_asset", cari.To),
-			attribute.String("error_detail", "invalid_to_code"))
+		)
+		op.End(ctx, "failed")
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
@@ -73,38 +68,29 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	arFound, err := uc.AssetRateRepo.FindByCurrencyPair(ctx, organizationID, ledgerID, cari.From, cari.To)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to find asset rate by currency pair", err)
+		// Record error
+		op.RecordError(ctx, "find_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Error creating asset rate: %v", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "find_error", cari.From+"-"+cari.To,
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error_detail", err.Error()))
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "find_error", cari.From+"-"+cari.To,
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error_detail", err.Error()))
-
-		// Record duration with error
-		uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_operation", "error",
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error", "find_error"))
-
-		// Record duration with error
-		uc.recordEntityDuration(ctx, "assetrate", startTime, "operation", "error",
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error", "find_error"))
 
 		return nil, err
 	}
 
 	if arFound != nil {
+		// Create update operation - track as a nested operation
+		updateOp := uc.Telemetry.NewAssetRateOperation("update", arFound.ID)
+		updateOp.WithAttributes(
+			attribute.String("from_asset", cari.From),
+			attribute.String("to_asset", cari.To),
+			attribute.String("organization_id", organizationID.String()),
+			attribute.String("ledger_id", ledgerID.String()),
+		)
+
+		// Start tracing for update operation
+		updateCtx := updateOp.StartTrace(ctx)
+		updateOp.RecordSystemicMetric(updateCtx)
+
 		logger.Infof("Trying to update asset rate: %v", cari)
 
 		arFound.Rate = rate
@@ -117,52 +103,30 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			arFound.ExternalID = *externalID
 		}
 
-		arFound, err = uc.AssetRateRepo.Update(ctx, organizationID, ledgerID, uuid.MustParse(arFound.ID), arFound)
+		arFound, err = uc.AssetRateRepo.Update(updateCtx, organizationID, ledgerID, uuid.MustParse(arFound.ID), arFound)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to update asset rate", err)
+			// Record error in update operation
+			updateOp.RecordError(updateCtx, "update_error", err)
+			updateOp.End(updateCtx, "failed")
+
+			// Also record in parent operation
+			op.RecordError(ctx, "update_error", err)
+			op.End(ctx, "failed")
 
 			logger.Errorf("Error updating asset rate: %v", err)
-
-			// Record error
-			uc.RecordEntityError(ctx, "assetrate", "update_error", arFound.ID,
-				attribute.String("from_asset", cari.From),
-				attribute.String("to_asset", cari.To),
-				attribute.String("error_detail", err.Error()))
-
-			// Record error
-			uc.RecordEntityError(ctx, "assetrate", "update_error", arFound.ID,
-				attribute.String("from_asset", cari.From),
-				attribute.String("to_asset", cari.To),
-				attribute.String("error_detail", err.Error()))
-
-			// Record duration with error
-			uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_update", "error",
-				attribute.String("assetrate_id", arFound.ID),
-				attribute.String("from_asset", cari.From),
-				attribute.String("to_asset", cari.To),
-				attribute.String("error", "update_error"))
-
-			// Record duration with error
-			uc.recordEntityDuration(ctx, "assetrate", startTime, "update", "error",
-				attribute.String("assetrate_id", arFound.ID),
-				attribute.String("from_asset", cari.From),
-				attribute.String("to_asset", cari.To),
-				attribute.String("error", "update_error"))
 
 			return nil, err
 		}
 
 		if cari.Metadata != nil {
 			if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+				// Record metadata validation error
+				updateOp.RecordError(updateCtx, "metadata_validation_error", err)
+				updateOp.End(updateCtx, "failed")
 
-				// Record error
-				uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", arFound.ID,
-					attribute.String("error_detail", err.Error()))
-
-				// Record error
-				uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", arFound.ID,
-					attribute.String("error_detail", err.Error()))
+				// Also record in parent operation
+				op.RecordError(ctx, "metadata_validation_error", err)
+				op.End(ctx, "failed")
 
 				return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 			}
@@ -175,18 +139,12 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 				UpdatedAt:  time.Now(),
 			}
 
-			if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
+			if err := uc.MetadataRepo.Create(updateCtx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
+				// Record metadata creation error
+				updateOp.RecordError(updateCtx, "metadata_creation_error", err)
+				updateOp.End(updateCtx, "partial_success")
 
 				logger.Errorf("Error into creating asset rate metadata: %v", err)
-
-				// Record error
-				uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", arFound.ID,
-					attribute.String("error_detail", err.Error()))
-
-				// Record error
-				uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", arFound.ID,
-					attribute.String("error_detail", err.Error()))
 
 				return nil, err
 			}
@@ -194,34 +152,33 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			arFound.Metadata = cari.Metadata
 		}
 
-		// Record success metrics
-		uc.RecordAssetRateMetric(ctx, "update_success", arFound.From,
-			attribute.String("assetrate_id", arFound.ID),
-			attribute.String("to_asset", arFound.To),
-			attribute.String("source", *arFound.Source),
-			attribute.Float64("rate", arFound.Rate))
+		// Record business metrics - rate value
+		updateOp.RecordBusinessMetric(updateCtx, "rate", arFound.Rate)
 
-		// Record success metrics
-		uc.RecordAssetRateMetric(ctx, "update_success", arFound.From,
-			attribute.String("assetrate_id", arFound.ID),
-			attribute.String("to_asset", arFound.To),
-			attribute.String("source", *arFound.Source),
-			attribute.Float64("rate", arFound.Rate))
+		// Mark update as successful
+		updateOp.End(updateCtx, "success")
 
-		// Record duration
-		uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_update", "success",
-			attribute.String("assetrate_id", arFound.ID),
-			attribute.String("from_asset", arFound.From),
-			attribute.String("to_asset", arFound.To))
+		// Record business metrics in main operation too
+		op.RecordBusinessMetric(ctx, "rate", arFound.Rate)
 
-		// Record duration
-		uc.recordEntityDuration(ctx, "assetrate", startTime, "update", "success",
-			attribute.String("assetrate_id", arFound.ID),
-			attribute.String("from_asset", arFound.From),
-			attribute.String("to_asset", arFound.To))
+		// Mark main operation as successful
+		op.End(ctx, "success")
 
 		return arFound, nil
 	}
+
+	// This is a create operation instead of update
+	createOp := uc.Telemetry.NewAssetRateOperation("create", cari.From+"-"+cari.To)
+	createOp.WithAttributes(
+		attribute.String("from_asset", cari.From),
+		attribute.String("to_asset", cari.To),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for create operation
+	createCtx := createOp.StartTrace(ctx)
+	createOp.RecordSystemicMetric(createCtx)
 
 	if emptyExternalID {
 		idStr := pkg.GenerateUUIDv7().String()
@@ -243,52 +200,35 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		UpdatedAt:      time.Now(),
 	}
 
+	// Add asset rate ID to telemetry
+	createOp.WithAttribute("assetrate_id", assetRateDB.ID)
+
 	logger.Infof("Trying to create asset rate: %v", cari)
 
-	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
+	assetRate, err := uc.AssetRateRepo.Create(createCtx, assetRateDB)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create asset rate on repository", err)
+		// Record creation error
+		createOp.RecordError(createCtx, "creation_error", err)
+		createOp.End(createCtx, "failed")
+
+		// Also record in parent operation
+		op.RecordError(ctx, "creation_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Error creating asset rate: %v", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "creation_error", cari.From+"-"+cari.To,
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error_detail", err.Error()))
-
-		// Record error
-		uc.RecordEntityError(ctx, "assetrate", "creation_error", cari.From+"-"+cari.To,
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error_detail", err.Error()))
-
-		// Record duration with error
-		uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_create", "error",
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error", "creation_error"))
-
-		// Record duration with error
-		uc.recordEntityDuration(ctx, "assetrate", startTime, "create", "error",
-			attribute.String("from_asset", cari.From),
-			attribute.String("to_asset", cari.To),
-			attribute.String("error", "creation_error"))
 
 		return nil, err
 	}
 
 	if cari.Metadata != nil {
 		if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+			// Record metadata validation error
+			createOp.RecordError(createCtx, "metadata_validation_error", err)
+			createOp.End(createCtx, "failed")
 
-			// Record error
-			uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", assetRate.ID,
-				attribute.String("error_detail", err.Error()))
-
-			// Record error
-			uc.RecordEntityError(ctx, "assetrate", "metadata_validation_error", assetRate.ID,
-				attribute.String("error_detail", err.Error()))
+			// Also record in parent operation
+			op.RecordError(ctx, "metadata_validation_error", err)
+			op.End(ctx, "failed")
 
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		}
@@ -301,18 +241,12 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
+		if err := uc.MetadataRepo.Create(createCtx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
+			// Record metadata creation error
+			createOp.RecordError(createCtx, "metadata_creation_error", err)
+			createOp.End(createCtx, "partial_success")
 
 			logger.Errorf("Error into creating asset rate metadata: %v", err)
-
-			// Record error
-			uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", assetRate.ID,
-				attribute.String("error_detail", err.Error()))
-
-			// Record error
-			uc.RecordEntityError(ctx, "assetrate", "metadata_creation_error", assetRate.ID,
-				attribute.String("error_detail", err.Error()))
 
 			return nil, err
 		}
@@ -320,18 +254,17 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		assetRate.Metadata = cari.Metadata
 	}
 
-	// Record success metrics
-	uc.RecordAssetRateMetric(ctx, "create_success", assetRate.From,
-		attribute.String("assetrate_id", assetRate.ID),
-		attribute.String("to_asset", assetRate.To),
-		attribute.String("source", *assetRate.Source),
-		attribute.Float64("rate", assetRate.Rate))
+	// Record business metrics - rate value
+	createOp.RecordBusinessMetric(createCtx, "rate", assetRate.Rate)
 
-	// Record duration
-	uc.recordEntityDuration(ctx, "assetrate", startTime, "assetrate_create", "success",
-		attribute.String("assetrate_id", assetRate.ID),
-		attribute.String("from_asset", assetRate.From),
-		attribute.String("to_asset", assetRate.To))
+	// Mark creation as successful
+	createOp.End(createCtx, "success")
+
+	// Record business metrics in main operation too
+	op.RecordBusinessMetric(ctx, "rate", assetRate.Rate)
+
+	// Mark main operation as successful
+	op.End(ctx, "success")
 
 	return assetRate, nil
 }

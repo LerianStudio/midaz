@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"time"
 
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -15,29 +14,28 @@ import (
 
 func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses, balances []*mmodel.Balance) error {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a batch balance operation telemetry entity
+	op := uc.Telemetry.NewBalanceOperation("balances_update_batch", "batch-update")
 
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances")
-	defer spanUpdateBalances.End()
-
-	// Record operation metrics
-	uc.RecordBalanceMetric(ctx, "balances_update_batch_attempt", "batch-update",
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
-		attribute.Int("balance_count", len(balances)))
+		attribute.Int("balance_count", len(balances)),
+	)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
+
+	err := mopentelemetry.SetSpanAttributesFromStruct(&op.span, "payload_update_balances", balances)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-
+		// Record error but continue
+		op.RecordError(ctx, "balances_struct_conversion_error", err)
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balances_struct_conversion_error", "batch-update",
-			attribute.String("error_detail", err.Error()))
 	}
 
 	fromTo := make(map[string]goldModel.Amount)
@@ -59,32 +57,20 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		}
 	}
 
-	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.Aliases, fromTo)
+	err = uc.BalanceRepo.SelectForUpdate(ctx, organizationID, ledgerID, validate.Aliases, fromTo)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
+		// Record error
+		op.RecordError(ctx, "balances_update_error", err)
+		op.End(ctx, "failed")
 
 		logger.Error("Failed to update balances on database", err.Error())
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balances_update_error", "batch-update",
-			attribute.String("error_detail", err.Error()))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "balances_update_batch", "error", "batch-update",
-			attribute.String("error", "database_update_failed"))
 
 		return err
 	}
 
-	// Record transaction duration with success status
-	uc.RecordTransactionDuration(ctx, startTime, "balances_update_batch", "success", "batch-update",
-		attribute.Int("balance_count", len(balances)))
-
-	// Record business metric for successful balance update
-	uc.RecordBalanceMetric(ctx, "balances_update_batch_success", "batch-update",
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-		attribute.Int("balance_count", len(balances)))
+	// Record business metrics if needed
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil
 }
@@ -92,29 +78,28 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 // UpdateBalancesNew func that is responsible to update balances.
 func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledgerID uuid.UUID, validate goldModel.Responses, balances []*mmodel.Balance) error {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a batch balance operation telemetry entity
+	op := uc.Telemetry.NewBalanceOperation("balances_update_new", "batch-update")
 
-	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
-	defer spanUpdateBalances.End()
-
-	// Record operation metrics
-	uc.RecordBalanceMetric(ctx, "balances_update_new_attempt", "batch-update",
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
-		attribute.Int("balance_count", len(balances)))
+		attribute.Int("balance_count", len(balances)),
+	)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
+
+	err := mopentelemetry.SetSpanAttributesFromStruct(&op.span, "payload_update_balances", balances)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-
+		// Record error but continue
+		op.RecordError(ctx, "balances_struct_conversion_error", err)
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balances_struct_conversion_error", "batch-update",
-			attribute.String("error_detail", err.Error()))
 	}
 
 	fromTo := make(map[string]goldModel.Amount)
@@ -157,32 +142,24 @@ func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledger
 		})
 	}
 
-	err = uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances)
+	err = uc.BalanceRepo.BalancesUpdate(ctx, organizationID, ledgerID, newBalances)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
+		// Record error
+		op.RecordError(ctx, "balances_update_error", err)
+		op.End(ctx, "failed")
 
 		logger.Error("Failed to update balances on database", err.Error())
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balances_update_error", "batch-update",
-			attribute.String("error_detail", err.Error()))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "balances_update_new", "error", "batch-update",
-			attribute.String("error", "database_update_failed"))
 
 		return err
 	}
 
-	// Record transaction duration with success status
-	uc.RecordTransactionDuration(ctx, startTime, "balances_update_new", "success", "batch-update",
-		attribute.Int("balance_count", len(newBalances)))
+	// Add new balance count to telemetry
+	op.WithAttributes(
+		attribute.Int("new_balance_count", len(newBalances)),
+	)
 
-	// Record business metric for successful balance update
-	uc.RecordBalanceMetric(ctx, "balances_update_new_success", "batch-update",
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-		attribute.Int("balance_count", len(newBalances)))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil
 }
@@ -190,45 +167,37 @@ func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledger
 // Update balance in the repository.
 func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) error {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a balance operation telemetry entity
+	op := uc.Telemetry.NewBalanceOperation("update", balanceID.String())
 
-	ctx, span := tracer.Start(ctx, "exec.update_balance")
-	defer span.End()
-
-	// Record operation metrics
-	uc.RecordBalanceMetric(ctx, "balance_update_attempt", balanceID.String(),
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Trying to update balance")
 
 	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update balance on repo", err)
+		// Record error
+		op.RecordError(ctx, "balance_update_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Error update balance: %v", err)
-
-		// Record error
-		uc.RecordEntityError(ctx, "balance", "balance_update_error", balanceID.String(),
-			attribute.String("error_detail", err.Error()))
-
-		// Record transaction duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "balance_update", "error", balanceID.String(),
-			attribute.String("error", "database_update_failed"))
 
 		return err
 	}
 
-	// Record transaction duration with success status
-	uc.RecordTransactionDuration(ctx, startTime, "balance_update", "success", balanceID.String())
-
-	// Record business metric for successful balance update
-	uc.RecordBalanceMetric(ctx, "balance_update_success", balanceID.String(),
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil
 }

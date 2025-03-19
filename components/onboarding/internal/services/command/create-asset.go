@@ -16,20 +16,28 @@ import (
 // CreateAsset creates a new asset persists data in the repository.
 func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uuid.UUID, cii *mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new asset operation with telemetry
+	assetID := pkg.GenerateUUIDv7().String() // Generate ID for telemetry
+	op := uc.Telemetry.NewAssetOperation("create", assetID)
 
-	ctx, span := tracer.Start(ctx, "command.create_asset")
-	defer span.End()
-
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "asset", "create",
+	// Add important attributes for telemetry
+	op.WithAttributes(
 		attribute.String("asset_type", cii.Type),
 		attribute.String("asset_code", cii.Code),
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Trying to create asset: %v", cii)
 
@@ -45,35 +53,32 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	status.Description = cii.Status.Description
 
 	if err := pkg.ValidateType(cii.Type); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate asset type", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to validate asset type", err)
 
 		// Record validation error
-		uc.recordOnboardingError(ctx, "asset", "validation_error",
-			attribute.String("asset_type", cii.Type),
-			attribute.String("error_detail", "invalid_type"))
+		op.WithAttribute("error_detail", "invalid_type")
+		op.RecordError(ctx, "validation_error", err)
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if err := pkg.ValidateCode(cii.Code); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to validate asset code", err)
 
 		// Record validation error
-		uc.recordOnboardingError(ctx, "asset", "validation_error",
-			attribute.String("asset_code", cii.Code),
-			attribute.String("error_detail", "invalid_code"))
+		op.WithAttribute("error_detail", "invalid_code")
+		op.RecordError(ctx, "validation_error", err)
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if cii.Type == "currency" {
 		if err := pkg.ValidateCurrency(cii.Code); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
+			mopentelemetry.HandleSpanError(&op.span, "Failed to validate asset currency", err)
 
 			// Record validation error
-			uc.recordOnboardingError(ctx, "asset", "validation_error",
-				attribute.String("asset_code", cii.Code),
-				attribute.String("error_detail", "invalid_currency"))
+			op.WithAttribute("error_detail", "invalid_currency")
+			op.RecordError(ctx, "validation_error", err)
 
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
@@ -81,7 +86,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to find asset by name or code", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to find asset by name or code", err)
 
 		logger.Errorf("Error creating asset: %v", err)
 
@@ -89,6 +94,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	asset := &mmodel.Asset{
+		ID:             assetID, // Use the previously generated ID
 		Name:           cii.Name,
 		Type:           cii.Type,
 		Code:           cii.Code,
@@ -101,20 +107,20 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	inst, err := uc.AssetRepo.Create(ctx, asset)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create asset", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create asset", err)
 
 		logger.Errorf("Error creating asset: %v", err)
 
 		// Record creation error
-		uc.recordOnboardingError(ctx, "asset", "creation_error",
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "creation_error", err)
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create asset metadata", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create asset metadata", err)
 
 		logger.Errorf("Error creating asset metadata: %v", err)
 
@@ -128,7 +134,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to retrieve asset external account", err)
 
 		logger.Errorf("Error retrieving asset external account: %v", err)
 
@@ -137,6 +143,17 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 	if len(account) == 0 {
 		logger.Infof("Creating external account for asset: %s", cii.Code)
+
+		// Create a related account operation for external account creation
+		extAccountOp := uc.Telemetry.NewAccountOperation("create", "external")
+		extAccountOp.WithAttributes(
+			attribute.String("account_type", "external"),
+			attribute.String("asset_code", cii.Code),
+			attribute.String("organization_id", organizationID.String()),
+			attribute.String("ledger_id", ledgerID.String()),
+			attribute.String("parent_asset_id", inst.ID),
+		)
+		extAccountOp.RecordSystemicMetric(ctx)
 
 		eAccount := &mmodel.Account{
 			ID:              pkg.GenerateUUIDv7().String(),
@@ -160,7 +177,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 
 		acc, err := uc.AccountRepo.Create(ctx, eAccount)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to create asset external account", err)
+			mopentelemetry.HandleSpanError(&op.span, "Failed to create asset external account", err)
 
 			logger.Errorf("Error creating asset external account: %v", err)
 
@@ -173,11 +190,8 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, *acc)
 	}
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "asset", "create", "success",
-		attribute.String("asset_id", inst.ID),
-		attribute.String("asset_type", inst.Type),
-		attribute.String("asset_code", inst.Code))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return inst, nil
 }

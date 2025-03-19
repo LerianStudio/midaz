@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -19,18 +18,29 @@ import (
 // UpdateLedgerByID update a ledger from the repository.
 func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid.UUID, uli *mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new ledger operation with telemetry for update
+	op := uc.Telemetry.NewLedgerOperation("update", id.String())
 
-	ctx, span := tracer.Start(ctx, "command.update_ledger_by_id")
-	defer span.End()
-
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "ledger", "update",
+	// Add important attributes for telemetry
+	op.WithAttributes(
 		attribute.String("ledger_id", id.String()),
-		attribute.String("organization_id", organizationID.String()))
+		attribute.String("organization_id", organizationID.String()),
+	)
+
+	if uli.Name != "" {
+		op.WithAttribute("ledger_name", uli.Name)
+	}
+
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Trying to update ledger: %v", uli)
 
@@ -42,14 +52,13 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 
 	ledgerUpdated, err := uc.LedgerRepo.Update(ctx, organizationID, id, ledger)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update ledger on repo", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to update ledger on repo", err)
 
 		logger.Errorf("Error updating ledger on repo by id: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "ledger", "update_error",
-			attribute.String("ledger_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "update_error", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, reflect.TypeOf(mmodel.Ledger{}).Name())
@@ -58,24 +67,24 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		return nil, err
 	}
 
+	// Add ledger info to telemetry
+	op.WithAttribute("ledger_name", ledgerUpdated.Name)
+
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), id.String(), uli.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on repo", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "ledger", "update_metadata_error",
-			attribute.String("ledger_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "update_metadata_error", err)
 
 		return nil, err
 	}
 
 	ledgerUpdated.Metadata = metadataUpdated
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "ledger", "update", "success",
-		attribute.String("ledger_id", id.String()),
-		attribute.String("ledger_name", ledgerUpdated.Name))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return ledgerUpdated, nil
 }

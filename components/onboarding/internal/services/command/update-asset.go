@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -19,19 +18,26 @@ import (
 // UpdateAssetByID update an asset from the repository by given id.
 func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID uuid.UUID, id uuid.UUID, uii *mmodel.UpdateAssetInput) (*mmodel.Asset, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new asset operation with telemetry for update
+	op := uc.Telemetry.NewAssetOperation("update", id.String())
 
-	ctx, span := tracer.Start(ctx, "command.update_asset_by_id")
-	defer span.End()
-
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "asset", "update",
+	// Add important attributes for telemetry
+	op.WithAttributes(
 		attribute.String("asset_id", id.String()),
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Trying to update asset: %v", uii)
 
@@ -42,14 +48,13 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 
 	assetUpdated, err := uc.AssetRepo.Update(ctx, organizationID, ledgerID, id, asset)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update asset on repo by id", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to update asset on repo by id", err)
 
 		logger.Errorf("Error updating asset on repo by id: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "asset", "update_error",
-			attribute.String("asset_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "update_error", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, reflect.TypeOf(mmodel.Asset{}).Name(), id)
@@ -58,24 +63,25 @@ func (uc *UseCase) UpdateAssetByID(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
+	// Add asset info to telemetry
+	op.WithAttribute("asset_name", assetUpdated.Name)
+	op.WithAttribute("asset_type", assetUpdated.Type)
+
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String(), uii.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo by id", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "asset", "update_metadata_error",
-			attribute.String("asset_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "update_metadata_error", err)
 
 		return nil, err
 	}
 
 	assetUpdated.Metadata = metadataUpdated
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "asset", "update", "success",
-		attribute.String("asset_id", id.String()),
-		attribute.String("asset_name", assetUpdated.Name))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return assetUpdated, nil
 }

@@ -3,15 +3,12 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"time"
-
 	"os"
 	"strings"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -24,30 +21,29 @@ import (
 // transactionID is the UUID of the transaction being logged.
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a transaction audit log operation telemetry entity
+	op := uc.Telemetry.NewTransactionOperation("transaction_audit_log", transactionID.String())
 
-	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.transaction.log_transaction")
-	defer spanLogTransaction.End()
-
-	// Record operation metrics
-	uc.RecordTransactionMetric(ctx, "transaction_audit_log_attempt", transactionID.String(),
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
-		attribute.Int("operation_count", len(operations)))
+		attribute.Int("operation_count", len(operations)),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	if !isAuditLogEnabled() {
 		logger.Infof("Audit logging not enabled. AUDIT_LOG_ENABLED='%s'", os.Getenv("AUDIT_LOG_ENABLED"))
 
-		// Record skipped metrics
-		uc.RecordTransactionMetric(ctx, "transaction_audit_log_skipped", transactionID.String(),
-			attribute.String("reason", "disabled_in_config"))
-
-		// Record duration with skipped status
-		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "skipped", transactionID.String(),
-			attribute.String("reason", "disabled_in_config"))
+		// Add skipped reason to telemetry
+		op.WithAttribute("reason", "disabled_in_config")
+		op.End(ctx, "skipped")
 
 		return
 	}
@@ -60,14 +56,14 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 
 		marshal, err := json.Marshal(oLog)
 		if err != nil {
-			// Record error
-			uc.RecordEntityError(ctx, "transaction", "audit_marshal_error", transactionID.String(),
-				attribute.String("operation_id", o.ID),
-				attribute.String("error_detail", err.Error()))
+			// Record error for marshal but continue with other operations
+			op.RecordError(ctx, "audit_marshal_error", err)
+			op.WithAttribute("operation_id", o.ID)
 
 			marshalErrorCount++
 
 			logger.Errorf("Failed to marshal operation to JSON string: %s", err.Error())
+
 			continue // Continue with other operations rather than failing entirely
 		}
 
@@ -79,15 +75,14 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 
 	// If all operations failed to marshal, record total failure
 	if len(operations) > 0 && len(queueData) == 0 {
-		// Record error
-		uc.RecordEntityError(ctx, "transaction", "audit_all_operations_marshal_error", transactionID.String(),
-			attribute.Int("failed_operations", marshalErrorCount))
-
-		// Record duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "error", transactionID.String(),
-			attribute.String("error", "all_operations_marshal_failed"))
+		// Update error metrics
+		op.WithAttributes(
+			attribute.Int("failed_operations", marshalErrorCount),
+		)
+		op.End(ctx, "failed")
 
 		logger.Errorf("All operations failed to marshal for transaction: %s", transactionID.String())
+
 		return
 	}
 
@@ -101,50 +96,38 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	exchange := os.Getenv("RABBITMQ_AUDIT_EXCHANGE")
 	routingKey := os.Getenv("RABBITMQ_AUDIT_KEY")
 
+	// Add queue info to telemetry
+	op.WithAttributes(
+		attribute.String("exchange", exchange),
+		attribute.String("routing_key", routingKey),
+	)
+
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
-		ctxLogTransaction,
+		ctx,
 		exchange,
 		routingKey,
 		queueMessage,
 	); err != nil {
-		// Record error
-		uc.RecordEntityError(ctx, "transaction", "audit_queue_send_error", transactionID.String(),
-			attribute.String("exchange", exchange),
-			attribute.String("routing_key", routingKey),
-			attribute.String("error_detail", err.Error()))
-
-		// Record duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "error", transactionID.String(),
-			attribute.String("error", "queue_send_error"))
+		// Record queue send error
+		op.RecordError(ctx, "audit_queue_send_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Failed to send audit message: %s", err.Error())
-		mopentelemetry.HandleSpanError(&spanLogTransaction, "Failed to send audit message to queue", err)
+
 		return
 	}
 
-	// Record partial success if some operations failed to marshal
+	// Add success/partial metrics and end the operation
 	if marshalErrorCount > 0 {
-		// Record partial success metrics
-		uc.RecordTransactionMetric(ctx, "transaction_audit_log_partial", transactionID.String(),
-			attribute.String("organization_id", organizationID.String()),
-			attribute.String("ledger_id", ledgerID.String()),
+		// Update with partial success metrics
+		op.WithAttributes(
 			attribute.Int("successful_operations", len(queueData)),
-			attribute.Int("failed_operations", marshalErrorCount))
-
-		// Record duration with partial status
-		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "partial", transactionID.String(),
-			attribute.Int("successful_operations", len(queueData)),
-			attribute.Int("failed_operations", marshalErrorCount))
+			attribute.Int("failed_operations", marshalErrorCount),
+		)
+		op.End(ctx, "partial_success")
 	} else {
-		// Record success metrics
-		uc.RecordTransactionMetric(ctx, "transaction_audit_log_success", transactionID.String(),
-			attribute.String("organization_id", organizationID.String()),
-			attribute.String("ledger_id", ledgerID.String()),
-			attribute.Int("operation_count", len(operations)))
-
-		// Record duration with success status
-		uc.RecordTransactionDuration(ctx, startTime, "transaction_audit_log", "success", transactionID.String(),
-			attribute.Int("operation_count", len(operations)))
+		// Complete success
+		op.End(ctx, "success")
 	}
 }
 

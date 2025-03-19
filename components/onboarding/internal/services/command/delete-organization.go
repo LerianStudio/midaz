@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -19,29 +18,35 @@ import (
 // DeleteOrganizationByID fetch a new organization from the repository
 func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) error {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new organization operation with telemetry for delete
+	op := uc.Telemetry.NewOrganizationOperation("delete", id.String())
 
-	ctx, span := tracer.Start(ctx, "usecase.delete_organization_by_id")
-	defer span.End()
+	// Add important attributes for telemetry
+	op.WithAttributes(
+		attribute.String("organization_id", id.String()),
+	)
 
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "organization", "delete",
-		attribute.String("organization_id", id.String()))
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Remove organization for id: %s", id)
 
 	if err := uc.OrganizationRepo.Delete(ctx, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to delete organization on repo by id", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to delete organization on repo by id", err)
 
 		logger.Errorf("Error deleting organization on repo by id: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "delete_error",
-			attribute.String("organization_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "delete_error", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
@@ -50,9 +55,8 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) err
 		return err
 	}
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "organization", "delete", "success",
-		attribute.String("organization_id", id.String()))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil
 }

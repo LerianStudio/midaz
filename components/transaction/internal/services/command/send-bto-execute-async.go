@@ -3,15 +3,12 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"time"
-
 	"os"
 
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg"
 	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -19,20 +16,23 @@ import (
 // SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
 func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *goldModel.Transaction, validate *goldModel.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a transaction operation telemetry entity
+	op := uc.Telemetry.NewTransactionOperation("bto_async_send", tran.ID)
 
-	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
-	defer spanSendBTOQueue.End()
-
-	// Record operation metrics
-	uc.RecordTransactionMetric(ctx, "bto_async_send_attempt", tran.ID,
+	// Add important attributes
+	op.WithAttributes(
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 		attribute.String("asset_code", tran.AssetCode),
-		attribute.Int("balance_count", len(blc)))
+		attribute.Int("balance_count", len(blc)),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	queueData := make([]mmodel.QueueData, 0)
 
@@ -45,17 +45,12 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	marshal, err := json.Marshal(value)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
-
 		// Record error
-		uc.RecordEntityError(ctx, "transaction", "bto_marshal_error", tran.ID,
-			attribute.String("error_detail", err.Error()))
-
-		// Record duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "bto_async_send", "error", tran.ID,
-			attribute.String("error", "marshal_error"))
+		op.RecordError(ctx, "bto_marshal_error", err)
+		op.End(ctx, "failed")
 
 		logger.Fatalf("Failed to marshal validate to JSON string: %s", err.Error())
+
 		return
 	}
 
@@ -73,37 +68,32 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	exchange := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE")
 	routingKey := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY")
 
+	// Add queue info to telemetry
+	op.WithAttributes(
+		attribute.String("exchange", exchange),
+		attribute.String("routing_key", routingKey),
+	)
+
 	if _, err := uc.RabbitMQRepo.ProducerDefault(
-		ctxSendBTOQueue,
+		ctx,
 		exchange,
 		routingKey,
 		queueMessage,
 	); err != nil {
-		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
-
 		// Record error
-		uc.RecordEntityError(ctx, "transaction", "bto_queue_send_error", tran.ID,
-			attribute.String("exchange", exchange),
-			attribute.String("routing_key", routingKey),
-			attribute.String("error_detail", err.Error()))
-
-		// Record duration with error status
-		uc.RecordTransactionDuration(ctx, startTime, "bto_async_send", "error", tran.ID,
-			attribute.String("error", "queue_send_error"))
+		op.RecordError(ctx, "bto_queue_send_error", err)
+		op.End(ctx, "failed")
 
 		logger.Errorf("Failed to send message: %s", err.Error())
+
 		return
 	}
 
-	// Record success metrics
-	uc.RecordTransactionMetric(ctx, "bto_async_send_success", tran.ID,
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()),
-		attribute.String("asset_code", tran.AssetCode),
-		attribute.Int("balance_count", len(blc)))
+	// Record business metrics
+	if tran.Amount != nil {
+		op.RecordBusinessMetric(ctx, "amount", float64(*tran.Amount))
+	}
 
-	// Record duration with success status
-	uc.RecordTransactionDuration(ctx, startTime, "bto_async_send", "success", tran.ID,
-		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+	// Mark operation as successful
+	op.End(ctx, "success")
 }

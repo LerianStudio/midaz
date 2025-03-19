@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -19,31 +18,37 @@ import (
 // DeletePortfolioByID deletes a portfolio from the repository by ids.
 func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new portfolio operation with telemetry for delete
+	op := uc.Telemetry.NewPortfolioOperation("delete", id.String())
 
-	ctx, span := tracer.Start(ctx, "command.delete_portfolio_by_id")
-	defer span.End()
-
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "portfolio", "delete",
+	// Add important attributes for telemetry
+	op.WithAttributes(
 		attribute.String("portfolio_id", id.String()),
 		attribute.String("organization_id", organizationID.String()),
-		attribute.String("ledger_id", ledgerID.String()))
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Remove portfolio for id: %s", id.String())
 
 	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to delete portfolio on repo by id", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to delete portfolio on repo by id", err)
 
 		logger.Errorf("Error deleting portfolio on repo by id: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "portfolio", "delete_error",
-			attribute.String("portfolio_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "delete_error", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return pkg.ValidateBusinessError(constant.ErrPortfolioIDNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
@@ -52,9 +57,8 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 		return err
 	}
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "portfolio", "delete", "success",
-		attribute.String("portfolio_id", id.String()))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
@@ -19,50 +18,73 @@ import (
 // UpdateOrganizationByID update an organization from the repository.
 func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi *mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new organization operation with telemetry for update
+	op := uc.Telemetry.NewOrganizationOperation("update", id.String())
 
-	ctx, span := tracer.Start(ctx, "command.update_organization_by_id")
-	defer span.End()
+	// Add important attributes for telemetry
+	op.WithAttributes(
+		attribute.String("organization_id", id.String()),
+	)
 
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "organization", "update",
-		attribute.String("organization_id", id.String()))
+	if uoi.LegalName != "" {
+		op.WithAttribute("organization_name", uoi.LegalName)
+	}
+
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Trying to update organization: %v", uoi)
 
 	if pkg.IsNilOrEmpty(uoi.ParentOrganizationID) {
 		uoi.ParentOrganizationID = nil
+	} else {
+		op.WithAttribute("parent_organization_id", *uoi.ParentOrganizationID)
 	}
 
 	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
 		err := pkg.ValidateBusinessError(constant.ErrParentIDSameID, "UpdateOrganizationByID")
 
-		mopentelemetry.HandleSpanError(&span, "ID cannot be used as the parent ID.", err)
+		mopentelemetry.HandleSpanError(&op.span, "ID cannot be used as the parent ID.", err)
 
 		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "validation_error",
-			attribute.String("organization_id", id.String()),
-			attribute.String("error_detail", "parent_id_same_as_id"))
+		op.WithAttribute("error_detail", "parent_id_same_as_id")
+		op.RecordError(ctx, "validation_error", err)
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
+	// Create a child span for address validation if address is not empty
 	if !uoi.Address.IsEmpty() {
+		addressValidationOp := uc.Telemetry.NewEntityOperation("address", "validate", id.String())
+		addressValidationOp.WithAttribute("country", uoi.Address.Country)
+		addressValidationCtx := addressValidationOp.StartTrace(ctx)
+
 		if err := pkg.ValidateCountryAddress(uoi.Address.Country); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to validate address country", err)
+			mopentelemetry.HandleSpanError(&addressValidationOp.span, "Failed to validate address country", err)
 
 			// Record error
-			uc.recordOnboardingError(ctx, "organization", "validation_error",
-				attribute.String("organization_id", id.String()),
-				attribute.String("error_detail", "invalid_country_address"))
+			addressValidationOp.WithAttribute("error_detail", "invalid_country_address")
+			addressValidationOp.RecordError(addressValidationCtx, "validation_error", err)
+			addressValidationOp.End(addressValidationCtx, "error")
+
+			// Record error on the main operation as well
+			op.WithAttribute("error_detail", "invalid_country_address")
+			op.RecordError(ctx, "validation_error", err)
 
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 		}
+
+		addressValidationOp.End(addressValidationCtx, "success")
 	}
 
 	organization := &mmodel.Organization{
@@ -75,14 +97,13 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, id, organization)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update organization on repo by id", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to update organization on repo by id", err)
 
 		logger.Errorf("Error updating organization on repo by id: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "update_error",
-			attribute.String("organization_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "update_error", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return nil, pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
@@ -93,22 +114,19 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String(), uoi.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo by id", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "update_metadata_error",
-			attribute.String("organization_id", id.String()),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "update_metadata_error", err)
 
 		return nil, err
 	}
 
 	organizationUpdated.Metadata = metadataUpdated
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "organization", "update", "success",
-		attribute.String("organization_id", id.String()),
-		attribute.String("organization_name", organizationUpdated.LegalName))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return organizationUpdated, nil
 }

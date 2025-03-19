@@ -14,17 +14,25 @@ import (
 // CreateOrganization creates a new organization persists data in the repository.
 func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
 
-	// Start time for duration measurement
-	startTime := time.Now()
+	// Create a new organization operation with telemetry
+	organizationID := pkg.GenerateUUIDv7().String() // Generate ID early for telemetry
+	op := uc.Telemetry.NewOrganizationOperation("create", organizationID)
 
-	ctx, span := tracer.Start(ctx, "command.create_organization")
-	defer span.End()
+	// Add important attributes for telemetry
+	op.WithAttributes(
+		attribute.String("organization_name", coi.LegalName),
+	)
 
-	// Record operation metrics
-	uc.recordOnboardingMetrics(ctx, "organization", "create",
-		attribute.String("organization_name", coi.LegalName))
+	// Record system metric
+	op.RecordSystemicMetric(ctx)
+
+	// Start trace span for this operation
+	ctx = op.StartTrace(ctx)
+
+	defer func() {
+		// End span will be done by op.End() at the end of the function
+	}()
 
 	logger.Infof("Trying to create organization: %v", coi)
 
@@ -41,24 +49,35 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	if pkg.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
+	} else {
+		op.WithAttribute("parent_organization_id", *coi.ParentOrganizationID)
 	}
 
-	ctx, spanAddressValidation := tracer.Start(ctx, "command.create_organization.validate_address")
+	// Create a child span for address validation
+	addressValidationOp := uc.Telemetry.NewEntityOperation("address", "validate", organizationID)
+	addressValidationOp.WithAttribute("country", coi.Address.Country)
+	addressValidationCtx := addressValidationOp.StartTrace(ctx)
 
 	if err := pkg.ValidateCountryAddress(coi.Address.Country); err != nil {
-		mopentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
+		mopentelemetry.HandleSpanError(&addressValidationOp.span, "Failed to validate country address", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "validation_error",
-			attribute.String("organization_name", coi.LegalName),
-			attribute.String("error_detail", "invalid_country_address"))
+		addressValidationOp.WithAttribute("error_detail", "invalid_country_address")
+		addressValidationOp.RecordError(addressValidationCtx, "validation_error", err)
+		addressValidationOp.End(addressValidationCtx, "error")
+
+		// Record error on the main operation as well
+		op.WithAttribute("error_detail", "invalid_country_address")
+		op.RecordError(ctx, "validation_error", err)
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
-	spanAddressValidation.End()
+	// End address validation span
+	addressValidationOp.End(addressValidationCtx, "success")
 
 	organization := &mmodel.Organization{
+		ID:                   organizationID, // Use the previously generated ID
 		ParentOrganizationID: coi.ParentOrganizationID,
 		LegalName:            coi.LegalName,
 		DoingBusinessAs:      coi.DoingBusinessAs,
@@ -69,52 +88,47 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		UpdatedAt:            time.Now(),
 	}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "organization_repository_input", organization)
+	err := mopentelemetry.SetSpanAttributesFromStruct(&op.span, "organization_repository_input", organization)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to convert organization repository input to JSON string", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "span_attributes_error",
-			attribute.String("organization_name", coi.LegalName),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "span_attributes_error", err)
 
 		return nil, err
 	}
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create organization on repository", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create organization on repository", err)
 
 		logger.Errorf("Error creating organization: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "creation_error",
-			attribute.String("organization_name", coi.LegalName),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "creation_error", err)
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create organization metadata", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create organization metadata", err)
 
 		logger.Errorf("Error creating organization metadata: %v", err)
 
 		// Record error
-		uc.recordOnboardingError(ctx, "organization", "metadata_error",
-			attribute.String("organization_id", org.ID),
-			attribute.String("error_detail", err.Error()))
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "metadata_error", err)
 
 		return nil, err
 	}
 
 	org.Metadata = metadata
 
-	// Record successful completion and duration
-	uc.recordOnboardingDuration(ctx, startTime, "organization", "create", "success",
-		attribute.String("organization_id", org.ID),
-		attribute.String("organization_name", org.LegalName))
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return org, nil
 }
