@@ -8,7 +8,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -39,26 +38,10 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 
 	status.Description = coi.Status.Description
 
-	// Calculate hierarchy depth for metrics
-	hierarchyDepth := 1 // Default depth is 1 (top-level organization)
 	if pkg.IsNilOrEmpty(coi.ParentOrganizationID) {
 		coi.ParentOrganizationID = nil
 	} else {
 		op.WithAttribute("parent_organization_id", *coi.ParentOrganizationID)
-
-		// If there's a parent, we need to determine the actual depth by traversing
-		// up the hierarchy chain
-		_, err := uuid.Parse(*coi.ParentOrganizationID)
-		if err == nil {
-			// Get the parent's depth and add 1 for this organization
-			parentDepth, err := uc.CalculateOrganizationHierarchyDepth(ctx, *coi.ParentOrganizationID)
-			if err == nil {
-				hierarchyDepth = parentDepth + 1
-			} else {
-				// If we can't calculate the full depth, at least we know this is one level down
-				hierarchyDepth = 2
-			}
-		}
 	}
 
 	addressValidationOp := uc.Telemetry.NewEntityOperation("address", "validate", organizationID)
@@ -118,11 +101,6 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	}
 
 	org.Metadata = metadata
-
-	// Record business metrics for organization creation
-	uc.RecordOrganizationCreation(ctx, organizationID)
-	uc.RecordOrganizationStatus(ctx, organizationID, status.Code)
-	uc.RecordOrganizationHierarchyDepth(ctx, organizationID, hierarchyDepth)
 
 	op.End(ctx, "success")
 

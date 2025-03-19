@@ -10,9 +10,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/google/uuid"
 )
@@ -36,51 +34,10 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 
 	logger.Infof("Trying to update organization: %v", uoi)
 
-	// Get the original organization to track changes (especially status changes)
-	originalOrg, err := uc.OrganizationRepo.Find(ctx, id)
-	if err != nil {
-		mopentelemetry.HandleSpanError(&op.span, "Failed to retrieve original organization", err)
-		logger.Errorf("Error retrieving original organization: %v", err)
-		op.WithAttribute("error_detail", err.Error())
-		op.RecordError(ctx, "fetch_error", err)
-
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrOrganizationIDNotFound, reflect.TypeOf(mmodel.Organization{}).Name())
-		}
-
-		return nil, err
-	}
-
-	// Store original status for comparison
-	originalStatus := originalOrg.Status.Code
-
-	// Check if we're updating the parent organization ID
-	hierarchyUpdated := false
-
-	// Calculate current hierarchy depth
-	currentHierarchyDepth, err := uc.CalculateOrganizationHierarchyDepth(ctx, id.String())
-	if err != nil {
-		// If there's an error, default to depth 1 if no parent, 2 if has parent
-		currentHierarchyDepth = 1
-		if originalOrg.ParentOrganizationID != nil {
-			currentHierarchyDepth = 2
-		}
-	}
-
 	if pkg.IsNilOrEmpty(uoi.ParentOrganizationID) {
 		uoi.ParentOrganizationID = nil
-		// If originally had a parent but now doesn't, hierarchy changed
-		if originalOrg.ParentOrganizationID != nil {
-			hierarchyUpdated = true
-		}
 	} else {
 		op.WithAttribute("parent_organization_id", *uoi.ParentOrganizationID)
-
-		// Check if parent ID is different from original
-		if originalOrg.ParentOrganizationID == nil ||
-			*originalOrg.ParentOrganizationID != *uoi.ParentOrganizationID {
-			hierarchyUpdated = true
-		}
 	}
 
 	if uoi.ParentOrganizationID != nil && *uoi.ParentOrganizationID == id.String() {
@@ -143,71 +100,6 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	}
 
 	organizationUpdated.Metadata = metadataUpdated
-
-	// Record business metrics for organization updates
-
-	// Record status change if applicable
-	if !uoi.Status.IsEmpty() && uoi.Status.Code != originalStatus {
-		uc.RecordOrganizationStatus(ctx, id.String(), uoi.Status.Code)
-
-		// Create meter for status transition metrics
-		meter := otel.Meter("business.organization")
-
-		// Create counter for status transitions
-		statusTransitionCounter, _ := meter.Int64Counter(
-			mopentelemetry.GetMetricName("business", "organization", "status_transition", "count"),
-			metric.WithDescription("Count of organization status transitions"),
-			metric.WithUnit("{transition}"),
-		)
-
-		// Record the status transition with from/to information
-		statusTransitionCounter.Add(ctx, 1, metric.WithAttributes(
-			attribute.String("organization_id", id.String()),
-			attribute.String("from_status", originalStatus),
-			attribute.String("to_status", uoi.Status.Code),
-		))
-	}
-
-	// Record hierarchy change if applicable
-	if hierarchyUpdated {
-		// Calculate new hierarchy depth
-		var newHierarchyDepth int
-
-		if uoi.ParentOrganizationID == nil {
-			// If removed parent, depth is 1 (root organization)
-			newHierarchyDepth = 1
-		} else {
-			// Calculate new depth based on new parent
-			parentDepth, err := uc.CalculateOrganizationHierarchyDepth(ctx, *uoi.ParentOrganizationID)
-			if err != nil {
-				// If error, assume at least depth 2
-				newHierarchyDepth = 2
-			} else {
-				// New depth is parent's depth + 1
-				newHierarchyDepth = parentDepth + 1
-			}
-		}
-
-		// Record the new hierarchy depth
-		uc.RecordOrganizationHierarchyDepth(ctx, id.String(), newHierarchyDepth)
-
-		// Create meter for hierarchy transition metrics
-		meter := otel.Meter("business.organization")
-
-		// Create counter for hierarchy transitions
-		hierarchyTransitionCounter, _ := meter.Int64Counter(
-			mopentelemetry.GetMetricName("business", "organization", "hierarchy_transition", "count"),
-			metric.WithDescription("Count of organization hierarchy transitions"),
-			metric.WithUnit("{transition}"),
-		)
-
-		// Record the hierarchy transition
-		hierarchyTransitionCounter.Add(ctx, 1, metric.WithAttributes(
-			attribute.String("organization_id", id.String()),
-			attribute.Int("from_depth", currentHierarchyDepth),
-			attribute.Int("to_depth", newHierarchyDepth),
-		))
-	}
 
 	op.End(ctx, "success")
 
