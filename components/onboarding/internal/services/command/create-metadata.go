@@ -40,13 +40,16 @@ func (uc *UseCase) CreateMetadata(ctx context.Context, entityName, entityID stri
 			logger.Errorf("Error into creating %s metadata: %v", entityName, err)
 			op.WithAttribute("error_detail", err.Error())
 			op.RecordError(ctx, "creation_error", err)
+
 			return nil, err
 		}
 
 		op.End(ctx, "success")
+
 		return metadata, nil
 	}
 
 	op.End(ctx, "success")
+
 	return nil, nil
 }

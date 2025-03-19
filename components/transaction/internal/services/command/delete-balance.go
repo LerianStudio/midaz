@@ -30,6 +30,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		op.RecordError(ctx, "balance_find_error", err)
 		op.End(ctx, "failed")
 		logger.Errorf("Error getting balance: %v", err)
+
 		return err
 	}
 
@@ -43,6 +44,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		)
 		op.End(ctx, "failed")
 		logger.Errorf("Error deleting balance: %v", err)
+
 		return err
 	}
 
@@ -51,6 +53,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 		op.RecordError(ctx, "balance_delete_error", err)
 		op.End(ctx, "failed")
 		logger.Errorf("Error delete balance: %v", err)
+
 		return err
 	}
 

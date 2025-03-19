@@ -41,6 +41,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		mopentelemetry.HandleSpanError(&op.span, "Failed to find account by alias", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "find_error", err)
+
 		return err
 	}
 
@@ -48,6 +49,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 		mopentelemetry.HandleSpanError(&op.span, "Cannot manipulate external account", constant.ErrForbiddenExternalAccountManipulation)
 		op.WithAttribute("error_detail", "forbidden_external_account_manipulation")
 		op.RecordError(ctx, "validation_error", constant.ErrForbiddenExternalAccountManipulation)
+
 		return pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 

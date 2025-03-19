@@ -47,6 +47,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		mopentelemetry.HandleSpanError(&op.span, "Failed to validate asset type", err)
 		op.WithAttribute("error_detail", "invalid_type")
 		op.RecordError(ctx, "validation_error", err)
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
@@ -54,6 +55,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		mopentelemetry.HandleSpanError(&op.span, "Failed to validate asset code", err)
 		op.WithAttribute("error_detail", "invalid_code")
 		op.RecordError(ctx, "validation_error", err)
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
@@ -62,6 +64,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 			mopentelemetry.HandleSpanError(&op.span, "Failed to validate asset currency", err)
 			op.WithAttribute("error_detail", "invalid_currency")
 			op.RecordError(ctx, "validation_error", err)
+
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
@@ -70,6 +73,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to find asset by name or code", err)
 		logger.Errorf("Error creating asset: %v", err)
+
 		return nil, err
 	}
 
@@ -91,6 +95,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		logger.Errorf("Error creating asset: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
+
 		return nil, err
 	}
 
@@ -98,6 +103,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to create asset metadata", err)
 		logger.Errorf("Error creating asset metadata: %v", err)
+
 		return nil, err
 	}
 
@@ -110,6 +116,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to retrieve asset external account", err)
 		logger.Errorf("Error retrieving asset external account: %v", err)
+
 		return nil, err
 	}
 
@@ -150,6 +157,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		if err != nil {
 			mopentelemetry.HandleSpanError(&op.span, "Failed to create asset external account", err)
 			logger.Errorf("Error creating asset external account: %v", err)
+
 			return nil, err
 		}
 

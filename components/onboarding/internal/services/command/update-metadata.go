@@ -33,6 +33,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 			logger.Errorf("Error get metadata on mongodb: %v", err)
 			op.WithAttribute("error_detail", err.Error())
 			op.RecordError(ctx, "find_error", err)
+
 			return nil, err
 		}
 
@@ -47,6 +48,7 @@ func (uc *UseCase) UpdateMetadata(ctx context.Context, entityName, entityID stri
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on mongodb", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_error", err)
+
 		return nil, err
 	}
 

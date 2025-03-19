@@ -47,6 +47,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		logger.Errorf("Error creating ledger: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "find_error", err)
+
 		return nil, err
 	}
 
@@ -65,6 +66,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		logger.Errorf("Error creating ledger: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
+
 		return nil, err
 	}
 
@@ -76,6 +78,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		logger.Errorf("Error creating ledger metadata: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
+
 		return nil, err
 	}
 

@@ -40,6 +40,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		mopentelemetry.HandleSpanError(&op.span, "Failed to validate account type", err)
 		op.WithAttribute("error_detail", "invalid_type")
 		op.RecordError(ctx, "validation_error", err)
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
@@ -50,6 +51,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		mopentelemetry.HandleSpanError(&op.span, "Failed to find asset", constant.ErrAssetCodeNotFound)
 		op.WithAttribute("error_detail", "asset_not_found")
 		op.RecordError(ctx, "validation_error", constant.ErrAssetCodeNotFound)
+
 		return nil, pkg.ValidateBusinessError(constant.ErrAssetCodeNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
@@ -65,6 +67,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			logger.Errorf("Error find portfolio to get Entity ID: %v", err)
 			op.WithAttribute("error_detail", err.Error())
 			op.RecordError(ctx, "portfolio_error", err)
+
 			return nil, err
 		}
 
@@ -82,6 +85,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			mopentelemetry.HandleSpanError(&op.span, "Failed to find parent account", err)
 			op.WithAttribute("error_detail", err.Error())
 			op.RecordError(ctx, "parent_account_error", err)
+
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidParentAccountID, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
@@ -89,6 +93,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			mopentelemetry.HandleSpanError(&op.span, "Failed to validate parent account", constant.ErrMismatchedAssetCode)
 			op.WithAttribute("error_detail", "mismatched_asset_code")
 			op.RecordError(ctx, "validation_error", constant.ErrMismatchedAssetCode)
+
 			return nil, pkg.ValidateBusinessError(constant.ErrMismatchedAssetCode, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 	}
@@ -103,6 +108,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 			mopentelemetry.HandleSpanError(&op.span, "Failed to find account by alias", err)
 			op.WithAttribute("error_detail", err.Error())
 			op.RecordError(ctx, "alias_error", err)
+
 			return nil, err
 		}
 	} else {
@@ -132,6 +138,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		logger.Errorf("Error creating account: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
+
 		return nil, err
 	}
 
@@ -143,6 +150,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		logger.Errorf("Error creating account metadata: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
+
 		return nil, err
 	}
 

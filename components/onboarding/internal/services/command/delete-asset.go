@@ -56,6 +56,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error retrieving asset external account: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "list_account_error", err)
+
 		return err
 	}
 

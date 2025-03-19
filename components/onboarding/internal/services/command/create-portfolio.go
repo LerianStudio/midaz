@@ -63,6 +63,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error creating portfolio: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
+
 		return nil, err
 	}
 
@@ -72,6 +73,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		logger.Errorf("Error creating portfolio metadata: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
+
 		return nil, err
 	}
 

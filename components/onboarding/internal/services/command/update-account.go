@@ -41,6 +41,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		mopentelemetry.HandleSpanError(&op.span, "Failed to find account by alias", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "find_error", err)
+
 		return nil, err
 	}
 
@@ -48,6 +49,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		mopentelemetry.HandleSpanError(&op.span, "Cannot manipulate external account", constant.ErrForbiddenExternalAccountManipulation)
 		op.WithAttribute("error_detail", "forbidden_external_account_manipulation")
 		op.RecordError(ctx, "validation_error", constant.ErrForbiddenExternalAccountManipulation)
+
 		return nil, pkg.ValidateBusinessError(constant.ErrForbiddenExternalAccountManipulation, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
@@ -81,6 +83,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_metadata_error", err)
+
 		return nil, err
 	}
 

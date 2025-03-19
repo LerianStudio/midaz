@@ -58,6 +58,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		logger.Errorf("Error finding segment by name: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "find_error", err)
+
 		return nil, err
 	}
 
@@ -67,6 +68,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		logger.Errorf("Error creating segment: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
+
 		return nil, err
 	}
 
@@ -76,6 +78,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		logger.Errorf("Error creating segment metadata: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
+
 		return nil, err
 	}
 

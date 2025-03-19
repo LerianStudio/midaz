@@ -60,6 +60,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo by id", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_metadata_error", err)
+
 		return nil, err
 	}
 

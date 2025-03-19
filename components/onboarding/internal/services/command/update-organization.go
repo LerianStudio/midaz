@@ -46,6 +46,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		logger.Errorf("Error ID cannot be used as the parent ID: %v", err)
 		op.WithAttribute("error_detail", "parent_id_same_as_id")
 		op.RecordError(ctx, "validation_error", err)
+
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
@@ -96,6 +97,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo by id", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_metadata_error", err)
+
 		return nil, err
 	}
 

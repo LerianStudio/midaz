@@ -62,6 +62,7 @@ func (uc *UseCase) UpdateLedgerByID(ctx context.Context, organizationID, id uuid
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_metadata_error", err)
+
 		return nil, err
 	}
 

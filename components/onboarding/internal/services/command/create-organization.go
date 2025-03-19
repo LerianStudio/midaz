@@ -79,6 +79,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		mopentelemetry.HandleSpanError(&op.span, "Failed to convert organization repository input to JSON string", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "span_attributes_error", err)
+
 		return nil, err
 	}
 
@@ -88,6 +89,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		logger.Errorf("Error creating organization: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
+
 		return nil, err
 	}
 
@@ -97,6 +99,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		logger.Errorf("Error creating organization metadata: %v", err)
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
+
 		return nil, err
 	}
 
