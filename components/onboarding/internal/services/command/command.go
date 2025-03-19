@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
@@ -14,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -214,6 +216,87 @@ func (eo *EntityOperation) RecordBusinessMetric(ctx context.Context, metricType 
 	valueCounter.Add(ctx, value, metric.WithAttributes(allAttrs...))
 }
 
+// RecordOrganizationStatus records metrics about organization status
+func (uc *UseCase) RecordOrganizationStatus(ctx context.Context, organizationID, status string) {
+	// Create an operation for this metric
+	op := uc.Telemetry.NewOrganizationOperation("status_change", organizationID)
+	op.WithAttribute("status", status)
+
+	// Record the systemic metric (count)
+	op.RecordSystemicMetric(ctx)
+
+	// Create meter for organization status metrics
+	meter := otel.Meter("business.organization")
+
+	// Create counter for organizations by status
+	orgStatusCounter, _ := meter.Int64Counter(
+		mopentelemetry.GetMetricName("business", "organization", "status", "count"),
+		metric.WithDescription("Count of organizations by status"),
+		metric.WithUnit("{organization}"),
+	)
+
+	// Record the status change
+	orgStatusCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("organization_id", organizationID),
+		attribute.String("status", status),
+	))
+}
+
+// RecordOrganizationHierarchyDepth records metrics about organization hierarchy
+func (uc *UseCase) RecordOrganizationHierarchyDepth(ctx context.Context, organizationID string, depth int) {
+	// Create an operation for this metric
+	op := uc.Telemetry.NewOrganizationOperation("hierarchy_depth", organizationID)
+	op.WithAttribute("depth", fmt.Sprintf("%d", depth))
+
+	// Create meter for organization hierarchy metrics
+	meter := otel.Meter("business.organization")
+
+	// Create histogram for hierarchy depth distribution
+	hierarchyDepthHistogram, _ := meter.Int64Histogram(
+		mopentelemetry.GetMetricName("business", "organization", "hierarchy", "depth"),
+		metric.WithDescription("Distribution of organization hierarchy depths"),
+		metric.WithUnit("level"),
+	)
+
+	// Record the hierarchy depth
+	hierarchyDepthHistogram.Record(ctx, int64(depth), metric.WithAttributes(
+		attribute.String("organization_id", organizationID),
+	))
+}
+
+// RecordOrganizationCreation records metrics about organization creation
+func (uc *UseCase) RecordOrganizationCreation(ctx context.Context, organizationID string) {
+	// Create an operation for this metric
+	op := uc.Telemetry.NewOrganizationOperation("created", organizationID)
+
+	// Record the systemic metric (count)
+	op.RecordSystemicMetric(ctx)
+
+	// Create meter for organization creation metrics
+	meter := otel.Meter("business.organization")
+
+	// Create counter for organizations created
+	orgCreationCounter, _ := meter.Int64Counter(
+		mopentelemetry.GetMetricName("business", "organization", "creation", "count"),
+		metric.WithDescription("Count of organizations created over time"),
+		metric.WithUnit("{organization}"),
+	)
+
+	// Get current time attributes for time-based analysis
+	now := time.Now()
+	year, week := now.ISOWeek()
+
+	// Record the creation with time attributes for time-series analysis
+	orgCreationCounter.Add(ctx, 1, metric.WithAttributes(
+		attribute.String("organization_id", organizationID),
+		attribute.Int("year", year),
+		attribute.Int("month", int(now.Month())),
+		attribute.Int("week", week),
+		attribute.Int("day", now.Day()),
+		attribute.Int("hour", now.Hour()),
+	))
+}
+
 // End completes the operation, recording duration and ending the trace span
 func (eo *EntityOperation) End(ctx context.Context, status string) {
 	// Set status for this operation
@@ -328,4 +411,74 @@ func (et *EntityTelemetry) NewAccountOperation(action, accountID string) *Entity
 // NewAssetOperation creates an operation for asset entity
 func (et *EntityTelemetry) NewAssetOperation(action, assetID string) *EntityOperation {
 	return et.NewEntityOperation("asset", action, assetID)
+}
+
+// CalculateOrganizationHierarchyDepth determines the depth of an organization in the hierarchy
+// by recursively traversing its parent chain up to the root organization.
+// Returns the depth (1 for root organization, >1 for nested organizations)
+func (uc *UseCase) CalculateOrganizationHierarchyDepth(ctx context.Context, organizationID string) (int, error) {
+	// Start with depth 1 (root level)
+	depth := 1
+
+	// Parse the UUID
+	orgID, err := uuid.Parse(organizationID)
+	if err != nil {
+		return depth, err
+	}
+
+	// Find the organization
+	org, err := uc.OrganizationRepo.Find(ctx, orgID)
+	if err != nil {
+		return depth, err
+	}
+
+	// If no parent, this is a root organization (depth 1)
+	if org.ParentOrganizationID == nil {
+		return depth, nil
+	}
+
+	// Create a map to detect cycles (prevents infinite recursion)
+	visited := make(map[string]bool)
+	visited[organizationID] = true
+
+	// Current organization ID we're examining
+	currentOrgID := *org.ParentOrganizationID
+
+	// Traverse up the parent chain
+	for currentOrgID != "" {
+		// Increment depth for each level
+		depth++
+
+		// Check for cycles
+		if visited[currentOrgID] {
+			// We've found a cycle, so stop and return current depth
+			return depth, nil
+		}
+
+		// Mark this organization as visited
+		visited[currentOrgID] = true
+
+		// Parse the UUID
+		parentID, err := uuid.Parse(currentOrgID)
+		if err != nil {
+			return depth, err
+		}
+
+		// Find the parent organization
+		parentOrg, err := uc.OrganizationRepo.Find(ctx, parentID)
+		if err != nil {
+			// If we can't find the parent, stop at current depth
+			return depth, nil
+		}
+
+		// If no further parent, we're done
+		if parentOrg.ParentOrganizationID == nil {
+			break
+		}
+
+		// Continue with the next parent
+		currentOrgID = *parentOrg.ParentOrganizationID
+	}
+
+	return depth, nil
 }
