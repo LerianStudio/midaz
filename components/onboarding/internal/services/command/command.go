@@ -14,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -329,74 +328,4 @@ func (et *EntityTelemetry) NewAccountOperation(action, accountID string) *Entity
 // NewAssetOperation creates an operation for asset entity
 func (et *EntityTelemetry) NewAssetOperation(action, assetID string) *EntityOperation {
 	return et.NewEntityOperation("asset", action, assetID)
-}
-
-// CalculateOrganizationHierarchyDepth determines the depth of an organization in the hierarchy
-// by recursively traversing its parent chain up to the root organization.
-// Returns the depth (1 for root organization, >1 for nested organizations)
-func (uc *UseCase) CalculateOrganizationHierarchyDepth(ctx context.Context, organizationID string) (int, error) {
-	// Start with depth 1 (root level)
-	depth := 1
-
-	// Parse the UUID
-	orgID, err := uuid.Parse(organizationID)
-	if err != nil {
-		return depth, err
-	}
-
-	// Find the organization
-	org, err := uc.OrganizationRepo.Find(ctx, orgID)
-	if err != nil {
-		return depth, err
-	}
-
-	// If no parent, this is a root organization (depth 1)
-	if org.ParentOrganizationID == nil {
-		return depth, nil
-	}
-
-	// Create a map to detect cycles (prevents infinite recursion)
-	visited := make(map[string]bool)
-	visited[organizationID] = true
-
-	// Current organization ID we're examining
-	currentOrgID := *org.ParentOrganizationID
-
-	// Traverse up the parent chain
-	for currentOrgID != "" {
-		// Increment depth for each level
-		depth++
-
-		// Check for cycles
-		if visited[currentOrgID] {
-			// We've found a cycle, so stop and return current depth
-			return depth, nil
-		}
-
-		// Mark this organization as visited
-		visited[currentOrgID] = true
-
-		// Parse the UUID
-		parentID, err := uuid.Parse(currentOrgID)
-		if err != nil {
-			return depth, err
-		}
-
-		// Find the parent organization
-		parentOrg, err := uc.OrganizationRepo.Find(ctx, parentID)
-		if err != nil {
-			// If we can't find the parent, stop at current depth
-			return depth, nil
-		}
-
-		// If no further parent, we're done
-		if parentOrg.ParentOrganizationID == nil {
-			break
-		}
-
-		// Continue with the next parent
-		currentOrgID = *parentOrg.ParentOrganizationID
-	}
-
-	return depth, nil
 }
