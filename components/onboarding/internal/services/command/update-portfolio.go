@@ -19,10 +19,8 @@ import (
 func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID, upi *mmodel.UpdatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 
-	// Create a new portfolio operation with telemetry for update
 	op := uc.Telemetry.NewPortfolioOperation("update", id.String())
 
-	// Add important attributes for telemetry
 	op.WithAttributes(
 		attribute.String("portfolio_id", id.String()),
 		attribute.String("organization_id", organizationID.String()),
@@ -33,15 +31,8 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 		op.WithAttribute("portfolio_name", upi.Name)
 	}
 
-	// Record system metric
 	op.RecordSystemicMetric(ctx)
-
-	// Start trace span for this operation
 	ctx = op.StartTrace(ctx)
-
-	defer func() {
-		// End span will be done by op.End() at the end of the function
-	}()
 
 	logger.Infof("Trying to update portfolio: %v", upi)
 
@@ -53,10 +44,7 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, organizationID, ledgerID, id, portfolio)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update portfolio on repo by id", err)
-
 		logger.Errorf("Error updating portfolio on repo by id: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_error", err)
 
@@ -70,17 +58,13 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), id.String(), upi.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to update metadata on repo by id", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "update_metadata_error", err)
-
 		return nil, err
 	}
 
 	portfolioUpdated.Metadata = metadataUpdated
 
-	// Mark operation as successful
 	op.End(ctx, "success")
 
 	return portfolioUpdated, nil

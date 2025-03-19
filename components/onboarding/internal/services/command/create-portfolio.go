@@ -13,35 +13,25 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreatePortfolio creates a new portfolio persists data in the repository.
+// CreatePortfolio creates a new portfolio and persists data in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 
-	// Create a new portfolio operation with telemetry
-	portfolioID := pkg.GenerateUUIDv7().String() // Generate ID early for telemetry
+	portfolioID := pkg.GenerateUUIDv7().String()
 	op := uc.Telemetry.NewPortfolioOperation("create", portfolioID)
 
-	// Add important attributes for telemetry
 	op.WithAttributes(
 		attribute.String("portfolio_name", cpi.Name),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 	)
 
-	// Add entity ID if provided
 	if cpi.EntityID != "" {
 		op.WithAttribute("entity_id", cpi.EntityID)
 	}
 
-	// Record system metric
 	op.RecordSystemicMetric(ctx)
-
-	// Start trace span for this operation
 	ctx = op.StartTrace(ctx)
-
-	defer func() {
-		// End span will be done by op.End() at the end of the function
-	}()
 
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
@@ -57,7 +47,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	status.Description = cpi.Status.Description
 
 	portfolio := &mmodel.Portfolio{
-		ID:             portfolioID, // Use the previously generated ID
+		ID:             portfolioID,
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -71,11 +61,8 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to create portfolio", err)
 		logger.Errorf("Error creating portfolio: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
-
 		return nil, err
 	}
 
@@ -83,17 +70,13 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to create portfolio metadata", err)
 		logger.Errorf("Error creating portfolio metadata: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
-
 		return nil, err
 	}
 
 	port.Metadata = metadata
 
-	// Mark operation as successful
 	op.End(ctx, "success")
 
 	return port, nil

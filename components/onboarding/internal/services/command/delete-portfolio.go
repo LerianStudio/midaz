@@ -19,34 +19,22 @@ import (
 func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	logger := pkg.NewLoggerFromContext(ctx)
 
-	// Create a new portfolio operation with telemetry for delete
 	op := uc.Telemetry.NewPortfolioOperation("delete", id.String())
 
-	// Add important attributes for telemetry
 	op.WithAttributes(
 		attribute.String("portfolio_id", id.String()),
 		attribute.String("organization_id", organizationID.String()),
 		attribute.String("ledger_id", ledgerID.String()),
 	)
 
-	// Record system metric
 	op.RecordSystemicMetric(ctx)
-
-	// Start trace span for this operation
 	ctx = op.StartTrace(ctx)
-
-	defer func() {
-		// End span will be done by op.End() at the end of the function
-	}()
 
 	logger.Infof("Remove portfolio for id: %s", id.String())
 
 	if err := uc.PortfolioRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to delete portfolio on repo by id", err)
-
 		logger.Errorf("Error deleting portfolio on repo by id: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "delete_error", err)
 
@@ -57,7 +45,6 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 		return err
 	}
 
-	// Mark operation as successful
 	op.End(ctx, "success")
 
 	return nil

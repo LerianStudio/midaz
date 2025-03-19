@@ -13,29 +13,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateLedger creates a new ledger persists data in the repository.
+// CreateLedger creates a new ledger and persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	logger := pkg.NewLoggerFromContext(ctx)
 
-	// Create a new ledger operation with telemetry
-	ledgerID := pkg.GenerateUUIDv7().String() // Generate ID for telemetry
+	ledgerID := pkg.GenerateUUIDv7().String()
 	op := uc.Telemetry.NewLedgerOperation("create", ledgerID)
 
-	// Add important attributes for telemetry
 	op.WithAttributes(
 		attribute.String("ledger_name", cli.Name),
 		attribute.String("organization_id", organizationID.String()),
 	)
 
-	// Record system metric
 	op.RecordSystemicMetric(ctx)
-
-	// Start trace span for this operation
 	ctx = op.StartTrace(ctx)
-
-	defer func() {
-		// End span will be done by op.End() at the end of the function
-	}()
 
 	logger.Infof("Trying to create ledger: %v", cli)
 
@@ -53,18 +44,14 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to find ledger by name", err)
-
 		logger.Errorf("Error creating ledger: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "find_error", err)
-
 		return nil, err
 	}
 
 	ledger := &mmodel.Ledger{
-		ID:             ledgerID, // Use the previously generated ID
+		ID:             ledgerID,
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
@@ -75,13 +62,9 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to create ledger", err)
-
 		logger.Errorf("Error creating ledger: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "creation_error", err)
-
 		return nil, err
 	}
 
@@ -90,19 +73,14 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
 		mopentelemetry.HandleSpanError(&op.span, "Failed to create ledger metadata", err)
-
 		logger.Errorf("Error creating ledger metadata: %v", err)
-
-		// Record error
 		op.WithAttribute("error_detail", err.Error())
 		op.RecordError(ctx, "metadata_error", err)
-
 		return nil, err
 	}
 
 	led.Metadata = metadata
 
-	// Mark operation as successful
 	op.End(ctx, "success")
 
 	return led, nil
