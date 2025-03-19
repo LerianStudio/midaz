@@ -22,10 +22,10 @@
             "datasource": "Prometheus",
             "description": "Raw business metrics data with no formatting",
             "gridPos": {
-                "h": 8,
+                "h": 24,
                 "w": 24,
                 "x": 0,
-                "y": 24
+                "y": 0
             },
             "id": 1,
             "options": {
