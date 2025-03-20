@@ -203,10 +203,7 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	auth := &middleware.AuthClient{
-		Address: cfg.AuthHost,
-		Enabled: cfg.AuthEnabled,
-	}
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
 
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 
