@@ -3,20 +3,18 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
 func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, ledgerID, accountID, operationID uuid.UUID) (*operation.Operation, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_by_account")
 	defer span.End()
@@ -25,12 +23,12 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 
 	op, err := uc.OperationRepo.FindByAccount(ctx, organizationID, ledgerID, accountID, operationID)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get operation on repo by account", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get operation on repo by account", err)
 
 		logger.Errorf("Error getting operation on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			return nil, libCommons.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
 		return nil, err
@@ -39,7 +37,7 @@ func (uc *UseCase) GetOperationByAccount(ctx context.Context, organizationID, le
 	if op != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 

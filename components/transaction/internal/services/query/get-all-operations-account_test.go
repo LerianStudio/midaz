@@ -3,22 +3,21 @@ package query
 import (
 	"context"
 	"errors"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/net/http"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
-
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/pkg"
-
-	"github.com/stretchr/testify/assert"
 )
 
 // TestGetAllOperationsByAccount is responsible to test GetAllOperationsByAccount with success and error
 func TestGetAllOperationsByAccount(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	accountID := pkg.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	accountID := libCommons.GenerateUUIDv7()
 	filter := http.QueryHeader{
 		Limit:        10,
 		Page:         1,
@@ -27,7 +26,7 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
-	mockCur := http.CursorPagination{
+	mockCur := libHTTP.CursorPagination{
 		Next: "next",
 		Prev: "prev",
 	}
@@ -60,12 +59,12 @@ func TestGetAllOperationsByAccount(t *testing.T) {
 		mockOperationRepo.
 			EXPECT().
 			FindAllByAccount(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return(nil, http.CursorPagination{}, errors.New(errMsg)).
+			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
 		res, cur, err := uc.OperationRepo.FindAllByAccount(context.TODO(), organizationID, ledgerID, accountID, filter.ToCursorPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
-		assert.Equal(t, cur, http.CursorPagination{})
+		assert.Equal(t, cur, libHTTP.CursorPagination{})
 	})
 }
