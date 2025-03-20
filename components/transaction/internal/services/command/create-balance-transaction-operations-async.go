@@ -43,7 +43,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	validate := t.Validate
 	balances := t.Balances
 
-	err := uc.UpdateBalancesNew(ctxProcessBalances, data.OrganizationID, data.LedgerID, *validate, balances)
+	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *validate, balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
 

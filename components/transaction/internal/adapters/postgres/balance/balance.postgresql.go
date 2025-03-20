@@ -720,10 +720,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Err ", err)
 
-			if err == nil {
-				err = sql.ErrNoRows
-			}
-
 			logger.Errorf("Err: %v", err)
 
 			return err
