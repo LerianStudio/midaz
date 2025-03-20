@@ -3,19 +3,16 @@ package command
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
-	"testing"
-	"time"
-
-	"go.uber.org/mock/gomock"
-
+	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/google/uuid"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+	"testing"
+	"time"
 )
 
 func TestCreateAsset(t *testing.T) {
@@ -56,7 +53,7 @@ func TestCreateAsset(t *testing.T) {
 				Code: "USD",
 				Status: mmodel.Status{
 					Code:        "ACTIVE",
-					Description: mpointers.String("Active asset"),
+					Description: libPointers.String("Active asset"),
 				},
 				Metadata: nil,
 			},

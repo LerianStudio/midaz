@@ -2,9 +2,9 @@ package organization
 
 import (
 	"database/sql"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"time"
 
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
@@ -54,7 +54,7 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 // FromEntity converts an entity.Organization to OrganizationPostgresModel
 func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organization) {
 	*t = OrganizationPostgreSQLModel{
-		ID:                   pkg.GenerateUUIDv7().String(),
+		ID:                   libCommons.GenerateUUIDv7().String(),
 		ParentOrganizationID: organization.ParentOrganizationID,
 		LegalName:            organization.LegalName,
 		DoingBusinessAs:      organization.DoingBusinessAs,

@@ -1,21 +1,20 @@
 package in
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
-	"os"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"os"
+	"reflect"
 )
 
 // OrganizationHandler struct contains an organization use case for managing organization related operations.
@@ -39,8 +38,8 @@ type OrganizationHandler struct {
 func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_organization")
 	defer span.End()
@@ -48,16 +47,16 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 	payload := p.(*mmodel.CreateOrganizationInput)
 	logger.Infof("Request to create an organization with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	organization, err := handler.Command.CreateOrganization(ctx, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create organization on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create organization on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -83,8 +82,8 @@ func (handler *OrganizationHandler) CreateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_organization")
 	defer span.End()
@@ -95,16 +94,16 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 	payload := p.(*mmodel.UpdateOrganizationInput)
 	logger.Infof("Request to update an organization with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateOrganizationByID(ctx, id, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update organization on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update organization on command", err)
 
 		logger.Errorf("Failed to update Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -113,7 +112,7 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve organization on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve organization on query", err)
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -139,8 +138,8 @@ func (handler *OrganizationHandler) UpdateOrganization(p any, c *fiber.Ctx) erro
 func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_organization_by_id")
 	defer span.End()
@@ -150,7 +149,7 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 
 	organizations, err := handler.Query.GetOrganizationByID(ctx, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve organization on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve organization on query", err)
 
 		logger.Errorf("Failed to retrieve Organization with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -176,26 +175,26 @@ func (handler *OrganizationHandler) GetOrganizationByID(c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Organization,page=int,limit=int}
 //	@Router			/v1/organizations [get]
 func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 	ctx := c.UserContext()
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_organizations")
 	defer span.End()
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	pagination := mpostgres.Pagination{
+	pagination := libPostgres.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -208,7 +207,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all organizations by metadata", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all organizations by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
@@ -228,7 +227,7 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all organizations", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all organizations", err)
 
 		logger.Errorf("Failed to retrieve all Organizations, Error: %s", err.Error())
 
@@ -255,8 +254,8 @@ func (handler *OrganizationHandler) GetAllOrganizations(c *fiber.Ctx) error {
 func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_organization_by_id")
 	defer span.End()
@@ -265,7 +264,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Organization with ID: %s", id.String())
 
 	if os.Getenv("ENV_NAME") == "production" {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
+		libOpentelemetry.HandleSpanError(&span, "Failed to remove organization: "+constant.ErrActionNotPermitted.Error(), constant.ErrActionNotPermitted)
 
 		logger.Errorf("Failed to remove Organization with ID: %s in ", id.String())
 
@@ -275,7 +274,7 @@ func (handler *OrganizationHandler) DeleteOrganizationByID(c *fiber.Ctx) error {
 	}
 
 	if err := handler.Command.DeleteOrganizationByID(ctx, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove organization on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to remove organization on command", err)
 
 		logger.Errorf("Failed to remove Organization with ID: %s, Error: %s", id.String(), err.Error())
 

@@ -3,7 +3,7 @@ package command
 import (
 	"context"
 	"encoding/json"
-	"github.com/LerianStudio/midaz/pkg"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"os"
@@ -12,8 +12,8 @@ import (
 // SendAccountQueueTransaction sends an account-related transaction message to a RabbitMQ queue for further processing.
 // It utilizes context for logger and tracer management and handles data serialization and queue message construction.
 func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, account mmodel.Account) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.send_account_queue_transaction")
 	defer spanLogTransaction.End()

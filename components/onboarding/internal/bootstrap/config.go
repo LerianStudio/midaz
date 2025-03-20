@@ -3,6 +3,13 @@ package bootstrap
 import (
 	"fmt"
 	"github.com/LerianStudio/lib-auth/auth/middleware"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
+	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
+	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
+	libZap "github.com/LerianStudio/lib-commons/commons/zap"
 	httpin "github.com/LerianStudio/midaz/components/onboarding/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
@@ -15,13 +22,6 @@ import (
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mmongo"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
-	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mredis"
-	"github.com/LerianStudio/midaz/pkg/mzap"
 )
 
 const ApplicationName = "onboarding"
@@ -69,21 +69,21 @@ type Config struct {
 	RedisPort               string `env:"REDIS_PORT"`
 	RedisUser               string `env:"REDIS_USER"`
 	RedisPassword           string `env:"REDIS_PASSWORD"`
-	AuthEnabled             bool   `env:"AUTH_ENABLED"`
-	AuthHost                string `env:"AUTH_HOST"`
+	AuthEnabled             bool   `env:"PLUGIN_AUTH_ENABLED"`
+	AuthHost                string `env:"PLUGIN_AUTH_HOST"`
 }
 
 // InitServers initiate http and grpc servers.
 func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
+	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
 		panic(err)
 	}
 
-	logger := mzap.InitializeLogger()
+	logger := libZap.InitializeLogger()
 
-	telemetry := &mopentelemetry.Telemetry{
+	telemetry := &libOpentelemetry.Telemetry{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -98,7 +98,7 @@ func InitServers() *Service {
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort)
 
-	postgresConnection := &mpostgres.PostgresConnection{
+	postgresConnection := &libPostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
 		ConnectionStringReplica: postgreSourceReplica,
 		PrimaryDBName:           cfg.PrimaryDBName,
@@ -116,7 +116,7 @@ func InitServers() *Service {
 		cfg.MaxPoolSize = 100
 	}
 
-	mongoConnection := &mmongo.MongoConnection{
+	mongoConnection := &libMongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
@@ -126,7 +126,7 @@ func InitServers() *Service {
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
-	rabbitMQConnection := &mrabbitmq.RabbitMQConnection{
+	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
 		Host:                   cfg.RabbitMQHost,
 		Port:                   cfg.RabbitMQPortAMQP,
@@ -137,7 +137,7 @@ func InitServers() *Service {
 
 	redisSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
 
-	redisConnection := &mredis.RedisConnection{
+	redisConnection := &libRedis.RedisConnection{
 		Addr:     redisSource,
 		User:     cfg.RedisUser,
 		Password: cfg.RedisPassword,
@@ -212,10 +212,7 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	auth := &middleware.AuthClient{
-		Address: cfg.AuthHost,
-		Enabled: cfg.AuthEnabled,
-	}
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 

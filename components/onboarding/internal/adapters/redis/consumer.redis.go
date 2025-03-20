@@ -2,11 +2,10 @@ package redis
 
 import (
 	"context"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
 	"time"
-
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mredis"
 )
 
 // RedisRepository provides an interface for redis.
@@ -20,11 +19,11 @@ type RedisRepository interface {
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn *mredis.RedisConnection
+	conn *libRedis.RedisConnection
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *mredis.RedisConnection) *RedisConsumerRepository {
+func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	r := &RedisConsumerRepository{
 		conn: rc,
 	}
@@ -36,28 +35,28 @@ func NewConsumerRedis(rc *mredis.RedisConnection) *RedisConsumerRepository {
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
 		return err
 	}
 
 	if ttl <= 0 {
-		ttl = mredis.RedisTTL
+		ttl = libRedis.RedisTTL
 	}
 
 	logger.Infof("value of ttl: %v", ttl)
 
 	statusCMD := rds.Set(ctx, key, value, ttl)
 	if statusCMD.Err() != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
+		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
 
 		return statusCMD.Err()
 	}

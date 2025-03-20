@@ -11,3 +11,4 @@ coverage.out
 dist/
 .run/onboarding.run.xml
 .run/transaction.run.xml
+scripts/coverage_ignore.txt

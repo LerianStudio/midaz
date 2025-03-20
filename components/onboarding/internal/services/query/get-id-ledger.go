@@ -3,21 +3,20 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
 // GetLedgerByID Get a ledger from the repository by given id.
 func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_ledger_by_id")
 	defer span.End()
@@ -26,7 +25,7 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 
 	ledger, err := uc.LedgerRepo.Find(ctx, organizationID, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get ledger on repo by id", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get ledger on repo by id", err)
 
 		logger.Errorf("Error getting ledger on repo by id: %v", err)
 
@@ -40,7 +39,7 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 	if ledger != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Ledger{}).Name(), id.String())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb ledger", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb ledger", err)
 
 			logger.Errorf("Error get metadata on mongodb ledger: %v", err)
 

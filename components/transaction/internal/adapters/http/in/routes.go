@@ -1,7 +1,7 @@
 package in
 
 import (
-	"github.com/LerianStudio/auth-lib/auth/middleware"
+	"github.com/LerianStudio/lib-auth/auth/middleware"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"

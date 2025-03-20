@@ -3,21 +3,20 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
 // GetOrganizationByID fetch a new organization from the repository
 func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_organization_by_id")
 	defer span.End()
@@ -26,7 +25,7 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 
 	organization, err := uc.OrganizationRepo.Find(ctx, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get organization on repo by id", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get organization on repo by id", err)
 
 		logger.Errorf("Error getting organization on repo by id: %v", err)
 
@@ -40,7 +39,7 @@ func (uc *UseCase) GetOrganizationByID(ctx context.Context, id uuid.UUID) (*mmod
 	if organization != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb organization", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb organization", err)
 
 			logger.Errorf("Error get metadata on mongodb organization: %v", err)
 

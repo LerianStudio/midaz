@@ -87,6 +87,7 @@ func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance
 			Metadata:       balance.Metadata,
 		})
 	}
+
 	return result
 }
 

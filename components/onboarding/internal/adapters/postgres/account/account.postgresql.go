@@ -4,23 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // Repository provides an interface for operations related to account entities.
@@ -43,12 +42,12 @@ type Repository interface {
 
 // AccountPostgreSQLRepository is a Postgresql-specific implementation of the AccountRepository.
 type AccountPostgreSQLRepository struct {
-	connection *mpostgres.PostgresConnection
+	connection *libPostgres.PostgresConnection
 	tableName  string
 }
 
 // NewAccountPostgreSQLRepository returns a new instance of AccountPostgreSQLRepository using the given Postgres connection.
-func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPostgreSQLRepository {
+func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AccountPostgreSQLRepository {
 	c := &AccountPostgreSQLRepository{
 		connection: pc,
 		tableName:  "account",
@@ -64,14 +63,14 @@ func NewAccountPostgreSQLRepository(pc *mpostgres.PostgresConnection) *AccountPo
 
 // Create a new account entity into Postgresql and returns it.
 func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_account")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -81,9 +80,9 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
 
 		return nil, err
 	}
@@ -111,7 +110,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.DeletedAt,
 	)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -125,15 +124,15 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := libCommons.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		mopentelemetry.HandleSpanError(&span, "Failed to create account", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create account", err)
 
 		return nil, err
 	}
@@ -143,14 +142,14 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 
 // FindAll retrieves an Account entities from the database (including soft-deleted ones) with pagination.
 func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -168,16 +167,16 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	findAll = findAll.OrderBy("created_at " + strings.ToUpper(filter.SortOrder)).
-		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))})
+		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))})
 
-	findAll = findAll.Limit(pkg.SafeIntToUint64(filter.Limit)).
-		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+	findAll = findAll.Limit(libCommons.SafeIntToUint64(filter.Limit)).
+		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
 		return nil, err
 	}
@@ -186,7 +185,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -214,7 +213,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 		); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -223,7 +222,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	if err := rows.Err(); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
 		return nil, err
 	}
@@ -233,14 +232,14 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // Find retrieves an Account entity from the database using the provided ID.
 func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -282,10 +281,10 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 	); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, libCommons.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err
@@ -296,14 +295,14 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // FindWithDeleted retrieves an Account entity from the database using the provided ID (including soft-deleted ones).
 func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) (*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_with_deleted_account")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -345,10 +344,10 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 	); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, libCommons.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err
@@ -359,14 +358,14 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 
 // FindAlias retrieves an Account entity from the database using the provided Alias.
 func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, alias string) (*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_alias")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -408,10 +407,10 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		&acc.UpdatedAt,
 		&acc.DeletedAt,
 	); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, libCommons.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err
@@ -422,14 +421,14 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 
 // FindByAlias find account from the database using Organization and Ledger id and Alias. Returns true and ErrAliasUnavailability error if the alias is already taken.
 func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account_by_alias")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return false, err
 	}
@@ -439,7 +438,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, alias)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return false, err
 	}
@@ -448,9 +447,9 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	spanQuery.End()
 
 	if rows.Next() {
-		err := pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
+		err := libCommons.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 
-		mopentelemetry.HandleSpanError(&span, "Alias is already taken", err)
+		libOpentelemetry.HandleSpanError(&span, "Alias is already taken", err)
 
 		return true, err
 	}
@@ -460,14 +459,14 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 // ListByIDs retrieves Accounts entities from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -489,7 +488,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -517,7 +516,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 		); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -526,7 +525,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	}
 
 	if err := rows.Err(); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
 		return nil, err
 	}
@@ -536,14 +535,14 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 
 // ListByAlias retrieves Accounts entities from the database using the provided alias.
 func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string) ([]*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -555,7 +554,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND alias = ANY($4) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, portfolioID, pq.Array(alias))
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -583,7 +582,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 		); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -592,7 +591,7 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	}
 
 	if err := rows.Err(); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
 		return nil, err
 	}
@@ -602,14 +601,14 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 // Update an Account entity into Postgresql and returns the Account updated.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -634,17 +633,17 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		args = append(args, record.StatusDescription)
 	}
 
-	if !pkg.IsNilOrEmpty(acc.Alias) {
+	if !libCommons.IsNilOrEmpty(acc.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Alias)
 	}
 
-	if !pkg.IsNilOrEmpty(acc.SegmentID) {
+	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
 		updates = append(updates, "segment_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.SegmentID)
 	}
 
-	if !pkg.IsNilOrEmpty(acc.PortfolioID) {
+	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
 		updates = append(updates, "portfolio_id = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.PortfolioID)
 	}
@@ -668,16 +667,16 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
+	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "account_repository_input", record)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert account record from entity to JSON string", err)
 
 		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -691,15 +690,15 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
 		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		err := libCommons.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 
-		mopentelemetry.HandleSpanError(&span, "Failed to update account", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update account", err)
 
 		return nil, err
 	}
@@ -709,14 +708,14 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete an Account entity from the database (soft delete) using the provided ID.
 func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_account")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return err
 	}
@@ -733,9 +732,9 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	ctx, spanExec := tracer.Start(ctx, "postgres.delete.exec")
 
 	if _, err := db.ExecContext(ctx, query, args...); err != nil {
-		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
-		return pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+		return libCommons.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	spanExec.End()
@@ -745,14 +744,14 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 // ListAccountsByIDs list Accounts entity from the database using the provided IDs.
 func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -763,7 +762,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -791,7 +790,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 		); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -800,7 +799,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	}
 
 	if err := rows.Err(); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
 		return nil, err
 	}
@@ -810,14 +809,14 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 // ListAccountsByAlias list Accounts entity from the database using the provided alias.
 func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
 	defer span.End()
 
 	db, err := r.connection.GetDB()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -828,7 +827,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC", organizationID, ledgerID, pq.Array(aliases))
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -856,7 +855,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 			&acc.UpdatedAt,
 			&acc.DeletedAt,
 		); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -865,7 +864,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	}
 
 	if err := rows.Err(); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to iterate rows", err)
 
 		return nil, err
 	}

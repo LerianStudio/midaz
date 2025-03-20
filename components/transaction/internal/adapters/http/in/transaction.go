@@ -518,6 +518,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	_, spanValidateBalances := tracer.Start(ctx, "handler.create_transaction.validate_balances")
 
 	blcs := mmodel.ConvertBalancesToLibBalances(balances)
+
 	err = libTransaction.ValidateBalancesRules(ctx, parserDSL, *validate, blcs)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanValidateBalances, "Failed to validate balances", err)
