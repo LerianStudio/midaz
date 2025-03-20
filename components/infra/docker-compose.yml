@@ -17,7 +17,7 @@ services:
     volumes:
       - mongodb-data:/data/db
     networks:
-      - infra_network
+      - infra-network
 
   midaz-redis:
     container_name: midaz-redis
@@ -34,7 +34,7 @@ services:
     volumes:
       - redis-data:/data
     networks:
-      - infra_network
+      - infra-network
 
   midaz-postgres-primary:
     container_name: midaz-postgres-primary
@@ -67,7 +67,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - infra_network
+      - infra-network
 
   midaz-postgres-replica:
     container_name: midaz-postgres-replica
@@ -112,7 +112,7 @@ services:
       midaz-postgres-primary:
         condition: service_healthy
     networks:
-      - infra_network
+      - infra-network
 
   midaz-pgbouncer:
     image: edoburu/pgbouncer
@@ -126,7 +126,7 @@ services:
     environment:
       - DATABASES_HOST=localhost
     networks:
-      - infra_network
+      - infra-network
     depends_on:
       - midaz-postgres-primary
       - midaz-postgres-replica
@@ -146,7 +146,7 @@ services:
       - grafana-data:/otel-lgtm/grafana/data
       - ./grafana/run-grafana.sh:/otel-lgtm/run-grafana.sh
     networks:
-      - infra_network
+      - infra-network
 
   midaz-rabbitmq:
     image: rabbitmq:4.0-management-alpine
@@ -164,7 +164,7 @@ services:
       - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
       - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
     networks:
-      - infra_network
+      - infra-network
 
 volumes:
   postgres-data:
@@ -173,6 +173,6 @@ volumes:
   grafana-data:
 
 networks:
-  infra_network:
-    name: infra_network
+  infra-network:
+    name: infra-network
     driver: bridge
