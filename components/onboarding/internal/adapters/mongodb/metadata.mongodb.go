@@ -6,6 +6,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"go.mongodb.org/mongo-driver/bson"
@@ -212,7 +213,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 		libOpentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return libCommons.ValidateBusinessError(constant.ErrEntityNotFound, collection)
+			return pkg.ValidateBusinessError(constant.ErrEntityNotFound, collection)
 		}
 
 		return err
