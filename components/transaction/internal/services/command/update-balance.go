@@ -10,7 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
+// SelectForUpdateBalances func that is responsible to select for update balances.
+func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
@@ -55,8 +56,8 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	return nil
 }
 
-// UpdateBalancesNew func that is responsible to update balances.
-func (uc *UseCase) UpdateBalancesNew(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
+// UpdateBalances func that is responsible to update balances without select for update.
+func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, validate libTransaction.Responses, balances []*mmodel.Balance) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 

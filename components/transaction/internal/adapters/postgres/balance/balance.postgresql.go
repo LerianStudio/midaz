@@ -728,7 +728,7 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 		if rowsAffected == 0 {
 			logger.Infof("Err or zero rows affected")
 
-			return err
+			continue
 		}
 	}
 
