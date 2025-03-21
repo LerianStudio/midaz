@@ -1,11 +1,12 @@
 module github.com/LerianStudio/midaz
 
-go 1.23.0
+go 1.23.2
 
-toolchain go1.23.2
+toolchain go1.24.1
 
 require (
 	github.com/LerianStudio/auth-lib v1.5.0
+	github.com/LerianStudio/lib-commons v1.0.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -87,8 +88,8 @@ require (
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250311173030-29e43e6258d7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250311173030-29e43e6258d7 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 )
 
