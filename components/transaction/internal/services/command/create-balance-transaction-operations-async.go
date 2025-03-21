@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libLog "github.com/LerianStudio/lib-commons/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/jackc/pgx/v5/pgconn"
 	"reflect"
 	"time"
@@ -17,8 +19,8 @@ import (
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
 func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, data mmodel.Queue) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	var t transaction.TransactionQueue
 
@@ -38,19 +40,16 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	logger.Infof("Trying to update balances")
 
-	validate := t.Validate
-	balances := t.Balances
-
-	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *validate, balances)
+	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
+		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
 
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
 		return err
 	}
 
-	ctxProcessTransaction, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
 
 	logger.Infof("Trying to create new transaction")
@@ -68,42 +67,25 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	_, err = uc.TransactionRepo.Create(ctx, tran)
 	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			logger.Infof("Transaction already exists: %v", tran.ID)
 		} else {
-			mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
-
 			logger.Errorf("Failed to create transaction on repo: %v", err.Error())
 
 			return err
 		}
 	}
 
-	if tran.Metadata != nil {
-		if err = pkg.CheckMetadataKeyAndValueLength(100, tran.Metadata); err != nil {
-			mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to check metadata key and value length", err)
+	err = uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create metadata on transaction", err)
 
-			logger.Errorf("Failed to check metadata key and value length: %v", err.Error())
+		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
-			return err
-		}
-
-		meta := mongodb.Metadata{
-			EntityID:   tran.ID,
-			EntityName: reflect.TypeOf(transaction.Transaction{}).Name(),
-			Data:       tran.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		if err = uc.MetadataRepo.Create(ctxProcessTransaction, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
-			mopentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction metadata", err)
-
-			logger.Errorf("Error into creating transactiont metadata: %v", err)
-
-			return err
-		}
+		return err
 	}
 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
@@ -111,26 +93,53 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 
 	logger.Infof("Trying to create new operations")
 
-	for _, operation := range tran.Operations {
-		op, er := uc.OperationRepo.Create(ctxProcessOperation, operation)
-		if er != nil {
+	for _, oper := range tran.Operations {
+		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
+
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				logger.Infof("Operation already exists: %v", operation.ID)
-			} else {
-				mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", er)
+				logger.Infof("Operation already exists: %v", oper.ID)
 
-				logger.Errorf("Error creating operation: %v", er)
+				continue
+			} else {
+				logger.Errorf("Error creating operation: %v", err)
 
 				return err
 			}
 		}
 
-		er = uc.CreateMetadata(ctxProcessOperation, logger, tran.Metadata, op)
-		if er != nil {
-			mopentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", er)
+		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
 
-			logger.Errorf("Error creating metadata: %v", er)
+			logger.Errorf("Failed to create metadata on operation: %v", err)
+
+			return err
+		}
+	}
+
+	return nil
+}
+
+// CreateMetadataAsync func that create metadata into operations
+func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
+	if metadata != nil {
+		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
+			return err
+		}
+
+		meta := mongodb.Metadata{
+			EntityID:   ID,
+			EntityName: collection,
+			Data:       metadata,
+			CreatedAt:  time.Now(),
+			UpdatedAt:  time.Now(),
+		}
+
+		if err := uc.MetadataRepo.Create(ctx, collection, &meta); err != nil {
+			logger.Errorf("Error into creating %s metadata: %v", collection, err)
 
 			return err
 		}
@@ -140,7 +149,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 }
 
 func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
-	logger := pkg.NewLoggerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
 	if err != nil {

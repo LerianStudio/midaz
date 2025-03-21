@@ -2,41 +2,40 @@ package command
 
 import (
 	"context"
-	"reflect"
-	"time"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
+	"time"
 )
 
 // CreateOrUpdateAssetRate creates or updates an asset rate.
 func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID uuid.UUID, cari *assetrate.CreateAssetRateInput) (*assetrate.AssetRate, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
 	defer span.End()
 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
 
-	if err := pkg.ValidateCode(cari.From); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
+	if err := libCommons.ValidateCode(cari.From); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate 'from' asset code", err)
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
-	if err := pkg.ValidateCode(cari.To); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset code", err)
+	if err := libCommons.ValidateCode(cari.To); err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate 'to' asset code", err)
 
 		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 	}
 
 	externalID := cari.ExternalID
-	emptyExternalID := pkg.IsNilOrEmpty(externalID)
+	emptyExternalID := libCommons.IsNilOrEmpty(externalID)
 
 	rate := float64(cari.Rate)
 	scale := float64(cari.Scale)
@@ -45,7 +44,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	arFound, err := uc.AssetRateRepo.FindByCurrencyPair(ctx, organizationID, ledgerID, cari.From, cari.To)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to find asset rate by currency pair", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find asset rate by currency pair", err)
 
 		logger.Errorf("Error creating asset rate: %v", err)
 
@@ -67,7 +66,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 		arFound, err = uc.AssetRateRepo.Update(ctx, organizationID, ledgerID, uuid.MustParse(arFound.ID), arFound)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to update asset rate", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to update asset rate", err)
 
 			logger.Errorf("Error updating asset rate: %v", err)
 
@@ -75,8 +74,8 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		}
 
 		if cari.Metadata != nil {
-			if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+			if err := libCommons.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
+				libOpentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
 
 				return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 			}
@@ -90,7 +89,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			}
 
 			if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
-				mopentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
+				libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
 
 				logger.Errorf("Error into creating asset rate metadata: %v", err)
 
@@ -104,12 +103,12 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	}
 
 	if emptyExternalID {
-		idStr := pkg.GenerateUUIDv7().String()
+		idStr := libCommons.GenerateUUIDv7().String()
 		externalID = &idStr
 	}
 
 	assetRateDB := &assetrate.AssetRate{
-		ID:             pkg.GenerateUUIDv7().String(),
+		ID:             libCommons.GenerateUUIDv7().String(),
 		OrganizationID: organizationID.String(),
 		LedgerID:       ledgerID.String(),
 		ExternalID:     *externalID,
@@ -127,7 +126,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create asset rate on repository", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate on repository", err)
 
 		logger.Errorf("Error creating asset rate: %v", err)
 
@@ -135,8 +134,8 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	}
 
 	if cari.Metadata != nil {
-		if err := pkg.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+		if err := libCommons.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
 
 			return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
 		}
@@ -150,7 +149,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
 
 			logger.Errorf("Error into creating asset rate metadata: %v", err)
 

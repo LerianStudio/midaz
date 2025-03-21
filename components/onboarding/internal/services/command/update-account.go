@@ -3,21 +3,20 @@ package command
 import (
 	"context"
 	"errors"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
 // UpdateAccount update an account from the repository by given id.
 func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, uai *mmodel.UpdateAccountInput) (*mmodel.Account, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_account")
 	defer span.End()
@@ -26,7 +25,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
 
 		return nil, err
 	}
@@ -45,7 +44,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	accountUpdated, err := uc.AccountRepo.Update(ctx, organizationID, ledgerID, portfolioID, id, account)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update account on repo by id", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update account on repo by id", err)
 
 		logger.Errorf("Error updating account on repo by id: %v", err)
 
@@ -58,7 +57,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Account{}).Name(), id.String(), uai.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update metadata", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata", err)
 
 		return nil, err
 	}

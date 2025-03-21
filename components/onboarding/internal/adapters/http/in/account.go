@@ -1,18 +1,16 @@
 package in
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AccountHandler struct contains an account use case for managing account related operations.
@@ -38,8 +36,8 @@ type AccountHandler struct {
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_account")
 	defer span.End()
@@ -50,20 +48,20 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.CreateAccountInput)
 	logger.Infof("Request to create a Account with details: %#v", payload)
 
-	if !pkg.IsNilOrEmpty(payload.PortfolioID) {
+	if !libCommons.IsNilOrEmpty(payload.PortfolioID) {
 		logger.Infof("Initiating create of Account with Portfolio ID: %s", *payload.PortfolioID)
 	}
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	account, err := handler.Command.CreateAccount(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create Account on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create Account on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -89,13 +87,13 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_accounts")
 	defer span.End()
@@ -107,13 +105,13 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	pagination := mpostgres.Pagination{
+	pagination := libPostgres.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -121,7 +119,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 		EndDate:   headerParams.EndDate,
 	}
 
-	if !pkg.IsNilOrEmpty(&headerParams.PortfolioID) {
+	if !libCommons.IsNilOrEmpty(&headerParams.PortfolioID) {
 		parsedID := uuid.MustParse(headerParams.PortfolioID)
 		portfolioID = &parsedID
 
@@ -133,7 +131,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 		accounts, err := handler.Query.GetAllMetadataAccounts(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
 
 			logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
@@ -153,7 +151,7 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 	accounts, err := handler.Query.GetAllAccount(ctx, organizationID, ledgerID, portfolioID, *headerParams)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Accounts on query", err)
 
 		logger.Errorf("Failed to retrieve all Accounts, Error: %s", err.Error())
 
@@ -183,8 +181,8 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -195,9 +193,9 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 	logger.Infof("Initiating retrieval of Account with Account ID: %s", id.String())
 
-	account, err := handler.Query.GetAccountByIDWithDeleted(ctx, organizationID, ledgerID, nil, id)
+	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with Account ID: %s, Error: %s", id.String(), err.Error())
 
@@ -225,8 +223,8 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_account_by_id")
 	defer span.End()
@@ -239,7 +237,7 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 	account, err := handler.Query.GetAccountByAlias(ctx, organizationID, ledgerID, nil, alias)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with Account Alias: %s, Error: %s", alias, err.Error())
 
@@ -269,8 +267,8 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_account")
 	defer span.End()
@@ -284,16 +282,16 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	payload := i.(*mmodel.UpdateAccountInput)
 	logger.Infof("Request to update an Account with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateAccount(ctx, organizationID, ledgerID, nil, id, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update Account on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update Account on command", err)
 
 		logger.Errorf("Failed to update Account with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -302,7 +300,7 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 	account, err := handler.Query.GetAccountByID(ctx, organizationID, ledgerID, nil, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Account on query", err)
 
 		logger.Errorf("Failed to retrieve Account with ID: %s, Error: %s", id, err.Error())
 
@@ -329,8 +327,8 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_account_by_id")
 	defer span.End()
@@ -342,7 +340,7 @@ func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Account with ID: %s", id.String())
 
 	if err := handler.Command.DeleteAccountByID(ctx, organizationID, ledgerID, nil, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove Account on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to remove Account on command", err)
 
 		logger.Errorf("Failed to remove Account with ID: %s, Error: %s", id.String(), err.Error())
 

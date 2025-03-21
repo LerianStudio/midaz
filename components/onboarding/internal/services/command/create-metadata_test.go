@@ -3,12 +3,11 @@ package command
 import (
 	"context"
 	"errors"
-	"testing"
-	"time"
-
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing"
+	"time"
 )
 
 func TestCreateMetadata(t *testing.T) {

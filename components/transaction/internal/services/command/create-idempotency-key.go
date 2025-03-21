@@ -2,16 +2,17 @@ package command
 
 import (
 	"context"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"time"
 )
 
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "command.create_idempotency_key")
 	defer span.End()
@@ -22,7 +23,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 		key = hash
 	}
 
-	internalKey := pkg.InternalKey(organizationID, ledgerID, key)
+	internalKey := libCommons.InternalKey(organizationID, ledgerID, key)
 
 	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
 	if err != nil {
@@ -32,7 +33,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	if !success {
 		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckIdempotencyKey", key)
 
-		mopentelemetry.HandleSpanError(&span, "Failed exists value on redis with this key", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed exists value on redis with this key", err)
 
 		return err
 	}

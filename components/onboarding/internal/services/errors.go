@@ -2,10 +2,8 @@ package services
 
 import (
 	"errors"
-
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-
 	"github.com/jackc/pgx/v5/pgconn"
 )
 

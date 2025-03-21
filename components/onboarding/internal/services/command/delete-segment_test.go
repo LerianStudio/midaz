@@ -3,13 +3,12 @@ package command
 import (
 	"context"
 	"errors"
-	"testing"
-
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing"
 )
 
 func TestDeleteSegmentByID(t *testing.T) {

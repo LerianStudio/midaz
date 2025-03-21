@@ -4,15 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
 	"time"
 )
 
 func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_balance")
 	defer span.End()
@@ -32,7 +32,7 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 		}
 
 		balance := &mmodel.Balance{
-			ID:             pkg.GenerateUUIDv7().String(),
+			ID:             libCommons.GenerateUUIDv7().String(),
 			Alias:          *account.Alias,
 			OrganizationID: account.OrganizationID,
 			LedgerID:       account.LedgerID,

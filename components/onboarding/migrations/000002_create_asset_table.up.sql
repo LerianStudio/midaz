@@ -15,5 +15,5 @@ CREATE TABLE IF NOT EXISTS asset
     FOREIGN KEY (organization_id) REFERENCES organization (id)
 );
 
-CREATE INDEX idx_asset_created_at ON asset (created_at);
-REINDEX INDEX idx_asset_created_at;
+CREATE INDEX idx_asset_search ON asset (organization_id, ledger_id, deleted_at, created_at DESC) INCLUDE (name, code);
+REINDEX INDEX idx_asset_search;

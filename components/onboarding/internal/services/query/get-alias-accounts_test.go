@@ -3,15 +3,14 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/mpointers"
-	"testing"
-
+	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing"
 )
 
 func TestListAccountsByAlias(t *testing.T) {
@@ -41,15 +40,15 @@ func TestListAccountsByAlias(t *testing.T) {
 				mockAccountRepo.EXPECT().
 					ListAccountsByAlias(gomock.Any(), organizationID, ledgerID, aliases).
 					Return([]*mmodel.Account{
-						{ID: uuid.New().String(), Alias: mpointers.String("alias1")},
-						{ID: uuid.New().String(), Alias: mpointers.String("alias2")},
+						{ID: uuid.New().String(), Alias: libPointers.String("alias1")},
+						{ID: uuid.New().String(), Alias: libPointers.String("alias2")},
 					}, nil).
 					Times(1)
 			},
 			expectedErr: nil,
 			expectedAccounts: []*mmodel.Account{
-				{ID: uuid.New().String(), Alias: mpointers.String("alias1")},
-				{ID: uuid.New().String(), Alias: mpointers.String("alias2")},
+				{ID: uuid.New().String(), Alias: libPointers.String("alias1")},
+				{ID: uuid.New().String(), Alias: libPointers.String("alias2")},
 			},
 		},
 		{

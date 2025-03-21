@@ -1,8 +1,8 @@
 package main
 
 import (
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/bootstrap"
-	"github.com/LerianStudio/midaz/pkg"
 )
 
 // @title			Midaz Onboarding API
@@ -16,6 +16,6 @@ import (
 // @host			localhost:3000
 // @BasePath		/
 func main() {
-	pkg.InitLocalEnvConfig()
+	libCommons.InitLocalEnvConfig()
 	bootstrap.InitServers().Run()
 }

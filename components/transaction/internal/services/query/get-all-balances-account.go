@@ -3,22 +3,22 @@ package query
 import (
 	"context"
 	"errors"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
-func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, http.CursorPagination, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_balances_by_account_id")
 	defer span.End()
@@ -27,23 +27,23 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get balances on repo", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get balances on repo", err)
 
 		logger.Errorf("Error getting balances on repo: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoBalancesFound, reflect.TypeOf(mmodel.Balance{}).Name())
 		}
 
-		return nil, http.CursorPagination{}, err
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	if balance != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Balance{}).Name(), filter)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
-			return nil, http.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
+			return nil, libHTTP.CursorPagination{}, pkg.ValidateBusinessError(constant.ErrNoOperationsFound, reflect.TypeOf(operation.Operation{}).Name())
 		}
 
 		metadataMap := make(map[string]map[string]any, len(metadata))

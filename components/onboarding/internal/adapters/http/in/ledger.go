@@ -1,22 +1,20 @@
 package in
 
 import (
-	"os"
-	"reflect"
-
-	"go.mongodb.org/mongo-driver/bson"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+	"os"
+	"reflect"
 )
 
 // LedgerHandler struct contains a ledger use case for managing ledger related operations.
@@ -41,28 +39,28 @@ type LedgerHandler struct {
 func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_ledger")
 	defer span.End()
 
-	logger := pkg.NewLoggerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	payload := i.(*mmodel.CreateLedgerInput)
 	logger.Infof("Request to create an ledger with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	ledger, err := handler.Command.CreateLedger(ctx, organizationID, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create ledger on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger on command", err)
 
 		return http.WithError(c, err)
 	}
@@ -87,8 +85,8 @@ func (handler *LedgerHandler) CreateLedger(i any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_ledger_by_id")
 	defer span.End()
@@ -100,7 +98,7 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -127,13 +125,13 @@ func (handler *LedgerHandler) GetLedgerByID(c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Ledger,page=int,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Ledger,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers [get]
 func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_ledgers")
 	defer span.End()
@@ -142,14 +140,14 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	pagination := mpostgres.Pagination{
+	pagination := libPostgres.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -162,7 +160,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers by metadata", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers by metadata", err)
 
 			logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 
@@ -182,7 +180,7 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 
 	ledgers, err := handler.Query.GetAllLedgers(ctx, organizationID, *headerParams)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all ledgers on query", err)
 
 		logger.Errorf("Failed to retrieve all Ledgers, Error: %s", err.Error())
 
@@ -213,8 +211,8 @@ func (handler *LedgerHandler) GetAllLedgers(c *fiber.Ctx) error {
 func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_ledger")
 	defer span.End()
@@ -227,16 +225,16 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 	payload := p.(*mmodel.UpdateLedgerInput)
 	logger.Infof("Request to update a Ledger with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateLedgerByID(ctx, organizationID, id, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update ledger on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update ledger on command", err)
 
 		logger.Errorf("Failed to update Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -245,7 +243,7 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 
 	ledger, err := handler.Query.GetLedgerByID(ctx, organizationID, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve ledger on query", err)
 
 		logger.Errorf("Failed to retrieve Ledger with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -271,8 +269,8 @@ func (handler *LedgerHandler) UpdateLedger(p any, c *fiber.Ctx) error {
 func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_ledger_by_id")
 	defer span.End()
@@ -283,7 +281,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 
 	if os.Getenv("ENV_NAME") == "production" {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", constant.ErrActionNotPermitted)
+		libOpentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", constant.ErrActionNotPermitted)
 
 		logger.Errorf("Failed to remove Ledger with ID: %s in ", id.String())
 
@@ -293,7 +291,7 @@ func (handler *LedgerHandler) DeleteLedgerByID(c *fiber.Ctx) error {
 	}
 
 	if err := handler.Command.DeleteLedgerByID(ctx, organizationID, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to remove ledger on command", err)
 
 		logger.Errorf("Failed to remove Ledeger with ID: %s, Error: %s", id.String(), err.Error())
 

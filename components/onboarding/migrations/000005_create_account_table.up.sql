@@ -23,5 +23,5 @@ CREATE TABLE IF NOT EXISTS account
     FOREIGN KEY (segment_id)        REFERENCES segment (id)
 );
 
-CREATE INDEX idx_account_created_at ON account (created_at);
-REINDEX INDEX idx_account_created_at;
+CREATE INDEX idx_account_alias ON account (organization_id, ledger_id, alias, deleted_at, created_at);
+REINDEX INDEX idx_account_alias;

@@ -3,13 +3,10 @@ package command
 import (
 	"context"
 	"errors"
-	"testing"
-
-	"go.uber.org/mock/gomock"
-
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+	"testing"
 )
 
 func TestUpdateMetadata(t *testing.T) {

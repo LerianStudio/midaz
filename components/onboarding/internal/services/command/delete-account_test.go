@@ -3,17 +3,14 @@ package command
 import (
 	"context"
 	"errors"
-	"testing"
-
-	"go.uber.org/mock/gomock"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+	"testing"
 )
 
 func TestDeleteAccountByID(t *testing.T) {
@@ -116,10 +113,10 @@ func TestDeleteAccountByID(t *testing.T) {
 
 // TestDeleteAccountByIDSuccess is responsible to test DeleteAccountByID with success
 func TestDeleteAccountByIDSuccess(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	portfolioID := pkg.GenerateUUIDv7()
-	id := pkg.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	portfolioID := libCommons.GenerateUUIDv7()
+	id := libCommons.GenerateUUIDv7()
 	uc := UseCase{
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
@@ -136,9 +133,9 @@ func TestDeleteAccountByIDSuccess(t *testing.T) {
 
 // TestDeleteAccountByIDWithoutPortfolioSuccess is responsible to test DeleteAccountByID without portfolio with success
 func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	id := pkg.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	id := libCommons.GenerateUUIDv7()
 	uc := UseCase{
 		AccountRepo: account.NewMockRepository(gomock.NewController(t)),
 	}
@@ -155,10 +152,10 @@ func TestDeleteAccountByIDWithoutPortfolioSuccess(t *testing.T) {
 
 // TestDeleteAccountByIDError is responsible to test DeleteAccountByID with error
 func TestDeleteAccountByIDError(t *testing.T) {
-	organizationID := pkg.GenerateUUIDv7()
-	ledgerID := pkg.GenerateUUIDv7()
-	portfolioID := pkg.GenerateUUIDv7()
-	id := pkg.GenerateUUIDv7()
+	organizationID := libCommons.GenerateUUIDv7()
+	ledgerID := libCommons.GenerateUUIDv7()
+	portfolioID := libCommons.GenerateUUIDv7()
+	id := libCommons.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{
