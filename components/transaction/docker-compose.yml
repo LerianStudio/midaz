@@ -15,6 +15,7 @@ services:
       - infra-network
       - onboarding-network
       - transaction-network
+      - plugin-auth-network
 
 networks:
   infra-network:
@@ -28,3 +29,5 @@ networks:
   transaction-network:
     name: transaction-network
     driver: bridge
+  plugin-auth-network:
+    external: true
