@@ -1,3 +1,10 @@
+## [1.50.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.3...v1.50.0-beta.4) (2025-03-21)
+
+
+### Bug Fixes
+
+* changing pagination limit error type to validation error ([1e19108](https://github.com/LerianStudio/midaz/commit/1e19108af5394299469e74cf1ae7d4dbde78e4be))
+
 ## [1.50.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.2...v1.50.0-beta.3) (2025-03-12)
 
 
