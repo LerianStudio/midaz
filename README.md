@@ -11,7 +11,7 @@
 
 # Midaz: Next-Gen Open-Source Ledger
 
-Midaz is an open-source ledger system that is part of a Core Banking Platform being developed by Lerian. The ledger and the other components of the platform are currently UNDER CONSTRUCTION and should not be used in production.
+Midaz is an open-source ledger system that is part of a Core Banking Platform being developed by Lerian.
 
 Midaz is designed to address the limitations of traditional ledger systems and provide a comprehensive, multi-asset, multi-currency, and immutable ledger solution for the modern financial landscape.
 
