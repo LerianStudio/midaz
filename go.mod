@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz
 go 1.23.2
 
 require (
-	github.com/LerianStudio/lib-auth v1.7.0
+	github.com/LerianStudio/lib-auth v1.8.0
 	github.com/LerianStudio/lib-commons v1.0.0
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2

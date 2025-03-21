@@ -7,6 +7,8 @@ github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
 github.com/LerianStudio/lib-auth v1.7.0 h1:/KMCvEg62Vftvh8hCOjnOoqNHfzSl1+N47jriJk7+0k=
 github.com/LerianStudio/lib-auth v1.7.0/go.mod h1:I3EM/wTsiuKYvci3KI7clvWR93UPBblqPZTaFu3yiNs=
+github.com/LerianStudio/lib-auth v1.8.0 h1:kjOi+xEgO6gcIJOcY9a0XXpXp+a07G24RI4kX4Eywmw=
+github.com/LerianStudio/lib-auth v1.8.0/go.mod h1:I3EM/wTsiuKYvci3KI7clvWR93UPBblqPZTaFu3yiNs=
 github.com/LerianStudio/lib-commons v1.0.0 h1:UlPnHmg8iQ6oiPpCJduhRqNsv5dQ1naSVIj96NKfrMk=
 github.com/LerianStudio/lib-commons v1.0.0/go.mod h1:ljJ3Weelq4fm+rJt/fA8q6JhBtPS+PLQqOMeUCmUL6k=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=

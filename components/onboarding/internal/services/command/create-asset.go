@@ -4,6 +4,7 @@ import (
 	"context"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
@@ -35,20 +36,20 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err := libCommons.ValidateType(cii.Type); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate asset type", err)
 
-		return nil, libCommons.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if err := libCommons.ValidateCode(cii.Code); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
 
-		return nil, libCommons.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
 	}
 
 	if cii.Type == "currency" {
 		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
 
-			return nil, libCommons.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 

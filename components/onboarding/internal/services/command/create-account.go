@@ -29,7 +29,7 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if err := libCommons.ValidateAccountType(cai.Type); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate account type", err)
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Account{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidAccountType, reflect.TypeOf(mmodel.Account{}).Name())
 	}
 
 	status := uc.determineStatus(cai)
