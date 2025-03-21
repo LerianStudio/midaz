@@ -9,8 +9,6 @@ import (
 	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 )
 
-const numWorkers = 5
-
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
 //
 //go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
@@ -24,19 +22,25 @@ type QueueHandlerFunc func(ctx context.Context, body []byte) error
 
 // ConsumerRoutes struct
 type ConsumerRoutes struct {
-	conn   *libRabbitmq.RabbitMQConnection
-	routes map[string]QueueHandlerFunc
+	conn       *libRabbitmq.RabbitMQConnection
+	routes     map[string]QueueHandlerFunc
+	numWorkers int
 	libLog.Logger
 	libOpentelemetry.Telemetry
 }
 
 // NewConsumerRoutes creates a new instance of ConsumerRoutes.
-func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *ConsumerRoutes {
+func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numWorkers int, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *ConsumerRoutes {
+	if numWorkers == 0 {
+		numWorkers = 5
+	}
+
 	cr := &ConsumerRoutes{
-		conn:      conn,
-		routes:    make(map[string]QueueHandlerFunc),
-		Logger:    logger,
-		Telemetry: *telemetry,
+		conn:       conn,
+		routes:     make(map[string]QueueHandlerFunc),
+		numWorkers: numWorkers,
+		Logger:     logger,
+		Telemetry:  *telemetry,
 	}
 
 	_, err := conn.GetNewConnect()
@@ -79,7 +83,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 			return err
 		}
 
-		for i := 0; i < numWorkers; i++ {
+		for i := 0; i < cr.numWorkers; i++ {
 			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
 				for msg := range messages {
 					midazID, found := msg.Headers[libConstants.HeaderID]

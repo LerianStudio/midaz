@@ -62,6 +62,7 @@ type Config struct {
 	RabbitMQUser               string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass               string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQBalanceCreateQueue string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
+	RabbitMQNumWorkers         int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	OtelServiceName            string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName            string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion         string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
@@ -158,7 +159,7 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, logger, telemetry)
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumWorkers, logger, telemetry)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
