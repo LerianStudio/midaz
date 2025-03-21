@@ -3,22 +3,21 @@ package query
 import (
 	"context"
 	"errors"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
 // GetAllMetadataSegments fetch all Segments from the repository
 func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_segments")
 	defer span.End()
@@ -27,7 +26,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
 	if err != nil || metadata == nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get metadata on repo by query params", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo by query params", err)
 
 		return nil, pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
@@ -42,7 +41,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 
 	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get segments on repo by query params", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get segments on repo by query params", err)
 
 		logger.Errorf("Error getting segments on repo by query params: %v", err)
 

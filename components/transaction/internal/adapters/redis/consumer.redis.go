@@ -4,17 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mredis"
 )
 
 // RedisRepository provides an interface for redis.
@@ -26,16 +26,16 @@ type RedisRepository interface {
 	Get(ctx context.Context, key string) (string, error)
 	Del(ctx context.Context, key string) error
 	Incr(ctx context.Context, key string) int64
-	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount goldModel.Amount, operation string) (*mmodel.Balance, error)
+	LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error)
 }
 
 // RedisConsumerRepository is a Redis implementation of the Redis consumer.
 type RedisConsumerRepository struct {
-	conn *mredis.RedisConnection
+	conn *libRedis.RedisConnection
 }
 
 // NewConsumerRedis returns a new instance of RedisRepository using the given Redis connection.
-func NewConsumerRedis(rc *mredis.RedisConnection) *RedisConsumerRepository {
+func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	r := &RedisConsumerRepository{
 		conn: rc,
 	}
@@ -47,15 +47,15 @@ func NewConsumerRedis(rc *mredis.RedisConnection) *RedisConsumerRepository {
 }
 
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
 		return err
 	}
@@ -64,7 +64,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 
 	err = rds.Set(ctx, key, value, ttl*time.Second).Err()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", err)
 
 		return err
 	}
@@ -73,15 +73,15 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 }
 
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
 		return false, err
 	}
@@ -90,7 +90,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 
 	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 
 		return false, err
 	}
@@ -99,22 +99,22 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 }
 
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
 		return "", err
 	}
 
 	val, err := rds.Get(ctx, key).Result()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
 
 		return "", err
 	}
@@ -125,22 +125,22 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 }
 
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.del")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to del redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to del redis", err)
 
 		return err
 	}
 
 	val, err := rds.Del(ctx, key).Result()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
 
 		return err
 	}
@@ -151,14 +151,14 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 }
 
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
-	tracer := pkg.NewTracerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.incr")
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
 		return 0
 	}
@@ -166,9 +166,9 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
-func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount goldModel.Amount, operation string) (*mmodel.Balance, error) {
-	tracer := pkg.NewTracerFromContext(ctx)
-	logger := pkg.NewLoggerFromContext(ctx)
+func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error) {
+	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.Lock_balance")
 	defer span.End()
@@ -274,7 +274,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 
 	rds, err := rr.conn.GetClient(ctx)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
 		logger.Errorf("Failed to get redis: %v", err)
 
@@ -310,7 +310,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 
 		logger.Errorf("Failed run lua script on redis: %v", err)
 
@@ -340,7 +340,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	}
 
 	if err := json.Unmarshal([]byte(balanceJSON), &b); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
+		libOpentelemetry.HandleSpanError(&span, "Error to Deserialization json", err)
 
 		logger.Errorf("Error to Deserialization json: %v", err)
 

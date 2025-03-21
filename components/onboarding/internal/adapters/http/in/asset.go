@@ -1,18 +1,16 @@
 package in
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/command"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services/query"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mpostgres"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 // AssetHandler struct contains a cqrs use case for managing asset in related operations.
@@ -38,8 +36,8 @@ type AssetHandler struct {
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
 	defer span.End()
@@ -53,16 +51,16 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	payload := a.(*mmodel.CreateAssetInput)
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create Asset on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create Asset on command", err)
 
 		logger.Infof("Error to created Asset: %s", err.Error())
 
@@ -90,13 +88,13 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 //	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
 //	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	mpostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
 	defer span.End()
@@ -109,14 +107,14 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	headerParams, err := http.ValidateParameters(c.Queries())
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
 		logger.Errorf("Failed to validate query parameters, Error: %s", err.Error())
 
 		return http.WithError(c, err)
 	}
 
-	pagination := mpostgres.Pagination{
+	pagination := libPostgres.Pagination{
 		Limit:     headerParams.Limit,
 		Page:      headerParams.Page,
 		SortOrder: headerParams.SortOrder,
@@ -129,7 +127,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
 
 			logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
 
@@ -149,7 +147,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
 
 		logger.Errorf("Failed to retrieve all Assets, Error: %s", err.Error())
 
@@ -179,8 +177,8 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
 	defer span.End()
@@ -193,7 +191,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to retrieve Asset on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Asset on query", err)
 
 		logger.Errorf("Failed to retrieve Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 
@@ -223,8 +221,8 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
 	defer span.End()
@@ -238,16 +236,16 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	payload := a.(*mmodel.UpdateAssetInput)
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
-	err := mopentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
 		return http.WithError(c, err)
 	}
 
 	_, err = handler.Command.UpdateAssetByID(ctx, organizationID, ledgerID, id, payload)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to update Asset on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to update Asset on command", err)
 
 		logger.Errorf("Failed to update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -256,7 +254,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get update Asset on query", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get update Asset on query", err)
 
 		logger.Errorf("Failed to get update Asset with ID: %s, Error: %s", id.String(), err.Error())
 
@@ -283,8 +281,8 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
 	defer span.End()
@@ -296,7 +294,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating removal of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	if err := handler.Command.DeleteAssetByID(ctx, organizationID, ledgerID, id); err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to remove Asset on command", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to remove Asset on command", err)
 
 		logger.Errorf("Failed to remove Asset with Ledger ID: %s and Asset ID: %s, Error: %s", ledgerID.String(), id.String(), err.Error())
 

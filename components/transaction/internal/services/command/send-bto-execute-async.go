@@ -3,19 +3,19 @@ package command
 import (
 	"context"
 	"encoding/json"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/pkg"
-	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/google/uuid"
 	"os"
 )
 
 // SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
-func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *goldModel.Transaction, validate *goldModel.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, parseDSL *libTransaction.Transaction, validate *libTransaction.Responses, blc []*mmodel.Balance, tran *transaction.Transaction) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
 	defer spanSendBTOQueue.End()
@@ -31,7 +31,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 
 	marshal, err := json.Marshal(value)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
+		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 
 		logger.Fatalf("Failed to marshal validate to JSON string: %s", err.Error())
 	}
@@ -53,7 +53,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
 		queueMessage,
 	); err != nil {
-		mopentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
+		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to send BTO to queue", err)
 
 		logger.Errorf("Failed to send message: %s", err.Error())
 	}

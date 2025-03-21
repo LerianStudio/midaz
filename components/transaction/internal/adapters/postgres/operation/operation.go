@@ -2,9 +2,8 @@ package operation
 
 import (
 	"database/sql"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"time"
-
-	"github.com/LerianStudio/midaz/pkg"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -160,7 +159,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
-	ID := pkg.GenerateUUIDv7().String()
+	ID := libCommons.GenerateUUIDv7().String()
 	if operation.ID != "" {
 		ID = operation.ID
 	}

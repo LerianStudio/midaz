@@ -2,20 +2,18 @@ package command
 
 import (
 	"context"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/google/uuid"
 	"reflect"
 	"time"
-
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
-	"github.com/google/uuid"
 )
 
 // CreateLedger creates a new ledger persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_ledger")
 	span.End()
@@ -23,7 +21,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 	logger.Infof("Trying to create ledger: %v", cli)
 
 	var status mmodel.Status
-	if cli.Status.IsEmpty() || pkg.IsNilOrEmpty(&cli.Status.Code) {
+	if cli.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cli.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -35,7 +33,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
@@ -52,7 +50,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
 
 		logger.Errorf("Error creating ledger: %v", err)
 
@@ -63,7 +61,7 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
 
 		logger.Errorf("Error creating ledger metadata: %v", err)
 

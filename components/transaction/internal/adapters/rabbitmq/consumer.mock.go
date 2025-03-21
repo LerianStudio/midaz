@@ -19,6 +19,7 @@ import (
 type MockConsumerRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockConsumerRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockConsumerRepositoryMockRecorder is the mock recorder for MockConsumerRepository.
@@ -39,15 +40,15 @@ func (m *MockConsumerRepository) EXPECT() *MockConsumerRepositoryMockRecorder {
 }
 
 // Register mocks base method.
-func (m *MockConsumerRepository) Register(arg0 string, arg1 QueueHandlerFunc) {
+func (m *MockConsumerRepository) Register(queueName string, handler QueueHandlerFunc) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Register", arg0, arg1)
+	m.ctrl.Call(m, "Register", queueName, handler)
 }
 
 // Register indicates an expected call of Register.
-func (mr *MockConsumerRepositoryMockRecorder) Register(arg0, arg1 any) *gomock.Call {
+func (mr *MockConsumerRepositoryMockRecorder) Register(queueName, handler any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockConsumerRepository)(nil).Register), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockConsumerRepository)(nil).Register), queueName, handler)
 }
 
 // RunConsumers mocks base method.

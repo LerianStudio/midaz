@@ -2,23 +2,21 @@ package command
 
 import (
 	"context"
-	"reflect"
-	"time"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
-	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
+	"time"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
-func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *goldModel.Transaction) (*transaction.Transaction, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *libTransaction.Transaction) (*transaction.Transaction, error) {
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction")
 	defer span.End()
@@ -39,7 +37,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	save := &transaction.Transaction{
-		ID:                       pkg.GenerateUUIDv7().String(),
+		ID:                       libCommons.GenerateUUIDv7().String(),
 		ParentTransactionID:      parentTransactionID,
 		OrganizationID:           organizationID.String(),
 		LedgerID:                 ledgerID.String(),
@@ -57,7 +55,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	tran, err := uc.TransactionRepo.Create(ctx, save)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to create transaction on repo", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction on repo", err)
 
 		logger.Errorf("Error creating t: %v", err)
 
@@ -65,8 +63,8 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	if t.Metadata != nil {
-		if err := pkg.CheckMetadataKeyAndValueLength(100, t.Metadata); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+		if err := libCommons.CheckMetadataKeyAndValueLength(100, t.Metadata); err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
 
 			return nil, err
 		}
@@ -80,7 +78,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 		}
 
 		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to create transaction metadata", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to create transaction metadata", err)
 
 			logger.Errorf("Error into creating transactiont metadata: %v", err)
 

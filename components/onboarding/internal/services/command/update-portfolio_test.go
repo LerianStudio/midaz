@@ -3,8 +3,6 @@ package command
 import (
 	"context"
 	"errors"
-	"testing"
-
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -12,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing"
 )
 
 func TestUpdatePortfolioByID(t *testing.T) {

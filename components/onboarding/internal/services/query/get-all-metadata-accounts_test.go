@@ -2,8 +2,6 @@ package query
 
 import (
 	"context"
-	"testing"
-
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -11,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"testing"
 )
 
 func TestGetAllMetadataAccounts(t *testing.T) {

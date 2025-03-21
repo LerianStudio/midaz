@@ -2,14 +2,12 @@ package transaction
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"time"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/pkg"
-	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
-
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+	"time"
 )
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
@@ -26,7 +24,7 @@ type TransactionPostgreSQLModel struct {
 	ChartOfAccountsGroupName string
 	LedgerID                 string
 	OrganizationID           string
-	Body                     goldModel.Transaction
+	Body                     libTransaction.Transaction
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 	DeletedAt                sql.NullTime
@@ -52,12 +50,12 @@ func (s Status) IsEmpty() bool {
 // swagger:model CreateTransactionInput
 // @Description CreateTransactionInput is the input payload to create a transaction.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName string          `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
-	Description              string          `json:"description,omitempty" validate:"max=256"`
-	Code                     string          `json:"code,omitempty" validate:"max=100"`
-	Pending                  bool            `json:"pending,omitempty"`
-	Metadata                 map[string]any  `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	Send                     *goldModel.Send `json:"send,omitempty" validate:"required,dive"`
+	ChartOfAccountsGroupName string               `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
+	Description              string               `json:"description,omitempty" validate:"max=256"`
+	Code                     string               `json:"code,omitempty" validate:"max=100"`
+	Pending                  bool                 `json:"pending,omitempty"`
+	Metadata                 map[string]any       `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Send                     *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.
@@ -81,25 +79,25 @@ type UpdateTransactionInput struct {
 // swagger:model Transaction
 // @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ID                       string                 `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	ParentTransactionID      *string                `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Description              string                 `json:"description" example:"Transaction description"`
-	Template                 string                 `json:"template" example:"Transaction template"`
-	Status                   Status                 `json:"status"`
-	Amount                   *int64                 `json:"amount" example:"1500"`
-	AmountScale              *int64                 `json:"amountScale" example:"2"`
-	AssetCode                string                 `json:"assetCode" example:"BRL"`
-	ChartOfAccountsGroupName string                 `json:"chartOfAccountsGroupName" example:"Chart of accounts group name"`
-	Source                   []string               `json:"source" example:"@person1"`
-	Destination              []string               `json:"destination" example:"@person2"`
-	LedgerID                 string                 `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID           string                 `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
-	Body                     goldModel.Transaction  `json:"-"`
-	CreatedAt                time.Time              `json:"createdAt" example:"2021-01-01T00:00:00Z"`
-	UpdatedAt                time.Time              `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
-	DeletedAt                *time.Time             `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-	Metadata                 map[string]any         `json:"metadata,omitempty"`
-	Operations               []*operation.Operation `json:"operations"`
+	ID                       string                     `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	ParentTransactionID      *string                    `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Description              string                     `json:"description" example:"Transaction description"`
+	Template                 string                     `json:"template" example:"Transaction template"`
+	Status                   Status                     `json:"status"`
+	Amount                   *int64                     `json:"amount" example:"1500"`
+	AmountScale              *int64                     `json:"amountScale" example:"2"`
+	AssetCode                string                     `json:"assetCode" example:"BRL"`
+	ChartOfAccountsGroupName string                     `json:"chartOfAccountsGroupName" example:"Chart of accounts group name"`
+	Source                   []string                   `json:"source" example:"@person1"`
+	Destination              []string                   `json:"destination" example:"@person2"`
+	LedgerID                 string                     `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
+	OrganizationID           string                     `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
+	Body                     libTransaction.Transaction `json:"-"`
+	CreatedAt                time.Time                  `json:"createdAt" example:"2021-01-01T00:00:00Z"`
+	UpdatedAt                time.Time                  `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
+	DeletedAt                *time.Time                 `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
+	Metadata                 map[string]any             `json:"metadata,omitempty"`
+	Operations               []*operation.Operation     `json:"operations"`
 } // @name Transaction
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
@@ -141,7 +139,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
-	ID := pkg.GenerateUUIDv7().String()
+	ID := libCommons.GenerateUUIDv7().String()
 	if transaction.ID != "" {
 		ID = transaction.ID
 	}
@@ -171,8 +169,8 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 }
 
 // FromDSl converts an entity FromDSl to goldModel.Transaction
-func (cti *CreateTransactionInput) FromDSl() *goldModel.Transaction {
-	dsl := &goldModel.Transaction{
+func (cti *CreateTransactionInput) FromDSl() *libTransaction.Transaction {
+	dsl := &libTransaction.Transaction{
 		ChartOfAccountsGroupName: cti.ChartOfAccountsGroupName,
 		Description:              cti.Description,
 		Code:                     cti.Code,
@@ -192,32 +190,32 @@ func (cti *CreateTransactionInput) FromDSl() *goldModel.Transaction {
 }
 
 // TransactionRevert is a func that revert transaction
-func (t Transaction) TransactionRevert() goldModel.Transaction {
-	froms := make([]goldModel.FromTo, 0)
+func (t Transaction) TransactionRevert() libTransaction.Transaction {
+	froms := make([]libTransaction.FromTo, 0)
 
 	for _, to := range t.Body.Send.Distribute.To {
 		to.IsFrom = true
 		froms = append(froms, to)
 	}
 
-	newSource := goldModel.Source{
+	newSource := libTransaction.Source{
 		From:      froms,
 		Remaining: t.Body.Send.Distribute.Remaining,
 	}
 
-	tos := make([]goldModel.FromTo, 0)
+	tos := make([]libTransaction.FromTo, 0)
 
 	for _, from := range t.Body.Send.Source.From {
 		from.IsFrom = false
 		tos = append(tos, from)
 	}
 
-	newDistribute := goldModel.Distribute{
+	newDistribute := libTransaction.Distribute{
 		To:        tos,
 		Remaining: t.Body.Send.Source.Remaining,
 	}
 
-	send := goldModel.Send{
+	send := libTransaction.Send{
 		Asset:      t.Body.Send.Asset,
 		Value:      t.Body.Send.Value,
 		Scale:      t.Body.Send.Scale,
@@ -225,7 +223,7 @@ func (t Transaction) TransactionRevert() goldModel.Transaction {
 		Distribute: newDistribute,
 	}
 
-	transaction := goldModel.Transaction{
+	transaction := libTransaction.Transaction{
 		ChartOfAccountsGroupName: t.Body.ChartOfAccountsGroupName,
 		Description:              t.Body.Description,
 		Code:                     t.Body.Code,
@@ -239,8 +237,8 @@ func (t Transaction) TransactionRevert() goldModel.Transaction {
 
 // TransactionQueue this is a struct that is responsible to send and receive from queue.
 type TransactionQueue struct {
-	Validate    *goldModel.Responses
+	Validate    *libTransaction.Responses
 	Balances    []*mmodel.Balance
 	Transaction *Transaction
-	ParseDSL    *goldModel.Transaction
+	ParseDSL    *libTransaction.Transaction
 }

@@ -1,11 +1,12 @@
 package in
 
 import (
-	"github.com/LerianStudio/auth-lib/auth/middleware"
+	"github.com/LerianStudio/lib-auth/auth/middleware"
+	libLog "github.com/LerianStudio/lib-commons/commons/log"
+	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	_ "github.com/LerianStudio/midaz/components/onboarding/api"
-	"github.com/LerianStudio/midaz/pkg/mlog"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -15,15 +16,15 @@ import (
 const midazName = "midaz"
 
 // NewRouter registerNewRouters routes to the Server.
-func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
+func NewRouter(lg libLog.Logger, tl *libOpentelemetry.Telemetry, auth *middleware.AuthClient, ah *AccountHandler, ph *PortfolioHandler, lh *LedgerHandler, ih *AssetHandler, oh *OrganizationHandler, sh *SegmentHandler) *fiber.App {
 	f := fiber.New(fiber.Config{
 		DisableStartupMessage: true,
 	})
-	tlMid := http.NewTelemetryMiddleware(tl)
+	tlMid := libHTTP.NewTelemetryMiddleware(tl)
 
 	f.Use(tlMid.WithTelemetry(tl))
 	f.Use(cors.New())
-	f.Use(http.WithHTTPLogging(http.WithCustomLogger(lg)))
+	f.Use(libHTTP.WithHTTPLogging(libHTTP.WithCustomLogger(lg)))
 
 	// Organizations
 	f.Post("/v1/organizations", auth.Authorize(midazName, "organizations", "post"), http.WithBody(new(mmodel.CreateOrganizationInput), oh.CreateOrganization))
@@ -69,10 +70,10 @@ func NewRouter(lg mlog.Logger, tl *mopentelemetry.Telemetry, auth *middleware.Au
 	f.Delete("/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:id", auth.Authorize(midazName, "accounts", "delete"), http.ParseUUIDPathParameters, ah.DeleteAccountByID)
 
 	// Health
-	f.Get("/health", http.Ping)
+	f.Get("/health", libHTTP.Ping)
 
 	// Version
-	f.Get("/version", http.Version)
+	f.Get("/version", libHTTP.Version)
 
 	// Doc
 	f.Get("/swagger/*", WithSwaggerEnvConfig(), fiberSwagger.WrapHandler)

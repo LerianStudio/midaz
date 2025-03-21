@@ -3,12 +3,11 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
-	"github.com/LerianStudio/midaz/pkg"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
-	"github.com/LerianStudio/midaz/pkg/net/http"
-
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -21,11 +20,11 @@ type ProducerRepository interface {
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
-	conn *mrabbitmq.RabbitMQConnection
+	conn *libRabbitmq.RabbitMQConnection
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
-func NewProducerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRepository {
 	prmq := &ProducerRabbitMQRepository{
 		conn: c,
 	}
@@ -39,8 +38,8 @@ func NewProducerRabbitMQ(c *mrabbitmq.RabbitMQConnection) *ProducerRabbitMQRepos
 }
 
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	logger.Infof("Init sent message")
 
@@ -49,7 +48,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 
 	message, err := json.Marshal(queueMessage)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
 
 		logger.Errorf("Failed to marshal queue message struct")
 
@@ -65,12 +64,12 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			ContentType:  "application/json",
 			DeliveryMode: amqp.Persistent,
 			Headers: amqp.Table{
-				http.HeaderMidazID: pkg.NewMidazIDFromContext(ctx),
+				libConstants.HeaderID: libCommons.NewHeaderIDFromContext(ctx),
 			},
 			Body: message,
 		})
 	if err != nil {
-		mopentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
+		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
 
 		logger.Errorf("Failed to publish message: %s", err)
 

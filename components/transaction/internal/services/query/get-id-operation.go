@@ -2,19 +2,17 @@ package query
 
 import (
 	"context"
-	"reflect"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
 	"github.com/google/uuid"
+	"reflect"
 )
 
 // GetOperationByID gets data in the repository.
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {
-	logger := pkg.NewLoggerFromContext(ctx)
-	tracer := pkg.NewTracerFromContext(ctx)
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_operation_by_id")
 	defer span.End()
@@ -23,7 +21,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 	o, err := uc.OperationRepo.Find(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
-		mopentelemetry.HandleSpanError(&span, "Failed to get operation on repo by id", err)
+		libOpentelemetry.HandleSpanError(&span, "Failed to get operation on repo by id", err)
 
 		logger.Errorf("Error getting operation: %v", err)
 
@@ -33,7 +31,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 	if o != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String())
 		if err != nil {
-			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
+			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
 			logger.Errorf("Error get metadata on mongodb operation: %v", err)
 

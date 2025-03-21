@@ -1,10 +1,9 @@
 package bootstrap
 
 import (
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/mlog"
-	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
-
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libLog "github.com/LerianStudio/lib-commons/commons/log"
+	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/gofiber/fiber/v2"
 	"github.com/pkg/errors"
 )
@@ -13,8 +12,8 @@ import (
 type Server struct {
 	app           *fiber.App
 	serverAddress string
-	mlog.Logger
-	mopentelemetry.Telemetry
+	libLog.Logger
+	libOpentelemetry.Telemetry
 }
 
 // ServerAddress returns is a convenience method to return the server address.
@@ -23,7 +22,7 @@ func (s *Server) ServerAddress() string {
 }
 
 // NewServer creates an instance of Server.
-func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopentelemetry.Telemetry) *Server {
+func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *Server {
 	return &Server{
 		app:           app,
 		serverAddress: cfg.ServerAddress,
@@ -33,7 +32,7 @@ func NewServer(cfg *Config, app *fiber.App, logger mlog.Logger, telemetry *mopen
 }
 
 // Run runs the server.
-func (s *Server) Run(l *pkg.Launcher) error {
+func (s *Server) Run(l *libCommons.Launcher) error {
 	s.Telemetry.InitializeTelemetry(s.Logger)
 	defer s.Telemetry.ShutdownTelemetry()
 

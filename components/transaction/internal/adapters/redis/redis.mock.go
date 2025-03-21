@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	model "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+	transaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -23,6 +23,7 @@ import (
 type MockRedisRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRedisRepositoryMockRecorder
+	isgomock struct{}
 }
 
 // MockRedisRepositoryMockRecorder is the mock recorder for MockRedisRepository.
@@ -43,88 +44,88 @@ func (m *MockRedisRepository) EXPECT() *MockRedisRepositoryMockRecorder {
 }
 
 // Del mocks base method.
-func (m *MockRedisRepository) Del(arg0 context.Context, arg1 string) error {
+func (m *MockRedisRepository) Del(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Del", arg0, arg1)
+	ret := m.ctrl.Call(m, "Del", ctx, key)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Del indicates an expected call of Del.
-func (mr *MockRedisRepositoryMockRecorder) Del(arg0, arg1 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) Del(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockRedisRepository)(nil).Del), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockRedisRepository)(nil).Del), ctx, key)
 }
 
 // Get mocks base method.
-func (m *MockRedisRepository) Get(arg0 context.Context, arg1 string) (string, error) {
+func (m *MockRedisRepository) Get(ctx context.Context, key string) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", arg0, arg1)
+	ret := m.ctrl.Call(m, "Get", ctx, key)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockRedisRepositoryMockRecorder) Get(arg0, arg1 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) Get(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockRedisRepository)(nil).Get), ctx, key)
 }
 
 // Incr mocks base method.
-func (m *MockRedisRepository) Incr(arg0 context.Context, arg1 string) int64 {
+func (m *MockRedisRepository) Incr(ctx context.Context, key string) int64 {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Incr", arg0, arg1)
+	ret := m.ctrl.Call(m, "Incr", ctx, key)
 	ret0, _ := ret[0].(int64)
 	return ret0
 }
 
 // Incr indicates an expected call of Incr.
-func (mr *MockRedisRepositoryMockRecorder) Incr(arg0, arg1 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) Incr(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incr", reflect.TypeOf((*MockRedisRepository)(nil).Incr), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Incr", reflect.TypeOf((*MockRedisRepository)(nil).Incr), ctx, key)
 }
 
 // LockBalanceRedis mocks base method.
-func (m *MockRedisRepository) LockBalanceRedis(arg0 context.Context, arg1 string, arg2 mmodel.Balance, arg3 model.Amount, arg4 string) (*mmodel.Balance, error) {
+func (m *MockRedisRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount transaction.Amount, operation string) (*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockBalanceRedis", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "LockBalanceRedis", ctx, key, balance, amount, operation)
 	ret0, _ := ret[0].(*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // LockBalanceRedis indicates an expected call of LockBalanceRedis.
-func (mr *MockRedisRepositoryMockRecorder) LockBalanceRedis(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) LockBalanceRedis(ctx, key, balance, amount, operation any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).LockBalanceRedis), arg0, arg1, arg2, arg3, arg4)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockBalanceRedis", reflect.TypeOf((*MockRedisRepository)(nil).LockBalanceRedis), ctx, key, balance, amount, operation)
 }
 
 // Set mocks base method.
-func (m *MockRedisRepository) Set(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) error {
+func (m *MockRedisRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "Set", ctx, key, value, ttl)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Set indicates an expected call of Set.
-func (mr *MockRedisRepositoryMockRecorder) Set(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) Set(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockRedisRepository)(nil).Set), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockRedisRepository)(nil).Set), ctx, key, value, ttl)
 }
 
 // SetNX mocks base method.
-func (m *MockRedisRepository) SetNX(arg0 context.Context, arg1, arg2 string, arg3 time.Duration) (bool, error) {
+func (m *MockRedisRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetNX", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "SetNX", ctx, key, value, ttl)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // SetNX indicates an expected call of SetNX.
-func (mr *MockRedisRepositoryMockRecorder) SetNX(arg0, arg1, arg2, arg3 any) *gomock.Call {
+func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
 }
