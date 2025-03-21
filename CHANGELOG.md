@@ -1,3 +1,48 @@
+## [1.50.0](https://github.com/LerianStudio/midaz/compare/v1.49.0...v1.50.0) (2025-03-21)
+
+
+### Features
+
+* add variable number of workers to env for modify anytime; ([3a4f707](https://github.com/LerianStudio/midaz/commit/3a4f707d901893f1948f740ea22c36b46e153ab2))
+* implement new fast way to improve balance update values; :sparkles: ([f64195a](https://github.com/LerianStudio/midaz/commit/f64195a1c499571a367cc711ea726c442ef5193c))
+
+
+### Bug Fixes
+
+* add indexes and reindex commands for balance table :bug: ([d579867](https://github.com/LerianStudio/midaz/commit/d57986753a9ba9c0e11275abee0047a1b8af25f3))
+* add metadata save on mongodb; rollback migrations on postgresql; :bug: ([7c726dc](https://github.com/LerianStudio/midaz/commit/7c726dcdec3dacddc78e8d34e23d97853c466ad9))
+* add more index in account to improve performance; :bug: ([1aff75d](https://github.com/LerianStudio/midaz/commit/1aff75d65599e98c62b2a1877e268f99a7434b02))
+* add networking changes from branch refactor/networks :bug: ([c4e10c9](https://github.com/LerianStudio/midaz/commit/c4e10c9f4d3ee638538446b19207ec2f3b108082))
+* add new index; :bug: ([8bfb1dd](https://github.com/LerianStudio/midaz/commit/8bfb1ddd9620cd37df99c191eae87321e4f0cad7))
+* add right ValidateBusinessError from pkg; :bug: ([4f74677](https://github.com/LerianStudio/midaz/commit/4f746771b5dfe8a62fd319bbf904a6b0b37e4d7c))
+* adding plugin auth network as external network ([e4b135c](https://github.com/LerianStudio/midaz/commit/e4b135c737c5da6b6438a5c689647a22ea11c15d))
+* adjust balance update to not return err when don't have rows affected; :bug: ([53c64c6](https://github.com/LerianStudio/midaz/commit/53c64c655888107fd6834cfe011488b826440c7c))
+* adjust lib-auth to use method instead of struct; :bug: ([ff31389](https://github.com/LerianStudio/midaz/commit/ff3138964187a70801f49c52fd147b4696e96e30))
+* adjusts tests and change lib-auth; :bug: ([a317bbe](https://github.com/LerianStudio/midaz/commit/a317bbe6fcd70c0cc4d6964d75c51fc2044a0782))
+* changing pagination limit error type to validation error ([1e19108](https://github.com/LerianStudio/midaz/commit/1e19108af5394299469e74cf1ae7d4dbde78e4be))
+* empty spaces; :bug: ([156e231](https://github.com/LerianStudio/midaz/commit/156e23126ff6eeeea87656ca366848e96cc12275))
+* handle migration errors gracefully :bug: ([e464a75](https://github.com/LerianStudio/midaz/commit/e464a75875f02ae0ccd9d3fb4b0f6a1bd4580fd4))
+* lint; :bug: ([1b0b7b5](https://github.com/LerianStudio/midaz/commit/1b0b7b5e2a3e544f4c174b2d230104edd275f214))
+* lint; :bug: ([dea31c0](https://github.com/LerianStudio/midaz/commit/dea31c0e21d23e98459209b69ef1ca5406a5b301))
+* lint; :bug: ([cf83e14](https://github.com/LerianStudio/midaz/commit/cf83e14d3ef09dea1aec0f80d4280725447ed0ea))
+* lint; :bug: ([4b21161](https://github.com/LerianStudio/midaz/commit/4b21161b8bfe4e98d4b09616475070b8ca721d02))
+* remove old reference from ledger grpc error message; :bug: ([1d0e762](https://github.com/LerianStudio/midaz/commit/1d0e762ec5bb325b6307397dafe4fcb86b82d7a4))
+* remove pgbouncer; :bug: ([ca05b31](https://github.com/LerianStudio/midaz/commit/ca05b31518c66dd8ed7d8741c5f787d278872965))
+* remove plugin network; :bug: ([3b3519c](https://github.com/LerianStudio/midaz/commit/3b3519ca9d214c84ffd030036b34db39f742f6ae))
+* resotred workflow trigger to original ([17e88db](https://github.com/LerianStudio/midaz/commit/17e88db5c42bd165b3799b9c1516eb21c80a14a1))
+* restored workflow steps ([8a4d3f7](https://github.com/LerianStudio/midaz/commit/8a4d3f7999bb1e91ff8a74bde40bb1005b1edbb1))
+* return select for update for check a update balance method; :bug: ([d857237](https://github.com/LerianStudio/midaz/commit/d857237140657e48a9c83db6b8f3b3ee94d73b8c))
+* rollback deploy tag on docker-compose; :bug: ([47c24da](https://github.com/LerianStudio/midaz/commit/47c24dafccb0d4eeb672d46e3f0195789e5ff32b))
+* run workflow on branch push to test ([c0fb3bf](https://github.com/LerianStudio/midaz/commit/c0fb3bf44c6d5db9facf2515d521517ff9587682))
+* some wrong variables references; :bug: ([8ed8750](https://github.com/LerianStudio/midaz/commit/8ed875043702869af09ba14e000f8acfc08da94a))
+* trying to comment users on discord release channel ([2d37f05](https://github.com/LerianStudio/midaz/commit/2d37f05fb45616b94e878c68ae410abb72d3461f))
+* unit tests; :bug: ([6742706](https://github.com/LerianStudio/midaz/commit/67427063505dafc61542f79b129343205f9bc451))
+* update all gets to using deleted_at is null; :bug: ([4fd4940](https://github.com/LerianStudio/midaz/commit/4fd4940e2cdd0a7987c50441215c529cad772fba))
+* update Discord webhook action and comment mentioning format ([5296b86](https://github.com/LerianStudio/midaz/commit/5296b8602cd02b7133def0f87a157aabaad1c1cf))
+* update migrations error when don't have files on dir; :bug: ([fd629ad](https://github.com/LerianStudio/midaz/commit/fd629adf9a042ad820fdf1e36e5485faf32033a0))
+* update output format for release notification workflow ([b50b79f](https://github.com/LerianStudio/midaz/commit/b50b79f5eba2cd2dbefc5aa65d910ab7858aae9d))
+* update release notification workflow for Discord integration ([9ad5597](https://github.com/LerianStudio/midaz/commit/9ad5597351b7c2b35812b3ab179dbce809818f63))
+
 ## [1.50.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.4...v1.50.0-beta.5) (2025-03-21)
 
 
