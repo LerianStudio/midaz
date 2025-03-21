@@ -756,7 +756,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Date Range Exceeds Limit Error",
 			Message:    fmt.Sprintf("The range between 'initialDate' and 'finalDate' exceeds the permitted limit of %v months. Please adjust the dates and try again.", args...),
 		},
-		constant.ErrPaginationLimitExceeded: EntityNotFoundError{
+		constant.ErrPaginationLimitExceeded: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrPaginationLimitExceeded.Error(),
 			Title:      "Pagination Limit Exceeded",
