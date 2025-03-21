@@ -14,7 +14,6 @@ services:
     networks:
       - infra-network
       - onboarding-network
-      - plugin-auth-network
 
 networks:
   infra-network:
@@ -24,5 +23,3 @@ networks:
   onboarding-network:
     name: onboarding-network
     driver: bridge
-  plugin-auth-network:
-    external: true
