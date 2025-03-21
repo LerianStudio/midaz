@@ -4,23 +4,24 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/Masterminds/squirrel"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/lib/pq"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 // Repository provides an interface for operations related to segment entities.
@@ -38,12 +39,12 @@ type Repository interface {
 
 // SegmentPostgreSQLRepository is a Postgresql-specific implementation of the Repository.
 type SegmentPostgreSQLRepository struct {
-	connection *libPostgres.PostgresConnection
+	connection *mpostgres.PostgresConnection
 	tableName  string
 }
 
 // NewSegmentPostgreSQLRepository returns a new instance of SegmentPostgreSQLRepository using the given Postgres connection.
-func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *SegmentPostgreSQLRepository {
+func NewSegmentPostgreSQLRepository(pc *mpostgres.PostgresConnection) *SegmentPostgreSQLRepository {
 	c := &SegmentPostgreSQLRepository{
 		connection: pc,
 		tableName:  "segment",
@@ -59,14 +60,14 @@ func NewSegmentPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Segment
 
 // Create a new segment entity into Postgresql and returns it.
 func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_segment")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -76,9 +77,9 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.create.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "segment_repository_input", record)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "segment_repository_input", record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert segment record from entity to JSON string", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert segment record from entity to JSON string", err)
 
 		return nil, err
 	}
@@ -95,7 +96,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 		record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -109,7 +110,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
 		return nil, err
 	}
@@ -117,7 +118,7 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to create segment. Rows affected is 0", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to create segment. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -127,14 +128,14 @@ func (p *SegmentPostgreSQLRepository) Create(ctx context.Context, segment *mmode
 
 // FindByName find segment from the database using Organization and Ledger id and Name.
 func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segment_by_name")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return false, err
 	}
@@ -144,7 +145,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	rows, err := db.QueryContext(ctx, "SELECT * FROM segment WHERE organization_id = $1 AND ledger_id = $2 AND name LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, name)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return false, err
 	}
@@ -155,7 +156,7 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 	if rows.Next() {
 		err := pkg.ValidateBusinessError(constant.ErrDuplicateSegmentName, reflect.TypeOf(mmodel.Segment{}).Name(), name, ledgerID)
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to find segment by name", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to find segment by name", err)
 
 		return true, err
 	}
@@ -165,14 +166,14 @@ func (p *SegmentPostgreSQLRepository) FindByName(ctx context.Context, organizati
 
 // FindAll retrieves Segment entities from the database.
 func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_segments")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -184,16 +185,16 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
 		Where(squirrel.Eq{"deleted_at": nil}).
-		Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDate(filter.StartDate, libPointers.Int(-1))}).
-		Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDate(filter.EndDate, libPointers.Int(1))}).
+		Where(squirrel.GtOrEq{"created_at": pkg.NormalizeDate(filter.StartDate, mpointers.Int(-1))}).
+		Where(squirrel.LtOrEq{"created_at": pkg.NormalizeDate(filter.EndDate, mpointers.Int(1))}).
 		OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+		Limit(pkg.SafeIntToUint64(filter.Limit)).
+		Offset(pkg.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
 		return nil, err
 	}
@@ -202,7 +203,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 	}
@@ -214,7 +215,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		var segment SegmentPostgreSQLModel
 		if err := rows.Scan(&segment.ID, &segment.Name, &segment.LedgerID, &segment.OrganizationID,
 			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -223,7 +224,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
 		return nil, err
 	}
@@ -233,14 +234,14 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 
 // FindByIDs retrieves Segments entities from the database using the provided IDs.
 func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Segment, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segments_by_ids")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	rows, err := db.QueryContext(ctx, "SELECT * FROM segment WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
+		mopentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
@@ -264,7 +265,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 		var segment SegmentPostgreSQLModel
 		if err := rows.Scan(&segment.ID, &segment.Name, &segment.LedgerID, &segment.OrganizationID,
 			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+			mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 			return nil, err
 		}
@@ -273,7 +274,7 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 	}
 
 	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to scan rows", err)
 
 		return nil, err
 	}
@@ -283,14 +284,14 @@ func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizatio
 
 // Find retrieves a Segment entity from the database using the provided ID.
 func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segment")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -306,7 +307,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 	if err := row.Scan(&segment.ID, &segment.Name, &segment.LedgerID, &segment.OrganizationID,
 		&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
@@ -320,14 +321,14 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 
 // Update a Segment entity into Postgresql and returns the Segment updated.
 func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, prd *mmodel.Segment) (*mmodel.Segment, error) {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_segment")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return nil, err
 	}
@@ -366,16 +367,16 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	ctx, spanExec := tracer.Start(ctx, "postgres.update.exec")
 
-	err = libOpentelemetry.SetSpanAttributesFromStruct(&spanExec, "segment_repository_input", record)
+	err = mopentelemetry.SetSpanAttributesFromStruct(&spanExec, "segment_repository_input", record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to convert segment record from entity to JSON string", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to convert segment record from entity to JSON string", err)
 
 		return nil, err
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
@@ -389,7 +390,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
 		return nil, err
 	}
@@ -397,7 +398,7 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to update segment. Rows affected is 0", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to update segment. Rows affected is 0", err)
 
 		return nil, err
 	}
@@ -407,14 +408,14 @@ func (p *SegmentPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 // Delete removes a Segment entity from the database using the provided IDs.
 func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	tracer := libCommons.NewTracerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_segment")
 	defer span.End()
 
 	db, err := p.connection.GetDB()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
 		return err
 	}
@@ -424,7 +425,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	result, err := db.ExecContext(ctx, `UPDATE segment SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
+		mopentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
 
 		return err
 	}
@@ -433,7 +434,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
 		return err
 	}
@@ -441,7 +442,7 @@ func (p *SegmentPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	if rowsAffected == 0 {
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete segment. Rows affected is 0", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to delete segment. Rows affected is 0", err)
 
 		return err
 	}

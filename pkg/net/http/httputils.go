@@ -2,20 +2,21 @@ package http
 
 import (
 	"bytes"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/LerianStudio/midaz/pkg/constant"
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/bson"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg/mredis"
+	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // QueryHeader entity from query parameter from get apis
@@ -91,7 +92,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		return nil, err
 	}
 
-	if !libCommons.IsNilOrEmpty(&portfolioID) {
+	if !pkg.IsNilOrEmpty(&portfolioID) {
 		_, err := uuid.Parse(portfolioID)
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
@@ -114,23 +115,22 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	return query, nil
 }
 
-// ValidateDates validate dates
 func validateDates(startDate, endDate *time.Time) error {
-	maxDateRangeMonths := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
+	maxDateRangeMonths := pkg.SafeInt64ToInt(pkg.GetenvIntOrDefault("MAX_PAGINATION_MONTH_DATE_RANGE", 1))
 
 	defaultStartDate := time.Now().AddDate(0, -maxDateRangeMonths, 0)
 	defaultEndDate := time.Now()
 
 	if !startDate.IsZero() && !endDate.IsZero() {
-		if !libCommons.IsValidDate(libCommons.NormalizeDate(*startDate, nil)) || !libCommons.IsValidDate(libCommons.NormalizeDate(*endDate, nil)) {
+		if !pkg.IsValidDate(pkg.NormalizeDate(*startDate, nil)) || !pkg.IsValidDate(pkg.NormalizeDate(*endDate, nil)) {
 			return pkg.ValidateBusinessError(constant.ErrInvalidDateFormat, "")
 		}
 
-		if !libCommons.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
+		if !pkg.IsInitialDateBeforeFinalDate(*startDate, *endDate) {
 			return pkg.ValidateBusinessError(constant.ErrInvalidFinalDate, "")
 		}
 
-		if !libCommons.IsDateRangeWithinMonthLimit(*startDate, *endDate, maxDateRangeMonths) {
+		if !pkg.IsDateRangeWithinMonthLimit(*startDate, *endDate, maxDateRangeMonths) {
 			return pkg.ValidateBusinessError(constant.ErrDateRangeExceedsLimit, "", maxDateRangeMonths)
 		}
 	}
@@ -148,9 +148,8 @@ func validateDates(startDate, endDate *time.Time) error {
 	return nil
 }
 
-// ValidatePagination validate pagination parameters
 func validatePagination(cursor, sortOrder string, limit int) error {
-	maxPaginationLimit := libCommons.SafeInt64ToInt(libCommons.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
+	maxPaginationLimit := pkg.SafeInt64ToInt(pkg.GetenvIntOrDefault("MAX_PAGINATION_LIMIT", 100))
 
 	if limit > maxPaginationLimit {
 		return pkg.ValidateBusinessError(constant.ErrPaginationLimitExceeded, "", maxPaginationLimit)
@@ -160,8 +159,8 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 		return pkg.ValidateBusinessError(constant.ErrInvalidSortOrder, "")
 	}
 
-	if !libCommons.IsNilOrEmpty(&cursor) {
-		_, err := libHTTP.DecodeCursor(cursor)
+	if !pkg.IsNilOrEmpty(&cursor) {
+		_, err := DecodeCursor(cursor)
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
 		}
@@ -170,14 +169,46 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 	return nil
 }
 
+// IPAddrFromRemoteAddr removes port information from string.
+func IPAddrFromRemoteAddr(s string) string {
+	idx := strings.LastIndex(s, ":")
+	if idx == -1 {
+		return s
+	}
+
+	return s[:idx]
+}
+
+// GetRemoteAddress returns IP address of the client making the request.
+// It checks for X-Real-Ip or X-Forwarded-For headers which is used by Proxies.
+func GetRemoteAddress(r *http.Request) string {
+	realIP := r.Header.Get(headerRealIP)
+	forwardedFor := r.Header.Get(headerForwardedFor)
+
+	if realIP == "" && forwardedFor == "" {
+		return IPAddrFromRemoteAddr(r.RemoteAddr)
+	}
+
+	if forwardedFor != "" {
+		parts := strings.Split(forwardedFor, ",")
+		for i, p := range parts {
+			parts[i] = strings.TrimSpace(p)
+		}
+
+		return parts[0]
+	}
+
+	return realIP
+}
+
 // GetIdempotencyKeyAndTTL returns idempotency key and ttl if pass through.
 func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
-	ikey := c.Get(libConstants.IdempotencyKey)
-	iTTL := c.Get(libConstants.IdempotencyTTL)
+	ikey := c.Get(idempotencyKey)
+	iTTL := c.Get(idempotencyTTL)
 
 	t, err := strconv.Atoi(iTTL)
 	if err != nil {
-		t = libRedis.RedisTTL
+		t = mredis.RedisTTL
 	}
 
 	ttl := time.Duration(t)
@@ -187,12 +218,12 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
-	fileHeader, err := ctx.FormFile(libConstants.DSL)
+	fileHeader, err := ctx.FormFile(dsl)
 	if err != nil {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
 	}
 
-	if !strings.Contains(fileHeader.Filename, libConstants.FileExtension) {
+	if !strings.Contains(fileHeader.Filename, fileExtension) {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
 
@@ -220,6 +251,16 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileString := buf.String()
 
 	return fileString, nil
+}
+
+// GetTokenHeader func that get token from header
+func GetTokenHeader(c *fiber.Ctx) string {
+	splitToken := strings.Split(c.Get(fiber.HeaderAuthorization), "Bearer")
+	if len(splitToken) == 2 {
+		return strings.TrimSpace(splitToken[1])
+	}
+
+	return ""
 }
 
 func (qh *QueryHeader) ToOffsetPagination() Pagination {

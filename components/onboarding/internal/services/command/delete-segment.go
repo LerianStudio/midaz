@@ -3,30 +3,40 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // DeleteSegmentByID delete a segment from the repository by ids.
 func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.delete_segment_by_id")
-	defer span.End()
+	op := uc.Telemetry.NewSegmentOperation("delete", id.String())
+
+	op.WithAttributes(
+		attribute.String("segment_id", id.String()),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	op.RecordSystemicMetric(ctx)
+	ctx = op.StartTrace(ctx)
 
 	logger.Infof("Remove segment for id: %s", id.String())
 
 	if err := uc.SegmentRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to delete segment on repo by id", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to delete segment on repo by id", err)
 		logger.Errorf("Error deleting segment on repo by id: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "delete_error", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			return pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
@@ -34,6 +44,8 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 
 		return err
 	}
+
+	op.End(ctx, "success")
 
 	return nil
 }

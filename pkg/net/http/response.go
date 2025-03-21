@@ -1,10 +1,12 @@
 package http
 
 import (
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/gofiber/fiber/v2"
 	"net/http"
 	"strconv"
+
+	"github.com/LerianStudio/midaz/pkg"
+
+	"github.com/gofiber/fiber/v2"
 )
 
 // Unauthorized sends an HTTP 401 Unauthorized response with a custom code, title and message.

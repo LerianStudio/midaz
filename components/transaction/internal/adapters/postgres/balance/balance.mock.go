@@ -13,10 +13,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	http "github.com/LerianStudio/lib-commons/commons/net/http"
-	transaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	model "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
 	mmodel "github.com/LerianStudio/midaz/pkg/mmodel"
-	http0 "github.com/LerianStudio/midaz/pkg/net/http"
+	http "github.com/LerianStudio/midaz/pkg/net/http"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -25,7 +24,6 @@ import (
 type MockRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockRepositoryMockRecorder is the mock recorder for MockRepository.
@@ -46,66 +44,66 @@ func (m *MockRepository) EXPECT() *MockRepositoryMockRecorder {
 }
 
 // BalancesUpdate mocks base method.
-func (m *MockRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+func (m *MockRepository) BalancesUpdate(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []*mmodel.Balance) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BalancesUpdate", ctx, organizationID, ledgerID, balances)
+	ret := m.ctrl.Call(m, "BalancesUpdate", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BalancesUpdate indicates an expected call of BalancesUpdate.
-func (mr *MockRepositoryMockRecorder) BalancesUpdate(ctx, organizationID, ledgerID, balances any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) BalancesUpdate(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalancesUpdate", reflect.TypeOf((*MockRepository)(nil).BalancesUpdate), ctx, organizationID, ledgerID, balances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BalancesUpdate", reflect.TypeOf((*MockRepository)(nil).BalancesUpdate), arg0, arg1, arg2, arg3)
 }
 
 // Create mocks base method.
-func (m *MockRepository) Create(ctx context.Context, balance *mmodel.Balance) error {
+func (m *MockRepository) Create(arg0 context.Context, arg1 *mmodel.Balance) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, balance)
+	ret := m.ctrl.Call(m, "Create", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockRepositoryMockRecorder) Create(ctx, balance any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Create(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), ctx, balance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockRepository)(nil).Create), arg0, arg1)
 }
 
 // Delete mocks base method.
-func (m *MockRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
+func (m *MockRepository) Delete(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Delete", ctx, organizationID, ledgerID, id)
+	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MockRepositoryMockRecorder) Delete(ctx, organizationID, ledgerID, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Delete(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), ctx, organizationID, ledgerID, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockRepository)(nil).Delete), arg0, arg1, arg2, arg3)
 }
 
 // Find mocks base method.
-func (m *MockRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error) {
+func (m *MockRepository) Find(arg0 context.Context, arg1, arg2, arg3 uuid.UUID) (*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Find", ctx, organizationID, ledgerID, id)
+	ret := m.ctrl.Call(m, "Find", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Find indicates an expected call of Find.
-func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, id any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Find(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), ctx, organizationID, ledgerID, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Find", reflect.TypeOf((*MockRepository)(nil).Find), arg0, arg1, arg2, arg3)
 }
 
 // ListAll mocks base method.
-func (m *MockRepository) ListAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http0.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
+func (m *MockRepository) ListAll(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAll", ctx, organizationID, ledgerID, filter)
+	ret := m.ctrl.Call(m, "ListAll", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.Balance)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
@@ -113,15 +111,15 @@ func (m *MockRepository) ListAll(ctx context.Context, organizationID, ledgerID u
 }
 
 // ListAll indicates an expected call of ListAll.
-func (mr *MockRepositoryMockRecorder) ListAll(ctx, organizationID, ledgerID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ListAll(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockRepository)(nil).ListAll), ctx, organizationID, ledgerID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAll", reflect.TypeOf((*MockRepository)(nil).ListAll), arg0, arg1, arg2, arg3)
 }
 
 // ListAllByAccountID mocks base method.
-func (m *MockRepository) ListAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http0.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
+func (m *MockRepository) ListAllByAccountID(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 http.Pagination) ([]*mmodel.Balance, http.CursorPagination, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAllByAccountID", ctx, organizationID, ledgerID, accountID, filter)
+	ret := m.ctrl.Call(m, "ListAllByAccountID", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].([]*mmodel.Balance)
 	ret1, _ := ret[1].(http.CursorPagination)
 	ret2, _ := ret[2].(error)
@@ -129,65 +127,65 @@ func (m *MockRepository) ListAllByAccountID(ctx context.Context, organizationID,
 }
 
 // ListAllByAccountID indicates an expected call of ListAllByAccountID.
-func (mr *MockRepositoryMockRecorder) ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ListAllByAccountID(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllByAccountID", reflect.TypeOf((*MockRepository)(nil).ListAllByAccountID), ctx, organizationID, ledgerID, accountID, filter)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllByAccountID", reflect.TypeOf((*MockRepository)(nil).ListAllByAccountID), arg0, arg1, arg2, arg3, arg4)
 }
 
 // ListByAccountIDs mocks base method.
-func (m *MockRepository) ListByAccountIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error) {
+func (m *MockRepository) ListByAccountIDs(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []uuid.UUID) ([]*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListByAccountIDs", ctx, organizationID, ledgerID, ids)
+	ret := m.ctrl.Call(m, "ListByAccountIDs", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListByAccountIDs indicates an expected call of ListByAccountIDs.
-func (mr *MockRepositoryMockRecorder) ListByAccountIDs(ctx, organizationID, ledgerID, ids any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ListByAccountIDs(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAccountIDs", reflect.TypeOf((*MockRepository)(nil).ListByAccountIDs), ctx, organizationID, ledgerID, ids)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAccountIDs", reflect.TypeOf((*MockRepository)(nil).ListByAccountIDs), arg0, arg1, arg2, arg3)
 }
 
 // ListByAliases mocks base method.
-func (m *MockRepository) ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
+func (m *MockRepository) ListByAliases(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []string) ([]*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListByAliases", ctx, organizationID, ledgerID, aliases)
+	ret := m.ctrl.Call(m, "ListByAliases", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*mmodel.Balance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListByAliases indicates an expected call of ListByAliases.
-func (mr *MockRepositoryMockRecorder) ListByAliases(ctx, organizationID, ledgerID, aliases any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) ListByAliases(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliases", reflect.TypeOf((*MockRepository)(nil).ListByAliases), ctx, organizationID, ledgerID, aliases)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliases", reflect.TypeOf((*MockRepository)(nil).ListByAliases), arg0, arg1, arg2, arg3)
 }
 
 // SelectForUpdate mocks base method.
-func (m *MockRepository) SelectForUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string, fromTo map[string]transaction.Amount) error {
+func (m *MockRepository) SelectForUpdate(arg0 context.Context, arg1, arg2 uuid.UUID, arg3 []string, arg4 map[string]model.Amount) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SelectForUpdate", ctx, organizationID, ledgerID, aliases, fromTo)
+	ret := m.ctrl.Call(m, "SelectForUpdate", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SelectForUpdate indicates an expected call of SelectForUpdate.
-func (mr *MockRepositoryMockRecorder) SelectForUpdate(ctx, organizationID, ledgerID, aliases, fromTo any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) SelectForUpdate(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectForUpdate", reflect.TypeOf((*MockRepository)(nil).SelectForUpdate), ctx, organizationID, ledgerID, aliases, fromTo)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectForUpdate", reflect.TypeOf((*MockRepository)(nil).SelectForUpdate), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) error {
+func (m *MockRepository) Update(arg0 context.Context, arg1, arg2, arg3 uuid.UUID, arg4 mmodel.UpdateBalance) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, id, balance)
+	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, organizationID, ledgerID, id, balance any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(arg0, arg1, arg2, arg3, arg4 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, organizationID, ledgerID, id, balance)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), arg0, arg1, arg2, arg3, arg4)
 }

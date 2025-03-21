@@ -21,7 +21,6 @@ import (
 type MockProducerRepository struct {
 	ctrl     *gomock.Controller
 	recorder *MockProducerRepositoryMockRecorder
-	isgomock struct{}
 }
 
 // MockProducerRepositoryMockRecorder is the mock recorder for MockProducerRepository.
@@ -42,16 +41,16 @@ func (m *MockProducerRepository) EXPECT() *MockProducerRepositoryMockRecorder {
 }
 
 // ProducerDefault mocks base method.
-func (m *MockProducerRepository) ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error) {
+func (m *MockProducerRepository) ProducerDefault(arg0 context.Context, arg1, arg2 string, arg3 mmodel.Queue) (*string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProducerDefault", ctx, exchange, key, message)
+	ret := m.ctrl.Call(m, "ProducerDefault", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(*string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ProducerDefault indicates an expected call of ProducerDefault.
-func (mr *MockProducerRepositoryMockRecorder) ProducerDefault(ctx, exchange, key, message any) *gomock.Call {
+func (mr *MockProducerRepositoryMockRecorder) ProducerDefault(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProducerDefault", reflect.TypeOf((*MockProducerRepository)(nil).ProducerDefault), ctx, exchange, key, message)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProducerDefault", reflect.TypeOf((*MockProducerRepository)(nil).ProducerDefault), arg0, arg1, arg2, arg3)
 }

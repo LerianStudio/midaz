@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/google/uuid"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateSegment(t *testing.T) {

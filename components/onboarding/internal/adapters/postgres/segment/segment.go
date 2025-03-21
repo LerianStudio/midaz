@@ -2,9 +2,10 @@ package segment
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // SegmentPostgreSQLModel represents the entity Segment into SQL context in Database
@@ -50,7 +51,7 @@ func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 // FromEntity converts an entity.Segment to SegmentPostgreSQLModel
 func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
 	*t = SegmentPostgreSQLModel{
-		ID:                libCommons.GenerateUUIDv7().String(),
+		ID:                pkg.GenerateUUIDv7().String(),
 		Name:              segment.Name,
 		LedgerID:          segment.LedgerID,
 		OrganizationID:    segment.OrganizationID,

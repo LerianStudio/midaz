@@ -2,17 +2,19 @@ package query
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/google/uuid"
 	"reflect"
+
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+
+	"github.com/google/uuid"
 )
 
 // GetAssetRateByExternalID gets data in the repository.
 func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*assetrate.AssetRate, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_asset_rate_by_external_id")
 	defer span.End()
@@ -21,7 +23,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 
 	assetRate, err := uc.AssetRateRepo.FindByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to get asset rate by external id on repository", err)
+		mopentelemetry.HandleSpanError(&span, "Failed to get asset rate by external id on repository", err)
 
 		logger.Errorf("Error getting asset rate: %v", err)
 
@@ -31,7 +33,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 	if assetRate != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), assetRate.ID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset rate", err)
+			mopentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset rate", err)
 
 			logger.Errorf("Error get metadata on mongodb asset rate: %v", err)
 

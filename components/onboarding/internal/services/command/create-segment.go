@@ -2,25 +2,37 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
 	"reflect"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/google/uuid"
 )
 
-// CreateSegment creates a new segment persists data in the repository.
+// CreateSegment creates a new segment and persists data in the repository.
 func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_segment")
-	defer span.End()
+	segmentID := pkg.GenerateUUIDv7().String()
+	op := uc.Telemetry.NewSegmentOperation("create", segmentID)
+
+	op.WithAttributes(
+		attribute.String("segment_name", cpi.Name),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	op.RecordSystemicMetric(ctx)
+	ctx = op.StartTrace(ctx)
 
 	logger.Infof("Trying to create segment: %v", cpi)
 
 	var status mmodel.Status
-	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
+	if cpi.Status.IsEmpty() || pkg.IsNilOrEmpty(&cpi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -31,7 +43,7 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 	status.Description = cpi.Status.Description
 
 	segment := &mmodel.Segment{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             segmentID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
 		Name:           cpi.Name,
@@ -42,30 +54,37 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 
 	_, err := uc.SegmentRepo.FindByName(ctx, organizationID, ledgerID, cpi.Name)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error finding segment by name: %v", err)
+		mopentelemetry.HandleSpanError(&op.span, "Failed to find segment by name", err)
+		logger.Errorf("Error finding segment by name: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "find_error", err)
 
 		return nil, err
 	}
 
 	prod, err := uc.SegmentRepo.Create(ctx, segment)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating segment: %v", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create segment", err)
 		logger.Errorf("Error creating segment: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "creation_error", err)
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), prod.ID, cpi.Metadata)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating segment metadata: %v", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create segment metadata", err)
 		logger.Errorf("Error creating segment metadata: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "metadata_error", err)
 
 		return nil, err
 	}
 
 	prod.Metadata = metadata
+
+	op.End(ctx, "success")
 
 	return prod, nil
 }

@@ -2,9 +2,10 @@ package account
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
@@ -63,7 +64,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
-	ID := libCommons.GenerateUUIDv7().String()
+	ID := pkg.GenerateUUIDv7().String()
 	if account.ID != "" {
 		ID = account.ID
 	}
@@ -85,7 +86,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 		UpdatedAt:         account.UpdatedAt,
 	}
 
-	if !libCommons.IsNilOrEmpty(account.PortfolioID) {
+	if !pkg.IsNilOrEmpty(account.PortfolioID) {
 		t.PortfolioID = account.PortfolioID
 	}
 

@@ -10,21 +10,25 @@ services:
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
-      - .:/usr/src/app
+      - transaction-data:/usr/src/app
     networks:
-      - infra-network
-      - onboarding-network
-      - transaction-network
+      - infra_network
+      - onboarding_network
+      - transaction_network
+
+volumes:
+  transaction-data:
+    name: midaz_transaction-data
 
 networks:
-  infra-network:
-    name: infra-network
+  infra_network:
+    name: midaz_infra-network
     driver: bridge
     external: true
-  onboarding-network:
-    name: onboarding-network
+  onboarding_network:
+    name: midaz_onboarding-network
     driver: bridge
     external: true
-  transaction-network:
-    name: transaction-network
+  transaction_network:
+    name: midaz_transaction-network
     driver: bridge

@@ -3,20 +3,21 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libTransction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/LerianStudio/midaz/pkg"
 	cn "github.com/LerianStudio/midaz/pkg/constant"
+	gold "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	en2 "github.com/go-playground/validator/translations/en"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gopkg.in/go-playground/validator.v9"
-	"reflect"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -172,7 +173,7 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 	validPathParamsMap := make(map[string]any)
 
 	for param, value := range params {
-		if !libCommons.Contains[string](cn.UUIDPathParameters, param) {
+		if !pkg.Contains(cn.UUIDPathParameters, param) {
 			validPathParamsMap[param] = value
 			continue
 		}
@@ -346,7 +347,7 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 
 // validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
-	arrField := fl.Field().Interface().([]libTransction.FromTo)
+	arrField := fl.Field().Interface().([]gold.FromTo)
 	for _, f := range arrField {
 		count := 0
 		if f.Amount != nil {
@@ -448,7 +449,7 @@ func parseMetadata(s any, originalMap map[string]any) {
 func findUnknownFields(original, marshaled map[string]any) map[string]any {
 	diffFields := make(map[string]any)
 
-	numKinds := libCommons.GetMapNumKinds()
+	numKinds := pkg.GetMapNumKinds()
 
 	for key, value := range original {
 		if numKinds[reflect.ValueOf(value).Kind()] && value == 0.0 {

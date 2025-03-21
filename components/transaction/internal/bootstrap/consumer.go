@@ -3,11 +3,11 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
 	"os"
 )
 
@@ -32,14 +32,14 @@ func NewMultiQueueConsumer(routes *rabbitmq.ConsumerRoutes, useCase *command.Use
 }
 
 // Run starts consumers for all registered queues.
-func (mq *MultiQueueConsumer) Run(l *libCommons.Launcher) error {
+func (mq *MultiQueueConsumer) Run(l *pkg.Launcher) error {
 	return mq.consumerRoutes.RunConsumers()
 }
 
 // handlerBalanceCreateQueue processes messages from the audit queue, unmarshal the JSON, and creates balances on database.
 func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, body []byte) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_create_queue")
 	defer span.End()
@@ -50,7 +50,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 	err := json.Unmarshal(body, &message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
+		mopentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 
 		logger.Errorf("Error unmarshalling accounts message JSON: %v", err)
 
@@ -61,7 +61,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 	err = mq.UseCase.CreateBalance(ctx, message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error creating balance", err)
+		mopentelemetry.HandleSpanError(&span, "Error creating balance", err)
 
 		logger.Errorf("Error creating balance: %v", err)
 
@@ -73,8 +73,8 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 
 // handlerBTOQueue processes messages from the balance fifo queue, unmarshal the JSON, and update balances on database.
 func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) error {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
+	tracer := pkg.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
 	defer span.End()
@@ -85,7 +85,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	err := json.Unmarshal(body, &message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
+		mopentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 
 		logger.Errorf("Error unmarshalling balance message JSON: %v", err)
 
@@ -96,7 +96,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 
 	err = mq.UseCase.CreateBalanceTransactionOperationsAsync(ctx, message)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Error creating transaction", err)
+		mopentelemetry.HandleSpanError(&span, "Error creating transaction", err)
 
 		logger.Errorf("Error creating transaction: %v", err)
 

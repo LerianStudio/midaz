@@ -3,23 +3,35 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // UpdateTransaction update a transaction from the repository by given id.
 func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, uti *transaction.UpdateTransactionInput) (*transaction.Transaction, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.update_transaction")
-	defer span.End()
+	// Create a transaction operation telemetry entity
+	op := uc.Telemetry.NewTransactionOperation("update", transactionID.String())
+
+	// Add important attributes
+	op.WithAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Trying to update transaction: %v", uti)
 
@@ -29,27 +41,43 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 
 	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction on repo by id", err)
+		// Record error
+		op.RecordError(ctx, "update_error", err)
 
 		logger.Errorf("Error updating transaction on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			// Handle not found error specially
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+
+			op.End(ctx, "failed")
+
+			return nil, notFoundErr
 		}
+
+		op.End(ctx, "failed")
 
 		return nil, err
 	}
 
 	if len(uti.Metadata) > 0 {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, uti.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+		if err := pkg.CheckMetadataKeyAndValueLength(100, uti.Metadata); err != nil {
+			// Record metadata validation error
+			op.RecordError(ctx, "metadata_validation_error", err)
+			op.End(ctx, "failed")
+
+			logger.Errorf("Error validating metadata: %v", err)
 
 			return nil, err
 		}
 
 		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String(), uti.Metadata)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb transaction", err)
+			// Record metadata update error
+			op.RecordError(ctx, "metadata_update_error", err)
+			op.End(ctx, "failed")
+
+			logger.Errorf("Error updating metadata: %v", err)
 
 			return nil, err
 		}
@@ -57,16 +85,31 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 		transUpdated.Metadata = uti.Metadata
 	}
 
+	// Mark operation as successful
+	op.End(ctx, "success")
+
 	return transUpdated, nil
 }
 
 // UpdateTransactionStatus update a status transaction from the repository by given id.
 func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, description string) (*transaction.Transaction, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
-	defer span.End()
+	// Create a transaction operation telemetry entity for status update
+	op := uc.Telemetry.NewTransactionOperation("status_update", transactionID.String())
+
+	// Add important attributes
+	op.WithAttributes(
+		attribute.String("status", description),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Trying to update transaction using status: : %v", description)
 
@@ -81,16 +124,27 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 
 	_, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to update status transaction on repo by id", err)
+		// Record error
+		op.RecordError(ctx, "status_update_error", err)
 
 		logger.Errorf("Error updating status transaction on repo by id: %v", err)
 
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+			// Handle not found error specially
+			notFoundErr := pkg.ValidateBusinessError(constant.ErrTransactionIDNotFound, reflect.TypeOf(transaction.Transaction{}).Name())
+
+			op.End(ctx, "failed")
+
+			return nil, notFoundErr
 		}
+
+		op.End(ctx, "failed")
 
 		return nil, err
 	}
+
+	// Mark operation as successful
+	op.End(ctx, "success")
 
 	return nil, nil
 }

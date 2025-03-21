@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"github.com/LerianStudio/midaz/pkg/gold/parser"
+
 	"github.com/antlr4-go/antlr/v4"
 )
 

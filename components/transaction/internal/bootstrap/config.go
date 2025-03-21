@@ -2,14 +2,8 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/LerianStudio/lib-auth/auth/middleware"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libPostgres "github.com/LerianStudio/lib-commons/commons/postgres"
-	libRabbitmq "github.com/LerianStudio/lib-commons/commons/rabbitmq"
-	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
-	libZap "github.com/LerianStudio/lib-commons/commons/zap"
+
+	"github.com/LerianStudio/auth-lib/auth/middleware"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/http/in"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
@@ -20,6 +14,13 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmongo"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"github.com/LerianStudio/midaz/pkg/mpostgres"
+	"github.com/LerianStudio/midaz/pkg/mrabbitmq"
+	"github.com/LerianStudio/midaz/pkg/mredis"
+	"github.com/LerianStudio/midaz/pkg/mzap"
 )
 
 const ApplicationName = "transaction"
@@ -62,7 +63,6 @@ type Config struct {
 	RabbitMQUser               string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass               string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQBalanceCreateQueue string `env:"RABBITMQ_BALANCE_CREATE_QUEUE"`
-	RabbitMQNumWorkers         int    `env:"RABBITMQ_NUMBERS_OF_WORKERS"`
 	OtelServiceName            string `env:"OTEL_RESOURCE_SERVICE_NAME"`
 	OtelLibraryName            string `env:"OTEL_LIBRARY_NAME"`
 	OtelServiceVersion         string `env:"OTEL_RESOURCE_SERVICE_VERSION"`
@@ -73,21 +73,21 @@ type Config struct {
 	RedisPort                  string `env:"REDIS_PORT"`
 	RedisUser                  string `env:"REDIS_USER"`
 	RedisPassword              string `env:"REDIS_PASSWORD"`
-	AuthEnabled                bool   `env:"PLUGIN_AUTH_ENABLED"`
-	AuthHost                   string `env:"PLUGIN_AUTH_HOST"`
+	AuthEnabled                bool   `env:"AUTH_ENABLED"`
+	AuthHost                   string `env:"AUTH_HOST"`
 }
 
 // InitServers initiate http and grpc servers.
 func InitServers() *Service {
 	cfg := &Config{}
 
-	if err := libCommons.SetConfigFromEnvVars(cfg); err != nil {
+	if err := pkg.SetConfigFromEnvVars(cfg); err != nil {
 		panic(err)
 	}
 
-	logger := libZap.InitializeLogger()
+	logger := mzap.InitializeLogger()
 
-	telemetry := &libOpentelemetry.Telemetry{
+	telemetry := &mopentelemetry.Telemetry{
 		LibraryName:               cfg.OtelLibraryName,
 		ServiceName:               cfg.OtelServiceName,
 		ServiceVersion:            cfg.OtelServiceVersion,
@@ -102,7 +102,7 @@ func InitServers() *Service {
 	postgreSourceReplica := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		cfg.ReplicaDBHost, cfg.ReplicaDBUser, cfg.ReplicaDBPassword, cfg.ReplicaDBName, cfg.ReplicaDBPort)
 
-	postgresConnection := &libPostgres.PostgresConnection{
+	postgresConnection := &mpostgres.PostgresConnection{
 		ConnectionStringPrimary: postgreSourcePrimary,
 		ConnectionStringReplica: postgreSourceReplica,
 		PrimaryDBName:           cfg.PrimaryDBName,
@@ -120,7 +120,7 @@ func InitServers() *Service {
 		cfg.MaxPoolSize = 100
 	}
 
-	mongoConnection := &libMongo.MongoConnection{
+	mongoConnection := &mmongo.MongoConnection{
 		ConnectionStringSource: mongoSource,
 		Database:               cfg.MongoDBName,
 		Logger:                 logger,
@@ -130,7 +130,7 @@ func InitServers() *Service {
 	rabbitSource := fmt.Sprintf("%s://%s:%s@%s:%s",
 		cfg.RabbitURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cfg.RabbitMQHost, cfg.RabbitMQPortHost)
 
-	rabbitMQConnection := &libRabbitmq.RabbitMQConnection{
+	rabbitMQConnection := &mrabbitmq.RabbitMQConnection{
 		ConnectionStringSource: rabbitSource,
 		Host:                   cfg.RabbitMQHost,
 		Port:                   cfg.RabbitMQPortAMQP,
@@ -142,7 +142,7 @@ func InitServers() *Service {
 
 	redisSource := fmt.Sprintf("%s:%s", cfg.RedisHost, cfg.RedisPort)
 
-	redisConnection := &libRedis.RedisConnection{
+	redisConnection := &mredis.RedisConnection{
 		Addr:     redisSource,
 		User:     cfg.RedisUser,
 		Password: cfg.RedisPassword,
@@ -159,7 +159,7 @@ func InitServers() *Service {
 	metadataMongoDBRepository := mongodb.NewMetadataMongoDBRepository(mongoConnection)
 
 	producerRabbitMQRepository := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
-	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, cfg.RabbitMQNumWorkers, logger, telemetry)
+	routes := rabbitmq.NewConsumerRoutes(rabbitMQConnection, logger, telemetry)
 
 	redisConsumerRepository := redis.NewConsumerRedis(redisConnection)
 
@@ -171,6 +171,7 @@ func InitServers() *Service {
 		MetadataRepo:    metadataMongoDBRepository,
 		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
+		ServiceName:     cfg.OtelServiceName,
 	}
 
 	queryUseCase := &query.UseCase{
@@ -204,7 +205,10 @@ func InitServers() *Service {
 
 	multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
+	auth := &middleware.AuthClient{
+		AuthAddress: cfg.AuthHost,
+		AuthEnabled: cfg.AuthEnabled,
+	}
 
 	app := in.NewRouter(logger, telemetry, auth, transactionHandler, operationHandler, assetRateHandler, balanceHandler)
 

@@ -2,24 +2,37 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"reflect"
+
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
+	goldModel "github.com/LerianStudio/midaz/pkg/gold/transaction/model"
+
 	"github.com/google/uuid"
-	"reflect"
-	"time"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
-func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *libTransaction.Transaction) (*transaction.Transaction, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, t *goldModel.Transaction) (*transaction.Transaction, error) {
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_transaction")
-	defer span.End()
+	// Create a transaction operation telemetry entity
+	newTransactionID := pkg.GenerateUUIDv7().String()
+	op := uc.Telemetry.NewTransactionOperation("create", newTransactionID)
+
+	// Add organization and ledger attributes
+	op.WithAttributes(
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	// Start tracing for this operation
+	ctx = op.StartTrace(ctx)
+
+	// Record systemic metric to track operation count
+	op.RecordSystemicMetric(ctx)
 
 	logger.Infof("Trying to create new transaction")
 
@@ -34,59 +47,67 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	if transactionID != uuid.Nil {
 		value := transactionID.String()
 		parentTransactionID = &value
+
+		// Add parent transaction as an attribute
+		op.WithAttribute("parent_transaction_id", value)
 	}
 
-	save := &transaction.Transaction{
-		ID:                       libCommons.GenerateUUIDv7().String(),
-		ParentTransactionID:      parentTransactionID,
-		OrganizationID:           organizationID.String(),
-		LedgerID:                 ledgerID.String(),
-		Description:              t.Description,
-		Template:                 t.ChartOfAccountsGroupName,
-		Status:                   status,
-		Amount:                   &t.Send.Value,
-		AmountScale:              &t.Send.Scale,
-		AssetCode:                t.Send.Asset,
-		ChartOfAccountsGroupName: t.ChartOfAccountsGroupName,
-		Body:                     *t,
-		CreatedAt:                time.Now(),
-		UpdatedAt:                time.Now(),
+	trans := &transaction.Transaction{
+		ID:                  newTransactionID,
+		OrganizationID:      organizationID.String(),
+		LedgerID:            ledgerID.String(),
+		ParentTransactionID: parentTransactionID,
+		Status:              status,
 	}
 
-	tran, err := uc.TransactionRepo.Create(ctx, save)
+	logger.Infof("Creating transaction %v for account %v", newTransactionID, organizationID.String())
+
+	// Persist transaction to database
+	createdTrans, err := uc.TransactionRepo.Create(ctx, trans)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction on repo", err)
+		// Record error metric
+		op.RecordError(ctx, "database_error", err)
 
-		logger.Errorf("Error creating t: %v", err)
+		// End operation with failed status
+		op.End(ctx, "failed")
+
+		logger.Errorf("Error creating transaction: %v", err)
 
 		return nil, err
 	}
 
+	// Add metadata if available
 	if t.Metadata != nil {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, t.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
-
-			return nil, err
-		}
-
-		meta := mongodb.Metadata{
-			EntityID:   tran.ID,
+		metadata := &mongodb.Metadata{
+			EntityID:   newTransactionID,
 			EntityName: reflect.TypeOf(transaction.Transaction{}).Name(),
 			Data:       t.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
 		}
 
-		if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), &meta); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to create transaction metadata", err)
+		// Persist metadata
+		err = uc.MetadataRepo.Create(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), metadata)
+		if err != nil {
+			// Record error metric for metadata creation
+			op.RecordError(ctx, "metadata_error", err)
 
-			logger.Errorf("Error into creating transactiont metadata: %v", err)
+			// Still end with partial success since the transaction was created
+			op.End(ctx, "partial_success")
 
-			return nil, err
+			logger.Errorf("Error creating transaction metadata: %v", err)
+
+			return createdTrans, err
 		}
 
-		tran.Metadata = t.Metadata
+		createdTrans.Metadata = t.Metadata
 	}
 
-	return tran, nil
+	// Record business metrics for the transaction amount if available
+	if t.Send.Value != 0 {
+		op.RecordBusinessMetric(ctx, "amount", float64(t.Send.Value))
+	}
+
+	// End operation with success status
+	op.End(ctx, "success")
+
+	return createdTrans, nil
 }

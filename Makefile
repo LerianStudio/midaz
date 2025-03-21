@@ -83,6 +83,7 @@ help:
 	@echo "  make stop                        - Stop all containers"
 	@echo "  make restart                     - Restart all containers (or build and start if images don't exist)"
 	@echo "  make rebuild-up                  - Rebuild and restart all services"
+	@echo "  make clean-docker                - Remove all Docker containers, images, volumes, and networks related"
 	@echo "  make infra COMMAND=<cmd>         - Run command in infra service"
 	@echo "  make onboarding COMMAND=<cmd>    - Run command in onboarding service"
 	@echo "  make transaction COMMAND=<cmd>   - Run command in transaction service"
@@ -268,8 +269,9 @@ check-envs:
 .PHONY: set-env
 set-env:
 	@echo "$(BLUE)Setting up environment files for all components...$(NC)"
-	@echo "$(YELLOW)WARNING:$(NC)"
-	@echo "$(YELLOW)Customize .env variables to fit your environment. Default values are for initial setup and may not be secure for production. Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
+	@echo "$(YELLOW)WARNING: Customize .env variables to fit your environment.$(NC)"
+	@echo "$(YELLOW)WARNING: Default values are for initial setup and may not be secure for production.$(NC)"
+	@echo "$(YELLOW)WARNING: Protect sensitive info and avoid exposing .env files in public repositories.$(NC)"
 	@echo "$(BLUE)Setting up environment files...$(NC)"
 	@cp -r $(INFRA_DIR)/.env.example $(INFRA_DIR)/.env
 	@cp -r $(ONBOARDING_DIR)/.env.example $(ONBOARDING_DIR)/.env
@@ -306,8 +308,9 @@ clean:
 	fi
 	
 	@echo "$(BLUE)Cleaning common build artifacts...$(NC)"
-	@find . -name "*.o" -o -name "*.a" -o -name "*.so" -o -name "*.test" -o -name "*.out" -o -name "coverage.html" -o -name "__debug_bin*" -type f -delete
-	@find . -path "*/dist/*" -o -path "*/.idea/*" -o -path "*/.vscode/*" -o -path "*/.run/*" -not -path "*/\.git/*" -exec rm -rf {} \; 2>/dev/null || true
+	@cd $(MIDAZ_ROOT)
+	@find . -name "*.o" -o -name "*.a" -o -name "*.env" -o -name "*.so" -o -name "*.test" -o -name "*.out" -o -name "coverage.html" -o -name "__debug_bin*" -type f -delete
+	@find . -path "*/dist/*" -o -path "*/.idea/*" -o -path "*/bin/*" -o -path "*/.vscode/*" -o -path "*/.run/*" -not -path "*/\.git/*" -exec rm -rf {} \; 2>/dev/null || true
 	
 	@echo "$(GREEN)All artifacts cleaned successfully$(NC)"
 
@@ -457,10 +460,26 @@ tidy:
 goreleaser:
 	@echo "$(BLUE)Creating release snapshot with goreleaser...$(NC)"
 	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
-	goreleaser release --snapshot --skip-publish --rm-dist
+	goreleaser release --snapshot --skip-publish --clean
 
 .PHONY: generate-docs-all
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
 	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
 	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
+
+.PHONY: clean-docker
+clean-docker:
+	@echo "$(BLUE)Removing all Docker containers, images, volumes, and networks related to the project...$(NC)"
+	$(call check_command,docker,"Install Docker from https://docs.docker.com/get-docker/")
+	@echo "$(YELLOW)Stopping and removing all containers...$(NC)"
+	@docker ps -a --filter "name=midaz-" -q | xargs -r docker rm -f
+	@echo "$(YELLOW)Removing all project volumes...$(NC)"
+	@docker volume ls --filter "name=midaz_" -q | xargs -r docker volume rm
+	@echo "$(YELLOW)Removing all project networks...$(NC)"
+	@docker network ls --filter "name=infra_network" --filter "name=onboarding_network" --filter "name=transaction_network" -q | xargs -r docker network rm
+	@echo "$(YELLOW)Removing all project images...$(NC)"
+	@docker images --filter "reference=*midaz*" -q | xargs -r docker rmi -f
+	@echo "$(YELLOW)Pruning unused Docker resources...$(NC)"
+	@docker system prune -f
+	@echo "$(GREEN)All Docker resources related to the Midaz project have been cleaned successfully$(NC)"

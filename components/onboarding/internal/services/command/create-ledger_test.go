@@ -3,14 +3,17 @@ package command
 import (
 	"context"
 	"errors"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
+
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
+	"github.com/google/uuid"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCreateLedger(t *testing.T) {
@@ -40,7 +43,7 @@ func TestCreateLedger(t *testing.T) {
 				Name: "Finance Ledger",
 				Status: mmodel.Status{
 					Code:        "ACTIVE",
-					Description: libPointers.String("Ledger for financial transactions"),
+					Description: mpointers.String("Ledger for financial transactions"),
 				},
 				Metadata: nil,
 			},
@@ -58,7 +61,7 @@ func TestCreateLedger(t *testing.T) {
 						Name:           "Finance Ledger",
 						Status: mmodel.Status{
 							Code:        "ACTIVE",
-							Description: libPointers.String("Ledger for financial transactions"),
+							Description: mpointers.String("Ledger for financial transactions"),
 						},
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),

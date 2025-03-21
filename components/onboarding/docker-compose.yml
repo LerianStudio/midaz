@@ -10,16 +10,20 @@ services:
     ports:
       - ${SERVER_PORT}:${SERVER_PORT}
     volumes:
-      - .:/usr/src/app
+      - onboarding-data:/usr/src/app
     networks:
-      - infra-network
-      - onboarding-network
+      - infra_network
+      - onboarding_network
+
+volumes:
+  onboarding-data:
+    name: midaz_onboarding-data
 
 networks:
-  infra-network:
-    name: infra-network
+  infra_network:
+    name: midaz_infra-network
     driver: bridge
     external: true
-  onboarding-network:
-    name: onboarding-network
+  onboarding_network:
+    name: midaz_onboarding-network
     driver: bridge

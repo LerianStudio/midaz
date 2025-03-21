@@ -3,9 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/stretchr/testify/assert"
@@ -16,9 +15,9 @@ import (
 
 // TestGetAllBalances is responsible to test GetAllBalances with success and error
 func TestGetAllBalances(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	accountID := libCommons.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	accountID := pkg.GenerateUUIDv7()
 
 	filter := http.QueryHeader{
 		Limit:        10,
@@ -28,7 +27,7 @@ func TestGetAllBalances(t *testing.T) {
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
 	}
-	mockCur := libHTTP.CursorPagination{
+	mockCur := http.CursorPagination{
 		Next: "next",
 		Prev: "prev",
 	}
@@ -61,12 +60,12 @@ func TestGetAllBalances(t *testing.T) {
 		mockBalanceRepo.
 			EXPECT().
 			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
+			Return(nil, http.CursorPagination{}, errors.New(errMsg)).
 			Times(1)
 		res, cur, err := uc.BalanceRepo.ListAllByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter.ToCursorPagination())
 
 		assert.EqualError(t, err, errMsg)
 		assert.Nil(t, res)
-		assert.Equal(t, cur, libHTTP.CursorPagination{})
+		assert.Equal(t, cur, http.CursorPagination{})
 	})
 }

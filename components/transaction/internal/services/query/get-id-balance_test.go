@@ -3,8 +3,8 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -12,9 +12,9 @@ import (
 )
 
 func TestGetBalanceByID(t *testing.T) {
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 
 	balanceRes := &mmodel.Balance{
 		ID:             ID.String(),
@@ -39,9 +39,9 @@ func TestGetBalanceByID(t *testing.T) {
 
 func TestGetBalanceIDError(t *testing.T) {
 	errMSG := "err to get balance on database"
-	ID := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	ID := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 
 	uc := UseCase{
 		BalanceRepo: balance.NewMockRepository(gomock.NewController(t)),

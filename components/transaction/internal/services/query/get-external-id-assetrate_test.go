@@ -3,19 +3,21 @@ package query
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
-	"github.com/stretchr/testify/assert"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"go.uber.org/mock/gomock"
 	"testing"
+
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
+	"github.com/LerianStudio/midaz/pkg"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetAssetRateByID(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	orgID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	exID := libCommons.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	orgID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	exID := pkg.GenerateUUIDv7()
 
 	assetRate := &assetrate.AssetRate{
 		ID:             id.String(),
@@ -25,8 +27,8 @@ func TestGetAssetRateByID(t *testing.T) {
 		From:           "USD",
 		To:             "BRL",
 		Rate:           100,
-		Scale:          libPointers.Float64(2),
-		Source:         libPointers.String("External System"),
+		Scale:          mpointers.Float64(2),
+		Source:         mpointers.String("External System"),
 		TTL:            3600,
 	}
 
@@ -47,9 +49,9 @@ func TestGetAssetRateByID(t *testing.T) {
 
 // TestGetAssetRateByIDError is responsible to test GetAssetRateByExternalID with error
 func TestGetAssetRateByIDError(t *testing.T) {
-	id := libCommons.GenerateUUIDv7()
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
+	id := pkg.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
 	errMSG := "errDatabaseItemNotFound"
 
 	uc := UseCase{

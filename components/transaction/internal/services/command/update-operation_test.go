@@ -3,20 +3,22 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/pkg"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestUpdateOperationSuccess is responsible to test UpdateOperationSuccess with success
 func TestUpdateOperationSuccess(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-	operationID := libCommons.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	transactionID := pkg.GenerateUUIDv7()
+	operationID := pkg.GenerateUUIDv7()
 
 	o := &operation.Operation{
 		ID:             operationID.String(),
@@ -44,10 +46,10 @@ func TestUpdateOperationSuccess(t *testing.T) {
 // TestUpdateOperationError is responsible to test UpdateOperationError with error
 func TestUpdateOperationError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	transactionID := libCommons.GenerateUUIDv7()
-	operationID := libCommons.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	transactionID := pkg.GenerateUUIDv7()
+	operationID := pkg.GenerateUUIDv7()
 
 	o := &operation.Operation{
 		ID:             operationID.String(),

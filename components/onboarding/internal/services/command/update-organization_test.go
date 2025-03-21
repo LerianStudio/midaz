@@ -3,15 +3,18 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 func TestUpdateOrganizationByID(t *testing.T) {

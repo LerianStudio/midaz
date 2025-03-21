@@ -3,24 +3,25 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
+	"reflect"
+	"testing"
+	"time"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/redis"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mpointers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
 func TestCreatePortfolio(t *testing.T) {
@@ -54,7 +55,7 @@ func TestCreatePortfolio(t *testing.T) {
 				EntityID: "entity-123",
 				Status: mmodel.Status{
 					Code:        "ACTIVE",
-					Description: libPointers.String("Active portfolio"),
+					Description: mpointers.String("Active portfolio"),
 				},
 				Metadata: map[string]any{
 					"key1": "value1",
@@ -71,7 +72,7 @@ func TestCreatePortfolio(t *testing.T) {
 						Name:           "Test Portfolio",
 						Status: mmodel.Status{
 							Code:        "ACTIVE",
-							Description: libPointers.String("Active portfolio"),
+							Description: mpointers.String("Active portfolio"),
 						},
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
@@ -175,10 +176,10 @@ func TestCreatePortfolio(t *testing.T) {
 // TestCreatePortfolioSuccess is responsible to test CreatePortfolio with success
 func TestCreatePortfolioSuccess(t *testing.T) {
 	p := &mmodel.Portfolio{
-		ID:             libCommons.GenerateUUIDv7().String(),
-		OrganizationID: libCommons.GenerateUUIDv7().String(),
-		EntityID:       libCommons.GenerateUUIDv7().String(),
-		LedgerID:       libCommons.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		EntityID:       pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{
@@ -200,10 +201,10 @@ func TestCreatePortfolioSuccess(t *testing.T) {
 func TestCreatePortfolioError(t *testing.T) {
 	errMSG := "err to create portfolio on database"
 	p := &mmodel.Portfolio{
-		ID:             libCommons.GenerateUUIDv7().String(),
-		OrganizationID: libCommons.GenerateUUIDv7().String(),
-		EntityID:       libCommons.GenerateUUIDv7().String(),
-		LedgerID:       libCommons.GenerateUUIDv7().String(),
+		ID:             pkg.GenerateUUIDv7().String(),
+		OrganizationID: pkg.GenerateUUIDv7().String(),
+		EntityID:       pkg.GenerateUUIDv7().String(),
+		LedgerID:       pkg.GenerateUUIDv7().String(),
 	}
 
 	uc := UseCase{

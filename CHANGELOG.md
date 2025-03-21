@@ -1,31 +1,3 @@
-## [1.50.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.4...v1.50.0-beta.5) (2025-03-21)
-
-
-### Features
-
-* add variable number of workers to env for modify anytime; ([3a4f707](https://github.com/LerianStudio/midaz/commit/3a4f707d901893f1948f740ea22c36b46e153ab2))
-
-
-### Bug Fixes
-
-* add networking changes from branch refactor/networks :bug: ([c4e10c9](https://github.com/LerianStudio/midaz/commit/c4e10c9f4d3ee638538446b19207ec2f3b108082))
-* add right ValidateBusinessError from pkg; :bug: ([4f74677](https://github.com/LerianStudio/midaz/commit/4f746771b5dfe8a62fd319bbf904a6b0b37e4d7c))
-* adding plugin auth network as external network ([e4b135c](https://github.com/LerianStudio/midaz/commit/e4b135c737c5da6b6438a5c689647a22ea11c15d))
-* adjust balance update to not return err when don't have rows affected; :bug: ([53c64c6](https://github.com/LerianStudio/midaz/commit/53c64c655888107fd6834cfe011488b826440c7c))
-* adjust lib-auth to use method instead of struct; :bug: ([ff31389](https://github.com/LerianStudio/midaz/commit/ff3138964187a70801f49c52fd147b4696e96e30))
-* adjusts tests and change lib-auth; :bug: ([a317bbe](https://github.com/LerianStudio/midaz/commit/a317bbe6fcd70c0cc4d6964d75c51fc2044a0782))
-* empty spaces; :bug: ([156e231](https://github.com/LerianStudio/midaz/commit/156e23126ff6eeeea87656ca366848e96cc12275))
-* remove plugin network; :bug: ([3b3519c](https://github.com/LerianStudio/midaz/commit/3b3519ca9d214c84ffd030036b34db39f742f6ae))
-* return select for update for check a update balance method; :bug: ([d857237](https://github.com/LerianStudio/midaz/commit/d857237140657e48a9c83db6b8f3b3ee94d73b8c))
-* rollback deploy tag on docker-compose; :bug: ([47c24da](https://github.com/LerianStudio/midaz/commit/47c24dafccb0d4eeb672d46e3f0195789e5ff32b))
-
-## [1.50.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.3...v1.50.0-beta.4) (2025-03-21)
-
-
-### Bug Fixes
-
-* changing pagination limit error type to validation error ([1e19108](https://github.com/LerianStudio/midaz/commit/1e19108af5394299469e74cf1ae7d4dbde78e4be))
-
 ## [1.50.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.50.0-beta.2...v1.50.0-beta.3) (2025-03-12)
 
 

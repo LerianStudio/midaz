@@ -36,6 +36,7 @@ info:
 	@echo "  $(CYAN)COMMAND=\"logs\"$(NC)                                 Show and follow logs for all services"
 	@echo "  $(CYAN)COMMAND=\"ps\"$(NC)                                   List container status"
 	@echo ""
+	@echo ""
 
 # Docker Compose Commands
 .PHONY: build
@@ -72,6 +73,13 @@ stop:
 restart:
 	@echo "$(BLUE)Restarting all services...$(NC)"
 	@make stop && \
+    make up
+
+.PHONY: rebuild-up
+rebuild-up:
+	@echo "$(BLUE)Rebuilding and starting all services...$(NC)"
+	@make down && \
+    make build && \
     make up
 
 .PHONY: logs

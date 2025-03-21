@@ -3,19 +3,20 @@ package command
 import (
 	"context"
 	"errors"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestUpdateBalanceSuccess is responsible to test UpdateBalanceSuccess with success
 func TestUpdateBalanceSuccess(t *testing.T) {
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	balanceID := pkg.GenerateUUIDv7()
 
 	allowSending := false
 
@@ -41,9 +42,9 @@ func TestUpdateBalanceSuccess(t *testing.T) {
 // TestUpdateBalanceError is responsible to test UpdateBalanceError with error
 func TestUpdateBalanceError(t *testing.T) {
 	errMSG := "errDatabaseItemNotFound"
-	organizationID := libCommons.GenerateUUIDv7()
-	ledgerID := libCommons.GenerateUUIDv7()
-	balanceID := libCommons.GenerateUUIDv7()
+	organizationID := pkg.GenerateUUIDv7()
+	ledgerID := pkg.GenerateUUIDv7()
+	balanceID := pkg.GenerateUUIDv7()
 
 	allowSending := true
 	allowReceiving := false

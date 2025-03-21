@@ -2,25 +2,41 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
 	"reflect"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/google/uuid"
 )
 
-// CreatePortfolio creates a new portfolio persists data in the repository.
+// CreatePortfolio creates a new portfolio and persists data in the repository.
 func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, cpi *mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_portfolio")
-	defer span.End()
+	portfolioID := pkg.GenerateUUIDv7().String()
+	op := uc.Telemetry.NewPortfolioOperation("create", portfolioID)
+
+	op.WithAttributes(
+		attribute.String("portfolio_name", cpi.Name),
+		attribute.String("organization_id", organizationID.String()),
+		attribute.String("ledger_id", ledgerID.String()),
+	)
+
+	if cpi.EntityID != "" {
+		op.WithAttribute("entity_id", cpi.EntityID)
+	}
+
+	op.RecordSystemicMetric(ctx)
+	ctx = op.StartTrace(ctx)
 
 	logger.Infof("Trying to create portfolio: %v", cpi)
 
 	var status mmodel.Status
-	if cpi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cpi.Status.Code) {
+	if cpi.Status.IsEmpty() || pkg.IsNilOrEmpty(&cpi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -31,7 +47,7 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 	status.Description = cpi.Status.Description
 
 	portfolio := &mmodel.Portfolio{
-		ID:             libCommons.GenerateUUIDv7().String(),
+		ID:             portfolioID,
 		EntityID:       cpi.EntityID,
 		LedgerID:       ledgerID.String(),
 		OrganizationID: organizationID.String(),
@@ -43,23 +59,27 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating portfolio: %v", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create portfolio", err)
 		logger.Errorf("Error creating portfolio: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "creation_error", err)
 
 		return nil, err
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), port.ID, cpi.Metadata)
 	if err != nil {
-		libCommons.NewLoggerFromContext(ctx).Errorf("Error creating portfolio metadata: %v", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create portfolio metadata", err)
 		logger.Errorf("Error creating portfolio metadata: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "metadata_error", err)
 
 		return nil, err
 	}
 
 	port.Metadata = metadata
+
+	op.End(ctx, "success")
 
 	return port, nil
 }

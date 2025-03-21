@@ -3,16 +3,19 @@ package command
 import (
 	"context"
 	"errors"
+	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
+	"testing"
+	"time"
+
+	"go.uber.org/mock/gomock"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/portfolio"
-	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
 // TestCreateAccountSuccess is responsible to test CreateAccount with success

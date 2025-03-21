@@ -2,26 +2,36 @@ package command
 
 import (
 	"context"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
-	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"github.com/google/uuid"
 	"reflect"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/pkg/mopentelemetry"
+	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/google/uuid"
 )
 
-// CreateLedger creates a new ledger persists data in the repository.
+// CreateLedger creates a new ledger and persists data in the repository.
 func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, cli *mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
-	logger := libCommons.NewLoggerFromContext(ctx)
-	tracer := libCommons.NewTracerFromContext(ctx)
+	logger := pkg.NewLoggerFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.create_ledger")
-	span.End()
+	ledgerID := pkg.GenerateUUIDv7().String()
+	op := uc.Telemetry.NewLedgerOperation("create", ledgerID)
+
+	op.WithAttributes(
+		attribute.String("ledger_name", cli.Name),
+		attribute.String("organization_id", organizationID.String()),
+	)
+
+	op.RecordSystemicMetric(ctx)
+	ctx = op.StartTrace(ctx)
 
 	logger.Infof("Trying to create ledger: %v", cli)
 
 	var status mmodel.Status
-	if cli.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cli.Status.Code) {
+	if cli.Status.IsEmpty() || pkg.IsNilOrEmpty(&cli.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
 		}
@@ -33,14 +43,16 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	_, err := uc.LedgerRepo.FindByName(ctx, organizationID, cli.Name)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to find ledger by name", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to find ledger by name", err)
 		logger.Errorf("Error creating ledger: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "find_error", err)
 
 		return nil, err
 	}
 
 	ledger := &mmodel.Ledger{
+		ID:             ledgerID,
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
@@ -50,9 +62,10 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create ledger", err)
 		logger.Errorf("Error creating ledger: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "creation_error", err)
 
 		return nil, err
 	}
@@ -61,14 +74,17 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 
 	metadata, err := uc.CreateMetadata(ctx, takeName, led.ID, cli.Metadata)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(&span, "Failed to create ledger metadata", err)
-
+		mopentelemetry.HandleSpanError(&op.span, "Failed to create ledger metadata", err)
 		logger.Errorf("Error creating ledger metadata: %v", err)
+		op.WithAttribute("error_detail", err.Error())
+		op.RecordError(ctx, "metadata_error", err)
 
 		return nil, err
 	}
 
 	led.Metadata = metadata
+
+	op.End(ctx, "success")
 
 	return led, nil
 }
