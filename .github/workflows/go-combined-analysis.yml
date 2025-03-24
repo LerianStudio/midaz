@@ -86,6 +86,7 @@ jobs:
           fail_level: any
           reporter: github-pr-review
           filter_mode: diff_context
+          golangci_lint_version: v1.64.8
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
