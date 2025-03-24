@@ -1,3 +1,11 @@
+## [1.51.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.50.0...v1.51.0-beta.1) (2025-03-24)
+
+
+### Bug Fixes
+
+* remove old description about midaz on readme; :bug: ([160fb34](https://github.com/LerianStudio/midaz/commit/160fb348abbea1a5969f50c12723a1675eb10772))
+* use default variable in channel qos; set golangci lint version; :bug: ([a15a80f](https://github.com/LerianStudio/midaz/commit/a15a80fdf2d26cba1eef603d6a74de19de9aeb94))
+
 ## [1.50.0](https://github.com/LerianStudio/midaz/compare/v1.49.0...v1.50.0) (2025-03-21)
 
 
