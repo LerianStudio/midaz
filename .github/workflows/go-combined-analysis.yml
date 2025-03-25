@@ -49,6 +49,7 @@ jobs:
           category: "/language:${{matrix.language}}"
 
   GolangCI-Lint:
+    name: Run GolangCI-Lint to Midaz
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
