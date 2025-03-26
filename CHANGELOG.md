@@ -1,3 +1,11 @@
+## [1.51.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.1...v1.51.0-beta.2) (2025-03-26)
+
+
+### Bug Fixes
+
+* add error response from lib-commons to return right business error; :bug: ([27af975](https://github.com/LerianStudio/midaz/commit/27af97542a36d619dca0e04bd6039c195701650e))
+* adjust other places that we change pkg error for lib-commons error; :bug: ([5b07da5](https://github.com/LerianStudio/midaz/commit/5b07da53c91cc006a152211e360bd1d18b11464c))
+
 ## [1.51.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.50.0...v1.51.0-beta.1) (2025-03-24)
 
 
