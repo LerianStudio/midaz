@@ -1,3 +1,12 @@
+## [1.51.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.2...v1.51.0-beta.3) (2025-03-27)
+
+
+### Features
+
+* increase checkout for v4 ([ee9d982](https://github.com/LerianStudio/midaz/commit/ee9d982059222a8373883e0aac1f91df6d5d9660))
+* mantain the name of jobs on Midaz ([67c34b3](https://github.com/LerianStudio/midaz/commit/67c34b3d543f0dc54aef1d5249c0072db1edc029))
+* organize golangci-lint on module ([d9735f8](https://github.com/LerianStudio/midaz/commit/d9735f8eaf2022188a9d0b63dd182afc8e0cce60))
+
 ## [1.51.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.1...v1.51.0-beta.2) (2025-03-26)
 
 
