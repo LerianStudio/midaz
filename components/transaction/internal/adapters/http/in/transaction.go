@@ -159,7 +159,22 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	_, span := tracer.Start(ctx, "handler.commit_transaction")
 	defer span.End()
 
-	return http.Created(c, logger)
+	return http.OK(c, logger)
+}
+
+// CancelTransaction method that cancel transaction created before
+//
+// TODO: Implement this method and the swagger documentation related to it
+func (handler *TransactionHandler) CancelTransaction(c *fiber.Ctx) error {
+	ctx := c.UserContext()
+
+	logger := libCommons.NewLoggerFromContext(ctx)
+	tracer := libCommons.NewTracerFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "handler.commit_transaction")
+	defer span.End()
+
+	return http.OK(c, logger)
 }
 
 // RevertTransaction method that revert transaction created before
