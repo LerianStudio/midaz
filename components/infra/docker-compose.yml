@@ -73,9 +73,10 @@ services:
     command: |
       postgres
       -c wal_level=logical
+      -c wal_keep_size=512MB
       -c hot_standby=on
-      -c max_wal_senders=10
-      -c max_replication_slots=10
+      -c max_wal_senders=20
+      -c max_replication_slots=20
       -c hot_standby_feedback=on
       -c max_connections=${MAX_CONNECTIONS}
       -c shared_buffers=${SHARED_BUFFERS}
@@ -115,7 +116,13 @@ services:
         sed -i 's/^#*max_connections.*/max_connections = ${MAX_CONNECTIONS}/' /var/lib/postgresql/data/postgresql.conf      
       
         # Define database shared buffers
-        sed -i 's/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf      
+        sed -i 's/^#*shared_buffers.*/shared_buffers = ${SHARED_BUFFERS}/' /var/lib/postgresql/data/postgresql.conf 
+      
+        sed -i 's/^#*hot_standby.*/hot_standby = on/' /var/lib/postgresql/data/postgresql.conf
+        sed -i 's/^#*wal_level.*/wal_level = logical/' /var/lib/postgresql/data/postgresql.conf
+        sed -i 's/^#*max_wal_senders.*/max_wal_senders = 20/' /var/lib/postgresql/data/postgresql.conf
+        sed -i 's/^#*max_replication_slots.*/max_replication_slots = 20/' /var/lib/postgresql/data/postgresql.conf
+        sed -i 's/^#*wal_keep_size.*/wal_keep_size = 512MB/' /var/lib/postgresql/data/postgresql.conf
       fi
       exec postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
       "
