@@ -457,7 +457,7 @@ tidy:
 goreleaser:
 	@echo "$(BLUE)Creating release snapshot with goreleaser...$(NC)"
 	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
-	goreleaser release --snapshot --skip-publish --rm-dist
+	goreleaser release --snapshot --skip=publish --clean
 
 .PHONY: generate-docs-all
 generate-docs-all:
