@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAccount_ToProto(t *testing.T) {
@@ -62,6 +64,36 @@ func TestAccount_ToProto(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.account
 			t.Log(result)
+		})
+	}
+}
+
+func TestAccount_IDtoUUID(t *testing.T) {
+	tests := []struct {
+		name    string
+		account *Account
+		want    uuid.UUID
+	}{
+		{
+			name: "valid UUID",
+			account: &Account{
+				ID: "123e4567-e89b-12d3-a456-426614174000",
+			},
+			want: uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"),
+		},
+		{
+			name: "valid UUID with different format",
+			account: &Account{
+				ID: "123E4567E89B12D3A456426614174000",
+			},
+			want: uuid.MustParse("123E4567E89B12D3A456426614174000"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.account.IDtoUUID()
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

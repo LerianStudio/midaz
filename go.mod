@@ -3,6 +3,7 @@ module github.com/LerianStudio/midaz
 go 1.23.2
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth v1.8.0
 	github.com/LerianStudio/lib-commons v1.0.0
 	github.com/Masterminds/squirrel v1.5.4
