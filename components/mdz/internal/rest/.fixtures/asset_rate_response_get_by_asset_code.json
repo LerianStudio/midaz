@@ -1,0 +1,44 @@
+{
+    "items": [
+        {
+            "id": "01933f96-ed04-7c57-be5b-c091388830f8",
+            "fromAssetCode": "USD",
+            "toAssetCode": "BRL",
+            "rate": 52000,
+            "rateScale": 4,
+            "status": {
+                "code": "ACTIVE",
+                "description": "Active asset rate"
+            },
+            "metadata": {
+                "source": "central_bank",
+                "timestamp": "2024-11-18T14:00:00Z",
+                "isOfficial": true
+            },
+            "createdAt": "2024-11-18T14:04:35.972791193Z",
+            "updatedAt": "2024-11-18T14:04:35.972794057Z"
+        },
+        {
+            "id": "01933f96-ed04-7c57-be5b-c091388830f9",
+            "fromAssetCode": "USD",
+            "toAssetCode": "EUR",
+            "rate": 9200,
+            "rateScale": 4,
+            "status": {
+                "code": "ACTIVE",
+                "description": "Active asset rate"
+            },
+            "metadata": {
+                "source": "central_bank",
+                "timestamp": "2024-11-18T14:00:00Z",
+                "isOfficial": true
+            },
+            "createdAt": "2024-11-18T14:04:35.972791193Z",
+            "updatedAt": "2024-11-18T14:04:35.972794057Z"
+        }
+    ],
+    "pagination": {
+        "nextCursor": "next_page_token",
+        "prevCursor": "prev_page_token"
+    }
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/fatih/color"
+	"github.com/olekukonko/tablewriter"
 )
 
 const (
@@ -61,7 +62,7 @@ func FormatAndPrint(f *factory.Factory, id, entity, method string) {
 			methodStyle = method
 		}
 
-		msg = fmt.Sprintf("✔︎  The %s %s has been successfully %s.",
+		msg = fmt.Sprintf("The %s %s has been successfully %s.",
 			entityStyle(entity),
 			idStyle(id),
 			methodStyle,
@@ -72,15 +73,31 @@ func FormatAndPrint(f *factory.Factory, id, entity, method string) {
 	g.Output()
 }
 
-func Printf(w io.Writer, msg string) {
-	g := GeneralOutput{Msg: msg, Out: w}
+// Printf prints a formatted message to the writer.
+func Printf(w io.Writer, format string, a ...interface{}) {
+	g := GeneralOutput{Msg: fmt.Sprintf(format, a...), Out: w}
 	g.Output()
 }
 
+// Errorf prints an error message to the writer and returns the error.
 func Errorf(w io.Writer, err error) error {
 	e := ErrorOutput{GeneralOutput: GeneralOutput{Out: w}, Err: err}
 
 	return e.Output()
+}
+
+// NewTable creates a new table writer.
+func NewTable(w io.Writer) *tablewriter.Table {
+	table := tablewriter.NewWriter(w)
+	table.SetBorder(false)
+	table.SetCenterSeparator("")
+	table.SetColumnSeparator("")
+	table.SetRowSeparator("")
+	table.SetHeaderLine(false)
+	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoWrapText(false)
+	return table
 }
 
 type GeneralOutput struct {
@@ -95,17 +112,14 @@ func (o *GeneralOutput) Output() {
 }
 
 type ErrorOutput struct {
-	GeneralOutput GeneralOutput
-	Err           error
+	GeneralOutput
+	Err error
 }
 
 func (o *ErrorOutput) Output() error {
-	if o.Err != nil {
-		_, err := fmt.Fprintf(o.GeneralOutput.Out, "Error: %s\n", o.Err.Error())
-		if err != nil {
-			return err
-		}
+	log.Println(o.Err)
+	if _, err := fmt.Fprintf(o.Out, "%s\n", o.Err); err != nil {
+		log.Printf("failed to write error output: %v", err)
 	}
-
-	return nil
+	return o.Err
 }

@@ -1,0 +1,25 @@
+{
+    "items": [
+        {
+            "id": "01933f96-ed04-7c57-be5b-c091388830f8",
+            "accountId": "01933f94-67b1-794c-bb13-6b75aed7591b",
+            "amount": 1500,
+            "amountScale": 2,
+            "assetCode": "USD",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Active balance"
+            },
+            "metadata": {
+                "lastUpdate": "2024-11-18T14:00:00Z",
+                "category": "checking"
+            },
+            "createdAt": "2024-11-18T14:04:35.972791193Z",
+            "updatedAt": "2024-11-18T14:04:35.972794057Z"
+        }
+    ],
+    "pagination": {
+        "nextCursor": "next_page_token",
+        "prevCursor": "prev_page_token"
+    }
+}

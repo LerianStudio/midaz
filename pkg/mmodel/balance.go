@@ -28,6 +28,8 @@ type Balance struct {
 	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
 	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
+	Amount         int64          `json:"amount,omitempty" example:"1500"`
+	AmountScale    int64          `json:"amountScale,omitempty" example:"2"`
 }
 
 type UpdateBalance struct {
@@ -45,10 +47,20 @@ func (b *Balance) IDtoUUID() uuid.UUID {
 // swagger:model Balances
 // @Description Balances is the struct designed to return a list of balances with pagination.
 type Balances struct {
-	Items []Balance `json:"items"`
-	Page  int       `json:"page" example:"1"`
-	Limit int       `json:"limit" example:"10"`
+	Items      []Balance   `json:"items"`
+	Pagination *Pagination `json:"pagination"`
 } // @name Balances
+
+// Pagination struct for cursor-based pagination.
+//
+// swagger:model Pagination
+// @Description Pagination is the struct designed to store pagination data.
+type Pagination struct {
+	Page       int     `json:"page" example:"1"`
+	Limit      int     `json:"limit" example:"10"`
+	NextCursor *string `json:"nextCursor,omitempty" example:"next_cursor_token"`
+	PrevCursor *string `json:"prevCursor,omitempty" example:"prev_cursor_token"`
+}
 
 type BalanceRedis struct {
 	ID             string `json:"id"`

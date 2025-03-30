@@ -1,0 +1,46 @@
+{
+    "items": [
+        {
+            "id": "01933f96-ed04-7c57-be5b-c091388830f8",
+            "accountId": "01933f94-67b1-794c-bb13-6b75aed7591b",
+            "amount": 1000,
+            "description": "Test Operation",
+            "type": "credit",
+            "status": {
+                "code": "COMPLETED",
+                "description": "Operation completed successfully"
+            },
+            "metadata": {
+                "reference": "INV-001",
+                "category": "payment"
+            },
+            "transactionId": "01933f94-67b1-794c-bb13-6b75aed7591a",
+            "assetCode": "USD",
+            "createdAt": "2024-11-18T14:04:35.972791193Z",
+            "updatedAt": "2024-11-18T14:04:35.972794057Z"
+        },
+        {
+            "id": "01933f96-ed04-7c57-be5b-c091388830f9",
+            "accountId": "01933f94-67b1-794c-bb13-6b75aed7591b",
+            "amount": -500,
+            "description": "Test Debit Operation",
+            "type": "debit",
+            "status": {
+                "code": "COMPLETED",
+                "description": "Operation completed successfully"
+            },
+            "metadata": {
+                "reference": "INV-002",
+                "category": "withdrawal"
+            },
+            "transactionId": "01933f94-67b1-794c-bb13-6b75aed7591c",
+            "assetCode": "USD",
+            "createdAt": "2024-11-18T15:04:35.972791193Z",
+            "updatedAt": "2024-11-18T15:04:35.972794057Z"
+        }
+    ],
+    "pagination": {
+        "nextCursor": "next_page_token",
+        "prevCursor": "prev_page_token"
+    }
+}

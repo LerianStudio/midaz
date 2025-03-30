@@ -1,0 +1,40 @@
+{
+    "items": [
+        {
+            "id": "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61",
+            "name": "Main Ledger",
+            "description": "Main ledger for financial transactions",
+            "organizationId": "01933f94-67b1-794c-bb13-6b75aed7591a",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Active ledger"
+            },
+            "metadata": {
+                "category": "financial",
+                "region": "global"
+            },
+            "createdAt": "2024-11-18T14:04:35.972791193Z",
+            "updatedAt": "2024-11-18T14:04:35.972794057Z"
+        },
+        {
+            "id": "01933f94-8a8f-7a1e-b4ab-98f35a5f8d62",
+            "name": "Secondary Ledger",
+            "description": "Secondary ledger for investment transactions",
+            "organizationId": "01933f94-67b1-794c-bb13-6b75aed7591a",
+            "status": {
+                "code": "ACTIVE",
+                "description": "Active ledger"
+            },
+            "metadata": {
+                "category": "investment",
+                "region": "americas"
+            },
+            "createdAt": "2024-11-18T15:04:35.972791193Z",
+            "updatedAt": "2024-11-18T15:04:35.972794057Z"
+        }
+    ],
+    "pagination": {
+        "nextCursor": "next_page_token",
+        "prevCursor": "prev_page_token"
+    }
+}

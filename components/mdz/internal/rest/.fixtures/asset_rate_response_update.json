@@ -1,0 +1,19 @@
+{
+    "id": "01933f96-ed04-7c57-be5b-c091388830f8",
+    "fromAssetCode": "USD",
+    "toAssetCode": "BRL",
+    "rate": 53000,
+    "rateScale": 4,
+    "status": {
+        "code": "UPDATED",
+        "description": "Updated asset rate"
+    },
+    "metadata": {
+        "source": "central_bank",
+        "timestamp": "2024-11-18T15:00:00Z",
+        "isOfficial": true,
+        "lastUpdate": "2024-11-18T15:00:00Z"
+    },
+    "createdAt": "2024-11-18T14:04:35.972791193Z",
+    "updatedAt": "2024-11-18T15:04:35.972794057Z"
+}

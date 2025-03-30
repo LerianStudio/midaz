@@ -5,12 +5,16 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/account"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset_rate"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/balance"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/configure"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/login"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/operation"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/organization"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/portfolio"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/segment"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/transaction"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/version"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -33,6 +37,10 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(portfolio.NewCmdPortfolio(f.factory))
 	cmd.AddCommand(segment.NewCmdSegment(f.factory))
 	cmd.AddCommand(account.NewCmdAccount(f.factory))
+	cmd.AddCommand(transaction.NewCmdTransaction(f.factory))
+	cmd.AddCommand(operation.NewCmdOperation(f.factory))
+	cmd.AddCommand(balance.NewCmdBalance(f.factory))
+	cmd.AddCommand(asset_rate.NewCmdAssetRate(f.factory))
 	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }
 
@@ -58,20 +66,24 @@ func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 		return errors.New("Try the login command first 'mdz login -h' " + err.Error())
 	}
 
-	if len(sett.Env.ClientID) > 0 {
+	if len(sett.ClientID) > 0 {
 		f.factory.Env.ClientID = sett.ClientID
 	}
 
-	if len(sett.Env.ClientSecret) > 0 {
+	if len(sett.ClientSecret) > 0 {
 		f.factory.Env.ClientSecret = sett.ClientSecret
 	}
 
-	if len(sett.Env.URLAPIAuth) > 0 {
+	if len(sett.URLAPIAuth) > 0 {
 		f.factory.Env.URLAPIAuth = sett.URLAPIAuth
 	}
 
-	if len(sett.Env.URLAPILedger) > 0 {
+	if len(sett.URLAPILedger) > 0 {
 		f.factory.Env.URLAPILedger = sett.URLAPILedger
+	}
+
+	if len(sett.URLAPITransaction) > 0 {
+		f.factory.Env.URLAPITransaction = sett.URLAPITransaction
 	}
 
 	if len(sett.Token) > 0 {
