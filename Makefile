@@ -194,6 +194,20 @@ cover:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@sh ./scripts/coverage.sh
 	@go tool cover -html=coverage.out -o coverage.html
+	@echo "$(BLUE)Coverage Summary:$(NC)"
+	@echo "$(CYAN)----------------------------------------$(NC)"
+	@go tool cover -func=coverage.out | grep -v "^go" | sort -k 3 -r | head -n 10 | awk '{printf "$(YELLOW)%-50s$(NC) $(GREEN)%s$(NC)\n", $$1, $$3}'
+	@echo "$(CYAN)----------------------------------------$(NC)"
+	@total=$$(go tool cover -func=coverage.out | grep "total:" | awk '{print $$3}'); \
+	echo "$(BOLD)Total coverage: $(GREEN)$$total$(NC)"; \
+	coverage=$$(echo $$total | sed 's/%//'); \
+	if (( $$(echo "$$coverage < 70" | bc -l) )); then \
+		echo "$(RED)⚠️  Coverage is below 70%. Consider adding more tests.$(NC)"; \
+	elif (( $$(echo "$$coverage >= 90" | bc -l) )); then \
+		echo "$(GREEN)🎉 Excellent coverage!$(NC)"; \
+	else \
+		echo "$(YELLOW)👍 Good coverage, but there's room for improvement.$(NC)"; \
+	fi
 
 # Code Quality Commands
 .PHONY: lint
