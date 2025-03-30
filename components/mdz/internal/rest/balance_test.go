@@ -3,6 +3,7 @@ package rest
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
@@ -28,8 +29,23 @@ func Test_balance_Get(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances?limit=%d&sort_order=%s&start_date=%s&end_date=%s",
-		URIAPITransaction, organizationID, ledgerID, limit, sortOrder, startDate, endDate)
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances",
+		URIAPITransaction, organizationID, ledgerID)
+	
+	u, err := url.Parse(baseURL)
+	assert.NoError(t, err)
+	
+	q := u.Query()
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
+	q.Set("sort_order", sortOrder)
+	q.Set("start_date", startDate)
+	q.Set("end_date", endDate)
+	u.RawQuery = q.Encode()
+	
+	uri := u.String()
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/balance_response_get.json"))
@@ -53,8 +69,8 @@ func Test_balance_Get(t *testing.T) {
 	assert.Equal(t, int64(1500), result.Items[0].Amount)
 	assert.Equal(t, int64(2), result.Items[0].AmountScale)
 	assert.Equal(t, "USD", result.Items[0].AssetCode)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
@@ -119,8 +135,23 @@ func Test_balance_GetByAccount(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances?limit=%d&sort_order=%s&start_date=%s&end_date=%s",
-		URIAPITransaction, organizationID, ledgerID, accountID, limit, sortOrder, startDate, endDate)
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
+		URIAPITransaction, organizationID, ledgerID, accountID)
+	
+	u, err := url.Parse(baseURL)
+	assert.NoError(t, err)
+	
+	q := u.Query()
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	if cursor != "" {
+		q.Set("cursor", cursor)
+	}
+	q.Set("sort_order", sortOrder)
+	q.Set("start_date", startDate)
+	q.Set("end_date", endDate)
+	u.RawQuery = q.Encode()
+	
+	uri := u.String()
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/balance_response_get_by_account.json"))
@@ -145,8 +176,8 @@ func Test_balance_GetByAccount(t *testing.T) {
 	assert.Equal(t, "EUR", result.Items[1].AssetCode)
 	assert.Equal(t, int64(1500), result.Items[0].Amount)
 	assert.Equal(t, int64(2000), result.Items[1].Amount)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])

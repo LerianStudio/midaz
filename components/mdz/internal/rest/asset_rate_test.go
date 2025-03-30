@@ -133,7 +133,7 @@ func Test_assetRate_Update(t *testing.T) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/%s",
 		URIAPITransaction, organizationID, ledgerID, assetRateID)
 
-	httpmock.RegisterResponder(http.MethodPut, uri,
+	httpmock.RegisterResponder(http.MethodPatch, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/asset_rate_response_update.json"))
 
 	factory := &factory.Factory{
@@ -157,7 +157,7 @@ func Test_assetRate_Update(t *testing.T) {
 	assert.Equal(t, metadata, result.Metadata)
 
 	info := httpmock.GetCallCountInfo()
-	assert.Equal(t, 1, info["PUT "+uri])
+	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
 func Test_assetRate_Get(t *testing.T) {
@@ -175,8 +175,12 @@ func Test_assetRate_Get(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates?limit=%d&page=%d&sort=%s&startDate=%s&endDate=%s",
-		URIAPITransaction, organizationID, ledgerID, limit, page, sortOrder, startDate, endDate)
+	// Let's use BuildPaginatedURL to ensure the URL is constructed correctly
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates",
+		URIAPITransaction, organizationID, ledgerID)
+	
+	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	assert.NoError(t, err)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/asset_rate_response_get.json"))
@@ -196,8 +200,8 @@ func Test_assetRate_Get(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, 1, len(result.Items))
 	assert.Equal(t, "01933f96-ed04-7c57-be5b-c091388830f8", result.Items[0].ID)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
@@ -257,8 +261,12 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s/rates?limit=%d&page=%d&sort=%s&startDate=%s&endDate=%s",
-		URIAPITransaction, organizationID, ledgerID, assetCode, limit, page, sortOrder, startDate, endDate)
+	// Let's use BuildPaginatedURL to ensure the URL is constructed correctly
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/from/%s",
+		URIAPITransaction, organizationID, ledgerID, assetCode)
+	
+	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	assert.NoError(t, err)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/asset_rate_response_get_by_asset_code.json"))
@@ -281,8 +289,8 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 	assert.Equal(t, "BRL", result.Items[0].ToAssetCode)
 	assert.Equal(t, "USD", result.Items[1].FromAssetCode)
 	assert.Equal(t, "EUR", result.Items[1].ToAssetCode)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])

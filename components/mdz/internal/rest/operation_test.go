@@ -28,8 +28,11 @@ func Test_operation_Get(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations?limit=%d&page=%d&sort=%s&startDate=%s&endDate=%s",
-		URIAPITransaction, organizationID, ledgerID, limit, page, sortOrder, startDate, endDate)
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations",
+		URIAPITransaction, organizationID, ledgerID)
+	
+	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	assert.NoError(t, err)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_get.json"))
@@ -52,8 +55,8 @@ func Test_operation_Get(t *testing.T) {
 	assert.Equal(t, "01933f94-67b1-794c-bb13-6b75aed7591b", result.Items[0].AccountID)
 	assert.Equal(t, int64(1000), result.Items[0].Amount)
 	assert.Equal(t, "USD", result.Items[0].AssetCode)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
@@ -117,8 +120,11 @@ func Test_operation_GetByAccount(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations?limit=%d&page=%d&sort=%s&startDate=%s&endDate=%s",
-		URIAPITransaction, organizationID, ledgerID, accountID, limit, page, sortOrder, startDate, endDate)
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations",
+		URIAPITransaction, organizationID, ledgerID, accountID)
+	
+	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	assert.NoError(t, err)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/operation_response_get_by_account.json"))
@@ -143,8 +149,8 @@ func Test_operation_GetByAccount(t *testing.T) {
 	assert.Equal(t, int64(-500), result.Items[1].Amount)
 	assert.Equal(t, "credit", result.Items[0].Type)
 	assert.Equal(t, "debit", result.Items[1].Type)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
