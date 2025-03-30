@@ -5,8 +5,6 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
-github.com/LerianStudio/lib-auth v1.7.0 h1:/KMCvEg62Vftvh8hCOjnOoqNHfzSl1+N47jriJk7+0k=
-github.com/LerianStudio/lib-auth v1.7.0/go.mod h1:I3EM/wTsiuKYvci3KI7clvWR93UPBblqPZTaFu3yiNs=
 github.com/LerianStudio/lib-auth v1.8.0 h1:kjOi+xEgO6gcIJOcY9a0XXpXp+a07G24RI4kX4Eywmw=
 github.com/LerianStudio/lib-auth v1.8.0/go.mod h1:I3EM/wTsiuKYvci3KI7clvWR93UPBblqPZTaFu3yiNs=
 github.com/LerianStudio/lib-commons v1.0.0 h1:UlPnHmg8iQ6oiPpCJduhRqNsv5dQ1naSVIj96NKfrMk=

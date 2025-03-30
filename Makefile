@@ -93,6 +93,9 @@ help:
 	@echo "  make tidy                        - Run go mod tidy"
 	@echo "  make goreleaser                  - Create a release snapshot"
 	@echo "  make generate-docs-all           - Generate Swagger documentation for all services"
+	@echo "  make regenerate-mocks            - Regenerate mock files for all components"
+	@echo "  make cleanup-mocks               - Remove all existing mock files"
+	@echo "  make cleanup-regenerate-mocks    - Combine both operations and fix unused imports"
 	@echo ""
 	@echo ""
 
@@ -101,7 +104,89 @@ help:
 test:
 	@echo "$(BLUE)Running tests on all projects...$(NC)"
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	go test -v ./... ./...
+	@echo "$(CYAN)Starting tests at $$(date)$(NC)"
+	@start_time=$$(date +%s); \
+	test_output=$$(go test -v ./... ./... 2>&1); \
+	exit_code=$$?; \
+	end_time=$$(date +%s); \
+	duration=$$((end_time - start_time)); \
+	echo "$$test_output"; \
+	echo ""; \
+	echo "$(BOLD)$(BLUE)Test Summary:$(NC)"; \
+	echo "$(CYAN)----------------------------------------$(NC)"; \
+	passed=$$(echo "$$test_output" | grep -c "PASS"); \
+	failed=$$(echo "$$test_output" | grep -c "FAIL"); \
+	skipped=$$(echo "$$test_output" | grep -c "\[no test"); \
+	total=$$((passed + failed)); \
+	echo "$(GREEN)✓ Passed:  $$passed tests$(NC)"; \
+	if [ $$failed -gt 0 ]; then \
+		echo "$(RED)✗ Failed:  $$failed tests$(NC)"; \
+	else \
+		echo "$(GREEN)✓ Failed:  $$failed tests$(NC)"; \
+	fi; \
+	echo "$(YELLOW)⚠ Skipped: $$skipped packages [no test files]$(NC)"; \
+	echo "$(BLUE)⏱ Duration: $$(printf '%dm:%02ds' $$((duration / 60)) $$((duration % 60)))$(NC)"; \
+	echo "$(CYAN)----------------------------------------$(NC)"; \
+	if [ $$failed -eq 0 ]; then \
+		echo "$(GREEN)$(BOLD)All tests passed successfully!$(NC)"; \
+	else \
+		echo "$(RED)$(BOLD)Some tests failed. Please check the output above for details.$(NC)"; \
+	fi; \
+	exit $$exit_code
+
+.PHONY: regenerate-mocks
+regenerate-mocks:
+	@echo "$(BLUE)Regenerating mocks for all components...$(NC)"
+	$(call check_command,mockgen,"go install github.com/golang/mock/mockgen@latest")
+	$(call title1,"REGENERATING MOCKS")
+	@MODULE_NAME=$$(go list -m); \
+	for component in $$(find ./components -maxdepth 1 -mindepth 1 -type d); do \
+		echo "$(CYAN)Scanning directory: $$component$(NC)"; \
+		for file in $$(find "$$component" -name "*.go" -not -name "*_mock.go" -not -path "*/vendor/*"); do \
+			if grep -q "type.*interface" "$$file"; then \
+				pkg_path=$$(dirname "$$file"); \
+				pkg_name=$$(basename "$$pkg_path"); \
+				file_name=$$(basename "$$file" .go); \
+				rel_path=$${pkg_path#./}; \
+				full_import_path="$$MODULE_NAME/$$rel_path"; \
+				echo "$(GREEN)Generating mock for: $$file (package: $$full_import_path)$(NC)"; \
+				mockgen -source="$$file" -destination="$${file%.*}_mock.go" -package="$$pkg_name" || { \
+					interfaces=$$(grep -E "type[[:space:]]+[A-Z][a-zA-Z0-9_]*[[:space:]]+interface" "$$file" | awk '{print $$2}'); \
+					for interface in $$interfaces; do \
+						echo "$(YELLOW)Trying package mode for interface: $$interface$(NC)"; \
+						mockgen -destination="$${file%.*}_mock.go" -package="$$pkg_name" "$$full_import_path" "$$interface"; \
+					done; \
+				}; \
+			fi; \
+		done; \
+	done
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Mock regeneration completed$(GREEN) ✔️$(NC)"
+
+.PHONY: cleanup-mocks
+cleanup-mocks:
+	@echo "$(BLUE)Cleaning up duplicate mock files...$(NC)"
+	$(call title1,"CLEANING UP MOCKS")
+	@for component in $$(find ./components -maxdepth 1 -mindepth 1 -type d); do \
+		echo "$(CYAN)Cleaning directory: $$component$(NC)"; \
+		find "$$component" -name "*_mock.go" -o -name "*mock.go" | while read -r mock_file; do \
+			echo "$(YELLOW)Removing $$mock_file$(NC)"; \
+			rm "$$mock_file"; \
+		done; \
+	done
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Mock cleanup completed$(GREEN) ✔️$(NC)"
+
+.PHONY: cleanup-regenerate-mocks
+cleanup-regenerate-mocks: cleanup-mocks regenerate-mocks
+	@echo "$(BLUE)Fixing any unused imports in test files...$(NC)"
+	@if grep -q "github.com/stretchr/testify/assert.*and not used" ./components/onboarding/internal/services/command/send-account-queue-transaction_test.go 2>/dev/null; then \
+		echo "$(YELLOW)Fixing unused import in send-account-queue-transaction_test.go$(NC)"; \
+		sed -i '' 's/^import (/import (\n\/\/ testify\/assert is used in commented out code\n/' ./components/onboarding/internal/services/command/send-account-queue-transaction_test.go; \
+	fi
+	@if grep -q "github.com/stretchr/testify/assert.*and not used" ./components/transaction/internal/services/command/send-bto-execute-async_test.go 2>/dev/null; then \
+		echo "$(YELLOW)Fixing unused import in send-bto-execute-async_test.go$(NC)"; \
+		sed -i '' 's/^import (/import (\n\/\/ testify\/assert is used in commented out code\n/' ./components/transaction/internal/services/command/send-bto-execute-async_test.go; \
+	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Mock cleanup and regeneration completed$(GREEN) ✔️$(NC)"
 
 .PHONY: cover
 cover:
@@ -153,29 +238,12 @@ check-logs:
 		fi; \
 	done < /tmp/midaz_go_files.txt; \
 	rm /tmp/midaz_go_files.txt; \
-	if [ $$err -eq 1 ]; then \
+	if [ "$$err" -eq 1 ]; then \
 		echo -e "\n$(RED)You need to log all errors inside usecases after they are handled. $(BOLD)[WARNING]$(NC)\n"; \
 		exit 1; \
 	else \
 		echo "$(GREEN)$(BOLD)[ok]$(NC) All good$(GREEN) ✔️$(NC)"; \
 	fi
-
-# TODO: add output files for tests to comply with the test coverage
-# TODO: add test coverage for missing components
-# ----------------------------------
-#    📝 STARTING TESTS ANALYZER  
-# ----------------------------------
-# Error: There is no test for the file components/onboarding/internal/services/query/query.go
-# Error: There is no test for the file components/transaction/internal/services/query/query.go
-# Error: There is no test for the file components/transaction/internal/services/query/get-balances.go
-# Error: There is no test for the file components/onboarding/internal/services/command/command.go
-# Error: There is no test for the file components/onboarding/internal/services/command/send-account-queue-transaction.go
-# Error: There is no test for the file components/transaction/internal/services/command/command.go
-# Error: There is no test for the file components/transaction/internal/services/command/create-balance-transaction-operations-async.go
-# Error: There is no test for the file components/transaction/internal/services/command/send-bto-execute-async.go
-# Error: There is no test for the file components/transaction/internal/services/command/create-idempotency-key.go
-# Error: There is no test for the file components/transaction/internal/services/command/send-log-transaction-audit-queue.go
-# Error: There is no test for the file components/transaction/internal/services/command/create-balance.go
 
 .PHONY: check-tests
 check-tests:
