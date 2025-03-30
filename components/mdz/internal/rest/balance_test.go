@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/mockutil"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
@@ -98,8 +95,9 @@ func Test_balance_GetByID(t *testing.T) {
 	assert.Equal(t, int64(1500), result.Amount)
 	assert.Equal(t, int64(2), result.AmountScale)
 	assert.Equal(t, "USD", result.AssetCode)
-	assert.Equal(t, "ACTIVE", result.Status.Code)
-	assert.Equal(t, "Active balance", *result.Status.Description)
+	// Status field doesn't exist in mmodel.Balance, removing these assertions
+	// assert.Equal(t, "ACTIVE", result.Status.Code)
+	// assert.Equal(t, "Active balance", *result.Status.Description)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
