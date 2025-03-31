@@ -71,7 +71,7 @@ type InputDSL struct {
 // @Description UpdateTransactionInput is the input payload to update a transaction.
 type UpdateTransactionInput struct {
 	Description string         `json:"description" validate:"max=256" example:"Transaction description"`
-	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateTransactionInput
 
 // Transaction is a struct designed to encapsulate response payload data.
