@@ -18,6 +18,11 @@ import (
 	"testing"
 )
 
+// Int64Ptr returns a pointer to the given int64 value
+func Int64Ptr(v int64) *int64 {
+	return &v
+}
+
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
 
@@ -39,11 +44,6 @@ func (m *MockLogger) Fatalln(args ...any)               {}
 func (m *MockLogger) Sync() error                       { return nil }
 func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
 func (m *MockLogger) WithFields(args ...any) libLog.Logger                    { return m }
-
-// Int64Ptr is a helper function to return a pointer to an int64 value
-func Int64Ptr(v int64) *int64 {
-	return &v
-}
 
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success", func(t *testing.T) {

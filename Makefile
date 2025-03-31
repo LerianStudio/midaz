@@ -107,7 +107,7 @@ test:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@echo "$(CYAN)Starting tests at $$(date)$(NC)"
 	@start_time=$$(date +%s); \
-	test_output=$$(go test -v ./... ./... 2>&1); \
+	test_output=$$(go test -v ./... 2>&1); \
 	exit_code=$$?; \
 	end_time=$$(date +%s); \
 	duration=$$((end_time - start_time)); \
@@ -199,7 +199,7 @@ cover:
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "$(BLUE)Coverage Summary:$(NC)"
 	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=coverage.out | grep -v "^go" | sort -k 3 -r | head -n 20 | awk '{printf "$(YELLOW)%-50s$(NC) $(GREEN)%s$(NC)\n", $$1, $$3}'
+	@go tool cover -func=coverage.out | grep -v "^go" | sort -k 3 -r | head -n 10 | awk '{printf "$(YELLOW)%-50s$(NC) $(GREEN)%s$(NC)\n", $$1, $$3}'
 	@echo "$(CYAN)----------------------------------------$(NC)"
 	@total=$$(go tool cover -func=coverage.out | grep "total:" | awk '{print $$3}'); \
 	echo "$(BOLD)Total coverage: $(GREEN)$$total$(NC)"; \
