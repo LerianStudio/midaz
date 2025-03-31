@@ -19,28 +19,28 @@ import (
 )
 
 type factoryTransactionCreate struct {
-	factory        *factory.Factory
+	factory         *factory.Factory
 	repoTransaction repository.Transaction
-	tuiInput       func(message string) (string, error)
+	tuiInput        func(message string) (string, error)
 	flagsCreate
 }
 
 type flagsCreate struct {
-	OrganizationID         string
-	LedgerID               string
-	Description            string
-	Template               string
-	Amount                 string
-	AmountScale            string
-	AssetCode              string
-	ChartOfAccountsGroup   string
-	Source                 string
-	Destination            string
-	ParentTransactionID    string
-	StatusCode             string
-	StatusDescription      string
-	Metadata               string
-	JSONFile               string
+	OrganizationID       string
+	LedgerID             string
+	Description          string
+	Template             string
+	Amount               string
+	AmountScale          string
+	AssetCode            string
+	ChartOfAccountsGroup string
+	Source               string
+	Destination          string
+	ParentTransactionID  string
+	StatusCode           string
+	StatusDescription    string
+	Metadata             string
+	JSONFile             string
 }
 
 func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
@@ -109,6 +109,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		if err != nil {
 			return err
 		}
+
 		transaction.Amount = &amount
 	}
 
@@ -117,6 +118,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		if err != nil {
 			return err
 		}
+
 		transaction.AmountScale = &amountScale
 	}
 
@@ -135,6 +137,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		if err := json.Unmarshal([]byte(f.Source), &sources); err != nil {
 			return errors.New("source must be a valid JSON array of strings")
 		}
+
 		transaction.Source = sources
 	}
 
@@ -143,6 +146,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		if err := json.Unmarshal([]byte(f.Destination), &destinations); err != nil {
 			return errors.New("destination must be a valid JSON array of strings")
 		}
+
 		transaction.Destination = destinations
 	}
 
@@ -155,6 +159,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		transaction.Status = &mmodel.Status{
 			Code: f.StatusCode,
 		}
+
 		if len(f.StatusDescription) > 0 {
 			description := f.StatusDescription
 			transaction.Status.Description = &description
@@ -166,6 +171,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 			return errors.New("metadata must be a valid JSON object")
 		}
+
 		transaction.Metadata = metadata
 	}
 
@@ -192,9 +198,9 @@ func (f *factoryTransactionCreate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacCreate(f *factory.Factory) *factoryTransactionCreate {
 	return &factoryTransactionCreate{
-		factory:        f,
+		factory:         f,
 		repoTransaction: rest.NewTransaction(f),
-		tuiInput:       tui.Input,
+		tuiInput:        tui.Input,
 	}
 }
 

@@ -31,7 +31,7 @@ func TestNewCmdBalanceListByAccount(t *testing.T) {
 
 	// Verify flags
 	flags := []string{
-		"organization-id", "ledger-id", "account-id", "limit", "cursor", "sort-order", 
+		"organization-id", "ledger-id", "account-id", "limit", "cursor", "sort-order",
 		"start-date", "end-date", "help",
 	}
 	for _, flag := range flags {
@@ -58,10 +58,10 @@ func TestNewInjectFacListByAccount(t *testing.T) {
 
 func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryBalanceListByAccount, *cobra.Command)
-		setupMocks     func(*mockBalanceRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryBalanceListByAccount, *cobra.Command)
+		setupMocks    func(*mockBalanceRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully lists balances by account",
@@ -72,7 +72,7 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 				f.Limit = 10
 				f.Cursor = ""
 				f.SortOrder = "desc"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("account-id", f.AccountID)
@@ -86,26 +86,26 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 					&mmodel.Balances{
 						Items: []mmodel.Balance{
 							{
-								ID:           "bal123",
-								AccountID:    "acc123",
-								Amount:       1000,
-								AmountScale:  2,
-								AssetCode:    "USD",
+								ID:             "bal123",
+								AccountID:      "acc123",
+								Amount:         1000,
+								AmountScale:    2,
+								AssetCode:      "USD",
 								OrganizationID: "org123",
-								LedgerID:     "ledger123",
-								CreatedAt:    now,
-								UpdatedAt:    now,
+								LedgerID:       "ledger123",
+								CreatedAt:      now,
+								UpdatedAt:      now,
 							},
 							{
-								ID:           "bal124",
-								AccountID:    "acc123",
-								Amount:       2000,
-								AmountScale:  2,
-								AssetCode:    "EUR",
+								ID:             "bal124",
+								AccountID:      "acc123",
+								Amount:         2000,
+								AmountScale:    2,
+								AssetCode:      "EUR",
 								OrganizationID: "org123",
-								LedgerID:     "ledger123",
-								CreatedAt:    now,
-								UpdatedAt:    now,
+								LedgerID:       "ledger123",
+								CreatedAt:      now,
+								UpdatedAt:      now,
 							},
 						},
 						Pagination: &mmodel.Pagination{
@@ -125,7 +125,7 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 				f.Limit = 10
 				f.Cursor = ""
 				f.SortOrder = "desc"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("account-id", f.AccountID)
@@ -136,7 +136,7 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockBalanceRepo) {
 				mockRepo.On("GetByAccount", "org123", "ledger123", "acc123", 10, "", "desc", "", "").Return(
 					&mmodel.Balances{
-						Items:      []mmodel.Balance{},
+						Items: []mmodel.Balance{},
 						Pagination: &mmodel.Pagination{
 							Limit: 10,
 							Page:  1,
@@ -156,7 +156,7 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 				f.SortOrder = "asc"
 				f.StartDate = "2023-01-01"
 				f.EndDate = "2023-12-31"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("account-id", f.AccountID)
@@ -172,15 +172,15 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 					&mmodel.Balances{
 						Items: []mmodel.Balance{
 							{
-								ID:           "bal123",
-								AccountID:    "acc123",
-								Amount:       1000,
-								AmountScale:  2,
-								AssetCode:    "USD",
+								ID:             "bal123",
+								AccountID:      "acc123",
+								Amount:         1000,
+								AmountScale:    2,
+								AssetCode:      "USD",
 								OrganizationID: "org123",
-								LedgerID:     "ledger123",
-								CreatedAt:    now,
-								UpdatedAt:    now,
+								LedgerID:       "ledger123",
+								CreatedAt:      now,
+								UpdatedAt:      now,
 							},
 						},
 						Pagination: &mmodel.Pagination{
@@ -251,7 +251,7 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 				f.Limit = 10
 				f.Cursor = ""
 				f.SortOrder = "desc"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("account-id", f.AccountID)
@@ -273,19 +273,19 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockBalanceRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facListByAccount := &factoryBalanceListByAccount{
-				factory:      f,
+				factory:     f,
 				repoBalance: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
@@ -295,14 +295,14 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 			cmd.Flags().String("sort-order", "desc", "")
 			cmd.Flags().String("start-date", "", "")
 			cmd.Flags().String("end-date", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facListByAccount, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facListByAccount.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -310,7 +310,7 @@ func TestFactoryBalanceListByAccountRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -320,20 +320,20 @@ func TestFactoryBalanceListByAccountSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryBalanceListByAccount{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
-		"organization-id", "ledger-id", "account-id", "limit", "cursor", "sort-order", 
+		"organization-id", "ledger-id", "account-id", "limit", "cursor", "sort-order",
 		"start-date", "end-date", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
-	
+
 	// Verify default values
 	assert.Equal(t, "10", cmd.Flag("limit").DefValue)
 	assert.Equal(t, "desc", cmd.Flag("sort-order").DefValue)

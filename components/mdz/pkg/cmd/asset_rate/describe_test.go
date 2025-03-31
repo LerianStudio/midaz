@@ -57,10 +57,10 @@ func TestNewInjectFacDescribe(t *testing.T) {
 
 func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryAssetRateDescribe, *cobra.Command)
-		setupMocks     func(*mockAssetRateRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryAssetRateDescribe, *cobra.Command)
+		setupMocks    func(*mockAssetRateRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully describes asset rate with table output",
@@ -69,7 +69,7 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
 				f.OutputFormat = "table"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -79,7 +79,7 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 				statusDesc := "Active"
 				mockRepo.On("GetByID", "org123", "ledger123", "ar123").Return(
 					&mmodel.AssetRate{
-						ID:           "ar123",
+						ID:            "ar123",
 						FromAssetCode: "USD",
 						ToAssetCode:   "EUR",
 						Rate:          120,
@@ -88,9 +88,9 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 							Code:        "active",
 							Description: &statusDesc,
 						},
-						Metadata:   map[string]interface{}{"source": "test"},
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						Metadata:  map[string]interface{}{"source": "test"},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
 					}, nil,
 				)
 			},
@@ -102,7 +102,7 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
 				f.OutputFormat = "json"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -112,7 +112,7 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 				statusDesc := "Active"
 				mockRepo.On("GetByID", "org123", "ledger123", "ar123").Return(
 					&mmodel.AssetRate{
-						ID:           "ar123",
+						ID:            "ar123",
 						FromAssetCode: "USD",
 						ToAssetCode:   "EUR",
 						Rate:          120,
@@ -121,9 +121,9 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 							Code:        "active",
 							Description: &statusDesc,
 						},
-						Metadata:   map[string]interface{}{"source": "test"},
-						CreatedAt:  time.Now(),
-						UpdatedAt:  time.Now(),
+						Metadata:  map[string]interface{}{"source": "test"},
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
 					}, nil,
 				)
 			},
@@ -184,7 +184,7 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -203,32 +203,32 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockAssetRateRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facDescribe := &factoryAssetRateDescribe{
-				factory:      f,
+				factory:       f,
 				repoAssetRate: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
 			cmd.Flags().String("asset-rate-id", "", "")
 			cmd.Flags().String("output", "table", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facDescribe, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facDescribe.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -236,7 +236,7 @@ func TestFactoryAssetRateDescribeRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -246,19 +246,19 @@ func TestFactoryAssetRateDescribeSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryAssetRateDescribe{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "asset-rate-id", "output", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
-	
+
 	// Verify default values
 	assert.Equal(t, "table", cmd.Flag("output").DefValue)
 }

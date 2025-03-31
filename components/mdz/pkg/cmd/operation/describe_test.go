@@ -57,10 +57,10 @@ func TestNewInjectFacDescribe(t *testing.T) {
 
 func TestFactoryOperationDescribeRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryOperationDescribe, *cobra.Command)
-		setupMocks     func(*mockOperationRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryOperationDescribe, *cobra.Command)
+		setupMocks    func(*mockOperationRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully describes operation with table output",
@@ -69,7 +69,7 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.OperationID = "op123"
 				f.OutputFormat = "table"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("operation-id", f.OperationID)
@@ -82,15 +82,15 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "op123").Return(
 					&mmodel.Operation{
-						ID:             "op123",
-						TransactionID:  "tx123",
-						AccountID:      "acc123",
-						Type:           "DEBIT",
-						Amount:         1000,
-						AssetCode:      "USD",
-						Metadata:       metadata,
-						CreatedAt:      now,
-						UpdatedAt:      now,
+						ID:            "op123",
+						TransactionID: "tx123",
+						AccountID:     "acc123",
+						Type:          "DEBIT",
+						Amount:        1000,
+						AssetCode:     "USD",
+						Metadata:      metadata,
+						CreatedAt:     now,
+						UpdatedAt:     now,
 					}, nil,
 				)
 			},
@@ -102,7 +102,7 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.OperationID = "op123"
 				f.OutputFormat = "json"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("operation-id", f.OperationID)
@@ -115,15 +115,15 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "op123").Return(
 					&mmodel.Operation{
-						ID:             "op123",
-						TransactionID:  "tx123",
-						AccountID:      "acc123",
-						Type:           "CREDIT",
-						Amount:         2000,
-						AssetCode:      "EUR",
-						Metadata:       metadata,
-						CreatedAt:      now,
-						UpdatedAt:      now,
+						ID:            "op123",
+						TransactionID: "tx123",
+						AccountID:     "acc123",
+						Type:          "CREDIT",
+						Amount:        2000,
+						AssetCode:     "EUR",
+						Metadata:      metadata,
+						CreatedAt:     now,
+						UpdatedAt:     now,
 					}, nil,
 				)
 			},
@@ -185,7 +185,7 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.OperationID = "op123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("operation-id", f.OperationID)
@@ -204,32 +204,32 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockOperationRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facDescribe := &factoryOperationDescribe{
 				factory:       f,
 				repoOperation: mockRepo,
-				tuiInput:      func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
 			cmd.Flags().String("operation-id", "", "")
 			cmd.Flags().String("output", "table", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facDescribe, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facDescribe.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -237,7 +237,7 @@ func TestFactoryOperationDescribeRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -247,19 +247,19 @@ func TestFactoryOperationDescribeSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryOperationDescribe{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "operation-id", "output", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
-	
+
 	// Verify default values
 	assert.Equal(t, "table", cmd.Flag("output").DefValue)
 }

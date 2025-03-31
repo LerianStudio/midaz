@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -30,19 +31,24 @@ func (r *balance) Get(
 	}
 
 	q := u.Query()
-	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("limit", strconv.Itoa(limit))
+
 	if cursor != "" {
 		q.Set("cursor", cursor)
 	}
+
 	if sortOrder != "" {
 		q.Set("sort_order", sortOrder)
 	}
+
 	if startDate != "" {
 		q.Set("start_date", startDate)
 	}
+
 	if endDate != "" {
 		q.Set("end_date", endDate)
 	}
+
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
@@ -117,19 +123,24 @@ func (r *balance) GetByAccount(
 	}
 
 	q := u.Query()
-	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("limit", strconv.Itoa(limit))
+
 	if cursor != "" {
 		q.Set("cursor", cursor)
 	}
+
 	if sortOrder != "" {
 		q.Set("sort_order", sortOrder)
 	}
+
 	if startDate != "" {
 		q.Set("start_date", startDate)
 	}
+
 	if endDate != "" {
 		q.Set("end_date", endDate)
 	}
+
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)

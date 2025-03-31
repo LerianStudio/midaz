@@ -9,14 +9,15 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
 
 type factoryAssetRateList struct {
-	factory     *factory.Factory
+	factory       *factory.Factory
 	repoAssetRate repository.AssetRate
-	tuiInput    func(message string) (string, error)
+	tuiInput      func(message string) (string, error)
 	flagsList
 }
 
@@ -70,20 +71,22 @@ func (f *factoryAssetRateList) printAssetRates(assetRates *mmodel.AssetRates) {
 
 	for _, ar := range assetRates.Items {
 		// Format rate with scale
-		formattedRate := fmt.Sprintf("%d", ar.Rate)
+		formattedRate := strconv.FormatInt(ar.Rate, 10)
+
 		if ar.RateScale > 0 {
 			divisor := int64(1)
 			for i := int64(0); i < ar.RateScale; i++ {
 				divisor *= 10
 			}
-			formattedRate = fmt.Sprintf("%."+fmt.Sprintf("%d", ar.RateScale)+"f", float64(ar.Rate)/float64(divisor))
+
+			formattedRate = fmt.Sprintf("%."+strconv.FormatInt(ar.RateScale, 10)+"f", float64(ar.Rate)/float64(divisor))
 		}
-		
+
 		statusCode := ""
 		if ar.Status != nil {
 			statusCode = ar.Status.Code
 		}
-		
+
 		table.Append([]string{
 			ar.ID,
 			ar.FromAssetCode,
@@ -98,12 +101,14 @@ func (f *factoryAssetRateList) printAssetRates(assetRates *mmodel.AssetRates) {
 
 	if assetRates.Pagination != nil {
 		output.Printf(f.factory.IOStreams.Out, "\nPage: %d, Total: %d", f.Page, len(assetRates.Items))
+
 		if f.Page > 1 {
-			output.Printf(f.factory.IOStreams.Out, ", Previous page: mdz asset-rate list --organization-id %s --ledger-id %s --page %d", 
+			output.Printf(f.factory.IOStreams.Out, ", Previous page: mdz asset-rate list --organization-id %s --ledger-id %s --page %d",
 				f.OrganizationID, f.LedgerID, f.Page-1)
 		}
+
 		if len(assetRates.Items) == f.Limit {
-			output.Printf(f.factory.IOStreams.Out, ", Next page: mdz asset-rate list --organization-id %s --ledger-id %s --page %d", 
+			output.Printf(f.factory.IOStreams.Out, ", Next page: mdz asset-rate list --organization-id %s --ledger-id %s --page %d",
 				f.OrganizationID, f.LedgerID, f.Page+1)
 		}
 	}
@@ -122,9 +127,9 @@ func (f *factoryAssetRateList) setFlags(cmd *cobra.Command) {
 
 func newInjectFacList(f *factory.Factory) *factoryAssetRateList {
 	return &factoryAssetRateList{
-		factory:     f,
+		factory:       f,
 		repoAssetRate: rest.NewAssetRate(f),
-		tuiInput:    tui.Input,
+		tuiInput:      tui.Input,
 	}
 }
 

@@ -11,11 +11,11 @@ import (
 )
 
 type Setting struct {
-	Token        string
-	ClientID     string `toml:"ClientID"`
-	ClientSecret string `toml:"ClientSecret"`
-	URLAPIAuth   string `toml:"URLAPIAuth"`
-	URLAPILedger string `toml:"URLAPILedger"`
+	Token             string
+	ClientID          string `toml:"ClientID"`
+	ClientSecret      string `toml:"ClientSecret"`
+	URLAPIAuth        string `toml:"URLAPIAuth"`
+	URLAPILedger      string `toml:"URLAPILedger"`
 	URLAPITransaction string `toml:"URLAPITransaction"`
 	environment.Env
 }

@@ -59,10 +59,10 @@ func TestNewInjectFacUpdate(t *testing.T) {
 
 func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryAssetRateUpdate, *cobra.Command)
-		setupMocks     func(*mockAssetRateRepo, *factoryAssetRateUpdate)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryAssetRateUpdate, *cobra.Command)
+		setupMocks    func(*mockAssetRateRepo, *factoryAssetRateUpdate)
+		expectedError string
 	}{
 		{
 			name: "successfully updates asset rate with flags",
@@ -75,7 +75,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				f.StatusCode = "active"
 				f.StatusDescription = "Active rate"
 				f.Metadata = "{\"source\":\"test\"}"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -96,7 +96,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 					},
 					Metadata: map[string]interface{}{"source": "test"},
 				}
-				
+
 				mockRepo.On("Update", "org123", "ledger123", "ar123", expectedInput).Return(
 					&mmodel.AssetRate{ID: "ar123"}, nil,
 				)
@@ -109,7 +109,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
 				f.Rate = "125"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -119,7 +119,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				expectedInput := mmodel.UpdateAssetRateInput{
 					Rate: 125,
 				}
-				
+
 				mockRepo.On("Update", "org123", "ledger123", "ar123", expectedInput).Return(
 					&mmodel.AssetRate{ID: "ar123"}, nil,
 				)
@@ -182,7 +182,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
 				f.Rate = "invalid"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -201,7 +201,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				f.AssetRateID = "ar123"
 				f.Rate = "125"
 				f.RateScale = "invalid"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -220,7 +220,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
 				f.Metadata = "invalid json"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -238,7 +238,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.AssetRateID = "ar123"
 				f.Rate = "125"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("asset-rate-id", f.AssetRateID)
@@ -248,7 +248,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 				expectedInput := mmodel.UpdateAssetRateInput{
 					Rate: 125,
 				}
-				
+
 				mockRepo.On("Update", "org123", "ledger123", "ar123", expectedInput).Return(
 					nil, errors.New("repository error"),
 				)
@@ -262,19 +262,19 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockAssetRateRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facUpdate := &factoryAssetRateUpdate{
-				factory:      f,
+				factory:       f,
 				repoAssetRate: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
@@ -285,14 +285,14 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 			cmd.Flags().String("status-description", "", "")
 			cmd.Flags().String("metadata", "{}", "")
 			cmd.Flags().String("json-file", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facUpdate, cmd)
 			tt.setupMocks(mockRepo, facUpdate)
-			
+
 			// Execute
 			err := facUpdate.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -300,7 +300,7 @@ func TestFactoryAssetRateUpdateRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -319,19 +319,19 @@ func TestFactoryAssetRateUpdateRunEWithJSONFile(t *testing.T) {
 		},
 		"metadata": {"source": "file"}
 	}`
-	
+
 	err := os.WriteFile(jsonFilePath, []byte(jsonContent), 0644)
 	assert.NoError(t, err)
-	
+
 	tests := []struct {
-		name           string
-		jsonFile       string
-		setupMocks     func(*mockAssetRateRepo)
-		expectedError  string
+		name          string
+		jsonFile      string
+		setupMocks    func(*mockAssetRateRepo)
+		expectedError string
 	}{
 		{
-			name:        "successfully updates asset rate from file",
-			jsonFile:    jsonFilePath,
+			name:     "successfully updates asset rate from file",
+			jsonFile: jsonFilePath,
 			setupMocks: func(mockRepo *mockAssetRateRepo) {
 				description := "Active rate"
 				expectedInput := mmodel.UpdateAssetRateInput{
@@ -343,34 +343,34 @@ func TestFactoryAssetRateUpdateRunEWithJSONFile(t *testing.T) {
 					},
 					Metadata: map[string]interface{}{"source": "file"},
 				}
-				
+
 				mockRepo.On("Update", "org123", "ledger123", "ar123", expectedInput).Return(
 					&mmodel.AssetRate{ID: "ar123"}, nil,
 				)
 			},
 		},
 		{
-			name:        "fails with invalid JSON file",
-			jsonFile:    "invalid_path.json",
+			name:     "fails with invalid JSON file",
+			jsonFile: "invalid_path.json",
 			setupMocks: func(mockRepo *mockAssetRateRepo) {
 				// No mock setup needed as it should fail before repository call
 			},
 			expectedError: "failed to decode the given 'json' file",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockAssetRateRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facUpdate := &factoryAssetRateUpdate{
-				factory:      f,
+				factory:       f,
 				repoAssetRate: mockRepo,
 				flagsUpdate: flagsUpdate{
 					OrganizationID: "org123",
@@ -379,17 +379,17 @@ func TestFactoryAssetRateUpdateRunEWithJSONFile(t *testing.T) {
 					JSONFile:       tt.jsonFile,
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("json-file", "", "")
 			cmd.Flags().Set("json-file", tt.jsonFile)
-			
+
 			// Apply test-specific setup
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facUpdate.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -397,7 +397,7 @@ func TestFactoryAssetRateUpdateRunEWithJSONFile(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -407,16 +407,16 @@ func TestFactoryAssetRateUpdateSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryAssetRateUpdate{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "asset-rate-id", "rate", "rate-scale",
 		"status-code", "status-description", "metadata", "json-file", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
@@ -500,43 +500,43 @@ func TestFactoryAssetRateUpdateUpdateRequestFromFlags(t *testing.T) {
 			expectedError: "Error parsing metadata",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			f := &factoryAssetRateUpdate{
 				flagsUpdate: tt.flags,
 			}
-			
+
 			assetRate := &mmodel.UpdateAssetRateInput{}
-			
+
 			// Execute
 			err := f.updateRequestFromFlags(assetRate)
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError)
 			} else {
 				assert.NoError(t, err)
-				
+
 				if tt.expectedInput.Rate != 0 {
 					assert.Equal(t, tt.expectedInput.Rate, assetRate.Rate)
 				}
-				
+
 				if tt.expectedInput.RateScale != 0 {
 					assert.Equal(t, tt.expectedInput.RateScale, assetRate.RateScale)
 				}
-				
+
 				if tt.expectedInput.Status.Code != "" {
 					assert.Equal(t, tt.expectedInput.Status.Code, assetRate.Status.Code)
-					
+
 					if tt.expectedInput.Status.Description != nil {
 						assert.NotNil(t, assetRate.Status.Description)
 						assert.Equal(t, *tt.expectedInput.Status.Description, *assetRate.Status.Description)
 					}
 				}
-				
+
 				assert.Equal(t, tt.expectedInput.Metadata, assetRate.Metadata)
 			}
 		})

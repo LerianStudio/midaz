@@ -30,7 +30,7 @@ func Test_operation_Get(t *testing.T) {
 
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/operations",
 		URIAPITransaction, organizationID, ledgerID)
-	
+
 	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	assert.NoError(t, err)
 
@@ -122,7 +122,7 @@ func Test_operation_GetByAccount(t *testing.T) {
 
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/operations",
 		URIAPITransaction, organizationID, ledgerID, accountID)
-	
+
 	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	assert.NoError(t, err)
 

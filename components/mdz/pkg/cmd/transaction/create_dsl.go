@@ -15,9 +15,9 @@ import (
 )
 
 type factoryTransactionCreateDSL struct {
-	factory        *factory.Factory
+	factory         *factory.Factory
 	repoTransaction repository.Transaction
-	tuiInput       func(message string) (string, error)
+	tuiInput        func(message string) (string, error)
 	flagsCreateDSL
 }
 
@@ -57,12 +57,14 @@ func (f *factoryTransactionCreateDSL) runE(cmd *cobra.Command, _ []string) error
 
 	// Read DSL content from file
 	var dslContent string
+
 	if f.DSLFile == "-" {
 		// Read from stdin
 		bytes, err := ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			return errors.New("reading from stdin: " + err.Error())
 		}
+
 		dslContent = string(bytes)
 	} else {
 		// Read from file
@@ -70,6 +72,7 @@ func (f *factoryTransactionCreateDSL) runE(cmd *cobra.Command, _ []string) error
 		if err != nil {
 			return errors.New("reading DSL file: " + err.Error())
 		}
+
 		dslContent = string(bytes)
 	}
 
@@ -92,9 +95,9 @@ func (f *factoryTransactionCreateDSL) setFlags(cmd *cobra.Command) {
 
 func newInjectFacCreateDSL(f *factory.Factory) *factoryTransactionCreateDSL {
 	return &factoryTransactionCreateDSL{
-		factory:        f,
+		factory:         f,
 		repoTransaction: rest.NewTransaction(f),
-		tuiInput:       tui.Input,
+		tuiInput:        tui.Input,
 	}
 }
 

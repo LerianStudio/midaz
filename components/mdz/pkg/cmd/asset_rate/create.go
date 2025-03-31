@@ -16,21 +16,21 @@ import (
 )
 
 type factoryAssetRateCreate struct {
-	factory     *factory.Factory
+	factory       *factory.Factory
 	repoAssetRate repository.AssetRate
-	tuiInput    func(message string) (string, error)
+	tuiInput      func(message string) (string, error)
 	flagsCreate
 }
 
 type flagsCreate struct {
-	OrganizationID    string
-	LedgerID          string
-	FromAssetCode     string
-	ToAssetCode       string
-	Rate              string
-	RateScale         string
-	Metadata          string
-	JSONFile          string
+	OrganizationID string
+	LedgerID       string
+	FromAssetCode  string
+	ToAssetCode    string
+	Rate           string
+	RateScale      string
+	Metadata       string
+	JSONFile       string
 }
 
 func (f *factoryAssetRateCreate) runE(cmd *cobra.Command, _ []string) error {
@@ -96,17 +96,19 @@ func (f *factoryAssetRateCreate) createRequestFromFlags(assetRate *mmodel.Create
 		if err != nil {
 			return errors.New("Error parsing rate: " + err.Error())
 		}
+
 		assetRate.Rate = rate
 	} else {
 		rateStr, err := f.tuiInput("Enter the rate")
 		if err != nil {
 			return err
 		}
-		
+
 		rate, err := strconv.ParseInt(rateStr, 10, 64)
 		if err != nil {
 			return errors.New("Error parsing rate: " + err.Error())
 		}
+
 		assetRate.Rate = rate
 	}
 
@@ -115,17 +117,19 @@ func (f *factoryAssetRateCreate) createRequestFromFlags(assetRate *mmodel.Create
 		if err != nil {
 			return errors.New("Error parsing rate scale: " + err.Error())
 		}
+
 		assetRate.RateScale = rateScale
 	} else {
 		rateScaleStr, err := f.tuiInput("Enter the rate scale (decimal places)")
 		if err != nil {
 			return err
 		}
-		
+
 		rateScale, err := strconv.ParseInt(rateScaleStr, 10, 64)
 		if err != nil {
 			return errors.New("Error parsing rate scale: " + err.Error())
 		}
+
 		assetRate.RateScale = rateScale
 	}
 
@@ -153,9 +157,9 @@ func (f *factoryAssetRateCreate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacCreate(f *factory.Factory) *factoryAssetRateCreate {
 	return &factoryAssetRateCreate{
-		factory:     f,
+		factory:       f,
 		repoAssetRate: rest.NewAssetRate(f),
-		tuiInput:    tui.Input,
+		tuiInput:      tui.Input,
 	}
 }
 

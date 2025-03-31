@@ -31,10 +31,10 @@ func Test_balance_Get(t *testing.T) {
 
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances",
 		URIAPITransaction, organizationID, ledgerID)
-	
+
 	u, err := url.Parse(baseURL)
 	assert.NoError(t, err)
-	
+
 	q := u.Query()
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	if cursor != "" {
@@ -44,7 +44,7 @@ func Test_balance_Get(t *testing.T) {
 	q.Set("start_date", startDate)
 	q.Set("end_date", endDate)
 	u.RawQuery = q.Encode()
-	
+
 	uri := u.String()
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
@@ -137,10 +137,10 @@ func Test_balance_GetByAccount(t *testing.T) {
 
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances",
 		URIAPITransaction, organizationID, ledgerID, accountID)
-	
+
 	u, err := url.Parse(baseURL)
 	assert.NoError(t, err)
-	
+
 	q := u.Query()
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	if cursor != "" {
@@ -150,7 +150,7 @@ func Test_balance_GetByAccount(t *testing.T) {
 	q.Set("start_date", startDate)
 	q.Set("end_date", endDate)
 	u.RawQuery = q.Encode()
-	
+
 	uri := u.String()
 
 	httpmock.RegisterResponder(http.MethodGet, uri,

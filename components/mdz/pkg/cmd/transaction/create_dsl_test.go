@@ -65,7 +65,7 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	defer os.Remove(tempFile.Name())
-	
+
 	if _, err := tempFile.Write([]byte(tempDSLContent)); err != nil {
 		t.Fatalf("Failed to write to temp file: %v", err)
 	}
@@ -74,12 +74,12 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryTransactionCreateDSL, *cobra.Command)
-		setupMocks     func(*mockTransactionRepo)
-		setupStdin     func() *os.File
-		expectedError  string
-		cleanup        func()
+		name          string
+		setupFlags    func(*factoryTransactionCreateDSL, *cobra.Command)
+		setupMocks    func(*mockTransactionRepo)
+		setupStdin    func() *os.File
+		expectedError string
+		cleanup       func()
 	}{
 		{
 			name: "successfully creates transaction from DSL file",
@@ -87,7 +87,7 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.DSLFile = tempFile.Name()
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("dsl-file", f.DSLFile)
@@ -116,9 +116,9 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockTransactionRepo) {
 				// No mock setup needed as it should fail before repository call
 			},
-			setupStdin: func() *os.File { return nil },
+			setupStdin:    func() *os.File { return nil },
 			expectedError: "input error",
-			cleanup:    func() {},
+			cleanup:       func() {},
 		},
 		{
 			name: "fails when ledger ID is missing and input fails",
@@ -135,9 +135,9 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockTransactionRepo) {
 				// No mock setup needed as it should fail before repository call
 			},
-			setupStdin: func() *os.File { return nil },
+			setupStdin:    func() *os.File { return nil },
 			expectedError: "input error",
-			cleanup:    func() {},
+			cleanup:       func() {},
 		},
 		{
 			name: "fails when DSL file is missing and input fails",
@@ -158,9 +158,9 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockTransactionRepo) {
 				// No mock setup needed as it should fail before repository call
 			},
-			setupStdin: func() *os.File { return nil },
+			setupStdin:    func() *os.File { return nil },
 			expectedError: "input error",
-			cleanup:    func() {},
+			cleanup:       func() {},
 		},
 		{
 			name: "fails when DSL file does not exist",
@@ -168,7 +168,7 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.DSLFile = "nonexistent-file.dsl"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("dsl-file", f.DSLFile)
@@ -176,9 +176,9 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockTransactionRepo) {
 				// No mock setup needed as it should fail before repository call
 			},
-			setupStdin: func() *os.File { return nil },
+			setupStdin:    func() *os.File { return nil },
 			expectedError: "reading DSL file",
-			cleanup:    func() {},
+			cleanup:       func() {},
 		},
 		{
 			name: "fails when repository call fails",
@@ -186,7 +186,7 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.DSLFile = tempFile.Name()
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("dsl-file", f.DSLFile)
@@ -196,9 +196,9 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 					nil, errors.New("repository error"),
 				)
 			},
-			setupStdin: func() *os.File { return nil },
+			setupStdin:    func() *os.File { return nil },
 			expectedError: "repository error",
-			cleanup:    func() {},
+			cleanup:       func() {},
 		},
 	}
 
@@ -207,38 +207,38 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockTransactionRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facCreateDSL := &factoryTransactionCreateDSL{
-				factory:        f,
+				factory:         f,
 				repoTransaction: mockRepo,
-				tuiInput:       func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
 			cmd.Flags().String("dsl-file", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facCreateDSL, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Setup stdin if needed
 			origStdin := os.Stdin
 			if stdin := tt.setupStdin(); stdin != nil {
 				os.Stdin = stdin
 				defer func() { os.Stdin = origStdin }()
 			}
-			
+
 			// Execute
 			err := facCreateDSL.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -246,9 +246,9 @@ func TestFactoryTransactionCreateDSLRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
-			
+
 			// Cleanup
 			tt.cleanup()
 		})
@@ -259,15 +259,15 @@ func TestFactoryTransactionCreateDSLSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryTransactionCreateDSL{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "dsl-file", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}

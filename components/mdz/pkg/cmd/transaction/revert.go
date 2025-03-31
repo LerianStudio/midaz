@@ -12,16 +12,16 @@ import (
 )
 
 type factoryTransactionRevert struct {
-	factory        *factory.Factory
+	factory         *factory.Factory
 	repoTransaction repository.Transaction
-	tuiInput       func(message string) (string, error)
+	tuiInput        func(message string) (string, error)
 	flagsRevert
 }
 
 type flagsRevert struct {
-	OrganizationID  string
-	LedgerID        string
-	TransactionID   string
+	OrganizationID string
+	LedgerID       string
+	TransactionID  string
 }
 
 func (f *factoryTransactionRevert) runE(cmd *cobra.Command, _ []string) error {
@@ -71,9 +71,9 @@ func (f *factoryTransactionRevert) setFlags(cmd *cobra.Command) {
 
 func newInjectFacRevert(f *factory.Factory) *factoryTransactionRevert {
 	return &factoryTransactionRevert{
-		factory:        f,
+		factory:         f,
 		repoTransaction: rest.NewTransaction(f),
-		tuiInput:       tui.Input,
+		tuiInput:        tui.Input,
 	}
 }
 

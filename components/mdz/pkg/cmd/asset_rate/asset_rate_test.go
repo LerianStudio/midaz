@@ -45,15 +45,15 @@ func TestNewCmdAssetRate(t *testing.T) {
 			assert.Equal(t, tt.expectedUse, cmd.Use)
 			assert.Equal(t, tt.expectedShort, cmd.Short)
 			assert.True(t, cmd.HasSubCommands())
-			
+
 			// Verify subcommands
 			subcommandUses := make([]string, 0, len(cmd.Commands()))
 			for _, subCmd := range cmd.Commands() {
 				subcommandUses = append(subcommandUses, subCmd.Use)
 			}
-			
+
 			assert.ElementsMatch(t, tt.subcommandUses, subcommandUses)
-			
+
 			// Verify help flag
 			helpFlag := cmd.Flag("help")
 			assert.NotNil(t, helpFlag)
@@ -71,17 +71,17 @@ func TestFactoryAssetRateSetCmds(t *testing.T) {
 	fAssetRate := &factoryAssetRate{
 		factory: f,
 	}
-	
+
 	cmd := &cobra.Command{
 		Use: "test-cmd",
 	}
-	
+
 	// Execute
 	fAssetRate.setCmds(cmd)
-	
+
 	// Verify
 	assert.Equal(t, 5, len(cmd.Commands()))
-	
+
 	// Verify each subcommand exists
 	subcommandUses := []string{"create", "update", "list", "describe", "list-by-asset"}
 	for _, use := range subcommandUses {

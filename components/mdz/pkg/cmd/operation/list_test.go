@@ -31,7 +31,7 @@ func TestNewCmdOperationList(t *testing.T) {
 
 	// Verify flags
 	flags := []string{
-		"organization-id", "ledger-id", "limit", "page", "sort-order", 
+		"organization-id", "ledger-id", "limit", "page", "sort-order",
 		"start-date", "end-date", "help",
 	}
 	for _, flag := range flags {
@@ -58,10 +58,10 @@ func TestNewInjectFacList(t *testing.T) {
 
 func TestFactoryOperationListRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryOperationList, *cobra.Command)
-		setupMocks     func(*mockOperationRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryOperationList, *cobra.Command)
+		setupMocks    func(*mockOperationRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully lists operations",
@@ -71,7 +71,7 @@ func TestFactoryOperationListRunE(t *testing.T) {
 				f.Limit = 10
 				f.Page = 1
 				f.SortOrder = "desc"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("limit", "10")
@@ -84,24 +84,24 @@ func TestFactoryOperationListRunE(t *testing.T) {
 					&mmodel.Operations{
 						Items: []mmodel.Operation{
 							{
-								ID:             "op123",
-								TransactionID:  "tx123",
-								AccountID:      "acc123",
-								Type:           "DEBIT",
-								Amount:         1000,
-								AssetCode:      "USD",
-								CreatedAt:      now,
-								UpdatedAt:      now,
+								ID:            "op123",
+								TransactionID: "tx123",
+								AccountID:     "acc123",
+								Type:          "DEBIT",
+								Amount:        1000,
+								AssetCode:     "USD",
+								CreatedAt:     now,
+								UpdatedAt:     now,
 							},
 							{
-								ID:             "op124",
-								TransactionID:  "tx123",
-								AccountID:      "acc124",
-								Type:           "CREDIT",
-								Amount:         1000,
-								AssetCode:      "USD",
-								CreatedAt:      now,
-								UpdatedAt:      now,
+								ID:            "op124",
+								TransactionID: "tx123",
+								AccountID:     "acc124",
+								Type:          "CREDIT",
+								Amount:        1000,
+								AssetCode:     "USD",
+								CreatedAt:     now,
+								UpdatedAt:     now,
 							},
 						},
 						Pagination: &mmodel.Pagination{
@@ -120,7 +120,7 @@ func TestFactoryOperationListRunE(t *testing.T) {
 				f.Limit = 10
 				f.Page = 1
 				f.SortOrder = "desc"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("limit", "10")
@@ -130,7 +130,7 @@ func TestFactoryOperationListRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockOperationRepo) {
 				mockRepo.On("Get", "org123", "ledger123", 10, 1, "desc", "", "").Return(
 					&mmodel.Operations{
-						Items:      []mmodel.Operation{},
+						Items: []mmodel.Operation{},
 						Pagination: &mmodel.Pagination{
 							Limit: 10,
 							Page:  1,
@@ -149,7 +149,7 @@ func TestFactoryOperationListRunE(t *testing.T) {
 				f.SortOrder = "asc"
 				f.StartDate = "2023-01-01"
 				f.EndDate = "2023-12-31"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("limit", "10")
@@ -164,14 +164,14 @@ func TestFactoryOperationListRunE(t *testing.T) {
 					&mmodel.Operations{
 						Items: []mmodel.Operation{
 							{
-								ID:             "op123",
-								TransactionID:  "tx123",
-								AccountID:      "acc123",
-								Type:           "DEBIT",
-								Amount:         1000,
-								AssetCode:      "USD",
-								CreatedAt:      now,
-								UpdatedAt:      now,
+								ID:            "op123",
+								TransactionID: "tx123",
+								AccountID:     "acc123",
+								Type:          "DEBIT",
+								Amount:        1000,
+								AssetCode:     "USD",
+								CreatedAt:     now,
+								UpdatedAt:     now,
 							},
 						},
 						Pagination: &mmodel.Pagination{
@@ -220,7 +220,7 @@ func TestFactoryOperationListRunE(t *testing.T) {
 				f.Limit = 10
 				f.Page = 1
 				f.SortOrder = "desc"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("limit", "10")
@@ -241,19 +241,19 @@ func TestFactoryOperationListRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockOperationRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facList := &factoryOperationList{
-				factory:      f,
+				factory:       f,
 				repoOperation: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
@@ -262,14 +262,14 @@ func TestFactoryOperationListRunE(t *testing.T) {
 			cmd.Flags().String("sort-order", "desc", "")
 			cmd.Flags().String("start-date", "", "")
 			cmd.Flags().String("end-date", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facList, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facList.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -277,7 +277,7 @@ func TestFactoryOperationListRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -287,20 +287,20 @@ func TestFactoryOperationListSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryOperationList{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
-		"organization-id", "ledger-id", "limit", "page", "sort-order", 
+		"organization-id", "ledger-id", "limit", "page", "sort-order",
 		"start-date", "end-date", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
-	
+
 	// Verify default values
 	assert.Equal(t, "10", cmd.Flag("limit").DefValue)
 	assert.Equal(t, "1", cmd.Flag("page").DefValue)

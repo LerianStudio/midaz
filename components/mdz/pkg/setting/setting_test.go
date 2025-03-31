@@ -79,7 +79,7 @@ func TestSave(t *testing.T) {
 	content, err := os.ReadFile(filePath)
 	require.NoError(t, err)
 	contentStr := string(content)
-	
+
 	// Check for the presence of the values in the content
 	assert.Contains(t, contentStr, "test-client-id")
 	assert.Contains(t, contentStr, "test-client-secret")

@@ -57,10 +57,10 @@ func TestNewInjectFacDescribe(t *testing.T) {
 
 func TestFactoryBalanceDescribeRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryBalanceDescribe, *cobra.Command)
-		setupMocks     func(*mockBalanceRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryBalanceDescribe, *cobra.Command)
+		setupMocks    func(*mockBalanceRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully describes balance with table output",
@@ -69,7 +69,7 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.BalanceID = "bal123"
 				f.OutputFormat = "table"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("balance-id", f.BalanceID)
@@ -82,16 +82,16 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "bal123").Return(
 					&mmodel.Balance{
-						ID:           "bal123",
-						AccountID:    "acc123",
-						Amount:       1000,
-						AmountScale:  2,
-						AssetCode:    "USD",
+						ID:             "bal123",
+						AccountID:      "acc123",
+						Amount:         1000,
+						AmountScale:    2,
+						AssetCode:      "USD",
 						OrganizationID: "org123",
-						LedgerID:     "ledger123",
-						Metadata:     metadata,
-						CreatedAt:    now,
-						UpdatedAt:    now,
+						LedgerID:       "ledger123",
+						Metadata:       metadata,
+						CreatedAt:      now,
+						UpdatedAt:      now,
 					}, nil,
 				)
 			},
@@ -103,7 +103,7 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.BalanceID = "bal123"
 				f.OutputFormat = "json"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("balance-id", f.BalanceID)
@@ -116,16 +116,16 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "bal123").Return(
 					&mmodel.Balance{
-						ID:           "bal123",
-						AccountID:    "acc123",
-						Amount:       1000,
-						AmountScale:  2,
-						AssetCode:    "USD",
+						ID:             "bal123",
+						AccountID:      "acc123",
+						Amount:         1000,
+						AmountScale:    2,
+						AssetCode:      "USD",
 						OrganizationID: "org123",
-						LedgerID:     "ledger123",
-						Metadata:     metadata,
-						CreatedAt:    now,
-						UpdatedAt:    now,
+						LedgerID:       "ledger123",
+						Metadata:       metadata,
+						CreatedAt:      now,
+						UpdatedAt:      now,
 					}, nil,
 				)
 			},
@@ -137,7 +137,7 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				f.LedgerID = "ledger123"
 				f.BalanceID = "bal123"
 				f.OutputFormat = "table"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("balance-id", f.BalanceID)
@@ -151,17 +151,17 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				}
 				mockRepo.On("GetByID", "org123", "ledger123", "bal123").Return(
 					&mmodel.Balance{
-						ID:           "bal123",
-						AccountID:    "acc123",
-						Amount:       1000,
-						AmountScale:  2,
-						AssetCode:    "USD",
+						ID:             "bal123",
+						AccountID:      "acc123",
+						Amount:         1000,
+						AmountScale:    2,
+						AssetCode:      "USD",
 						OrganizationID: "org123",
-						LedgerID:     "ledger123",
-						Metadata:     metadata,
-						CreatedAt:    now,
-						UpdatedAt:    now,
-						DeletedAt:    &deletedAt,
+						LedgerID:       "ledger123",
+						Metadata:       metadata,
+						CreatedAt:      now,
+						UpdatedAt:      now,
+						DeletedAt:      &deletedAt,
 					}, nil,
 				)
 			},
@@ -223,7 +223,7 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.BalanceID = "bal123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("balance-id", f.BalanceID)
@@ -242,32 +242,32 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockBalanceRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facDescribe := &factoryBalanceDescribe{
-				factory:      f,
+				factory:     f,
 				repoBalance: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
 			cmd.Flags().String("balance-id", "", "")
 			cmd.Flags().String("output", "table", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facDescribe, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facDescribe.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -275,7 +275,7 @@ func TestFactoryBalanceDescribeRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -285,19 +285,19 @@ func TestFactoryBalanceDescribeSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryBalanceDescribe{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "balance-id", "output", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
-	
+
 	// Verify default values
 	assert.Equal(t, "table", cmd.Flag("output").DefValue)
 }

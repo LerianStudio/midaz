@@ -9,22 +9,23 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
 
 type factoryOperationDescribe struct {
-	factory      *factory.Factory
+	factory       *factory.Factory
 	repoOperation repository.Operation
-	tuiInput     func(message string) (string, error)
+	tuiInput      func(message string) (string, error)
 	flagsDescribe
 }
 
 type flagsDescribe struct {
-	OrganizationID  string
-	LedgerID        string
-	OperationID     string
-	OutputFormat    string
+	OrganizationID string
+	LedgerID       string
+	OperationID    string
+	OutputFormat   string
 }
 
 func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
@@ -65,7 +66,9 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("marshalling JSON: %v", err)
 		}
+
 		output.Printf(f.factory.IOStreams.Out, "%s", string(jsonData))
+
 		return nil
 	}
 
@@ -77,18 +80,18 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 	table.Append([]string{"Transaction ID", resp.TransactionID})
 	table.Append([]string{"Account ID", resp.AccountID})
 	table.Append([]string{"Type", resp.Type})
-	table.Append([]string{"Amount", fmt.Sprintf("%d", resp.Amount)})
+	table.Append([]string{"Amount", strconv.FormatInt(resp.Amount, 10)})
 	table.Append([]string{"Asset Code", resp.AssetCode})
-	
+
 	// Format metadata
 	if len(resp.Metadata) > 0 {
 		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
-	
+
 	table.Append([]string{"Created At", resp.CreatedAt.Format("2006-01-02 15:04:05")})
 	table.Append([]string{"Updated At", resp.UpdatedAt.Format("2006-01-02 15:04:05")})
-	
+
 	table.Render()
 
 	return nil
@@ -104,9 +107,9 @@ func (f *factoryOperationDescribe) setFlags(cmd *cobra.Command) {
 
 func newInjectFacDescribe(f *factory.Factory) *factoryOperationDescribe {
 	return &factoryOperationDescribe{
-		factory:      f,
+		factory:       f,
 		repoOperation: rest.NewOperation(f),
-		tuiInput:     tui.Input,
+		tuiInput:      tui.Input,
 	}
 }
 

@@ -57,10 +57,10 @@ func TestNewInjectFacRevert(t *testing.T) {
 
 func TestFactoryTransactionRevertRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryTransactionRevert, *cobra.Command)
-		setupMocks     func(*mockTransactionRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryTransactionRevert, *cobra.Command)
+		setupMocks    func(*mockTransactionRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully reverts transaction",
@@ -68,7 +68,7 @@ func TestFactoryTransactionRevertRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.TransactionID = "tx123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("transaction-id", f.TransactionID)
@@ -76,7 +76,7 @@ func TestFactoryTransactionRevertRunE(t *testing.T) {
 			setupMocks: func(mockRepo *mockTransactionRepo) {
 				now := time.Now()
 				amount := int64(1000)
-				
+
 				mockRepo.On("Revert", "org123", "ledger123", "tx123").Return(
 					&mmodel.Transaction{
 						ID:          "tx124",
@@ -147,7 +147,7 @@ func TestFactoryTransactionRevertRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.TransactionID = "tx123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("transaction-id", f.TransactionID)
@@ -166,31 +166,31 @@ func TestFactoryTransactionRevertRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockTransactionRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facRevert := &factoryTransactionRevert{
-				factory:        f,
+				factory:         f,
 				repoTransaction: mockRepo,
-				tuiInput:       func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
 			cmd.Flags().String("transaction-id", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facRevert, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facRevert.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -198,7 +198,7 @@ func TestFactoryTransactionRevertRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -208,15 +208,15 @@ func TestFactoryTransactionRevertSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryTransactionRevert{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "transaction-id", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}

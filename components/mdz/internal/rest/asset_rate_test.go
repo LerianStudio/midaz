@@ -43,7 +43,7 @@ func Test_assetRate_Create(t *testing.T) {
 	}
 
 	expectedResult := &mmodel.AssetRate{
-		ID:           assetRateID,
+		ID:            assetRateID,
 		FromAssetCode: fromAssetCode,
 		ToAssetCode:   toAssetCode,
 		Rate:          rate,
@@ -178,7 +178,7 @@ func Test_assetRate_Get(t *testing.T) {
 	// Let's use BuildPaginatedURL to ensure the URL is constructed correctly
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates",
 		URIAPITransaction, organizationID, ledgerID)
-	
+
 	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	assert.NoError(t, err)
 
@@ -264,7 +264,7 @@ func Test_assetRate_GetByAssetCode(t *testing.T) {
 	// Let's use BuildPaginatedURL to ensure the URL is constructed correctly
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/asset-rates/from/%s",
 		URIAPITransaction, organizationID, ledgerID, assetCode)
-	
+
 	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
 	assert.NoError(t, err)
 

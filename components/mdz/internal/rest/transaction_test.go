@@ -40,15 +40,15 @@ func Test_transaction_Create(t *testing.T) {
 	}
 
 	input := mmodel.CreateTransactionInput{
-		Description:             description,
-		Template:                template,
-		Amount:                  &amount,
-		AmountScale:             &amountScale,
-		AssetCode:               assetCode,
+		Description:              description,
+		Template:                 template,
+		Amount:                   &amount,
+		AmountScale:              &amountScale,
+		AssetCode:                assetCode,
 		ChartOfAccountsGroupName: chartOfAccountsGroupName,
-		Source:                  source,
-		Destination:             destination,
-		ParentTransactionID:     &parentTransactionID,
+		Source:                   source,
+		Destination:              destination,
+		ParentTransactionID:      &parentTransactionID,
 		Status: &mmodel.Status{
 			Code:        statusCode,
 			Description: statusDescription,
@@ -57,16 +57,16 @@ func Test_transaction_Create(t *testing.T) {
 	}
 
 	expectedResult := &mmodel.Transaction{
-		ID:                      transactionID,
-		Description:             description,
-		Template:                template,
-		Amount:                  &amount,
-		AmountScale:             &amountScale,
-		AssetCode:               assetCode,
+		ID:                       transactionID,
+		Description:              description,
+		Template:                 template,
+		Amount:                   &amount,
+		AmountScale:              &amountScale,
+		AssetCode:                assetCode,
 		ChartOfAccountsGroupName: chartOfAccountsGroupName,
-		Source:                  source,
-		Destination:             destination,
-		ParentTransactionID:     &parentTransactionID,
+		Source:                   source,
+		Destination:              destination,
+		ParentTransactionID:      &parentTransactionID,
 		Status: &mmodel.Status{
 			Code:        statusCode,
 			Description: statusDescription,

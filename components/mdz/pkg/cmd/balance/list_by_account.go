@@ -9,14 +9,15 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
 
 type factoryBalanceListByAccount struct {
-	factory    *factory.Factory
+	factory     *factory.Factory
 	repoBalance repository.Balance
-	tuiInput   func(message string) (string, error)
+	tuiInput    func(message string) (string, error)
 	flagsListByAccount
 }
 
@@ -80,15 +81,17 @@ func (f *factoryBalanceListByAccount) printBalances(balances *mmodel.Balances) {
 
 	for _, b := range balances.Items {
 		// Format amount with scale
-		formattedAmount := fmt.Sprintf("%d", b.Amount)
+		formattedAmount := strconv.FormatInt(b.Amount, 10)
+
 		if b.AmountScale > 0 {
 			divisor := int64(1)
 			for i := int64(0); i < b.AmountScale; i++ {
 				divisor *= 10
 			}
-			formattedAmount = fmt.Sprintf("%."+fmt.Sprintf("%d", b.AmountScale)+"f", float64(b.Amount)/float64(divisor))
+
+			formattedAmount = fmt.Sprintf("%."+strconv.FormatInt(b.AmountScale, 10)+"f", float64(b.Amount)/float64(divisor))
 		}
-		
+
 		table.Append([]string{
 			b.ID,
 			formattedAmount,
@@ -101,14 +104,14 @@ func (f *factoryBalanceListByAccount) printBalances(balances *mmodel.Balances) {
 
 	if balances.Pagination != nil {
 		output.Printf(f.factory.IOStreams.Out, "\nTotal: %d", len(balances.Items))
-		
+
 		if balances.Pagination.NextCursor != nil && *balances.Pagination.NextCursor != "" {
-			output.Printf(f.factory.IOStreams.Out, ", Next page: mdz balance list-by-account --organization-id %s --ledger-id %s --account-id %s --cursor %s", 
+			output.Printf(f.factory.IOStreams.Out, ", Next page: mdz balance list-by-account --organization-id %s --ledger-id %s --account-id %s --cursor %s",
 				f.OrganizationID, f.LedgerID, f.AccountID, *balances.Pagination.NextCursor)
 		}
-		
+
 		if balances.Pagination.PrevCursor != nil && *balances.Pagination.PrevCursor != "" {
-			output.Printf(f.factory.IOStreams.Out, ", Previous page: mdz balance list-by-account --organization-id %s --ledger-id %s --account-id %s --cursor %s", 
+			output.Printf(f.factory.IOStreams.Out, ", Previous page: mdz balance list-by-account --organization-id %s --ledger-id %s --account-id %s --cursor %s",
 				f.OrganizationID, f.LedgerID, f.AccountID, *balances.Pagination.PrevCursor)
 		}
 	}
@@ -128,9 +131,9 @@ func (f *factoryBalanceListByAccount) setFlags(cmd *cobra.Command) {
 
 func newInjectFacListByAccount(f *factory.Factory) *factoryBalanceListByAccount {
 	return &factoryBalanceListByAccount{
-		factory:    f,
+		factory:     f,
 		repoBalance: rest.NewBalance(f),
-		tuiInput:   tui.Input,
+		tuiInput:    tui.Input,
 	}
 }
 

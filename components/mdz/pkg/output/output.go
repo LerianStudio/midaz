@@ -97,6 +97,7 @@ func NewTable(w io.Writer) *tablewriter.Table {
 	table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAlignment(tablewriter.ALIGN_LEFT)
 	table.SetAutoWrapText(false)
+
 	return table
 }
 
@@ -118,8 +119,10 @@ type ErrorOutput struct {
 
 func (o *ErrorOutput) Output() error {
 	log.Println(o.Err)
+
 	if _, err := fmt.Fprintf(o.Out, "%s\n", o.Err); err != nil {
 		log.Printf("failed to write error output: %v", err)
 	}
+
 	return o.Err
 }

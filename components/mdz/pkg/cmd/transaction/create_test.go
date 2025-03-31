@@ -60,10 +60,10 @@ func TestNewInjectFacCreate(t *testing.T) {
 
 func TestFactoryTransactionCreateRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryTransactionCreate, *cobra.Command)
-		setupMocks     func(*mockTransactionRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryTransactionCreate, *cobra.Command)
+		setupMocks    func(*mockTransactionRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully creates transaction with flags",
@@ -77,7 +77,7 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 				f.ChartOfAccountsGroup = "DEFAULT"
 				f.Source = `["acc123"]`
 				f.Destination = `["acc124"]`
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("description", f.Description)
@@ -90,7 +90,7 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 			},
 			setupMocks: func(mockRepo *mockTransactionRepo) {
 				amount := int64(1000)
-				
+
 				mockRepo.On("Create", "org123", "ledger123", mock.MatchedBy(func(inp mmodel.CreateTransactionInput) bool {
 					return inp.Description == "Test transaction" &&
 						inp.Template == "TRANSFER" &&
@@ -170,7 +170,7 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 				f.Description = "Test transaction"
 				f.Template = "TRANSFER"
 				f.Amount = "invalid"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("description", f.Description)
@@ -193,7 +193,7 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 				f.AssetCode = "USD"
 				f.ChartOfAccountsGroup = "DEFAULT"
 				f.Source = `invalid json`
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("description", f.Description)
@@ -218,7 +218,7 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 				f.Amount = "1000"
 				f.AssetCode = "USD"
 				f.ChartOfAccountsGroup = "DEFAULT"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("description", f.Description)
@@ -241,19 +241,19 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockTransactionRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facCreate := &factoryTransactionCreate{
-				factory:        f,
+				factory:         f,
 				repoTransaction: mockRepo,
-				tuiInput:       func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
@@ -270,14 +270,14 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 			cmd.Flags().String("status-description", "", "")
 			cmd.Flags().String("metadata", "", "")
 			cmd.Flags().String("json-file", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facCreate, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facCreate.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -285,7 +285,7 @@ func TestFactoryTransactionCreateRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -295,10 +295,10 @@ func TestFactoryTransactionCreateSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryTransactionCreate{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "description", "template", "amount",
@@ -306,7 +306,7 @@ func TestFactoryTransactionCreateSetFlags(t *testing.T) {
 		"destination", "parent-transaction-id", "status-code", "status-description",
 		"metadata", "json-file",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}

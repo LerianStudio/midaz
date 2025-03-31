@@ -55,10 +55,10 @@ func TestNewInjectFacDelete(t *testing.T) {
 
 func TestFactoryBalanceDeleteRunE(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupFlags     func(*factoryBalanceDelete, *cobra.Command)
-		setupMocks     func(*mockBalanceRepo)
-		expectedError  string
+		name          string
+		setupFlags    func(*factoryBalanceDelete, *cobra.Command)
+		setupMocks    func(*mockBalanceRepo)
+		expectedError string
 	}{
 		{
 			name: "successfully deletes balance",
@@ -66,7 +66,7 @@ func TestFactoryBalanceDeleteRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.BalanceID = "bal123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("balance-id", f.BalanceID)
@@ -132,7 +132,7 @@ func TestFactoryBalanceDeleteRunE(t *testing.T) {
 				f.OrganizationID = "org123"
 				f.LedgerID = "ledger123"
 				f.BalanceID = "bal123"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("balance-id", f.BalanceID)
@@ -149,31 +149,31 @@ func TestFactoryBalanceDeleteRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockBalanceRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facDelete := &factoryBalanceDelete{
-				factory:      f,
+				factory:     f,
 				repoBalance: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
 			cmd.Flags().String("balance-id", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facDelete, cmd)
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facDelete.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -181,7 +181,7 @@ func TestFactoryBalanceDeleteRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -191,15 +191,15 @@ func TestFactoryBalanceDeleteSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryBalanceDelete{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "balance-id", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}

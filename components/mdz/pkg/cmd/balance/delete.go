@@ -12,9 +12,9 @@ import (
 )
 
 type factoryBalanceDelete struct {
-	factory    *factory.Factory
+	factory     *factory.Factory
 	repoBalance repository.Balance
-	tuiInput   func(message string) (string, error)
+	tuiInput    func(message string) (string, error)
 	flagsDelete
 }
 
@@ -70,9 +70,9 @@ func (f *factoryBalanceDelete) setFlags(cmd *cobra.Command) {
 
 func newInjectFacDelete(f *factory.Factory) *factoryBalanceDelete {
 	return &factoryBalanceDelete{
-		factory:    f,
+		factory:     f,
 		repoBalance: rest.NewBalance(f),
-		tuiInput:   tui.Input,
+		tuiInput:    tui.Input,
 	}
 }
 

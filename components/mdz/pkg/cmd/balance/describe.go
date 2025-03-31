@@ -9,22 +9,23 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
 
 type factoryBalanceDescribe struct {
-	factory    *factory.Factory
+	factory     *factory.Factory
 	repoBalance repository.Balance
-	tuiInput   func(message string) (string, error)
+	tuiInput    func(message string) (string, error)
 	flagsDescribe
 }
 
 type flagsDescribe struct {
-	OrganizationID  string
-	LedgerID        string
-	BalanceID       string
-	OutputFormat    string
+	OrganizationID string
+	LedgerID       string
+	BalanceID      string
+	OutputFormat   string
 }
 
 func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
@@ -65,7 +66,9 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return fmt.Errorf("marshalling JSON: %v", err)
 		}
+
 		output.Printf(f.factory.IOStreams.Out, "%s", string(jsonData))
+
 		return nil
 	}
 
@@ -75,37 +78,39 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	table.Append([]string{"ID", resp.ID})
 	table.Append([]string{"Account ID", resp.AccountID})
-	
+
 	// Format amount with scale
-	formattedAmount := fmt.Sprintf("%d", resp.Amount)
+	formattedAmount := strconv.FormatInt(resp.Amount, 10)
+
 	if resp.AmountScale > 0 {
 		divisor := int64(1)
 		for i := int64(0); i < resp.AmountScale; i++ {
 			divisor *= 10
 		}
-		formattedAmount = fmt.Sprintf("%."+fmt.Sprintf("%d", resp.AmountScale)+"f", float64(resp.Amount)/float64(divisor))
+
+		formattedAmount = fmt.Sprintf("%."+strconv.FormatInt(resp.AmountScale, 10)+"f", float64(resp.Amount)/float64(divisor))
 	}
-	
+
 	table.Append([]string{"Amount", formattedAmount})
-	table.Append([]string{"Amount (Raw)", fmt.Sprintf("%d", resp.Amount)})
-	table.Append([]string{"Amount Scale", fmt.Sprintf("%d", resp.AmountScale)})
+	table.Append([]string{"Amount (Raw)", strconv.FormatInt(resp.Amount, 10)})
+	table.Append([]string{"Amount Scale", strconv.FormatInt(resp.AmountScale, 10)})
 	table.Append([]string{"Asset Code", resp.AssetCode})
 	table.Append([]string{"Organization ID", resp.OrganizationID})
 	table.Append([]string{"Ledger ID", resp.LedgerID})
-	
+
 	// Format metadata
 	if len(resp.Metadata) > 0 {
 		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
-	
+
 	table.Append([]string{"Created At", resp.CreatedAt.Format("2006-01-02 15:04:05")})
 	table.Append([]string{"Updated At", resp.UpdatedAt.Format("2006-01-02 15:04:05")})
-	
+
 	if resp.DeletedAt != nil {
 		table.Append([]string{"Deleted At", resp.DeletedAt.Format("2006-01-02 15:04:05")})
 	}
-	
+
 	table.Render()
 
 	return nil
@@ -121,9 +126,9 @@ func (f *factoryBalanceDescribe) setFlags(cmd *cobra.Command) {
 
 func newInjectFacDescribe(f *factory.Factory) *factoryBalanceDescribe {
 	return &factoryBalanceDescribe{
-		factory:    f,
+		factory:     f,
 		repoBalance: rest.NewBalance(f),
-		tuiInput:   tui.Input,
+		tuiInput:    tui.Input,
 	}
 }
 

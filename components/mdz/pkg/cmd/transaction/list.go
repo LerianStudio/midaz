@@ -13,9 +13,9 @@ import (
 )
 
 type factoryTransactionList struct {
-	factory        *factory.Factory
+	factory         *factory.Factory
 	repoTransaction repository.Transaction
-	tuiInput       func(message string) (string, error)
+	tuiInput        func(message string) (string, error)
 	flagsList
 }
 
@@ -87,12 +87,14 @@ func (f *factoryTransactionList) printTransactions(transactions *mmodel.Transact
 
 	if transactions.Pagination != nil {
 		output.Printf(f.factory.IOStreams.Out, "\nPage: %d, Total: %d", f.Page, len(transactions.Items))
+
 		if f.Page > 1 {
-			output.Printf(f.factory.IOStreams.Out, ", Previous page: mdz transaction list --organization-id %s --ledger-id %s --page %d", 
+			output.Printf(f.factory.IOStreams.Out, ", Previous page: mdz transaction list --organization-id %s --ledger-id %s --page %d",
 				f.OrganizationID, f.LedgerID, f.Page-1)
 		}
+
 		if len(transactions.Items) == f.Limit {
-			output.Printf(f.factory.IOStreams.Out, ", Next page: mdz transaction list --organization-id %s --ledger-id %s --page %d", 
+			output.Printf(f.factory.IOStreams.Out, ", Next page: mdz transaction list --organization-id %s --ledger-id %s --page %d",
 				f.OrganizationID, f.LedgerID, f.Page+1)
 		}
 	}
@@ -111,9 +113,9 @@ func (f *factoryTransactionList) setFlags(cmd *cobra.Command) {
 
 func newInjectFacList(f *factory.Factory) *factoryTransactionList {
 	return &factoryTransactionList{
-		factory:        f,
+		factory:         f,
 		repoTransaction: rest.NewTransaction(f),
-		tuiInput:       tui.Input,
+		tuiInput:        tui.Input,
 	}
 }
 

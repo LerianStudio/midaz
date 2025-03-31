@@ -10,18 +10,18 @@ import (
 // swagger:model CreateTransactionInput
 // @Description CreateTransactionInput is the input payload to create a transaction.
 type CreateTransactionInput struct {
-	Description             string         `json:"description" validate:"required,max=256" example:"Transaction description"`
-	Entries                 []EntryInput   `json:"entries" validate:"required,min=1,dive"`
-	Metadata                map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
-	Template                string         `json:"template,omitempty" example:"transfer"`
-	Amount                  *int64         `json:"amount,omitempty" example:"100"`
-	AmountScale             *int64         `json:"amountScale,omitempty" example:"2"`
-	AssetCode               string         `json:"assetCode,omitempty" example:"USD"`
-	ChartOfAccountsGroupName string        `json:"chartOfAccountsGroupName,omitempty" example:"group1"`
-	Source                  []string       `json:"source,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
-	Destination             []string       `json:"destination,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
-	ParentTransactionID     *string        `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Status                  *Status        `json:"status,omitempty"`
+	Description              string         `json:"description" validate:"required,max=256" example:"Transaction description"`
+	Entries                  []EntryInput   `json:"entries" validate:"required,min=1,dive"`
+	Metadata                 map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,nonested,valuemax=2000"`
+	Template                 string         `json:"template,omitempty" example:"transfer"`
+	Amount                   *int64         `json:"amount,omitempty" example:"100"`
+	AmountScale              *int64         `json:"amountScale,omitempty" example:"2"`
+	AssetCode                string         `json:"assetCode,omitempty" example:"USD"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"group1"`
+	Source                   []string       `json:"source,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
+	Destination              []string       `json:"destination,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
+	ParentTransactionID      *string        `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Status                   *Status        `json:"status,omitempty"`
 } // @name CreateTransactionInput
 
 // EntryInput is a struct design to encapsulate entry data for transaction creation.
@@ -38,23 +38,23 @@ type EntryInput struct {
 // swagger:model Transaction
 // @Description Transaction is a struct designed to store transaction data.
 type Transaction struct {
-	ID                      string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	Description             string         `json:"description" example:"Transaction description"`
-	Status                  *Status        `json:"status"`
-	Entries                 []Entry        `json:"entries"`
-	Metadata                map[string]any `json:"metadata"`
-	Template                string         `json:"template,omitempty" example:"transfer"`
-	Amount                  *int64         `json:"amount,omitempty" example:"100"`
-	AmountScale             *int64         `json:"amountScale,omitempty" example:"2"`
-	AssetCode               string         `json:"assetCode,omitempty" example:"USD"`
-	ChartOfAccountsGroupName string        `json:"chartOfAccountsGroupName,omitempty" example:"group1"`
-	Source                  []string       `json:"source,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
-	Destination             []string       `json:"destination,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
-	ParentTransactionID     *string        `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Operations              []Operation    `json:"operations,omitempty"`
-	CreatedAt               time.Time      `json:"createdAt" example:"2023-01-01T00:00:00Z"`
-	UpdatedAt               time.Time      `json:"updatedAt" example:"2023-01-01T00:00:00Z"`
-	DeletedAt               *time.Time     `json:"deletedAt,omitempty" example:"2023-01-01T00:00:00Z"`
+	ID                       string         `json:"id" example:"00000000-0000-0000-0000-000000000000"`
+	Description              string         `json:"description" example:"Transaction description"`
+	Status                   *Status        `json:"status"`
+	Entries                  []Entry        `json:"entries"`
+	Metadata                 map[string]any `json:"metadata"`
+	Template                 string         `json:"template,omitempty" example:"transfer"`
+	Amount                   *int64         `json:"amount,omitempty" example:"100"`
+	AmountScale              *int64         `json:"amountScale,omitempty" example:"2"`
+	AssetCode                string         `json:"assetCode,omitempty" example:"USD"`
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty" example:"group1"`
+	Source                   []string       `json:"source,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
+	Destination              []string       `json:"destination,omitempty" example:"[\"00000000-0000-0000-0000-000000000000\"]"`
+	ParentTransactionID      *string        `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+	Operations               []Operation    `json:"operations,omitempty"`
+	CreatedAt                time.Time      `json:"createdAt" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt                time.Time      `json:"updatedAt" example:"2023-01-01T00:00:00Z"`
+	DeletedAt                *time.Time     `json:"deletedAt,omitempty" example:"2023-01-01T00:00:00Z"`
 } // @name Transaction
 
 // Entry is a struct designed to encapsulate transaction entry data.

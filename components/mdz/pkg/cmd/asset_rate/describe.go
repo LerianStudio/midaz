@@ -2,7 +2,7 @@ package asset_rate
 
 import (
 	"encoding/json"
-	"fmt"
+	"strconv"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
@@ -15,17 +15,17 @@ import (
 )
 
 type factoryAssetRateDescribe struct {
-	factory     *factory.Factory
+	factory       *factory.Factory
 	repoAssetRate repository.AssetRate
-	tuiInput    func(message string) (string, error)
+	tuiInput      func(message string) (string, error)
 	flagsDescribe
 }
 
 type flagsDescribe struct {
-	OrganizationID  string
-	LedgerID        string
-	AssetRateID     string
-	OutputFormat    string
+	OrganizationID string
+	LedgerID       string
+	AssetRateID    string
+	OutputFormat   string
 }
 
 func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
@@ -52,6 +52,7 @@ func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
+
 		f.AssetRateID = id
 	}
 
@@ -66,7 +67,9 @@ func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
 		if err != nil {
 			return err
 		}
+
 		output.Printf(f.factory.IOStreams.Out, string(jsonData))
+
 		return nil
 	}
 
@@ -77,25 +80,26 @@ func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
 	table.Append([]string{"ID", resp.ID})
 	table.Append([]string{"From Asset Code", resp.FromAssetCode})
 	table.Append([]string{"To Asset Code", resp.ToAssetCode})
-	table.Append([]string{"Rate (Raw)", fmt.Sprintf("%d", resp.Rate)})
-	table.Append([]string{"Rate Scale", fmt.Sprintf("%d", resp.RateScale)})
-	
+	table.Append([]string{"Rate (Raw)", strconv.FormatInt(resp.Rate, 10)})
+	table.Append([]string{"Rate Scale", strconv.FormatInt(resp.RateScale, 10)})
+
 	if resp.Status != nil {
 		table.Append([]string{"Status Code", resp.Status.Code})
+
 		if resp.Status.Description != nil {
 			table.Append([]string{"Status Description", *resp.Status.Description})
 		}
 	}
-	
+
 	// Format metadata
 	if len(resp.Metadata) > 0 {
 		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
-	
+
 	table.Append([]string{"Created At", resp.CreatedAt.Format("2006-01-02 15:04:05")})
 	table.Append([]string{"Updated At", resp.UpdatedAt.Format("2006-01-02 15:04:05")})
-	
+
 	table.Render()
 
 	return nil
@@ -111,9 +115,9 @@ func (f *factoryAssetRateDescribe) setFlags(cmd *cobra.Command) {
 
 func newInjectFacDescribe(f *factory.Factory) *factoryAssetRateDescribe {
 	return &factoryAssetRateDescribe{
-		factory:     f,
+		factory:       f,
 		repoAssetRate: rest.NewAssetRate(f),
-		tuiInput:    tui.Input,
+		tuiInput:      tui.Input,
 	}
 }
 

@@ -16,9 +16,9 @@ import (
 )
 
 type factoryAssetRateUpdate struct {
-	factory     *factory.Factory
+	factory       *factory.Factory
 	repoAssetRate repository.AssetRate
-	tuiInput    func(message string) (string, error)
+	tuiInput      func(message string) (string, error)
 	flagsUpdate
 }
 
@@ -94,6 +94,7 @@ func (f *factoryAssetRateUpdate) updateRequestFromFlags(assetRate *mmodel.Update
 		if err != nil {
 			return errors.New("Error parsing rate: " + err.Error())
 		}
+
 		assetRate.Rate = rate
 	}
 
@@ -102,6 +103,7 @@ func (f *factoryAssetRateUpdate) updateRequestFromFlags(assetRate *mmodel.Update
 		if err != nil {
 			return errors.New("Error parsing rate scale: " + err.Error())
 		}
+
 		assetRate.RateScale = rateScale
 	}
 
@@ -109,6 +111,7 @@ func (f *factoryAssetRateUpdate) updateRequestFromFlags(assetRate *mmodel.Update
 		assetRate.Status = mmodel.Status{
 			Code: f.StatusCode,
 		}
+
 		if len(f.StatusDescription) > 0 {
 			description := f.StatusDescription
 			assetRate.Status.Description = &description
@@ -120,6 +123,7 @@ func (f *factoryAssetRateUpdate) updateRequestFromFlags(assetRate *mmodel.Update
 		if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 			return errors.New("Error parsing metadata: " + err.Error())
 		}
+
 		assetRate.Metadata = metadata
 	}
 
@@ -141,9 +145,9 @@ func (f *factoryAssetRateUpdate) setFlags(cmd *cobra.Command) {
 
 func newInjectFacUpdate(f *factory.Factory) *factoryAssetRateUpdate {
 	return &factoryAssetRateUpdate{
-		factory:     f,
+		factory:       f,
 		repoAssetRate: rest.NewAssetRate(f),
-		tuiInput:    tui.Input,
+		tuiInput:      tui.Input,
 	}
 }
 

@@ -121,7 +121,7 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 				f.Rate = "120"
 				f.RateScale = "2"
 				f.Metadata = "{\"source\":\"test\"}"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("from-asset-code", f.FromAssetCode)
@@ -138,7 +138,7 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 					RateScale:     2,
 					Metadata:      map[string]interface{}{"source": "test"},
 				}
-				
+
 				mockRepo.On("Create", "org123", "ledger123", expectedInput).Return(
 					&mmodel.AssetRate{ID: "ar123"}, nil,
 				)
@@ -185,7 +185,7 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 				f.Rate = "120"
 				f.RateScale = "2"
 				f.Metadata = "{\"source\":\"test\"}"
-				
+
 				cmd.Flags().Set("organization-id", f.OrganizationID)
 				cmd.Flags().Set("ledger-id", f.LedgerID)
 				cmd.Flags().Set("from-asset-code", f.FromAssetCode)
@@ -202,7 +202,7 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 					RateScale:     2,
 					Metadata:      map[string]interface{}{"source": "test"},
 				}
-				
+
 				mockRepo.On("Create", "org123", "ledger123", expectedInput).Return(
 					nil, errors.New("repository error"),
 				)
@@ -216,19 +216,19 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockAssetRateRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facCreate := &factoryAssetRateCreate{
-				factory:      f,
+				factory:       f,
 				repoAssetRate: mockRepo,
-				tuiInput:     func(message string) (string, error) {
+				tuiInput: func(message string) (string, error) {
 					return "default", nil
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("organization-id", "", "")
 			cmd.Flags().String("ledger-id", "", "")
@@ -238,14 +238,14 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 			cmd.Flags().String("rate-scale", "", "")
 			cmd.Flags().String("metadata", "{}", "")
 			cmd.Flags().String("json-file", "", "")
-			
+
 			// Apply test-specific setup
 			tt.setupFlags(facCreate, cmd)
 			tt.setupMocks(mockRepo, facCreate)
-			
+
 			// Execute
 			err := facCreate.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -257,7 +257,7 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 					// For a more thorough test, we would need to mock iostreams
 				}
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -274,10 +274,10 @@ func TestFactoryAssetRateCreateRunEWithJSONFile(t *testing.T) {
 		"rateScale": 2,
 		"metadata": {"source": "file"}
 	}`
-	
+
 	err := os.WriteFile(jsonFilePath, []byte(jsonContent), 0644)
 	assert.NoError(t, err)
-	
+
 	tests := []struct {
 		name           string
 		jsonFile       string
@@ -287,8 +287,8 @@ func TestFactoryAssetRateCreateRunEWithJSONFile(t *testing.T) {
 		expectedOutput string
 	}{
 		{
-			name:        "successfully creates asset rate from file",
-			jsonFile:    jsonFilePath,
+			name:     "successfully creates asset rate from file",
+			jsonFile: jsonFilePath,
 			setupMocks: func(mockRepo *mockAssetRateRepo) {
 				expectedInput := mmodel.CreateAssetRateInput{
 					FromAssetCode: "USD",
@@ -297,7 +297,7 @@ func TestFactoryAssetRateCreateRunEWithJSONFile(t *testing.T) {
 					RateScale:     2,
 					Metadata:      map[string]interface{}{"source": "file"},
 				}
-				
+
 				mockRepo.On("Create", "org123", "ledger123", expectedInput).Return(
 					&mmodel.AssetRate{ID: "ar123"}, nil,
 				)
@@ -305,27 +305,27 @@ func TestFactoryAssetRateCreateRunEWithJSONFile(t *testing.T) {
 			expectedOutput: "Asset Rate ar123 created successfully",
 		},
 		{
-			name:        "fails with invalid JSON file",
-			jsonFile:    "invalid_path.json",
+			name:     "fails with invalid JSON file",
+			jsonFile: "invalid_path.json",
 			setupMocks: func(mockRepo *mockAssetRateRepo) {
 				// No mock setup needed as it should fail before repository call
 			},
 			expectedError: "failed to decode the given 'json' file",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			ios := iostreams.System()
 			mockRepo := new(mockAssetRateRepo)
-			
+
 			f := &factory.Factory{
 				IOStreams: ios,
 			}
-			
+
 			facCreate := &factoryAssetRateCreate{
-				factory:      f,
+				factory:       f,
 				repoAssetRate: mockRepo,
 				flagsCreate: flagsCreate{
 					OrganizationID: "org123",
@@ -333,17 +333,17 @@ func TestFactoryAssetRateCreateRunEWithJSONFile(t *testing.T) {
 					JSONFile:       tt.jsonFile,
 				},
 			}
-			
+
 			cmd := &cobra.Command{}
 			cmd.Flags().String("json-file", "", "")
 			cmd.Flags().Set("json-file", tt.jsonFile)
-			
+
 			// Apply test-specific setup
 			tt.setupMocks(mockRepo)
-			
+
 			// Execute
 			err := facCreate.runE(cmd, []string{})
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)
@@ -352,7 +352,7 @@ func TestFactoryAssetRateCreateRunEWithJSONFile(t *testing.T) {
 				assert.NoError(t, err)
 				// Note: We can't easily verify the output since it's written to iostreams
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -362,16 +362,16 @@ func TestFactoryAssetRateCreateSetFlags(t *testing.T) {
 	// Setup
 	f := &factoryAssetRateCreate{}
 	cmd := &cobra.Command{}
-	
+
 	// Execute
 	f.setFlags(cmd)
-	
+
 	// Verify
 	expectedFlags := []string{
 		"organization-id", "ledger-id", "from-asset-code", "to-asset-code",
 		"rate", "rate-scale", "metadata", "json-file", "help",
 	}
-	
+
 	for _, flag := range expectedFlags {
 		assert.NotNil(t, cmd.Flag(flag), "Flag %s should exist", flag)
 	}
@@ -409,9 +409,9 @@ func TestFactoryAssetRateCreateCreateRequestFromFlags(t *testing.T) {
 				Metadata: "{\"source\":\"test\"}",
 			},
 			tuiInputs: map[string]string{
-				"from-asset-code":              "USD",
-				"to-asset-code":                "EUR",
-				"Enter the rate":               "120",
+				"from-asset-code":                       "USD",
+				"to-asset-code":                         "EUR",
+				"Enter the rate":                        "120",
 				"Enter the rate scale (decimal places)": "2",
 			},
 			expectedInput: &mmodel.CreateAssetRateInput{
@@ -465,7 +465,7 @@ func TestFactoryAssetRateCreateCreateRequestFromFlags(t *testing.T) {
 			expectedError: "input error",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
@@ -475,22 +475,22 @@ func TestFactoryAssetRateCreateCreateRequestFromFlags(t *testing.T) {
 					if tt.tuiInputError != nil {
 						return "", tt.tuiInputError
 					}
-					
+
 					for prompt, response := range tt.tuiInputs {
 						if message == prompt {
 							return response, nil
 						}
 					}
-					
+
 					return "", errors.New("unexpected prompt: " + message)
 				},
 			}
-			
+
 			assetRate := &mmodel.CreateAssetRateInput{}
-			
+
 			// Execute
 			err := f.createRequestFromFlags(assetRate)
-			
+
 			// Verify
 			if tt.expectedError != "" {
 				assert.Error(t, err)

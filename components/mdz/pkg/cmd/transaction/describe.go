@@ -9,22 +9,23 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
 
 type factoryTransactionDescribe struct {
-	factory        *factory.Factory
+	factory         *factory.Factory
 	repoTransaction repository.Transaction
-	tuiInput       func(message string) (string, error)
+	tuiInput        func(message string) (string, error)
 	flagsDescribe
 }
 
 type flagsDescribe struct {
-	OrganizationID  string
-	LedgerID        string
-	TransactionID   string
-	OutputFormat    string
+	OrganizationID string
+	LedgerID       string
+	TransactionID  string
+	OutputFormat   string
 }
 
 func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error {
@@ -65,7 +66,9 @@ func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error 
 		if err != nil {
 			return fmt.Errorf("marshalling JSON: %v", err)
 		}
+
 		output.Printf(f.factory.IOStreams.Out, "%s", string(jsonData))
+
 		return nil
 	}
 
@@ -76,73 +79,74 @@ func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error 
 	table.Append([]string{"ID", resp.ID})
 	table.Append([]string{"Description", resp.Description})
 	table.Append([]string{"Template", resp.Template})
-	
+
 	if resp.Amount != nil {
-		table.Append([]string{"Amount", fmt.Sprintf("%d", *resp.Amount)})
+		table.Append([]string{"Amount", strconv.FormatInt(*resp.Amount, 10)})
 	}
-	
+
 	if resp.AmountScale != nil {
-		table.Append([]string{"Amount Scale", fmt.Sprintf("%d", *resp.AmountScale)})
+		table.Append([]string{"Amount Scale", strconv.FormatInt(*resp.AmountScale, 10)})
 	}
-	
+
 	table.Append([]string{"Asset Code", resp.AssetCode})
 	table.Append([]string{"Chart of Accounts Group", resp.ChartOfAccountsGroupName})
-	
+
 	if resp.ParentTransactionID != nil {
 		table.Append([]string{"Parent Transaction ID", *resp.ParentTransactionID})
 	}
-	
+
 	if resp.Status != nil {
 		table.Append([]string{"Status Code", resp.Status.Code})
+
 		if resp.Status.Description != nil {
 			table.Append([]string{"Status Description", *resp.Status.Description})
 		}
 	}
-	
+
 	// Format source accounts
 	if len(resp.Source) > 0 {
 		sourceJSON, _ := json.Marshal(resp.Source)
 		table.Append([]string{"Source Accounts", string(sourceJSON)})
 	}
-	
+
 	// Format destination accounts
 	if len(resp.Destination) > 0 {
 		destJSON, _ := json.Marshal(resp.Destination)
 		table.Append([]string{"Destination Accounts", string(destJSON)})
 	}
-	
+
 	// Format metadata
 	if len(resp.Metadata) > 0 {
 		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
-	
+
 	table.Append([]string{"Created At", resp.CreatedAt.Format("2006-01-02 15:04:05")})
 	table.Append([]string{"Updated At", resp.UpdatedAt.Format("2006-01-02 15:04:05")})
-	
+
 	if resp.DeletedAt != nil {
 		table.Append([]string{"Deleted At", resp.DeletedAt.Format("2006-01-02 15:04:05")})
 	}
-	
+
 	// Display operations if available
 	if len(resp.Operations) > 0 {
 		output.Printf(f.factory.IOStreams.Out, "\nOperations:\n")
 		opTable := output.NewTable(f.factory.IOStreams.Out)
 		opTable.SetHeader([]string{"ID", "Account ID", "Type", "Amount", "Asset Code"})
-		
+
 		for _, op := range resp.Operations {
 			opTable.Append([]string{
 				op.ID,
 				op.AccountID,
 				op.Type,
-				fmt.Sprintf("%d", op.Amount),
+				strconv.FormatInt(op.Amount, 10),
 				op.AssetCode,
 			})
 		}
-		
+
 		opTable.Render()
 	}
-	
+
 	table.Render()
 
 	return nil
@@ -158,9 +162,9 @@ func (f *factoryTransactionDescribe) setFlags(cmd *cobra.Command) {
 
 func newInjectFacDescribe(f *factory.Factory) *factoryTransactionDescribe {
 	return &factoryTransactionDescribe{
-		factory:        f,
+		factory:         f,
 		repoTransaction: rest.NewTransaction(f),
-		tuiInput:       tui.Input,
+		tuiInput:        tui.Input,
 	}
 }
 
