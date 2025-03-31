@@ -7,7 +7,7 @@
 source "$(dirname "$0")/../pkg/shell/colors.sh"
 
 # Check if openapi-to-postmanv2 is installed
-if ! command -v openapi-to-postmanv2 &> /dev/null; then
+if ! npm list -g openapi-to-postmanv2 &> /dev/null; then
     echo "${YELLOW}openapi-to-postmanv2 is not installed. Installing...${NC}"
     npm install -g openapi-to-postmanv2
     if [ $? -ne 0 ]; then
@@ -56,7 +56,7 @@ if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     sed -i '' 's/":alias"/"{alias}"/g' "${TEMP_DIR}/onboarding_fixed.swagger.json"
     
     # Convert to Postman collection
-    openapi-to-postmanv2 -s "${TEMP_DIR}/onboarding_fixed.swagger.json" -o "${TEMP_DIR}/onboarding.postman_collection.json" -p -t json
+    npx openapi-to-postmanv2 -s "${TEMP_DIR}/onboarding_fixed.swagger.json" -o "${TEMP_DIR}/onboarding.postman_collection.json" -p -t json
 else
     echo "${YELLOW}Onboarding API spec not found. Skipping...${NC}"
 fi
@@ -79,7 +79,7 @@ if [ -f "${TRANSACTION_API}/swagger.json" ]; then
     sed -i '' 's/":asset_code"/"{asset_code}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
     
     # Convert to Postman collection
-    openapi-to-postmanv2 -s "${TEMP_DIR}/transaction_fixed.swagger.json" -o "${TEMP_DIR}/transaction.postman_collection.json" -p -t json
+    npx openapi-to-postmanv2 -s "${TEMP_DIR}/transaction_fixed.swagger.json" -o "${TEMP_DIR}/transaction.postman_collection.json" -p -t json
 else
     echo "${YELLOW}Transaction API spec not found. Skipping...${NC}"
 fi
