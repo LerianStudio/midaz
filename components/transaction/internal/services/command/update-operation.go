@@ -40,22 +40,14 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 		return nil, err
 	}
 
-	if len(uoi.Metadata) > 0 {
-		if err := libCommons.CheckMetadataKeyAndValueLength(100, uoi.Metadata); err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to check metadata key and value length", err)
+	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String(), uoi.Metadata)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 
-			return nil, err
-		}
-
-		err := uc.MetadataRepo.Update(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String(), uoi.Metadata)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on mongodb operation", err)
-
-			return nil, err
-		}
-
-		operationUpdated.Metadata = uoi.Metadata
+		return nil, err
 	}
+
+	operationUpdated.Metadata = metadataUpdated
 
 	return operationUpdated, nil
 }

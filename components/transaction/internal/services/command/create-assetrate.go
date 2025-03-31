@@ -73,31 +73,14 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 			return nil, err
 		}
 
-		if cari.Metadata != nil {
-			if err := libCommons.CheckMetadataKeyAndValueLength(100, cari.Metadata); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to validate metadata", err)
+		metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), arFound.ID, cari.Metadata)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 
-				return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(assetrate.AssetRate{}).Name())
-			}
-
-			meta := mongodb.Metadata{
-				EntityID:   arFound.ID,
-				EntityName: reflect.TypeOf(assetrate.AssetRate{}).Name(),
-				Data:       cari.Metadata,
-				CreatedAt:  time.Now(),
-				UpdatedAt:  time.Now(),
-			}
-
-			if err := uc.MetadataRepo.Create(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), &meta); err != nil {
-				libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate metadata", err)
-
-				logger.Errorf("Error into creating asset rate metadata: %v", err)
-
-				return nil, err
-			}
-
-			arFound.Metadata = cari.Metadata
+			return nil, err
 		}
+
+		arFound.Metadata = metadataUpdated
 
 		return arFound, nil
 	}
