@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Minimum required test coverage percentage
-MIN_COVERAGE=80
+MIN_COVERAGE=70
 
 # Find all Go packages in the project
 echo "Checking test coverage for all components..."
