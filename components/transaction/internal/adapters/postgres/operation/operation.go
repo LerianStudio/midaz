@@ -202,7 +202,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 // @Description UpdateOperationInput is the input payload to update an operation.
 type UpdateOperationInput struct {
 	Description string         `json:"description" validate:"max=256" example:"Credit card operation"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateOperationInput
 
 // OperationLog is a struct designed to represent the operation data that should be stored in the audit log
