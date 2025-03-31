@@ -1,3 +1,10 @@
+## [1.51.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.4...v1.51.0-beta.5) (2025-03-31)
+
+
+### Bug Fixes
+
+* update Swagger documentation generation process ([#606](https://github.com/LerianStudio/midaz/issues/606)) ([2cca7a2](https://github.com/LerianStudio/midaz/commit/2cca7a2c3124a3e7c46bf7f642506051e94ba112))
+
 ## [1.51.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.3...v1.51.0-beta.4) (2025-03-27)
 
 
