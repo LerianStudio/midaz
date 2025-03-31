@@ -1,18 +1,18 @@
 #!/bin/bash
 
 # Script to sync Postman collection with OpenAPI documentation
-# This script uses openapi-to-postman to convert OpenAPI specs to Postman collections
+# This script uses openapi-to-postmanv2 to convert OpenAPI specs to Postman collections
 
 # Include color definitions
 source "$(dirname "$0")/../pkg/shell/colors.sh"
 
-# Check if openapi-to-postman is installed
-if ! command -v openapi-to-postman &> /dev/null; then
-    echo -e "${YELLOW}openapi-to-postman is not installed. Installing...${NC}"
-    npm install -g openapi-to-postman
+# Check if openapi-to-postmanv2 is installed
+if ! command -v openapi-to-postmanv2 &> /dev/null; then
+    echo -e "${YELLOW}openapi-to-postmanv2 is not installed. Installing...${NC}"
+    npm install -g openapi-to-postmanv2
     if [ $? -ne 0 ]; then
-        echo -e "${RED}Failed to install openapi-to-postman. Please install it manually:${NC}"
-        echo -e "${MAGENTA}npm install -g openapi-to-postman${NC}"
+        echo -e "${RED}Failed to install openapi-to-postmanv2. Please install it manually:${NC}"
+        echo -e "${MAGENTA}npm install -g openapi-to-postmanv2${NC}"
         exit 1
     fi
 fi
@@ -44,7 +44,7 @@ echo -e "${CYAN}Converting OpenAPI specs to Postman collections...${NC}"
 # Process onboarding component
 if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     echo -e "${CYAN}Processing onboarding component...${NC}"
-    openapi-to-postman -s "${ONBOARDING_API}/swagger.json" -o "${TEMP_DIR}/onboarding.postman_collection.json" -p -t json
+    openapi-to-postmanv2 -s "${ONBOARDING_API}/swagger.json" -o "${TEMP_DIR}/onboarding.postman_collection.json" -p -t json
 else
     echo -e "${YELLOW}Onboarding API spec not found. Skipping...${NC}"
 fi
@@ -52,7 +52,7 @@ fi
 # Process transaction component
 if [ -f "${TRANSACTION_API}/swagger.json" ]; then
     echo -e "${CYAN}Processing transaction component...${NC}"
-    openapi-to-postman -s "${TRANSACTION_API}/swagger.json" -o "${TEMP_DIR}/transaction.postman_collection.json" -p -t json
+    openapi-to-postmanv2 -s "${TRANSACTION_API}/swagger.json" -o "${TEMP_DIR}/transaction.postman_collection.json" -p -t json
 else
     echo -e "${YELLOW}Transaction API spec not found. Skipping...${NC}"
 fi
