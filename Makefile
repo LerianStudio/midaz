@@ -164,7 +164,6 @@ clean:
 	@for dir in $(COMPONENTS); do \
 		echo "$(CYAN)Cleaning in $$dir...$(NC)"; \
 		(cd $$dir && $(MAKE) clean) || exit 1; \
-		# Ensure all possible artifact locations are cleaned
 		echo "$(CYAN)Ensuring thorough cleanup in $$dir...$(NC)"; \
 		(cd $$dir && rm -rf bin/ dist/ coverage.out coverage.html artifacts/ *.tmp) || true; \
 	done
