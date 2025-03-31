@@ -482,9 +482,8 @@ verify-api-docs:
 mdz-goreleaser:
 	$(call title1,"Releasing MDZ CLI using goreleaser")
 	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
-	@cd $(MDZ_DIR) && \
-	if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
-		echo "$(YELLOW)No goreleaser configuration found. Creating a default configuration...$(NC)"; \
+	@if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
+		echo "$(YELLOW)No goreleaser configuration found in root directory. Creating a default configuration...$(NC)"; \
 		goreleaser init; \
 	fi
 	@if [ -z "$$GITHUB_TOKEN" ]; then \
@@ -494,20 +493,19 @@ mdz-goreleaser:
 		exit 1; \
 	fi
 	@echo "$(CYAN)Building and releasing MDZ CLI...$(NC)"
-	@cd $(MDZ_DIR) && goreleaser release --clean
+	@goreleaser release --clean
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI released successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: mdz-goreleaser-snapshot
 mdz-goreleaser-snapshot:
 	$(call title1,"Creating snapshot release of MDZ CLI")
 	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
-	@cd $(MDZ_DIR) && \
-	if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
-		echo "$(YELLOW)No goreleaser configuration found. Creating a default configuration...$(NC)"; \
+	@if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
+		echo "$(YELLOW)No goreleaser configuration found in root directory. Creating a default configuration...$(NC)"; \
 		goreleaser init; \
 	fi
 	@echo "$(CYAN)Building snapshot release of MDZ CLI...$(NC)"
-	@cd $(MDZ_DIR) && goreleaser release --snapshot --clean
+	@goreleaser release --snapshot --clean
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI snapshot created successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: goreleaser
