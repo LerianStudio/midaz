@@ -1,10 +1,10 @@
-# Transaction Component Makefile
+# Component Makefile Template
+# This template provides a standardized structure for all component Makefiles
 
-# Component-specific variables
-SERVICE_NAME := transaction-service
-BIN_DIR := ./.bin
+# Component-specific variables (to be customized)
+SERVICE_NAME := {{service-name}}
+BIN_DIR := ./bin
 ARTIFACTS_DIR := ./artifacts
-ANTLR4_VERSION := 4.13.1
 
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
@@ -16,6 +16,17 @@ MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
 include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 
+# Check if Go is installed
+GO := $(shell which go)
+ifeq (, $(GO))
+$(error "No go binary found in your system, please install go before continuing")
+endif
+
+# Load environment variables if .env exists
+ifneq (,$(wildcard .env))
+    include .env
+endif
+
 #-------------------------------------------------------
 # Core Commands
 #-------------------------------------------------------
@@ -23,48 +34,41 @@ include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 .PHONY: help
 help:
 	@echo ""
-	@echo "$(BOLD)Transaction Service Commands$(NC)"
+	@echo "$(BOLD)$(SERVICE_NAME) Commands$(NC)"
 	@echo ""
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make help                        - Display this help message"
 	@echo "  make build                       - Build the component"
 	@echo "  make test                        - Run tests"
 	@echo "  make clean                       - Clean build artifacts"
-	@echo "  make run                         - Run the application with .env config"
-	@echo "  make cover-html                  - Generate HTML test coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting tools"
 	@echo "  make format                      - Format code"
 	@echo "  make tidy                        - Clean dependencies"
 	@echo ""
-	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up                          - Start services with Docker Compose"
-	@echo "  make down                        - Stop services with Docker Compose"
-	@echo "  make start                       - Start existing containers"
-	@echo "  make stop                        - Stop running containers"
-	@echo "  make restart                     - Restart all containers"
-	@echo "  make logs                        - Show logs for all services"
-	@echo "  make logs-api                    - Show logs for transaction service"
-	@echo "  make ps                          - List container status"
-	@echo "  make rebuild-up                  - Rebuild and restart services during development"
-	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
-	@echo "  make destroy                     - Alias for clean-docker (maintained for compatibility)"
-	@echo ""
-	@echo "$(BOLD)Transaction-Specific Commands:$(NC)"
-	@echo "  make antlr                       - Generate Gold language parser from Transaction.g4"
-	@echo "  make generate-docs               - Generate Swagger API documentation"
-	@echo ""
-	@echo "$(BOLD)Developer Helper Commands:$(NC)"
-	@echo "  make dev-setup                   - Set up development environment"
-	@echo ""
+	@if [ -f docker-compose.yml ]; then \
+		echo "$(BOLD)Docker Commands:$(NC)"; \
+		echo "  make up                          - Start services with Docker Compose"; \
+		echo "  make down                        - Stop services with Docker Compose"; \
+		echo "  make start                       - Start existing containers"; \
+		echo "  make stop                        - Stop running containers"; \
+		echo "  make restart                     - Restart all containers"; \
+		echo "  make logs                        - Show logs for all services"; \
+		echo "  make ps                          - List container status"; \
+		echo ""; \
+	fi
+	@echo "$(BOLD)Component-Specific Commands:$(NC)"
+	@echo "  {{component-specific-commands}}"
+
 #-------------------------------------------------------
 # Build Commands
 #-------------------------------------------------------
 
 .PHONY: build
 build:
-	$(call title1,"Building Transaction component")
+	$(call title1,"Building $(SERVICE_NAME)")
+	@go version
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Build completed successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
@@ -77,18 +81,12 @@ test:
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: cover-html
-cover-html:
-	$(call title1,"Generating HTML test coverage report")
+.PHONY: cover
+cover:
+	$(call title1,"Generating test coverage")
 	@go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out ./...
 	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
 	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(ARTIFACTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open $(ARTIFACTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -127,48 +125,40 @@ clean:
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
-# Docker Commands
+# Docker Commands (if applicable)
 #-------------------------------------------------------
 
-.PHONY: build-docker
-build-docker:
-	$(call title1,"Building Docker images")
-	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker images built successfully$(GREEN) ✔️$(NC)"
+ifneq (,$(wildcard docker-compose.yml))
 
 .PHONY: up
 up:
-	$(call title1,"Starting all services in detached mode")
+	$(call title1,"Starting services")
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: start
-start:
-	$(call title1,"Starting existing containers")
-	@$(DOCKER_CMD) -f docker-compose.yml start $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers started successfully$(GREEN) ✔️$(NC)"
-
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers, networks, and volumes")
-	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
+	$(call title1,"Stopping services")
+	@$(DOCKER_CMD) -f docker-compose.yml down
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: destroy
-destroy: clean-docker
-	@echo "$(YELLOW)Note: 'make destroy' is now an alias for 'make clean-docker'$(NC)"
+.PHONY: start
+start:
+	$(call title1,"Starting containers")
+	@$(DOCKER_CMD) -f docker-compose.yml start
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers started successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: stop
 stop:
-	$(call title1,"Stopping running containers")
-	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
+	$(call title1,"Stopping containers")
+	@$(DOCKER_CMD) -f docker-compose.yml stop
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers stopped successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: restart
 restart:
-	$(call title1,"Restarting all services")
+	$(call title1,"Restarting containers")
 	@make stop && make up
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services restarted successfully$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers restarted successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: rebuild-up
 rebuild-up:
@@ -189,53 +179,21 @@ clean-docker:
 	@docker volume prune -f
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker resources cleaned successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: destroy
+destroy: clean-docker
+	@echo "$(YELLOW)Note: 'make destroy' is now an alias for 'make clean-docker'$(NC)"
+
 .PHONY: logs
 logs:
-	$(call title1,"Showing logs for all services")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
-
-.PHONY: logs-api
-logs-api:
-	$(call title1,"Showing logs for transaction service")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f transaction
+	$(call title1,"Showing logs")
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f
 
 .PHONY: ps
 ps:
 	$(call title1,"Listing container status")
 	@$(DOCKER_CMD) -f docker-compose.yml ps
 
-#-------------------------------------------------------
-# Transaction-Specific Commands
-#-------------------------------------------------------
-
-.PHONY: antlr
-antlr:
-	$(call title1,"Generating Gold language parser")
-	@cd ../../pkg/gold && \
-	curl --continue-at - https://www.antlr.org/download/antlr-$(ANTLR4_VERSION)-complete.jar -O && \
-	java -Xmx500m -cp antlr-$(ANTLR4_VERSION)-complete.jar org.antlr.v4.Tool -Dlanguage=Go -o parser Transaction.g4 -visitor && \
-	find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/" && \
-	rm -f antlr-$(ANTLR4_VERSION)-complete.jar
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Gold language parser generated successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: run
-run:
-	$(call title1,"Running the application with .env config")
-	@go run cmd/app/main.go .env
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Application started successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: generate-docs
-generate-docs:
-	$(call title1,"Generating Swagger API documentation")
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
-	@cd $(MIDAZ_ROOT)/components/transaction && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
-	@docker run --rm -v ./:/transaction --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./transaction/api/swagger.json -g openapi-yaml -o ./transaction/api
-	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
-	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
+endif
 
 #-------------------------------------------------------
 # Developer Helper Commands
@@ -273,3 +231,9 @@ dev-setup:
 	@echo "  make test          - Run tests"
 	@echo "  make up            - Start services"
 	@echo "  make rebuild-up    - Rebuild and restart services during development"
+
+#-------------------------------------------------------
+# Component-Specific Commands
+#-------------------------------------------------------
+
+# {{component-specific-targets}}
