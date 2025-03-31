@@ -34,7 +34,7 @@ type CreateAssetRateInput struct {
 	Source     *string        `json:"source,omitempty" example:"External System"`
 	TTL        *int           `json:"ttl,omitempty" example:"3600"`
 	ExternalID *string        `json:"externalId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Metadata   map[string]any `json:"metadata,omitempty"`
+	Metadata   map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name CreateAssetRateInput
 
 // AssetRate is a struct designed to encapsulate response payload data.
