@@ -165,10 +165,22 @@ clean:
 		echo "$(CYAN)Cleaning in $$dir...$(NC)"; \
 		(cd $$dir && $(MAKE) clean) || exit 1; \
 		echo "$(CYAN)Ensuring thorough cleanup in $$dir...$(NC)"; \
-		(cd $$dir && rm -rf bin/ dist/ coverage.out coverage.html artifacts/ *.tmp) || true; \
+		(cd $$dir && \
+			for item in bin dist coverage.out coverage.html artifacts *.tmp; do \
+				if [ -e "$$item" ]; then \
+					echo "$(YELLOW)Removing $$dir/$$item$(NC)"; \
+					rm -rf "$$item"; \
+				fi \
+			done \
+		) || true; \
 	done
 	@echo "$(CYAN)Cleaning root-level build artifacts...$(NC)"
-	@rm -rf bin/ dist/ coverage.out coverage.html *.tmp
+	@for item in bin dist coverage.out coverage.html *.tmp; do \
+		if [ -e "$$item" ]; then \
+			echo "$(YELLOW)Removing $$item$(NC)"; \
+			rm -rf "$$item"; \
+		fi \
+	done
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: cover
