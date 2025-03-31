@@ -139,7 +139,7 @@ tidy:
 .PHONY: generate-docs
 generate-docs:
 	$(call title1,"Generating Swagger API documentation")
-	@swag init -g ../../../cmd/app/main.go -d ./internal/adapters/http -o ./api --parseDependency --parseInternal
+	@cd $(MIDAZ_ROOT)/components/transaction && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
 	@docker run --rm -v ./:/transaction --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./transaction/api/swagger.json -g openapi-yaml -o ./transaction/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi

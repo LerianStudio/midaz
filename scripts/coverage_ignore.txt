@@ -7,3 +7,5 @@ github.com/LerianStudio/midaz/components/onboarding/cmd
 github.com/LerianStudio/midaz/components/transaction/cmd
 github.com/LerianStudio/midaz/components/transaction/api
 github.com/LerianStudio/midaz/components/onboarding/api
+github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres
+github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres

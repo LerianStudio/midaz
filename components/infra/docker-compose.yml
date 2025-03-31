@@ -10,15 +10,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    user: root
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
       - ${MONGO_PORT}:${MONGO_PORT}
-    command: [ "mongod", "--replSet", "rs0", "--bind_ip_all", "--keyFile", "/etc/mongo-keyfile", "--auth", "--port", "${MONGO_PORT}" ]
+    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT}" ]
     volumes:
+      - ./mongo/mongo-keyfile:/data/mongo-keyfile
       - mongodb-data:/data/db
-      - ./mongo/mongo-keyfile:/etc/mongo-keyfile:ro
     networks:
       - infra-network
 
@@ -30,8 +31,8 @@ services:
     depends_on:
       - midaz-mongodb
     volumes:
-      - ./mongo/mongo.sh:/mongo.sh
-    entrypoint: sh /mongo.sh
+      - ./mongo/mongo.sh:/data/mongo.sh
+    entrypoint: [ "sh", "-c", "chmod +x /data/mongo.sh && sh /data/mongo.sh" ]
     networks:
       - infra-network
 
@@ -127,6 +128,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
     networks:
       - infra-network
 
@@ -167,9 +170,10 @@ services:
 
 volumes:
   postgres-data:
-  mongodb-data:
+  postgres-replica-data:
   redis-data:
   grafana-data:
+  mongodb-data:
 
 networks:
   infra-network:
