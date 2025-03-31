@@ -1,3 +1,10 @@
+## [1.51.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.6...v1.51.0-beta.7) (2025-03-31)
+
+
+### Bug Fixes
+
+* **metadata:** add support for updating or removing metadata using JSON Merge Patch; :bug: ([18d2315](https://github.com/LerianStudio/midaz/commit/18d2315a267727066d0500ad5a56e3ca0a784f0b))
+
 ## [1.51.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.5...v1.51.0-beta.6) (2025-03-31)
 
 
