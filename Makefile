@@ -510,6 +510,20 @@ mdz-goreleaser-snapshot:
 	@cd $(MDZ_DIR) && goreleaser release --snapshot --clean
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI snapshot created successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: goreleaser
+goreleaser:
+	$(call title1,"Running goreleaser (CI/CD compatible)")
+	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "$(RED)Error: GITHUB_TOKEN environment variable is required for releases.$(NC)"; \
+		echo "$(YELLOW)Please set it using: export GITHUB_TOKEN=your_github_token$(NC)"; \
+		echo "$(YELLOW)You can create a token at: https://github.com/settings/tokens$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)Running goreleaser...$(NC)"
+	@goreleaser release --clean
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Release completed successfully$(GREEN) ✔️$(NC)"
+
 .PHONY: regenerate-mocks
 regenerate-mocks:
 	$(call title1,"Regenerating mocks for all components")
