@@ -8,15 +8,16 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
+# Display header
+echo -e "${CYAN}----------------------------------------------${NC}"
+echo -e "${CYAN}   Verifying error logging in usecases  ${NC}"
+echo -e "${CYAN}----------------------------------------------${NC}"
+
 # Check for error logging in usecases
 echo "${CYAN}Checking for proper error logging in usecases...${NC}"
 
 # Define directories to check
 COMPONENTS=("./components/mdz" "./components/onboarding" "./components/transaction")
-
-# Define patterns to search for
-MISSING_LOG_PATTERN="return err"
-PROPER_LOG_PATTERN="log.*Error.*return err"
 
 # Count of issues found
 ISSUES_FOUND=0
@@ -35,10 +36,45 @@ for component in "${COMPONENTS[@]}"; do
     SERVICE_FILES=$(find "$component" -path "*/services/*" -name "*.go" | grep -v "_test.go")
     
     for file in $SERVICE_FILES; do
-        # Check for potential missing error logging
-        MISSING_LOGS=$(grep -n "$MISSING_LOG_PATTERN" "$file" | grep -v "$PROPER_LOG_PATTERN" | grep -v "log\." | grep -v "fmt\.")
+        # Use awk to analyze the file more thoroughly
+        MISSING_LOGS=$(awk '
+            BEGIN { issues = 0; line_num = 0; in_func = 0; has_log = 0; }
+            
+            # Track line numbers
+            { line_num++ }
+            
+            # Check for function start
+            /func/ { in_func = 1; has_log = 0; }
+            
+            # Check for error logging statements
+            /logger\.Error/ || /log\.Error/ || /logger\.Errorf/ || /log\.Errorf/ { 
+                has_log = 1; 
+                last_log_line = line_num;
+            }
+            
+            # Check for return err statements
+            /return err/ { 
+                # If we have not seen a logging statement in the last 5 lines, flag it
+                if (has_log == 0 || (line_num - last_log_line > 5)) {
+                    printf("%d:		%s\n", line_num, $0);
+                    issues++;
+                }
+            }
+            
+            # Reset when we leave a function
+            /^}/ { 
+                if (in_func == 1) {
+                    in_func = 0; 
+                    has_log = 0;
+                }
+            }
+            
+            END { exit issues }
+        ' "$file")
         
-        if [ ! -z "$MISSING_LOGS" ]; then
+        EXIT_CODE=$?
+        
+        if [ $EXIT_CODE -ne 0 ]; then
             echo "${RED}${BOLD}[ISSUE]${NC} Potential missing error logging in ${file}:${NC}"
             echo "$MISSING_LOGS" | while read -r line; do
                 LINE_NUM=$(echo "$line" | cut -d':' -f1)
@@ -57,5 +93,7 @@ else
     echo "${RED}${BOLD}[WARNING]${NC} Found $ISSUES_FOUND potential issues with error logging."
     echo "${YELLOW}Consider adding proper error logging before returning errors.${NC}"
 fi
+
+echo "${GREEN}[ok]${NC} Error logging verification completed ${GREEN}✔️${NC}"
 
 exit 0
