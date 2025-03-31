@@ -193,7 +193,11 @@ start:
 .PHONY: down
 down:
 	$(call title1,"Stopping and removing containers, networks, and volumes")
-	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
+	@if [ -f "docker-compose.yml" ]; then \
+		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
+	else \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
+	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: stop
@@ -230,7 +234,11 @@ clean-docker:
 .PHONY: logs
 logs:
 	$(call title1,"Showing logs for all services")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
+	@if [ -f "docker-compose.yml" ]; then \
+		$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c); \
+	else \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs.$(NC)"; \
+	fi
 
 .PHONY: logs-api
 logs-api:

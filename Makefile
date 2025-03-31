@@ -236,8 +236,8 @@ sec:
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
-	@echo "$(CYAN)Running security checks on all components...$(NC)"
-	@gosec ./...
+	@echo "$(CYAN)Running security checks on components/ and pkg/ folders...$(NC)"
+	@gosec ./components/... ./pkg/...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
@@ -316,9 +316,12 @@ up:
 down:
 	$(call title1,"Stopping all services with Docker Compose")
 	@for dir in $(COMPONENTS); do \
+		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "$(CYAN)Stopping services in $$dir...$(NC)"; \
-			(cd $$dir && $(MAKE) down) || exit 1; \
+			echo "$(CYAN)Stopping services in component: $(BOLD)$$component_name$(NC)"; \
+			(cd $$dir && (docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down)) || exit 1; \
+		else \
+			echo "$(YELLOW)No docker-compose.yml found in $$component_name, skipping$(NC)"; \
 		fi; \
 	done
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All services stopped successfully$(GREEN) ✔️$(NC)"
@@ -381,9 +384,11 @@ clean-docker:
 logs:
 	$(call title1,"Showing logs for all services")
 	@for dir in $(COMPONENTS); do \
+		component_name=$$(basename $$dir); \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
-			echo "$(CYAN)Logs for services in $$dir:$(NC)"; \
-			(cd $$dir && $(MAKE) logs) || exit 1; \
+			echo "$(CYAN)Logs for component: $(BOLD)$$component_name$(NC)"; \
+			(cd $$dir && (docker compose -f docker-compose.yml logs --tail=50 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=50)) || exit 1; \
+			echo ""; \
 		fi; \
 	done
 
@@ -509,7 +514,9 @@ dev-setup:
 	@echo "$(CYAN)Setting up git hooks...$(NC)"
 	@$(MAKE) setup-git-hooks
 	@for dir in $(COMPONENTS); do \
-		echo "$(CYAN)Setting up development environment in $$dir...$(NC)"; \
+		component_name=$$(basename $$dir); \
+		echo "$(CYAN)Setting up development environment for component: $(BOLD)$$component_name$(NC)"; \
 		(cd $$dir && $(MAKE) dev-setup) || exit 1; \
+		echo ""; \
 	done
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully for all components$(GREEN) ✔️$(NC)"

@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Git hooks directory
-HOOKS_DIR=".githooks"
+HOOKS_DIR=".git/hooks"
 PROJECT_ROOT=$(git rev-parse --show-toplevel)
 
 echo "${CYAN}Setting up git hooks for Midaz project...${NC}"
@@ -22,8 +22,45 @@ fi
 # Create hooks directory if it doesn't exist
 mkdir -p "$HOOKS_DIR"
 
-# Create pre-commit hook
-cat > "$HOOKS_DIR/pre-commit" << 'EOF'
+# Check if .githooks directory exists
+if [ -d ".githooks" ]; then
+    echo "${CYAN}Found .githooks directory, checking for hook files...${NC}"
+    
+    # Check for pre-commit hook
+    if [ -d ".githooks/pre-commit" ]; then
+        echo "${YELLOW}Found pre-commit directory, using template instead${NC}"
+        USE_TEMPLATE_PRECOMMIT=true
+    elif [ -f ".githooks/pre-commit" ]; then
+        echo "${CYAN}Installing pre-commit hook from .githooks${NC}"
+        cp ".githooks/pre-commit" "$HOOKS_DIR/pre-commit"
+        chmod +x "$HOOKS_DIR/pre-commit"
+        USE_TEMPLATE_PRECOMMIT=false
+    else
+        USE_TEMPLATE_PRECOMMIT=true
+    fi
+    
+    # Check for pre-push hook
+    if [ -d ".githooks/pre-push" ]; then
+        echo "${YELLOW}Found pre-push directory, using template instead${NC}"
+        USE_TEMPLATE_PREPUSH=true
+    elif [ -f ".githooks/pre-push" ]; then
+        echo "${CYAN}Installing pre-push hook from .githooks${NC}"
+        cp ".githooks/pre-push" "$HOOKS_DIR/pre-push"
+        chmod +x "$HOOKS_DIR/pre-push"
+        USE_TEMPLATE_PREPUSH=false
+    else
+        USE_TEMPLATE_PREPUSH=true
+    fi
+else
+    echo "${YELLOW}No .githooks directory found, using template hooks${NC}"
+    USE_TEMPLATE_PRECOMMIT=true
+    USE_TEMPLATE_PREPUSH=true
+fi
+
+# Create pre-commit hook if needed
+if [ "$USE_TEMPLATE_PRECOMMIT" = true ]; then
+    echo "${CYAN}Creating template pre-commit hook${NC}"
+    cat > "$HOOKS_DIR/pre-commit" << 'EOF'
 #!/bin/bash
 
 # Colors for output
@@ -75,12 +112,13 @@ fi
 echo "${GREEN}${BOLD}[PASS]${NC} Pre-commit checks completed successfully."
 exit 0
 EOF
+    chmod +x "$HOOKS_DIR/pre-commit"
+fi
 
-# Make hooks executable
-chmod +x "$HOOKS_DIR/pre-commit"
-
-# Create pre-push hook
-cat > "$HOOKS_DIR/pre-push" << 'EOF'
+# Create pre-push hook if needed
+if [ "$USE_TEMPLATE_PREPUSH" = true ]; then
+    echo "${CYAN}Creating template pre-push hook${NC}"
+    cat > "$HOOKS_DIR/pre-push" << 'EOF'
 #!/bin/bash
 
 # Colors for output
@@ -102,9 +140,8 @@ go test ./... -short || {
 echo "${GREEN}${BOLD}[PASS]${NC} Pre-push checks completed successfully."
 exit 0
 EOF
-
-# Make hooks executable
-chmod +x "$HOOKS_DIR/pre-push"
+    chmod +x "$HOOKS_DIR/pre-push"
+fi
 
 echo "${GREEN}${BOLD}[ok]${NC} Git hooks installed successfully."
 echo "${CYAN}Installed hooks:${NC}"

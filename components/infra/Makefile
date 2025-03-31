@@ -175,7 +175,11 @@ start:
 .PHONY: down
 down:
 	$(call title1,"Stopping and removing containers, networks, and volumes")
-	@$(DOCKER_CMD) -f docker-compose.yml down $(c)
+	@if [ -f "docker-compose.yml" ]; then \
+		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
+	else \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
+	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: destroy
@@ -206,7 +210,7 @@ rebuild-up:
 clean-docker:
 	$(call title1,"Cleaning Docker resources")
 	@echo "$(YELLOW)Stopping and removing containers, networks, and volumes...$(NC)"
-	@$(DOCKER_CMD) -f docker-compose.yml down -v
+	@$(DOCKER_CMD) -f docker-compose.yml down -v --rmi all --remove-orphans
 	@echo "$(YELLOW)Pruning unused Docker resources...$(NC)"
 	@docker system prune -f
 	@echo "$(YELLOW)Pruning unused volumes...$(NC)"

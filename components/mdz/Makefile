@@ -268,3 +268,22 @@ install-local: build
 	$(call title1,"Installing MDZ binary to /usr/local/bin")
 	@sudo cp -r $(BIN_DIR)/mdz /usr/local/bin
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Binary installed successfully to /usr/local/bin/mdz$(GREEN) ✔️$(NC)"
+
+.PHONY: logs
+logs:
+	$(call title1,"Showing logs for all services")
+	@if [ -f "docker-compose.yml" ]; then \
+		$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c); \
+	else \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs.$(NC)"; \
+	fi
+
+.PHONY: down
+down:
+	$(call title1,"Stopping and removing containers, networks, and volumes")
+	@if [ -f "docker-compose.yml" ]; then \
+		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
+	else \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
+	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
