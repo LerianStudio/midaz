@@ -53,7 +53,7 @@ help:
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make help                        - Display this help message"
 	@echo "  make test                        - Run tests on all projects"
-	@echo "  make cover                       - Run test coverage"
+	@echo "  make cover                       - Run test coverage (excludes PostgreSQL repositories)"
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
@@ -74,6 +74,7 @@ help:
 	@echo "  make set-env                     - Copy .env.example to .env for all components"
 	@echo "  make build                       - Build all project services"
 	@echo "  make clean                       - Clean artifacts and files matching .gitignore patterns"
+	@echo "  make clean-artifacts             - Clean all build artifacts (binaries, .out, .html, dist)"
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
@@ -191,6 +192,8 @@ cleanup-regenerate-mocks: cleanup-mocks regenerate-mocks
 .PHONY: cover
 cover:
 	@echo "$(BLUE)Generating test coverage report...$(NC)"
+	@echo "$(YELLOW)Note: PostgreSQL repository tests are excluded from coverage metrics.$(NC)"
+	@echo "$(YELLOW)See coverage report for details on why and what is being tested.$(NC)"
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@sh ./scripts/coverage.sh
 	@go tool cover -html=coverage.out -o coverage.html
@@ -392,6 +395,25 @@ clean:
 	@find . -path "*/dist/*" -o -path "*/.idea/*" -o -path "*/.vscode/*" -o -path "*/.run/*" -not -path "*/\.git/*" -exec rm -rf {} \; 2>/dev/null || true
 	
 	@echo "$(GREEN)All artifacts cleaned successfully$(NC)"
+
+.PHONY: clean-artifacts
+clean-artifacts:
+	@echo "$(BLUE)Cleaning all build artifacts...$(NC)"
+	
+	@echo "$(CYAN)Removing binary files...$(NC)"
+	@find . -type f -name "mdz" -o -name "onboarding" -o -name "transaction" -o -name "*.exe" -o -name "*.bin" | grep -v vendor | xargs rm -f 2>/dev/null || true
+	
+	@echo "$(CYAN)Removing output files...$(NC)"
+	@find . -type f -name "*.out" -o -name "*.test" -o -name "*.html" | grep -v vendor | xargs rm -f 2>/dev/null || true
+	
+	@echo "$(CYAN)Removing dist directory...$(NC)"
+	@rm -rf ./dist 2>/dev/null || true
+	
+	@echo "$(CYAN)Removing other build artifacts...$(NC)"
+	@find . -type f -name "__debug_bin*" -o -name "*.o" -o -name "*.a" -o -name "*.so" | grep -v vendor | xargs rm -f 2>/dev/null || true
+	@find . -path "*/.idea/*" -o -path "*/.vscode/*" -o -path "*/.run/*" -not -path "*/\.git/*" -exec rm -rf {} \; 2>/dev/null || true
+	
+	@echo "$(GREEN)All build artifacts cleaned successfully$(NC)"
 
 # Service Commands
 .PHONY: up

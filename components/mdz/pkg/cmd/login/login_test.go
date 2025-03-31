@@ -140,7 +140,62 @@ func TestNewCmdLogin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			NewCmdLogin(tt.args.f)
+			cmd := NewCmdLogin(tt.args.f)
+			assert.NotNil(t, cmd)
+			assert.Equal(t, "login", cmd.Use)
+			assert.Equal(t, "Authenticate with Midaz CLI", cmd.Short)
+		})
+	}
+}
+
+// TestValidateCredentials tests the validateCredentials function
+func TestValidateCredentials(t *testing.T) {
+	tests := []struct {
+		name        string
+		username    string
+		password    string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "Valid credentials",
+			username:    "testuser",
+			password:    "testpass",
+			expectError: false,
+		},
+		{
+			name:        "Empty username",
+			username:    "",
+			password:    "testpass",
+			expectError: true,
+			errorMsg:    "username must not be empty",
+		},
+		{
+			name:        "Empty password",
+			username:    "testuser",
+			password:    "",
+			expectError: true,
+			errorMsg:    "password must not be empty",
+		},
+		{
+			name:        "Both empty",
+			username:    "",
+			password:    "",
+			expectError: true,
+			errorMsg:    "username must not be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCredentials(tt.username, tt.password)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, tt.errorMsg, err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }

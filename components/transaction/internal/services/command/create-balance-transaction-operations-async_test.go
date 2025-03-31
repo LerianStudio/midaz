@@ -377,6 +377,641 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		assert.NoError(t, err) // Duplicate key errors are handled gracefully
 	})
+
+	t.Run("success_with_multiple_operations", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+		// Create a UseCase with all required dependencies
+		uc := &UseCase{
+			TransactionRepo: mockTransactionRepo,
+			OperationRepo:   mockOperationRepo,
+			MetadataRepo:    mockMetadataRepo,
+			BalanceRepo:     mockBalanceRepo,
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		// Mock transaction data with correct types
+		validate := &libTransaction.Responses{
+			Aliases: []string{"alias1", "alias2"},
+			From: map[string]libTransaction.Amount{
+				"alias1": {
+					Asset: "USD",
+					Value: int64(50),
+					Scale: int64(2),
+				},
+			},
+			To: map[string]libTransaction.Amount{
+				"alias2": {
+					Asset: "EUR",
+					Value: int64(40),
+					Scale: int64(2),
+				},
+			},
+		}
+
+		balances := []*mmodel.Balance{
+			{
+				ID:             uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Alias:          "alias1",
+				Available:      100,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+				AssetCode:      "USD",
+			},
+			{
+				ID:             uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Alias:          "alias2",
+				Available:      200,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+				AssetCode:      "EUR",
+			},
+		}
+
+		// Create operations for the transaction
+		operation1 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "debit",
+			AssetCode:      "USD",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(50),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key1": "value1"},
+		}
+
+		operation2 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "credit",
+			AssetCode:      "EUR",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(40),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key2": "value2"},
+		}
+
+		tran := &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Operations:     []*operation.Operation{operation1, operation2},
+			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+		}
+
+		parseDSL := &libTransaction.Transaction{}
+
+		// Create a transaction queue with the necessary fields
+		transactionQueue := transaction.TransactionQueue{
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			ParseDSL:    parseDSL,
+		}
+
+		transactionBytes, _ := json.Marshal(transactionQueue)
+		queueData := []mmodel.QueueData{
+			{
+				ID:    uuid.New(),
+				Value: transactionBytes,
+			},
+		}
+
+		queue := mmodel.Queue{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      queueData,
+		}
+
+		// Mock BalanceRepo.BalancesUpdate
+		mockBalanceRepo.EXPECT().
+			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock TransactionRepo.Create
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(tran, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for transaction metadata
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock OperationRepo.Create for both operations
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(operation1, nil).
+			Times(1)
+
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(operation2, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for operation metadata
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(2)
+
+		// Call the method
+		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("error_creating_operation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+		// Create a UseCase with all required dependencies
+		uc := &UseCase{
+			TransactionRepo: mockTransactionRepo,
+			OperationRepo:   mockOperationRepo,
+			MetadataRepo:    mockMetadataRepo,
+			BalanceRepo:     mockBalanceRepo,
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		// Mock transaction data with correct types
+		validate := &libTransaction.Responses{
+			Aliases: []string{"alias1", "alias2"},
+			From: map[string]libTransaction.Amount{
+				"alias1": {
+					Asset: "USD",
+					Value: int64(50),
+					Scale: int64(2),
+				},
+			},
+			To: map[string]libTransaction.Amount{
+				"alias2": {
+					Asset: "EUR",
+					Value: int64(40),
+					Scale: int64(2),
+				},
+			},
+		}
+
+		balances := []*mmodel.Balance{
+			{
+				ID:             uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Alias:          "alias1",
+				Available:      100,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+				AssetCode:      "USD",
+			},
+		}
+
+		// Create operations for the transaction
+		operation1 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "debit",
+			AssetCode:      "USD",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(50),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key1": "value1"},
+		}
+
+		operation2 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "credit",
+			AssetCode:      "EUR",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(40),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key2": "value2"},
+		}
+
+		tran := &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Operations:     []*operation.Operation{operation1, operation2},
+			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+		}
+
+		parseDSL := &libTransaction.Transaction{}
+
+		// Create a transaction queue with the necessary fields
+		transactionQueue := transaction.TransactionQueue{
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			ParseDSL:    parseDSL,
+		}
+
+		transactionBytes, _ := json.Marshal(transactionQueue)
+		queueData := []mmodel.QueueData{
+			{
+				ID:    uuid.New(),
+				Value: transactionBytes,
+			},
+		}
+
+		queue := mmodel.Queue{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      queueData,
+		}
+
+		// Mock BalanceRepo.BalancesUpdate
+		mockBalanceRepo.EXPECT().
+			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock TransactionRepo.Create
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(tran, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for transaction metadata
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock OperationRepo.Create to return an error for the first operation
+		operationError := errors.New("failed to create operation")
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, operationError).
+			Times(1)
+
+		// Call the method
+		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create operation")
+	})
+
+	t.Run("error_duplicate_operation", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+		// Create a UseCase with all required dependencies
+		uc := &UseCase{
+			TransactionRepo: mockTransactionRepo,
+			OperationRepo:   mockOperationRepo,
+			MetadataRepo:    mockMetadataRepo,
+			BalanceRepo:     mockBalanceRepo,
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		// Mock transaction data with correct types
+		validate := &libTransaction.Responses{
+			Aliases: []string{"alias1", "alias2"},
+			From: map[string]libTransaction.Amount{
+				"alias1": {
+					Asset: "USD",
+					Value: int64(50),
+					Scale: int64(2),
+				},
+			},
+			To: map[string]libTransaction.Amount{
+				"alias2": {
+					Asset: "EUR",
+					Value: int64(40),
+					Scale: int64(2),
+				},
+			},
+		}
+
+		balances := []*mmodel.Balance{
+			{
+				ID:             uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Alias:          "alias1",
+				Available:      100,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+				AssetCode:      "USD",
+			},
+		}
+
+		// Create operations for the transaction
+		operation1 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "debit",
+			AssetCode:      "USD",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(50),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key1": "value1"},
+		}
+
+		operation2 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "credit",
+			AssetCode:      "EUR",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(40),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key2": "value2"},
+		}
+
+		tran := &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Operations:     []*operation.Operation{operation1, operation2},
+			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+		}
+
+		parseDSL := &libTransaction.Transaction{}
+
+		// Create a transaction queue with the necessary fields
+		transactionQueue := transaction.TransactionQueue{
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			ParseDSL:    parseDSL,
+		}
+
+		transactionBytes, _ := json.Marshal(transactionQueue)
+		queueData := []mmodel.QueueData{
+			{
+				ID:    uuid.New(),
+				Value: transactionBytes,
+			},
+		}
+
+		queue := mmodel.Queue{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      queueData,
+		}
+
+		// Mock BalanceRepo.BalancesUpdate
+		mockBalanceRepo.EXPECT().
+			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock TransactionRepo.Create
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(tran, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for transaction metadata
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock OperationRepo.Create to return a duplicate key error for the first operation
+		pgErr := &pgconn.PgError{Code: "23505"}
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(nil, pgErr).
+			Times(1)
+
+		// Mock OperationRepo.Create for the second operation
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(operation2, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for operation metadata (only for second operation)
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Call the method
+		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+
+		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+	})
+
+	t.Run("error_creating_operation_metadata", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockTransactionRepo := transaction.NewMockRepository(ctrl)
+		mockOperationRepo := operation.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		mockBalanceRepo := balance.NewMockRepository(ctrl)
+
+		// Create a UseCase with all required dependencies
+		uc := &UseCase{
+			TransactionRepo: mockTransactionRepo,
+			OperationRepo:   mockOperationRepo,
+			MetadataRepo:    mockMetadataRepo,
+			BalanceRepo:     mockBalanceRepo,
+		}
+
+		ctx := context.Background()
+		organizationID := uuid.New()
+		ledgerID := uuid.New()
+		transactionID := uuid.New().String()
+
+		// Mock transaction data with correct types
+		validate := &libTransaction.Responses{
+			Aliases: []string{"alias1"},
+			From: map[string]libTransaction.Amount{
+				"alias1": {
+					Asset: "USD",
+					Value: int64(50),
+					Scale: int64(2),
+				},
+			},
+		}
+
+		balances := []*mmodel.Balance{
+			{
+				ID:             uuid.New().String(),
+				AccountID:      uuid.New().String(),
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Alias:          "alias1",
+				Available:      100,
+				OnHold:         0,
+				Scale:          2,
+				Version:        1,
+				AccountType:    "deposit",
+				AllowSending:   true,
+				AllowReceiving: true,
+				AssetCode:      "USD",
+			},
+		}
+
+		// Create operations for the transaction
+		operation1 := &operation.Operation{
+			ID:             uuid.New().String(),
+			TransactionID:  transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			AccountID:      uuid.New().String(),
+			Type:           "debit",
+			AssetCode:      "USD",
+			Amount: operation.Amount{
+				Amount: Int64Ptr(50),
+				Scale:  Int64Ptr(2),
+			},
+			Metadata: map[string]interface{}{"key1": "value1"},
+		}
+
+		tran := &transaction.Transaction{
+			ID:             transactionID,
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Operations:     []*operation.Operation{operation1},
+			Metadata:       map[string]interface{}{"transaction_key": "transaction_value"},
+		}
+
+		parseDSL := &libTransaction.Transaction{}
+
+		// Create a transaction queue with the necessary fields
+		transactionQueue := transaction.TransactionQueue{
+			Transaction: tran,
+			Validate:    validate,
+			Balances:    balances,
+			ParseDSL:    parseDSL,
+		}
+
+		transactionBytes, _ := json.Marshal(transactionQueue)
+		queueData := []mmodel.QueueData{
+			{
+				ID:    uuid.New(),
+				Value: transactionBytes,
+			},
+		}
+
+		queue := mmodel.Queue{
+			OrganizationID: organizationID,
+			LedgerID:       ledgerID,
+			QueueData:      queueData,
+		}
+
+		// Mock BalanceRepo.BalancesUpdate
+		mockBalanceRepo.EXPECT().
+			BalancesUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock TransactionRepo.Create
+		mockTransactionRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(tran, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for transaction metadata
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(nil).
+			Times(1)
+
+		// Mock OperationRepo.Create for the operation
+		mockOperationRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any()).
+			Return(operation1, nil).
+			Times(1)
+
+		// Mock MetadataRepo.Create for operation metadata to return an error
+		metadataError := errors.New("failed to create operation metadata")
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(metadataError).
+			Times(1)
+
+		// Call the method
+		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to create operation metadata")
+	})
 }
 
 func TestCreateMetadataAsync(t *testing.T) {
