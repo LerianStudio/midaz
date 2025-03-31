@@ -3,7 +3,9 @@ package login
 import (
 	"bytes"
 	"errors"
-	"go.uber.org/mock/gomock"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
@@ -11,12 +13,53 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/environment"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/iostreams"
+	"github.com/LerianStudio/midaz/components/mdz/pkg/setting"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 )
 
-func TestRunE(t *testing.T) {
+// setupTestEnv creates a temporary directory for test settings
+func setupTestEnv(t *testing.T) (string, func()) {
+	// Create a temporary directory for the test
+	tempDir, err := ioutil.TempDir("", "mdz-test-")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+
+	// Create the config directory
+	configDir := filepath.Join(tempDir, ".mdz")
+	err = os.MkdirAll(configDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+
+	// Set the HOME environment variable to the temp directory
+	origHome := os.Getenv("HOME")
+	os.Setenv("HOME", tempDir)
+
+	// Return the temp directory and a cleanup function
+	cleanup := func() {
+		os.Setenv("HOME", origHome)
+		os.RemoveAll(tempDir)
+	}
+
+	return tempDir, cleanup
+}
+
+// Mock for tui.Select
+type mockTuiSelect struct {
+	mock.Mock
+}
+
+func (m *mockTuiSelect) Select(message string, options []string) (string, error) {
+	args := m.Called(message, options)
+	return args.String(0), args.Error(1)
+}
+
+func TestRunEWithCredentials(t *testing.T) {
 	tests := []struct {
 		name           string
 		username       string
@@ -47,7 +90,7 @@ func TestRunE(t *testing.T) {
 				mockAuth.
 					EXPECT().
 					AuthenticateWithCredentials("invaliduser", "invalidpass").
-					Return(nil, errors.New("invalid credentials")) // Return an error, not a string
+					Return(nil, errors.New("invalid credentials"))
 			},
 			expectedOutput: "",
 		},
@@ -75,6 +118,10 @@ func TestRunE(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Setup test environment
+			_, cleanup := setupTestEnv(t)
+			defer cleanup()
+
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
@@ -92,6 +139,7 @@ func TestRunE(t *testing.T) {
 					Out: outBuf,
 					Err: errBuf,
 				},
+				Env: environment.New(),
 			}
 
 			l := &factoryLogin{
@@ -118,6 +166,11 @@ func TestRunE(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Contains(t, outBuf.String(), tt.expectedOutput)
+
+				// Verify that the token was saved to the setting file
+				s, err := setting.Read()
+				assert.NoError(t, err)
+				assert.Equal(t, "mock-token", s.Token)
 			}
 		})
 	}
@@ -134,7 +187,7 @@ func TestNewCmdLogin(t *testing.T) {
 		{
 			name: "success",
 			args: args{
-				f: factory.NewFactory(&environment.Env{}),
+				f: factory.NewFactory(environment.New()),
 			},
 		},
 	}
