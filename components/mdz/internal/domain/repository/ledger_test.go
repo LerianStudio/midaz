@@ -15,7 +15,7 @@ func TestLedgerInterface(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedger := repository.NewMockLedger(ctrl)
-	
+
 	// Test interface compliance by using the mock
 	var _ repository.Ledger = mockLedger
 }
@@ -25,7 +25,7 @@ func TestLedger_Create(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedger := repository.NewMockLedger(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -76,16 +76,16 @@ func TestLedger_Create(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockLedger.Create(tc.organizationID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -96,7 +96,7 @@ func TestLedger_Get(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedger := repository.NewMockLedger(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -167,23 +167,23 @@ func TestLedger_Get(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockLedger.Get(
-				tc.organizationID, 
-				tc.limit, 
-				tc.page, 
-				tc.sortOrder, 
-				tc.startDate, 
+				tc.organizationID,
+				tc.limit,
+				tc.page,
+				tc.sortOrder,
+				tc.startDate,
 				tc.endDate,
 			)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -194,7 +194,7 @@ func TestLedger_GetByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedger := repository.NewMockLedger(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -241,16 +241,16 @@ func TestLedger_GetByID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockLedger.GetByID(tc.organizationID, tc.ledgerID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -261,7 +261,7 @@ func TestLedger_Update(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedger := repository.NewMockLedger(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -315,16 +315,16 @@ func TestLedger_Update(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockLedger.Update(tc.organizationID, tc.ledgerID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -335,7 +335,7 @@ func TestLedger_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockLedger := repository.NewMockLedger(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -370,9 +370,9 @@ func TestLedger_Delete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			err := mockLedger.Delete(tc.organizationID, tc.ledgerID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())

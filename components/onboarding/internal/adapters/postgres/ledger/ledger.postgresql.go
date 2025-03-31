@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to ledger entities.
-//
-//go:generate mockgen --destination=ledger.mock.go --package=ledger . Repository
+// It defines methods for creating, finding, updating, and deleting ledgers in the database.
 type Repository interface {
 	Create(ctx context.Context, ledger *mmodel.Ledger) (*mmodel.Ledger, error)
 	Find(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.Ledger, error)

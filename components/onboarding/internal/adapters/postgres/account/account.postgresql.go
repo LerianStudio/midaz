@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to account entities.
-//
-//go:generate mockgen --destination=account.mock.go --package=account . Repository
+// It defines methods for creating, retrieving, updating, and deleting accounts in the database.
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)

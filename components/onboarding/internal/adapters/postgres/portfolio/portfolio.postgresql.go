@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to portfolio entities.
-//
-//go:generate mockgen --destination=portfolio.mock.go --package=portfolio . Repository
+// It defines methods for creating, finding, updating, and deleting portfolios in the database.
 type Repository interface {
 	Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error)
