@@ -483,12 +483,18 @@ mdz-goreleaser:
 	$(call title1,"Releasing MDZ CLI using goreleaser")
 	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
 	@cd $(MDZ_DIR) && \
-	if [ ! -f .goreleaser.yml ]; then \
-		echo "$(YELLOW)No .goreleaser.yml found. Creating a default configuration...$(NC)"; \
+	if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
+		echo "$(YELLOW)No goreleaser configuration found. Creating a default configuration...$(NC)"; \
 		goreleaser init; \
 	fi
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "$(RED)Error: GITHUB_TOKEN environment variable is required for releases.$(NC)"; \
+		echo "$(YELLOW)Please set it using: export GITHUB_TOKEN=your_github_token$(NC)"; \
+		echo "$(YELLOW)You can create a token at: https://github.com/settings/tokens$(NC)"; \
+		exit 1; \
+	fi
 	@echo "$(CYAN)Building and releasing MDZ CLI...$(NC)"
-	@cd $(MDZ_DIR) && goreleaser release --rm-dist
+	@cd $(MDZ_DIR) && goreleaser release --clean
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI released successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: mdz-goreleaser-snapshot
@@ -496,12 +502,12 @@ mdz-goreleaser-snapshot:
 	$(call title1,"Creating snapshot release of MDZ CLI")
 	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
 	@cd $(MDZ_DIR) && \
-	if [ ! -f .goreleaser.yml ]; then \
-		echo "$(YELLOW)No .goreleaser.yml found. Creating a default configuration...$(NC)"; \
+	if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
+		echo "$(YELLOW)No goreleaser configuration found. Creating a default configuration...$(NC)"; \
 		goreleaser init; \
 	fi
 	@echo "$(CYAN)Building snapshot release of MDZ CLI...$(NC)"
-	@cd $(MDZ_DIR) && goreleaser release --snapshot --rm-dist
+	@cd $(MDZ_DIR) && goreleaser release --snapshot --clean
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI snapshot created successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: regenerate-mocks
