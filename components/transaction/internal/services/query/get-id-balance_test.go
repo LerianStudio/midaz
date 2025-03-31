@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -93,7 +93,7 @@ func TestGetBalanceByIDUseCase(t *testing.T) {
 
 	// Create an ObjectID for the metadata
 	objectID, _ := primitive.ObjectIDFromHex("507f1f77bcf86cd799439011")
-	
+
 	metadata := &mongodb.Metadata{
 		ID:         objectID,
 		EntityID:   id.String(),

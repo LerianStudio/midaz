@@ -9,6 +9,7 @@ components/ledger/_docker-compose.yml
 components/onboarding/_docker-compose.yml
 coverage.out
 dist/
+ide/
 .run/onboarding.run.xml
 .run/transaction.run.xml
 scripts/coverage_ignore.txt

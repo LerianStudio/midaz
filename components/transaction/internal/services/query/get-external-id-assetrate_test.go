@@ -5,8 +5,8 @@ import (
 	"errors"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
-	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
@@ -96,7 +96,7 @@ func TestGetAssetRateByExternalID(t *testing.T) {
 
 	// Create an ObjectID for the metadata
 	objectID, _ := primitive.ObjectIDFromHex("507f1f77bcf86cd799439011")
-	
+
 	metadata := &mongodb.Metadata{
 		ID:         objectID,
 		EntityID:   id.String(),
