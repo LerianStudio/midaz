@@ -12,21 +12,17 @@ BOLD='\033[1m'
 echo "${CYAN}Checking if git hooks are installed...${NC}"
 HOOKS_INSTALLED=true
 
-# Check pre-commit hook
-if [ ! -f ".git/hooks/pre-commit" ]; then
-    echo "${RED}${BOLD}[MISSING]${NC} pre-commit hook is not installed"
-    HOOKS_INSTALLED=false
-else
-    echo "${GREEN}${BOLD}[OK]${NC} pre-commit hook is installed"
-fi
+# List of hooks to check
+HOOKS=("pre-commit" "pre-push" "commit-msg" "pre-receive")
 
-# Check pre-push hook
-if [ ! -f ".git/hooks/pre-push" ]; then
-    echo "${RED}${BOLD}[MISSING]${NC} pre-push hook is not installed"
-    HOOKS_INSTALLED=false
-else
-    echo "${GREEN}${BOLD}[OK]${NC} pre-push hook is installed"
-fi
+for hook in "${HOOKS[@]}"; do
+    if [ ! -f ".git/hooks/$hook" ]; then
+        echo "${RED}${BOLD}[MISSING]${NC} $hook hook is not installed"
+        HOOKS_INSTALLED=false
+    else
+        echo "${GREEN}${BOLD}[OK]${NC} $hook hook is installed"
+    fi
+done
 
 # If hooks are not installed, suggest running setup-git-hooks
 if [ "$HOOKS_INSTALLED" = false ]; then
@@ -53,6 +49,7 @@ echo "${CYAN}Checking for .env files in components...${NC}"
 
 # Find all components
 COMPONENTS=$(find ./components -maxdepth 1 -type d | grep -v "^./components$")
+MISSING_ENV_FILES=false
 
 for component in $COMPONENTS; do
     component_name=$(basename "$component")
@@ -64,12 +61,23 @@ for component in $COMPONENTS; do
         # Check if .env.example exists
         if [ -f "$component/.env.example" ]; then
             echo "${YELLOW}${BOLD}[MISSING]${NC} $component_name is missing .env file (but has .env.example)"
-            echo "${YELLOW}Consider running 'make set-env' to create .env files from templates${NC}"
+            MISSING_ENV_FILES=true
         else
             echo "${CYAN}${BOLD}[INFO]${NC} $component_name does not have .env or .env.example files"
         fi
     fi
 done
+
+# Check if set-env target exists in Makefile
+if grep -q "set-env:" Makefile; then
+    if [ "$MISSING_ENV_FILES" = true ]; then
+        echo "${YELLOW}Run 'make set-env' to create .env files from templates${NC}"
+    fi
+else
+    if [ "$MISSING_ENV_FILES" = true ]; then
+        echo "${YELLOW}Consider creating a 'set-env' target in your Makefile to automate .env file creation${NC}"
+    fi
+fi
 
 echo ""
 echo "${CYAN}Environment check completed.${NC}"
