@@ -68,7 +68,7 @@ help:
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting on all components"
 	@echo "  make format                      - Format code in all components"
-	@echo "  make tidy                        - Clean dependencies in all components"
+	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
 	@echo "  make sec                         - Run security checks using gosec"
@@ -234,16 +234,9 @@ format:
 
 .PHONY: tidy
 tidy:
-	$(call title1,"Cleaning dependencies in all components")
-	@for dir in $(COMPONENTS); do \
-		echo "$(CYAN)Checking for go.mod in $$dir...$(NC)"; \
-		if [ -f "$$dir/go.mod" ]; then \
-			echo "$(CYAN)Tidying in $$dir...$(NC)"; \
-			(cd $$dir && $(MAKE) tidy) || exit 1; \
-		else \
-			echo "$(YELLOW)No go.mod found in $$dir, skipping tidy$(NC)"; \
-		fi; \
-	done
+	$(call title1,"Cleaning dependencies in root directory")
+	@echo "$(CYAN)Tidying root go.mod...$(NC)"
+	@go mod tidy
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: check-logs
