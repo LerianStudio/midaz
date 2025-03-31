@@ -7,10 +7,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
-const { promisify } = require('util');
-
-const execAsync = promisify(exec);
 
 // Check arguments
 if (process.argv.length < 4) {
@@ -65,38 +61,128 @@ function fixPathParameters(spec) {
 // Fix the OpenAPI spec
 const fixedSpec = fixPathParameters(openApiSpec);
 
-// Write the fixed spec to a temporary file
-const tempFile = `${tempDir}/fixed-spec.json`;
-fs.writeFileSync(tempFile, JSON.stringify(fixedSpec, null, 2));
-
-// Use postman-collection-transformer to convert the spec
-async function convertToPostman() {
-  try {
-    // Install required packages if not already installed
-    await execAsync('npm list -g postman-collection-transformer || npm install -g postman-collection-transformer');
+// Create a simple Postman collection structure
+function createPostmanCollection(spec) {
+  const info = spec.info || {};
+  const paths = spec.paths || {};
+  
+  // Create collection structure
+  const collection = {
+    info: {
+      name: info.title || 'API Collection',
+      description: info.description || '',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'
+    },
+    item: []
+  };
+  
+  // Group by tags
+  const tagGroups = {};
+  
+  // Process each path
+  for (const path in paths) {
+    const pathItem = paths[path];
     
-    // Convert OpenAPI to Postman Collection
-    const { stdout, stderr } = await execAsync(`postman-collection-transformer convert -i ${tempFile} -o ${outputFile} -t 2.0.0 -f openapi -j`);
-    
-    if (stderr) {
-      console.error(`Error during conversion: ${stderr}`);
-      return false;
-    }
-    
-    console.log(`Successfully converted ${inputFile} to ${outputFile}`);
-    return true;
-  } catch (error) {
-    console.error(`Failed to convert: ${error.message}`);
-    return false;
-  } finally {
-    // Clean up temporary file
-    if (fs.existsSync(tempFile)) {
-      fs.unlinkSync(tempFile);
+    // Process each method (GET, POST, etc.)
+    for (const method in pathItem) {
+      if (['get', 'post', 'put', 'delete', 'patch', 'options', 'head'].includes(method)) {
+        const operation = pathItem[method];
+        const tags = operation.tags || ['default'];
+        const tag = tags[0]; // Use the first tag for grouping
+        
+        if (!tagGroups[tag]) {
+          tagGroups[tag] = [];
+        }
+        
+        // Create request item
+        const requestItem = {
+          name: operation.summary || `${method.toUpperCase()} ${path}`,
+          request: {
+            method: method.toUpperCase(),
+            header: [],
+            url: {
+              raw: `{{baseUrl}}${path}`,
+              host: ['{{baseUrl}}'],
+              path: path.split('/').filter(p => p)
+            },
+            description: operation.description || ''
+          },
+          response: []
+        };
+        
+        // Add parameters
+        if (operation.parameters) {
+          // Path parameters
+          const pathParams = operation.parameters.filter(p => p.in === 'path');
+          if (pathParams.length > 0) {
+            requestItem.request.url.variable = pathParams.map(p => ({
+              key: p.name,
+              value: '',
+              description: p.description || ''
+            }));
+          }
+          
+          // Query parameters
+          const queryParams = operation.parameters.filter(p => p.in === 'query');
+          if (queryParams.length > 0) {
+            requestItem.request.url.query = queryParams.map(p => ({
+              key: p.name,
+              value: '',
+              description: p.description || '',
+              disabled: !p.required
+            }));
+          }
+          
+          // Header parameters
+          const headerParams = operation.parameters.filter(p => p.in === 'header');
+          if (headerParams.length > 0) {
+            requestItem.request.header = headerParams.map(p => ({
+              key: p.name,
+              value: '',
+              description: p.description || '',
+              disabled: !p.required
+            }));
+          }
+        }
+        
+        // Add request body if present
+        if (operation.requestBody) {
+          const content = operation.requestBody.content || {};
+          const jsonContent = content['application/json'];
+          
+          if (jsonContent) {
+            requestItem.request.body = {
+              mode: 'raw',
+              raw: JSON.stringify(jsonContent.example || {}, null, 2),
+              options: {
+                raw: {
+                  language: 'json'
+                }
+              }
+            };
+          }
+        }
+        
+        tagGroups[tag].push(requestItem);
+      }
     }
   }
+  
+  // Create folders for each tag
+  for (const tag in tagGroups) {
+    collection.item.push({
+      name: tag,
+      item: tagGroups[tag]
+    });
+  }
+  
+  return collection;
 }
 
-// Execute the conversion
-convertToPostman().then(success => {
-  process.exit(success ? 0 : 1);
-});
+// Convert the OpenAPI spec to a Postman collection
+const postmanCollection = createPostmanCollection(fixedSpec);
+
+// Write the Postman collection to the output file
+fs.writeFileSync(outputFile, JSON.stringify(postmanCollection, null, 2));
+console.log(`Successfully converted ${inputFile} to ${outputFile}`);
+process.exit(0);
