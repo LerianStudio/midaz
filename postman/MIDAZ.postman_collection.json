@@ -654,7 +654,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}",
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -665,6 +665,7 @@
                 "ledgers",
                 "{ledger_id}",
                 "accounts",
+                "alias",
                 "{alias}"
               ],
               "variable": [
@@ -2310,7 +2311,7 @@
         {
           "name": "Create or Update an AssetRate",
           "request": {
-            "method": "POST",
+            "method": "PUT",
             "header": [
               {
                 "key": "Authorization",
@@ -2686,6 +2687,55 @@
           "response": []
         },
         {
+          "name": "Create a Transaction Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "templates"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Transaction with the input template"
+          },
+          "response": []
+        },
+        {
           "name": "Get a Transaction by ID",
           "request": {
             "method": "GET",
@@ -2790,6 +2840,61 @@
               ]
             },
             "description": "Update a Transaction with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Commit a Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "{transaction_id}",
+                "commit"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Commit a previously created transaction"
           },
           "response": []
         },
