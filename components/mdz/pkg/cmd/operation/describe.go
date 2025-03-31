@@ -85,7 +85,11 @@ func (f *factoryOperationDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	// Format metadata
 	if len(resp.Metadata) > 0 {
-		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
+		metadataJSON, err := json.MarshalIndent(resp.Metadata, "", "  ")
+		if err != nil {
+			return fmt.Errorf("error marshaling metadata: %w", err)
+		}
+
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
 

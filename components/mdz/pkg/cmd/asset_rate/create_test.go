@@ -1,4 +1,4 @@
-package asset_rate
+package assetrate
 
 import (
 	"errors"
@@ -252,10 +252,8 @@ func TestFactoryAssetRateCreateRunE(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.expectedError)
 			} else {
 				assert.NoError(t, err)
-				if tt.expectedOutput != "" {
-					// Note: We can't easily verify the output since it's written to iostreams
-					// For a more thorough test, we would need to mock iostreams
-				}
+				// TODO: Add output verification when iostreams mocking is implemented
+				// Currently we can't easily verify the output since it's written to iostreams
 			}
 
 			mockRepo.AssertExpectations(t)

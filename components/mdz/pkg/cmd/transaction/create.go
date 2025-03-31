@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
@@ -54,7 +54,7 @@ func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 		defer jsonFile.Close()
 
-		byteValue, err := ioutil.ReadAll(jsonFile)
+		byteValue, err := io.ReadAll(jsonFile)
 		if err != nil {
 			return fmt.Errorf("reading JSON file: %v", err)
 		}
@@ -91,7 +91,8 @@ func (f *factoryTransactionCreate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.CreateTransactionInput) error {
+// processBasicFields handles the basic string fields and numeric conversions
+func (f *factoryTransactionCreate) processBasicFields(transaction *mmodel.CreateTransactionInput) error {
 	var err error
 
 	transaction.Description, err = utils.AssignStringField(f.Description, "description", f.tuiInput)
@@ -104,6 +105,21 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		return err
 	}
 
+	transaction.AssetCode, err = utils.AssignStringField(f.AssetCode, "asset code", f.tuiInput)
+	if err != nil {
+		return err
+	}
+
+	transaction.ChartOfAccountsGroupName, err = utils.AssignStringField(f.ChartOfAccountsGroup, "chart of accounts group", f.tuiInput)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// processAmountFields handles amount and amount scale conversions
+func (f *factoryTransactionCreate) processAmountFields(transaction *mmodel.CreateTransactionInput) error {
 	if len(f.Amount) > 0 {
 		amount, err := utils.StringToInt64(f.Amount)
 		if err != nil {
@@ -122,16 +138,11 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		transaction.AmountScale = &amountScale
 	}
 
-	transaction.AssetCode, err = utils.AssignStringField(f.AssetCode, "asset code", f.tuiInput)
-	if err != nil {
-		return err
-	}
+	return nil
+}
 
-	transaction.ChartOfAccountsGroupName, err = utils.AssignStringField(f.ChartOfAccountsGroup, "chart of accounts group", f.tuiInput)
-	if err != nil {
-		return err
-	}
-
+// processSourceDestination handles source and destination account arrays
+func (f *factoryTransactionCreate) processSourceDestination(transaction *mmodel.CreateTransactionInput) error {
 	if len(f.Source) > 0 {
 		var sources []string
 		if err := json.Unmarshal([]byte(f.Source), &sources); err != nil {
@@ -150,6 +161,11 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 		transaction.Destination = destinations
 	}
 
+	return nil
+}
+
+// processStatusAndMetadata handles status, parent transaction ID and metadata
+func (f *factoryTransactionCreate) processStatusAndMetadata(transaction *mmodel.CreateTransactionInput) error {
 	if len(f.ParentTransactionID) > 0 {
 		parentID := f.ParentTransactionID
 		transaction.ParentTransactionID = &parentID
@@ -167,7 +183,7 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	}
 
 	if len(f.Metadata) > 0 {
-		var metadata map[string]interface{}
+		var metadata map[string]any
 		if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 			return errors.New("metadata must be a valid JSON object")
 		}
@@ -178,22 +194,43 @@ func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.Cr
 	return nil
 }
 
+func (f *factoryTransactionCreate) createRequestFromFlags(transaction *mmodel.CreateTransactionInput) error {
+	if err := f.processBasicFields(transaction); err != nil {
+		return err
+	}
+
+	if err := f.processAmountFields(transaction); err != nil {
+		return err
+	}
+
+	if err := f.processSourceDestination(transaction); err != nil {
+		return err
+	}
+
+	if err := f.processStatusAndMetadata(transaction); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (f *factoryTransactionCreate) setFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Organization ID")
-	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Ledger ID")
-	cmd.Flags().StringVar(&f.Description, "description", "", "Transaction description")
-	cmd.Flags().StringVar(&f.Template, "template", "", "Transaction template")
-	cmd.Flags().StringVar(&f.Amount, "amount", "", "Transaction amount")
-	cmd.Flags().StringVar(&f.AmountScale, "amount-scale", "", "Transaction amount scale")
-	cmd.Flags().StringVar(&f.AssetCode, "asset-code", "", "Asset code")
-	cmd.Flags().StringVar(&f.ChartOfAccountsGroup, "chart-of-accounts-group", "", "Chart of accounts group")
-	cmd.Flags().StringVar(&f.Source, "source", "", "Source (JSON array of strings)")
-	cmd.Flags().StringVar(&f.Destination, "destination", "", "Destination (JSON array of strings)")
-	cmd.Flags().StringVar(&f.ParentTransactionID, "parent-transaction-id", "", "Parent transaction ID")
-	cmd.Flags().StringVar(&f.StatusCode, "status-code", "", "Status code")
-	cmd.Flags().StringVar(&f.StatusDescription, "status-description", "", "Status description")
-	cmd.Flags().StringVar(&f.Metadata, "metadata", "", "Metadata (JSON object)")
-	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "JSON file path")
+	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
+	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID.")
+	cmd.Flags().StringVar(&f.Description, "description", "", "Specify the transaction description.")
+	cmd.Flags().StringVar(&f.Template, "template", "", "Specify the transaction template.")
+	cmd.Flags().StringVar(&f.Amount, "amount", "", "Specify the transaction amount.")
+	cmd.Flags().StringVar(&f.AmountScale, "amount-scale", "", "Specify the transaction amount scale.")
+	cmd.Flags().StringVar(&f.AssetCode, "asset-code", "", "Specify the asset code (e.g., USD).")
+	cmd.Flags().StringVar(&f.ChartOfAccountsGroup, "chart-of-accounts-group", "", "Specify the chart of accounts group.")
+	cmd.Flags().StringVar(&f.Source, "source", "", "Specify the source accounts as a JSON array.")
+	cmd.Flags().StringVar(&f.Destination, "destination", "", "Specify the destination accounts as a JSON array.")
+	cmd.Flags().StringVar(&f.ParentTransactionID, "parent-transaction-id", "", "Specify the parent transaction ID.")
+	cmd.Flags().StringVar(&f.StatusCode, "status-code", "", "Specify the status code.")
+	cmd.Flags().StringVar(&f.StatusDescription, "status-description", "", "Specify the status description.")
+	cmd.Flags().StringVar(&f.Metadata, "metadata", "", "Specify metadata as a JSON object.")
+	cmd.Flags().StringVar(&f.JSONFile, "json-file", "", "Path to a JSON file containing the transaction data.")
+	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
 func newInjectFacCreate(f *factory.Factory) *factoryTransactionCreate {
@@ -207,9 +244,17 @@ func newInjectFacCreate(f *factory.Factory) *factoryTransactionCreate {
 func newCmdTransactionCreate(f *factoryTransactionCreate) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a transaction",
-		Long:  "Create a transaction with the specified parameters",
-		RunE:  f.runE,
+		Short: "Creates a new transaction.",
+		Long: utils.Format(
+			"Creates a new transaction in the specified ledger.",
+			"Returns the ID of the created transaction or an error message.",
+		),
+		Example: utils.Format(
+			"$ mdz transaction create",
+			"$ mdz transaction create -h",
+			"$ mdz transaction create --organization-id <org-id> --ledger-id <ledger-id> --description \"Test transaction\" --template TRANSFER",
+		),
+		RunE: f.runE,
 	}
 
 	f.setFlags(cmd)

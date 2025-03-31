@@ -8,7 +8,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -60,7 +60,7 @@ func (f *factoryTransactionCreateDSL) runE(cmd *cobra.Command, _ []string) error
 
 	if f.DSLFile == "-" {
 		// Read from stdin
-		bytes, err := ioutil.ReadAll(os.Stdin)
+		bytes, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return errors.New("reading from stdin: " + err.Error())
 		}
@@ -68,7 +68,7 @@ func (f *factoryTransactionCreateDSL) runE(cmd *cobra.Command, _ []string) error
 		dslContent = string(bytes)
 	} else {
 		// Read from file
-		bytes, err := ioutil.ReadFile(f.DSLFile)
+		bytes, err := os.ReadFile(f.DSLFile)
 		if err != nil {
 			return errors.New("reading DSL file: " + err.Error())
 		}

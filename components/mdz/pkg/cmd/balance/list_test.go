@@ -79,7 +79,6 @@ func TestFactoryBalanceListRunE(t *testing.T) {
 				cmd.Flags().Set("sort-order", f.SortOrder)
 			},
 			setupMocks: func(mockRepo *mockBalanceRepo) {
-				now := time.Now()
 				mockRepo.On("Get", "org123", "ledger123", 10, "", "desc", "", "").Return(
 					&mmodel.Balances{
 						Items: []mmodel.Balance{
@@ -91,8 +90,8 @@ func TestFactoryBalanceListRunE(t *testing.T) {
 								AssetCode:      "USD",
 								OrganizationID: "org123",
 								LedgerID:       "ledger123",
-								CreatedAt:      now,
-								UpdatedAt:      now,
+								CreatedAt:      time.Now(),
+								UpdatedAt:      time.Now(),
 							},
 							{
 								ID:             "bal124",
@@ -102,8 +101,8 @@ func TestFactoryBalanceListRunE(t *testing.T) {
 								AssetCode:      "EUR",
 								OrganizationID: "org123",
 								LedgerID:       "ledger123",
-								CreatedAt:      now,
-								UpdatedAt:      now,
+								CreatedAt:      time.Now(),
+								UpdatedAt:      time.Now(),
 							},
 						},
 						Pagination: &mmodel.Pagination{
@@ -161,7 +160,6 @@ func TestFactoryBalanceListRunE(t *testing.T) {
 				cmd.Flags().Set("end-date", f.EndDate)
 			},
 			setupMocks: func(mockRepo *mockBalanceRepo) {
-				now := time.Now()
 				mockRepo.On("Get", "org123", "ledger123", 10, "", "asc", "2023-01-01", "2023-12-31").Return(
 					&mmodel.Balances{
 						Items: []mmodel.Balance{
@@ -173,8 +171,8 @@ func TestFactoryBalanceListRunE(t *testing.T) {
 								AssetCode:      "USD",
 								OrganizationID: "org123",
 								LedgerID:       "ledger123",
-								CreatedAt:      now,
-								UpdatedAt:      now,
+								CreatedAt:      time.Now(),
+								UpdatedAt:      time.Now(),
 							},
 						},
 						Pagination: &mmodel.Pagination{

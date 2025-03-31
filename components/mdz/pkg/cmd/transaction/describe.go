@@ -3,14 +3,15 @@ package transaction
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
-	"strconv"
-
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +29,8 @@ type flagsDescribe struct {
 	OutputFormat   string
 }
 
-func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error {
+// validateAndGetInputs validates the required inputs and prompts for missing ones
+func (f *factoryTransactionDescribe) validateAndGetInputs(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -56,23 +58,11 @@ func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error 
 		f.TransactionID = id
 	}
 
-	resp, err := f.repoTransaction.GetByID(f.OrganizationID, f.LedgerID, f.TransactionID)
-	if err != nil {
-		return err
-	}
+	return nil
+}
 
-	if f.OutputFormat == "json" {
-		jsonData, err := json.MarshalIndent(resp, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshalling JSON: %v", err)
-		}
-
-		output.Printf(f.factory.IOStreams.Out, "%s", string(jsonData))
-
-		return nil
-	}
-
-	// Default output format (table)
+// renderTransactionTable renders the transaction details in a table format
+func (f *factoryTransactionDescribe) renderTransactionTable(resp *mmodel.Transaction) error {
 	table := output.NewTable(f.factory.IOStreams.Out)
 	table.SetHeader([]string{"Property", "Value"})
 
@@ -105,19 +95,31 @@ func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error 
 
 	// Format source accounts
 	if len(resp.Source) > 0 {
-		sourceJSON, _ := json.Marshal(resp.Source)
+		sourceJSON, err := json.Marshal(resp.Source)
+		if err != nil {
+			return fmt.Errorf("error marshaling source accounts: %w", err)
+		}
+
 		table.Append([]string{"Source Accounts", string(sourceJSON)})
 	}
 
 	// Format destination accounts
 	if len(resp.Destination) > 0 {
-		destJSON, _ := json.Marshal(resp.Destination)
+		destJSON, err := json.Marshal(resp.Destination)
+		if err != nil {
+			return fmt.Errorf("error marshaling destination accounts: %w", err)
+		}
+
 		table.Append([]string{"Destination Accounts", string(destJSON)})
 	}
 
 	// Format metadata
 	if len(resp.Metadata) > 0 {
-		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
+		metadataJSON, err := json.MarshalIndent(resp.Metadata, "", "  ")
+		if err != nil {
+			return fmt.Errorf("error marshaling metadata: %w", err)
+		}
+
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
 
@@ -150,6 +152,30 @@ func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error 
 	table.Render()
 
 	return nil
+}
+
+func (f *factoryTransactionDescribe) runE(cmd *cobra.Command, _ []string) error {
+	if err := f.validateAndGetInputs(cmd); err != nil {
+		return err
+	}
+
+	resp, err := f.repoTransaction.GetByID(f.OrganizationID, f.LedgerID, f.TransactionID)
+	if err != nil {
+		return err
+	}
+
+	if f.OutputFormat == "json" {
+		jsonData, err := json.MarshalIndent(resp, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshalling JSON: %w", err)
+		}
+
+		output.Printf(f.factory.IOStreams.Out, "%s", string(jsonData))
+
+		return nil
+	}
+
+	return f.renderTransactionTable(resp)
 }
 
 func (f *factoryTransactionDescribe) setFlags(cmd *cobra.Command) {

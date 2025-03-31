@@ -9,9 +9,8 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
-	"strconv"
-
 	"github.com/spf13/cobra"
+	"strconv"
 )
 
 type factoryBalanceDescribe struct {
@@ -28,7 +27,8 @@ type flagsDescribe struct {
 	OutputFormat   string
 }
 
-func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
+// validateAndGetInputs validates the required inputs and prompts for missing ones
+func (f *factoryBalanceDescribe) validateAndGetInputs(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -56,15 +56,25 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 		f.BalanceID = id
 	}
 
+	return nil
+}
+
+func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
+	if err := f.validateAndGetInputs(cmd); err != nil {
+		return err
+	}
+
+	// Get balance
 	resp, err := f.repoBalance.GetByID(f.OrganizationID, f.LedgerID, f.BalanceID)
 	if err != nil {
 		return err
 	}
 
+	// Output in JSON format if requested
 	if f.OutputFormat == "json" {
 		jsonData, err := json.MarshalIndent(resp, "", "  ")
 		if err != nil {
-			return fmt.Errorf("marshalling JSON: %v", err)
+			return fmt.Errorf("marshalling JSON: %w", err)
 		}
 
 		output.Printf(f.factory.IOStreams.Out, "%s", string(jsonData))
@@ -78,11 +88,13 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	table.Append([]string{"ID", resp.ID})
 	table.Append([]string{"Account ID", resp.AccountID})
+	table.Append([]string{"Asset Code", resp.AssetCode})
 
-	// Format amount with scale
+	// Format amount
 	formattedAmount := strconv.FormatInt(resp.Amount, 10)
 
 	if resp.AmountScale > 0 {
+		// Calculate divisor based on scale (e.g., scale 2 = 100, scale 3 = 1000)
 		divisor := int64(1)
 		for i := int64(0); i < resp.AmountScale; i++ {
 			divisor *= 10
@@ -94,13 +106,14 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 	table.Append([]string{"Amount", formattedAmount})
 	table.Append([]string{"Amount (Raw)", strconv.FormatInt(resp.Amount, 10)})
 	table.Append([]string{"Amount Scale", strconv.FormatInt(resp.AmountScale, 10)})
-	table.Append([]string{"Asset Code", resp.AssetCode})
-	table.Append([]string{"Organization ID", resp.OrganizationID})
-	table.Append([]string{"Ledger ID", resp.LedgerID})
 
 	// Format metadata
 	if len(resp.Metadata) > 0 {
-		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
+		metadataJSON, err := json.MarshalIndent(resp.Metadata, "", "  ")
+		if err != nil {
+			return fmt.Errorf("error marshaling metadata: %w", err)
+		}
+
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
 
@@ -110,6 +123,9 @@ func (f *factoryBalanceDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if resp.DeletedAt != nil {
 		table.Append([]string{"Deleted At", resp.DeletedAt.Format("2006-01-02 15:04:05")})
 	}
+
+	table.Append([]string{"Organization ID", resp.OrganizationID})
+	table.Append([]string{"Ledger ID", resp.LedgerID})
 
 	table.Render()
 

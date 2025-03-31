@@ -1,7 +1,9 @@
-package asset_rate
+package assetrate
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -9,7 +11,6 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/output"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/tui"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"strconv"
 
 	"github.com/spf13/cobra"
 )

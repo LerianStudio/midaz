@@ -1,4 +1,4 @@
-package asset_rate
+package assetrate
 
 import (
 	"testing"

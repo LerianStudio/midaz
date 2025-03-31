@@ -5,7 +5,7 @@ import (
 
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/account"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset"
-	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset_rate"
+	assetrate "github.com/LerianStudio/midaz/components/mdz/pkg/cmd/asset_rate"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/balance"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/configure"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/ledger"
@@ -40,7 +40,7 @@ func (f *factoryRoot) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(transaction.NewCmdTransaction(f.factory))
 	cmd.AddCommand(operation.NewCmdOperation(f.factory))
 	cmd.AddCommand(balance.NewCmdBalance(f.factory))
-	cmd.AddCommand(asset_rate.NewCmdAssetRate(f.factory))
+	cmd.AddCommand(assetrate.NewCmdAssetRate(f.factory))
 	cmd.AddCommand(configure.NewCmdConfigure(configure.NewInjectFacConfigure(f.factory)))
 }
 

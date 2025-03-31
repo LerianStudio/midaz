@@ -76,11 +76,10 @@ func TestFactoryTransactionDescribeRunE(t *testing.T) {
 				cmd.Flags().Set("output", f.OutputFormat)
 			},
 			setupMocks: func(mockRepo *mockTransactionRepo) {
-				now := time.Now()
+				statusDesc := "Completed"
+				parentTxID := "parent123"
 				amount := int64(1000)
 				amountScale := int64(0)
-				parentTxID := "parent123"
-				statusDesc := "Completed"
 
 				metadata := map[string]interface{}{
 					"source": "test",
@@ -108,7 +107,9 @@ func TestFactoryTransactionDescribeRunE(t *testing.T) {
 						Destination: []string{
 							"acc124",
 						},
-						Metadata: metadata,
+						Metadata:  metadata,
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
 						Operations: []mmodel.Operation{
 							{
 								ID:        "op123",
@@ -116,6 +117,7 @@ func TestFactoryTransactionDescribeRunE(t *testing.T) {
 								Type:      "DEBIT",
 								Amount:    1000,
 								AssetCode: "USD",
+								CreatedAt: time.Now(),
 							},
 							{
 								ID:        "op124",
@@ -123,10 +125,9 @@ func TestFactoryTransactionDescribeRunE(t *testing.T) {
 								Type:      "CREDIT",
 								Amount:    1000,
 								AssetCode: "USD",
+								CreatedAt: time.Now(),
 							},
 						},
-						CreatedAt: now,
-						UpdatedAt: now,
 					}, nil,
 				)
 			},
@@ -145,7 +146,6 @@ func TestFactoryTransactionDescribeRunE(t *testing.T) {
 				cmd.Flags().Set("output", f.OutputFormat)
 			},
 			setupMocks: func(mockRepo *mockTransactionRepo) {
-				now := time.Now()
 				amount := int64(1000)
 				amountScale := int64(0)
 
@@ -163,8 +163,8 @@ func TestFactoryTransactionDescribeRunE(t *testing.T) {
 						AssetCode:                "USD",
 						ChartOfAccountsGroupName: "DEFAULT",
 						Metadata:                 metadata,
-						CreatedAt:                now,
-						UpdatedAt:                now,
+						CreatedAt:                time.Now(),
+						UpdatedAt:                time.Now(),
 					}, nil,
 				)
 			},

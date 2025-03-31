@@ -79,7 +79,6 @@ func TestFactoryOperationListRunE(t *testing.T) {
 				cmd.Flags().Set("sort-order", f.SortOrder)
 			},
 			setupMocks: func(mockRepo *mockOperationRepo) {
-				now := time.Now()
 				mockRepo.On("Get", "org123", "ledger123", 10, 1, "desc", "", "").Return(
 					&mmodel.Operations{
 						Items: []mmodel.Operation{
@@ -90,8 +89,8 @@ func TestFactoryOperationListRunE(t *testing.T) {
 								Type:          "DEBIT",
 								Amount:        1000,
 								AssetCode:     "USD",
-								CreatedAt:     now,
-								UpdatedAt:     now,
+								CreatedAt:     time.Now(),
+								UpdatedAt:     time.Now(),
 							},
 							{
 								ID:            "op124",
@@ -100,8 +99,8 @@ func TestFactoryOperationListRunE(t *testing.T) {
 								Type:          "CREDIT",
 								Amount:        1000,
 								AssetCode:     "USD",
-								CreatedAt:     now,
-								UpdatedAt:     now,
+								CreatedAt:     time.Now(),
+								UpdatedAt:     time.Now(),
 							},
 						},
 						Pagination: &mmodel.Pagination{
@@ -159,7 +158,6 @@ func TestFactoryOperationListRunE(t *testing.T) {
 				cmd.Flags().Set("end-date", f.EndDate)
 			},
 			setupMocks: func(mockRepo *mockOperationRepo) {
-				now := time.Now()
 				mockRepo.On("Get", "org123", "ledger123", 10, 1, "asc", "2023-01-01", "2023-12-31").Return(
 					&mmodel.Operations{
 						Items: []mmodel.Operation{
@@ -170,8 +168,8 @@ func TestFactoryOperationListRunE(t *testing.T) {
 								Type:          "DEBIT",
 								Amount:        1000,
 								AssetCode:     "USD",
-								CreatedAt:     now,
-								UpdatedAt:     now,
+								CreatedAt:     time.Now(),
+								UpdatedAt:     time.Now(),
 							},
 						},
 						Pagination: &mmodel.Pagination{

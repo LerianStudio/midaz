@@ -74,7 +74,7 @@ func FormatAndPrint(f *factory.Factory, id, entity, method string) {
 }
 
 // Printf prints a formatted message to the writer.
-func Printf(w io.Writer, format string, a ...interface{}) {
+func Printf(w io.Writer, format string, a ...any) {
 	g := GeneralOutput{Msg: fmt.Sprintf(format, a...), Out: w}
 	g.Output()
 }

@@ -1,7 +1,8 @@
-package asset_rate
+package assetrate
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
@@ -28,7 +29,8 @@ type flagsDescribe struct {
 	OutputFormat   string
 }
 
-func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
+// validateAndGetInputs validates the required inputs and prompts for missing ones
+func (f *factoryAssetRateDescribe) validateAndGetInputs(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
 		if err != nil {
@@ -54,6 +56,14 @@ func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
 		}
 
 		f.AssetRateID = id
+	}
+
+	return nil
+}
+
+func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
+	if err := f.validateAndGetInputs(cmd); err != nil {
+		return err
 	}
 
 	resp, err := f.repoAssetRate.GetByID(f.OrganizationID, f.LedgerID, f.AssetRateID)
@@ -93,7 +103,11 @@ func (f *factoryAssetRateDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	// Format metadata
 	if len(resp.Metadata) > 0 {
-		metadataJSON, _ := json.MarshalIndent(resp.Metadata, "", "  ")
+		metadataJSON, err := json.MarshalIndent(resp.Metadata, "", "  ")
+		if err != nil {
+			return fmt.Errorf("error marshaling metadata: %w", err)
+		}
+
 		table.Append([]string{"Metadata", string(metadataJSON)})
 	}
 
@@ -109,7 +123,7 @@ func (f *factoryAssetRateDescribe) setFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.OrganizationID, "organization-id", "", "Specify the organization ID.")
 	cmd.Flags().StringVar(&f.LedgerID, "ledger-id", "", "Specify the ledger ID.")
 	cmd.Flags().StringVar(&f.AssetRateID, "asset-rate-id", "", "Specify the asset rate ID.")
-	cmd.Flags().StringVar(&f.OutputFormat, "output", "table", "Output format: table or json.")
+	cmd.Flags().StringVar(&f.OutputFormat, "output", "table", "Output format. One of: table|json")
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
@@ -126,13 +140,13 @@ func newCmdAssetRateDescribe(f *factoryAssetRateDescribe) *cobra.Command {
 		Use:   "describe",
 		Short: "Describes an asset rate.",
 		Long: utils.Format(
-			"Displays detailed information about a specific asset rate. Returns the",
-			"asset rate details in the specified output format.",
+			"Describes an asset rate by its ID.",
+			"Returns detailed information about the asset rate or an error message.",
 		),
 		Example: utils.Format(
 			"$ mdz asset-rate describe",
 			"$ mdz asset-rate describe -h",
-			"$ mdz asset-rate describe --organization-id <org-id> --ledger-id <ledger-id> --asset-rate-id <id>",
+			"$ mdz asset-rate describe --organization-id <org-id> --ledger-id <ledger-id> --asset-rate-id <asset-rate-id>",
 			"$ mdz asset-rate describe --output json",
 		),
 		RunE: f.runE,
