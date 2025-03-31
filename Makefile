@@ -164,7 +164,12 @@ clean:
 	@for dir in $(COMPONENTS); do \
 		echo "$(CYAN)Cleaning in $$dir...$(NC)"; \
 		(cd $$dir && $(MAKE) clean) || exit 1; \
+		# Ensure all possible artifact locations are cleaned
+		echo "$(CYAN)Ensuring thorough cleanup in $$dir...$(NC)"; \
+		(cd $$dir && rm -rf bin/ dist/ coverage.out coverage.html artifacts/ *.tmp) || true; \
 	done
+	@echo "$(CYAN)Cleaning root-level build artifacts...$(NC)"
+	@rm -rf bin/ dist/ coverage.out coverage.html *.tmp
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: cover
@@ -182,6 +187,7 @@ cover:
 	@go tool cover -func=coverage.out | grep total | awk '{print "Total coverage: " $$3}'
 	@echo "$(CYAN)----------------------------------------$(NC)"
 	@echo "$(YELLOW)Open coverage.html in your browser to view detailed coverage report$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -205,19 +211,29 @@ lint:
 format:
 	$(call title1,"Formatting code in all components")
 	@for dir in $(COMPONENTS); do \
-		echo "$(CYAN)Formatting in $$dir...$(NC)"; \
-		(cd $$dir && $(MAKE) format) || exit 1; \
+		echo "$(CYAN)Checking for Go files in $$dir...$(NC)"; \
+		if find "$$dir" -name "*.go" -type f | grep -q .; then \
+			echo "$(CYAN)Formatting in $$dir...$(NC)"; \
+			(cd $$dir && $(MAKE) format) || exit 1; \
+		else \
+			echo "$(YELLOW)No Go files found in $$dir, skipping formatting$(NC)"; \
+		fi; \
 	done
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) All code formatted successfully$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Formatting completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: tidy
 tidy:
 	$(call title1,"Cleaning dependencies in all components")
 	@for dir in $(COMPONENTS); do \
-		echo "$(CYAN)Tidying in $$dir...$(NC)"; \
-		(cd $$dir && $(MAKE) tidy) || exit 1; \
+		echo "$(CYAN)Checking for go.mod in $$dir...$(NC)"; \
+		if [ -f "$$dir/go.mod" ]; then \
+			echo "$(CYAN)Tidying in $$dir...$(NC)"; \
+			(cd $$dir && $(MAKE) tidy) || exit 1; \
+		else \
+			echo "$(YELLOW)No go.mod found in $$dir, skipping tidy$(NC)"; \
+		fi; \
 	done
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) All dependencies cleaned successfully$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: check-logs
 check-logs:
@@ -238,9 +254,13 @@ sec:
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
-	@echo "$(CYAN)Running security checks on components/ and pkg/ folders...$(NC)"
-	@gosec ./components/... ./pkg/...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"
+	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running security checks on components/ and pkg/ folders...$(NC)"; \
+		gosec ./components/... ./pkg/...; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
+	fi
 
 #-------------------------------------------------------
 # Git Hook Commands
