@@ -44,7 +44,19 @@ echo "${CYAN}Converting OpenAPI specs to Postman collections...${NC}"
 # Process onboarding component
 if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     echo "${CYAN}Processing onboarding component...${NC}"
-    openapi-to-postmanv2 -s "${ONBOARDING_API}/swagger.json" -o "${TEMP_DIR}/onboarding.postman_collection.json" -p -t json
+    
+    # Create a temporary copy of the swagger.json file to fix path parameter formats
+    cp "${ONBOARDING_API}/swagger.json" "${TEMP_DIR}/onboarding_fixed.swagger.json"
+    
+    # Fix path parameter formats (replace :param with {param} if needed)
+    sed -i '' 's/":organization_id"/"{organization_id}"/g' "${TEMP_DIR}/onboarding_fixed.swagger.json"
+    sed -i '' 's/":ledger_id"/"{ledger_id}"/g' "${TEMP_DIR}/onboarding_fixed.swagger.json"
+    sed -i '' 's/":account_id"/"{account_id}"/g' "${TEMP_DIR}/onboarding_fixed.swagger.json"
+    sed -i '' 's/":id"/"{id}"/g' "${TEMP_DIR}/onboarding_fixed.swagger.json"
+    sed -i '' 's/":alias"/"{alias}"/g' "${TEMP_DIR}/onboarding_fixed.swagger.json"
+    
+    # Convert to Postman collection
+    openapi-to-postmanv2 -s "${TEMP_DIR}/onboarding_fixed.swagger.json" -o "${TEMP_DIR}/onboarding.postman_collection.json" -p -t json
 else
     echo "${YELLOW}Onboarding API spec not found. Skipping...${NC}"
 fi
@@ -52,7 +64,22 @@ fi
 # Process transaction component
 if [ -f "${TRANSACTION_API}/swagger.json" ]; then
     echo "${CYAN}Processing transaction component...${NC}"
-    openapi-to-postmanv2 -s "${TRANSACTION_API}/swagger.json" -o "${TEMP_DIR}/transaction.postman_collection.json" -p -t json
+    
+    # Create a temporary copy of the swagger.json file to fix path parameter formats
+    cp "${TRANSACTION_API}/swagger.json" "${TEMP_DIR}/transaction_fixed.swagger.json"
+    
+    # Fix path parameter formats (replace :param with {param} if needed)
+    sed -i '' 's/":organization_id"/"{organization_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":ledger_id"/"{ledger_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":account_id"/"{account_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":transaction_id"/"{transaction_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":operation_id"/"{operation_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":balance_id"/"{balance_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":external_id"/"{external_id}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    sed -i '' 's/":asset_code"/"{asset_code}"/g' "${TEMP_DIR}/transaction_fixed.swagger.json"
+    
+    # Convert to Postman collection
+    openapi-to-postmanv2 -s "${TEMP_DIR}/transaction_fixed.swagger.json" -o "${TEMP_DIR}/transaction.postman_collection.json" -p -t json
 else
     echo "${YELLOW}Transaction API spec not found. Skipping...${NC}"
 fi

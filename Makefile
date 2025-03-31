@@ -104,6 +104,7 @@ help:
 	@echo "$(BOLD)Development Commands:$(NC)"
 	@echo "  make generate-docs-all           - Generate Swagger documentation for all services"
 	@echo "  make sync-postman                - Sync Postman collection with OpenAPI documentation"
+	@echo "  make verify-api-docs             - Verify API documentation coverage"
 	@echo "  make regenerate-mocks            - Regenerate mock files for all components"
 	@echo "  make cleanup-mocks               - Remove all existing mock files"
 	@echo "  make cleanup-regenerate-mocks    - Combine both operations and fix unused imports"
@@ -447,6 +448,8 @@ all-components:
 generate-docs-all:
 	$(call title1,"Generating Swagger documentation for all services")
 	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
+	@echo "$(CYAN)Verifying API documentation coverage...$(NC)"
+	@sh ./scripts/verify-api-docs.sh || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
 	@echo "$(CYAN)Generating documentation for onboarding component...$(NC)"
 	@cd $(ONBOARDING_DIR) && $(MAKE) generate-docs
 	@echo "$(CYAN)Generating documentation for transaction component...$(NC)"
@@ -467,6 +470,13 @@ sync-postman:
 	$(call check_command,jq,"brew install jq")
 	@sh ./scripts/sync-postman.sh
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Postman collection synced successfully with OpenAPI documentation$(GREEN) ✔️$(NC)"
+
+.PHONY: verify-api-docs
+verify-api-docs:
+	$(call title1,"Verifying API documentation coverage")
+	$(call check_command,jq,"brew install jq")
+	@sh ./scripts/verify-api-docs.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
 
 .PHONY: regenerate-mocks
 regenerate-mocks:
