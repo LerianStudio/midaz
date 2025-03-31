@@ -232,7 +232,11 @@ check-tests:
 .PHONY: sec
 sec:
 	$(call title1,"Running security checks using gosec")
-	$(call check_command,gosec,"go install github.com/securego/gosec/v2/cmd/gosec@latest")
+	@if ! command -v gosec >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing gosec...$(NC)"; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	@echo "$(CYAN)Running security checks on all components...$(NC)"
 	@gosec ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"
 

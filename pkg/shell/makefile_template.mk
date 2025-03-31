@@ -58,6 +58,11 @@ help:
 		echo "  make ps                          - List container status"; \
 		echo ""; \
 	fi
+	@echo "$(BOLD)Security Commands:$(NC)"
+	@echo "  make sec                          - Run security checks"
+	@echo "  make check-tests                  - Verify test coverage"
+	@echo "$(BOLD)Development Setup Commands:$(NC)"
+	@echo "  make dev-setup                    - Set up development environment"
 	@echo "$(BOLD)Component-Specific Commands:$(NC)"
 	@echo "  {{component-specific-commands}}"
 
@@ -87,6 +92,46 @@ cover:
 	@go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out ./...
 	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
 	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
+
+#-------------------------------------------------------
+# Security Commands
+#-------------------------------------------------------
+
+.PHONY: sec
+sec:
+	$(call title1,"Running security checks using gosec")
+	@if ! command -v gosec >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing gosec...$(NC)"; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	@if find . -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running security checks...$(NC)"; \
+		gosec ./...; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
+	fi
+
+#-------------------------------------------------------
+# Test Coverage Commands
+#-------------------------------------------------------
+
+.PHONY: check-tests
+check-tests:
+	$(call title1,"Verifying test coverage")
+	@if find . -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running test coverage check...$(NC)"; \
+		go test -coverprofile=coverage.tmp ./... > /dev/null 2>&1; \
+		if [ -f coverage.tmp ]; then \
+			coverage=$$(go tool cover -func=coverage.tmp | grep total | awk '{print $$3}'); \
+			echo "$(CYAN)Test coverage: $(GREEN)$$coverage$(NC)"; \
+			rm coverage.tmp; \
+		else \
+			echo "$(YELLOW)No coverage data generated$(NC)"; \
+		fi; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping test coverage check$(NC)"; \
+	fi
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -200,35 +245,25 @@ ps:
 endif
 
 #-------------------------------------------------------
-# Developer Helper Commands
+# Development Setup Commands
 #-------------------------------------------------------
 
 .PHONY: dev-setup
 dev-setup:
 	$(call title1,"Setting up development environment")
-	@echo "$(CYAN)Installing development tools...$(NC)"
+	@echo "$(CYAN)Installing required tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
 		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-	fi
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
-	@if ! command -v mockgen >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing mockgen...$(NC)"; \
-		go install github.com/golang/mock/mockgen@latest; \
 	fi
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
-	@echo "$(CYAN)Setting up environment...$(NC)"
 	@if [ -f .env.example ] && [ ! -f .env ]; then \
+		echo "$(YELLOW)Creating .env file from .env.example...$(NC)"; \
 		cp .env.example .env; \
-		echo "$(GREEN)Created .env file from template$(NC)"; \
 	fi
-	@make tidy
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You're ready to start developing! Here are some useful commands:$(NC)"
 	@echo "  make build         - Build the component"

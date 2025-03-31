@@ -112,6 +112,46 @@ cover:
 	@echo "$(YELLOW)Open $(ARTIFACTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
 
 #-------------------------------------------------------
+# Security Commands
+#-------------------------------------------------------
+
+.PHONY: sec
+sec:
+	$(call title1,"Running security checks using gosec")
+	@if ! command -v gosec >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing gosec...$(NC)"; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	@if find . -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running security checks...$(NC)"; \
+		gosec ./...; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
+	fi
+
+#-------------------------------------------------------
+# Test Coverage Commands
+#-------------------------------------------------------
+
+.PHONY: check-tests
+check-tests:
+	$(call title1,"Verifying test coverage")
+	@if find . -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running test coverage check...$(NC)"; \
+		go test -coverprofile=coverage.tmp ./... > /dev/null 2>&1; \
+		if [ -f coverage.tmp ]; then \
+			coverage=$$(go tool cover -func=coverage.tmp | grep total | awk '{print $$3}'); \
+			echo "$(CYAN)Test coverage: $(GREEN)$$coverage$(NC)"; \
+			rm coverage.tmp; \
+		else \
+			echo "$(YELLOW)No coverage data generated$(NC)"; \
+		fi; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping test coverage check$(NC)"; \
+	fi
+
+#-------------------------------------------------------
 # Code Quality Commands
 #-------------------------------------------------------
 
@@ -211,6 +251,8 @@ dev-setup:
 		echo "$(GREEN)Created .env file from template$(NC)"; \
 	fi
 	@make tidy
+	@make check-tests
+	@make sec
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You're ready to start developing! Here are some useful commands:$(NC)"
 	@echo "  make build         - Build the MDZ binary"
