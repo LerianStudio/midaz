@@ -8,6 +8,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
+
 # Display header
 echo -e "${CYAN}----------------------------------------------${NC}"
 echo -e "${CYAN}   Verifying error logging in usecases  ${NC}"
@@ -18,6 +19,10 @@ echo "${CYAN}Checking for proper error logging in usecases...${NC}"
 
 # Define directories to check
 COMPONENTS=("./components/mdz" "./components/onboarding" "./components/transaction")
+
+# Define patterns to search for
+MISSING_LOG_PATTERN="return err"
+PROPER_LOG_PATTERN="log.*Error.*return err"
 
 # Count of issues found
 ISSUES_FOUND=0

@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to asset entities.
-//
-//go:generate mockgen --destination=asset.mock.go --package=asset . Repository
+// It defines methods for creating, finding, updating, and deleting assets in the database.
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
