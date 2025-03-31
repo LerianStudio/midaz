@@ -566,5 +566,6 @@ goreleaser:
 .PHONY: generate-docs-all
 generate-docs-all:
 	@echo "$(BLUE)Executing command to generate swagger...$(NC)"
+	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
 	$(MAKE) -C $(ONBOARDING_DIR) generate-docs && \
 	$(MAKE) -C $(TRANSACTION_DIR) generate-docs
