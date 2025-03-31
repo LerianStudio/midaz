@@ -2176,7 +2176,6 @@ const docTemplate = `{
             "description": "CreateAccountInput is the input payload to create an account.",
             "type": "object",
             "required": [
-                "alias",
                 "assetCode",
                 "type"
             ],

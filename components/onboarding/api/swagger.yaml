@@ -147,7 +147,6 @@ definitions:
         example: creditCard
         type: string
     required:
-    - alias
     - assetCode
     - type
     type: object

@@ -1,3 +1,18 @@
+## [1.51.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.4...v1.51.0-beta.5) (2025-03-31)
+
+
+### Bug Fixes
+
+* update Swagger documentation generation process ([#606](https://github.com/LerianStudio/midaz/issues/606)) ([2cca7a2](https://github.com/LerianStudio/midaz/commit/2cca7a2c3124a3e7c46bf7f642506051e94ba112))
+
+## [1.51.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.3...v1.51.0-beta.4) (2025-03-27)
+
+
+### Features
+
+* adjust mongo.sh to init configs; :sparkles: ([8104d3d](https://github.com/LerianStudio/midaz/commit/8104d3debce27b4a6cd675113da0dac134b333ef))
+* enable logical replication in Postgres and configure MongoDB replica set; :sparkles: ([93e14e9](https://github.com/LerianStudio/midaz/commit/93e14e9af47c4d44ba158336084c9ed5dfc10758))
+
 ## [1.51.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.2...v1.51.0-beta.3) (2025-03-27)
 
 
