@@ -1844,6 +1844,7 @@ components:
     mmodel.Balance:
       description: Balance is a struct designed to store balance data.
       example:
+        amount: 1500
         metadata:
           key: '{}'
         assetCode: BRL
@@ -1854,6 +1855,7 @@ components:
         scale: 2
         allowSending: true
         version: 1
+        amountScale: 2
         ledgerId: 00000000-0000-0000-0000-000000000000
         organizationId: 00000000-0000-0000-0000-000000000000
         accountId: 00000000-0000-0000-0000-000000000000
@@ -1878,6 +1880,12 @@ components:
         allowSending:
           example: true
           type: boolean
+        amount:
+          example: 1500
+          type: integer
+        amountScale:
+          example: 2
+          type: integer
         assetCode:
           example: BRL
           type: string
@@ -1937,7 +1945,8 @@ components:
         ' next_cursor': ' next_cursor'
         limit: 0
         items:
-        - metadata:
+        - amount: 1500
+          metadata:
             key: '{}'
           assetCode: BRL
           onHold: 500
@@ -1947,6 +1956,7 @@ components:
           scale: 2
           allowSending: true
           version: 1
+          amountScale: 2
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000
@@ -1955,7 +1965,8 @@ components:
           alias: '@person1'
           id: 00000000-0000-0000-0000-000000000000
           updatedAt: 2021-01-01T00:00:00Z
-        - metadata:
+        - amount: 1500
+          metadata:
             key: '{}'
           assetCode: BRL
           onHold: 500
@@ -1965,6 +1976,7 @@ components:
           scale: 2
           allowSending: true
           version: 1
+          amountScale: 2
           ledgerId: 00000000-0000-0000-0000-000000000000
           organizationId: 00000000-0000-0000-0000-000000000000
           accountId: 00000000-0000-0000-0000-000000000000

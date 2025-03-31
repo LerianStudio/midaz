@@ -1913,6 +1913,14 @@ const docTemplate = `{
                     "type": "boolean",
                     "example": true
                 },
+                "amount": {
+                    "type": "integer",
+                    "example": 1500
+                },
+                "amountScale": {
+                    "type": "integer",
+                    "example": 2
+                },
                 "assetCode": {
                     "type": "string",
                     "example": "BRL"

@@ -439,6 +439,12 @@ definitions:
       allowSending:
         example: true
         type: boolean
+      amount:
+        example: 1500
+        type: integer
+      amountScale:
+        example: 2
+        type: integer
       assetCode:
         example: BRL
         type: string
