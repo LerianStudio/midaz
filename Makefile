@@ -478,6 +478,32 @@ verify-api-docs:
 	@sh ./scripts/verify-api-docs.sh
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
 
+.PHONY: mdz-goreleaser
+mdz-goreleaser:
+	$(call title1,"Releasing MDZ CLI using goreleaser")
+	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
+	@cd $(MDZ_DIR) && \
+	if [ ! -f .goreleaser.yml ]; then \
+		echo "$(YELLOW)No .goreleaser.yml found. Creating a default configuration...$(NC)"; \
+		goreleaser init; \
+	fi
+	@echo "$(CYAN)Building and releasing MDZ CLI...$(NC)"
+	@cd $(MDZ_DIR) && goreleaser release --rm-dist
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI released successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: mdz-goreleaser-snapshot
+mdz-goreleaser-snapshot:
+	$(call title1,"Creating snapshot release of MDZ CLI")
+	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
+	@cd $(MDZ_DIR) && \
+	if [ ! -f .goreleaser.yml ]; then \
+		echo "$(YELLOW)No .goreleaser.yml found. Creating a default configuration...$(NC)"; \
+		goreleaser init; \
+	fi
+	@echo "$(CYAN)Building snapshot release of MDZ CLI...$(NC)"
+	@cd $(MDZ_DIR) && goreleaser release --snapshot --rm-dist
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI snapshot created successfully$(GREEN) ✔️$(NC)"
+
 .PHONY: regenerate-mocks
 regenerate-mocks:
 	$(call title1,"Regenerating mocks for all components")
