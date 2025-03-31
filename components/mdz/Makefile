@@ -123,8 +123,12 @@ get-lint-deps:
 .PHONY: lint
 lint: get-lint-deps
 	$(call title1,"Running code linting")
-	@golangci-lint run --fix ./... --verbose
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"
+	@if find . -name "*.go" -type f | grep -q .; then \
+		golangci-lint run --fix ./... --verbose; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
+	fi
 
 .PHONY: format
 format:

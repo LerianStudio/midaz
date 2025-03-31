@@ -95,12 +95,16 @@ cover:
 .PHONY: lint
 lint:
 	$(call title1,"Running linters")
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+	@if find . -name "*.go" -type f | grep -q .; then \
+		if ! command -v golangci-lint >/dev/null 2>&1; then \
+			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
+			go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+		fi; \
+		golangci-lint run --fix ./... --verbose; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
 	fi
-	@golangci-lint run --fix ./...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: format
 format:
