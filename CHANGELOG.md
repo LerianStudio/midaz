@@ -1,3 +1,10 @@
+## [1.51.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.5...v1.51.0-beta.6) (2025-03-31)
+
+
+### Bug Fixes
+
+* add omitempty to avoid nested erro when metadata receives null; :bug: ([4dbaa6f](https://github.com/LerianStudio/midaz/commit/4dbaa6f4db2419caa35f26d66726823831feb54b))
+
 ## [1.51.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.4...v1.51.0-beta.5) (2025-03-31)
 
 
