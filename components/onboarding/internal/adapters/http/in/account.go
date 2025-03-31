@@ -219,7 +219,7 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			alias			path		string	true	"Alias"
 //	@Success		200				{object}	mmodel.Account
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias} [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias} [get]
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

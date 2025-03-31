@@ -35,7 +35,7 @@ type BalanceHandler struct {
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
-//	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/balances [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances [Get]
 func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -110,7 +110,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
-//	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Get]
 func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -181,7 +181,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Success		200				{object}	mmodel.Balance
-//	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id [get]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Get]
 func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -223,7 +223,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Success		200				{object}	mmodel.Balance
-//	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id [delete]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Delete]
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -267,7 +267,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Param			balance_id		path		string							true	"Balance ID"
 //	@Param			balance		    body		mmodel.UpdateBalance			true	"Balance Input"
 //	@Success		200				{object}	mmodel.Balance
-//	@Router			/v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id [patch]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Patch]
 func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
