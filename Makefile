@@ -103,6 +103,7 @@ help:
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
 	@echo "  make generate-docs-all           - Generate Swagger documentation for all services"
+	@echo "  make sync-postman                - Sync Postman collection with OpenAPI documentation"
 	@echo "  make regenerate-mocks            - Regenerate mock files for all components"
 	@echo "  make cleanup-mocks               - Remove all existing mock files"
 	@echo "  make cleanup-regenerate-mocks    - Combine both operations and fix unused imports"
@@ -451,6 +452,21 @@ generate-docs-all:
 	@echo "$(CYAN)Generating documentation for transaction component...$(NC)"
 	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully for all services$(GREEN) ✔️$(NC)"
+	@echo "$(CYAN)Syncing Postman collection with the generated OpenAPI documentation...$(NC)"
+	@if command -v jq >/dev/null 2>&1; then \
+		sh ./scripts/sync-postman.sh; \
+	else \
+		echo "$(YELLOW)Warning: jq is not installed. Skipping Postman collection sync.$(NC)"; \
+		echo "$(YELLOW)To install jq: brew install jq$(NC)"; \
+		echo "$(YELLOW)Then run: make sync-postman$(NC)"; \
+	fi
+
+.PHONY: sync-postman
+sync-postman:
+	$(call title1,"Syncing Postman collection with OpenAPI documentation")
+	$(call check_command,jq,"brew install jq")
+	@sh ./scripts/sync-postman.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Postman collection synced successfully with OpenAPI documentation$(GREEN) ✔️$(NC)"
 
 .PHONY: regenerate-mocks
 regenerate-mocks:
