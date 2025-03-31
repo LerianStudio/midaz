@@ -421,6 +421,16 @@ definitions:
         additionalProperties: {}
         type: object
     type: object
+  github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL:
+    properties:
+      transactionType:
+        type: string
+      transactionTypeCode:
+        type: string
+      variables:
+        additionalProperties: {}
+        type: object
+    type: object
   mmodel.Balance:
     description: Balance is a struct designed to store balance data.
     properties:
@@ -498,7 +508,7 @@ info:
   title: Midaz Transaction API
   version: v1.48.0
 paths:
-  /v1/organizations/:organization_id/ledgers/:ledger_id/accounts/:account_id/balances:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances:
     get:
       description: Get all balances by account id
       parameters:
@@ -568,193 +578,6 @@ paths:
                   type: integer
               type: object
       summary: Get all balances by account id
-      tags:
-      - Balances
-  /v1/organizations/:organization_id/ledgers/:ledger_id/balances:
-    get:
-      description: Get all balances
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - default: 10
-        description: Limit
-        in: query
-        name: limit
-        type: integer
-      - description: Start Date
-        in: query
-        name: start_date
-        type: string
-      - description: End Date
-        in: query
-        name: end_date
-        type: string
-      - description: Sort Order
-        in: query
-        name: sort_order
-        type: string
-      - description: Cursor
-        in: query
-        name: cursor
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/Pagination'
-            - properties:
-                ' next_cursor':
-                  type: string
-                ' prev_cursor':
-                  type: string
-                items:
-                  items:
-                    $ref: '#/definitions/mmodel.Balance'
-                  type: array
-                limit:
-                  type: integer
-              type: object
-      summary: Get all balances
-      tags:
-      - Balances
-  /v1/organizations/:organization_id/ledgers/:ledger_id/balances/:balance_id:
-    delete:
-      description: Delete a Balance with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Balance ID
-        in: path
-        name: balance_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/mmodel.Balance'
-      summary: Delete Balance by account
-      tags:
-      - Balances
-    get:
-      description: Get a Balance with the input ID
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Balance ID
-        in: path
-        name: balance_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/mmodel.Balance'
-      summary: Get Balance by id
-      tags:
-      - Balances
-    patch:
-      consumes:
-      - application/json
-      description: Update a Balance with the input payload
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Balance ID
-        in: path
-        name: balance_id
-        required: true
-        type: string
-      - description: Balance Input
-        in: body
-        name: balance
-        required: true
-        schema:
-          $ref: '#/definitions/mmodel.UpdateBalance'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/mmodel.Balance'
-      summary: Update Balance
       tags:
       - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations:
@@ -873,7 +696,7 @@ paths:
       tags:
       - Operations
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates:
-    post:
+    put:
       consumes:
       - application/json
       description: Create or Update an AssetRate with the input details
@@ -1033,6 +856,193 @@ paths:
       summary: Get an AssetRate by the Asset Code
       tags:
       - Asset Rates
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances:
+    get:
+      description: Get all balances
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Start Date
+        in: query
+        name: start_date
+        type: string
+      - description: End Date
+        in: query
+        name: end_date
+        type: string
+      - description: Sort Order
+        in: query
+        name: sort_order
+        type: string
+      - description: Cursor
+        in: query
+        name: cursor
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/Pagination'
+            - properties:
+                ' next_cursor':
+                  type: string
+                ' prev_cursor':
+                  type: string
+                items:
+                  items:
+                    $ref: '#/definitions/mmodel.Balance'
+                  type: array
+                limit:
+                  type: integer
+              type: object
+      summary: Get all balances
+      tags:
+      - Balances
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}:
+    delete:
+      description: Delete a Balance with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+      summary: Delete Balance by account
+      tags:
+      - Balances
+    get:
+      description: Get a Balance with the input ID
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+      summary: Get Balance by id
+      tags:
+      - Balances
+    patch:
+      consumes:
+      - application/json
+      description: Update a Balance with the input payload
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Balance ID
+        in: path
+        name: balance_id
+        required: true
+        type: string
+      - description: Balance Input
+        in: body
+        name: balance
+        required: true
+        schema:
+          $ref: '#/definitions/mmodel.UpdateBalance'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/mmodel.Balance'
+      summary: Update Balance
+      tags:
+      - Balances
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions:
     get:
       description: Get all Transactions with the input metadata or without metadata
@@ -1186,6 +1196,55 @@ paths:
           schema:
             $ref: '#/definitions/Transaction'
       summary: Update a Transaction
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit:
+    post:
+      description: Commit a previously created transaction
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction ID
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema: {}
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "404":
+          description: Not Found
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Commit a Transaction
       tags:
       - Transactions
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}:
@@ -1358,6 +1417,56 @@ paths:
           schema:
             $ref: '#/definitions/Transaction'
       summary: Create a Transaction using JSON
+      tags:
+      - Transactions
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates:
+    post:
+      consumes:
+      - application/json
+      description: Create a Transaction with the input template
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Transaction Template Input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_LerianStudio_midaz_components_transaction_internal_adapters_postgres_transaction.InputDSL'
+        "400":
+          description: Bad Request
+          schema: {}
+        "401":
+          description: Unauthorized
+          schema: {}
+        "500":
+          description: Internal Server Error
+          schema: {}
+      summary: Create a Transaction Template
       tags:
       - Transactions
 swagger: "2.0"

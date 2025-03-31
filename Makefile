@@ -68,7 +68,7 @@ help:
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting on all components"
 	@echo "  make format                      - Format code in all components"
-	@echo "  make tidy                        - Clean dependencies in all components"
+	@echo "  make tidy                        - Clean dependencies in root directory"
 	@echo "  make check-logs                  - Verify error logging in usecases"
 	@echo "  make check-tests                 - Verify test coverage for components"
 	@echo "  make sec                         - Run security checks using gosec"
@@ -103,6 +103,8 @@ help:
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
 	@echo "  make generate-docs-all           - Generate Swagger documentation for all services"
+	@echo "  make sync-postman                - Sync Postman collection with OpenAPI documentation"
+	@echo "  make verify-api-docs             - Verify API documentation coverage"
 	@echo "  make regenerate-mocks            - Regenerate mock files for all components"
 	@echo "  make cleanup-mocks               - Remove all existing mock files"
 	@echo "  make cleanup-regenerate-mocks    - Combine both operations and fix unused imports"
@@ -162,6 +164,22 @@ clean:
 	@for dir in $(COMPONENTS); do \
 		echo "$(CYAN)Cleaning in $$dir...$(NC)"; \
 		(cd $$dir && $(MAKE) clean) || exit 1; \
+		echo "$(CYAN)Ensuring thorough cleanup in $$dir...$(NC)"; \
+		(cd $$dir && \
+			for item in bin dist coverage.out coverage.html artifacts *.tmp; do \
+				if [ -e "$$item" ]; then \
+					echo "$(YELLOW)Removing $$dir/$$item$(NC)"; \
+					rm -rf "$$item"; \
+				fi \
+			done \
+		) || true; \
+	done
+	@echo "$(CYAN)Cleaning root-level build artifacts...$(NC)"
+	@for item in bin dist coverage.out coverage.html *.tmp; do \
+		if [ -e "$$item" ]; then \
+			echo "$(YELLOW)Removing $$item$(NC)"; \
+			rm -rf "$$item"; \
+		fi \
 	done
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
@@ -180,6 +198,7 @@ cover:
 	@go tool cover -func=coverage.out | grep total | awk '{print "Total coverage: " $$3}'
 	@echo "$(CYAN)----------------------------------------$(NC)"
 	@echo "$(YELLOW)Open coverage.html in your browser to view detailed coverage report$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -203,19 +222,22 @@ lint:
 format:
 	$(call title1,"Formatting code in all components")
 	@for dir in $(COMPONENTS); do \
-		echo "$(CYAN)Formatting in $$dir...$(NC)"; \
-		(cd $$dir && $(MAKE) format) || exit 1; \
+		echo "$(CYAN)Checking for Go files in $$dir...$(NC)"; \
+		if find "$$dir" -name "*.go" -type f | grep -q .; then \
+			echo "$(CYAN)Formatting in $$dir...$(NC)"; \
+			(cd $$dir && $(MAKE) format) || exit 1; \
+		else \
+			echo "$(YELLOW)No Go files found in $$dir, skipping formatting$(NC)"; \
+		fi; \
 	done
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) All code formatted successfully$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Formatting completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: tidy
 tidy:
-	$(call title1,"Cleaning dependencies in all components")
-	@for dir in $(COMPONENTS); do \
-		echo "$(CYAN)Tidying in $$dir...$(NC)"; \
-		(cd $$dir && $(MAKE) tidy) || exit 1; \
-	done
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) All dependencies cleaned successfully$(GREEN) ✔️$(NC)"
+	$(call title1,"Cleaning dependencies in root directory")
+	@echo "$(CYAN)Tidying root go.mod...$(NC)"
+	@go mod tidy
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: check-logs
 check-logs:
@@ -236,9 +258,13 @@ sec:
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
-	@echo "$(CYAN)Running security checks on components/ and pkg/ folders...$(NC)"
-	@gosec ./components/... ./pkg/...
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"
+	@if find ./components ./pkg -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running security checks on components/ and pkg/ folders...$(NC)"; \
+		gosec ./components/... ./pkg/...; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
+	fi
 
 #-------------------------------------------------------
 # Git Hook Commands
@@ -446,11 +472,79 @@ all-components:
 generate-docs-all:
 	$(call title1,"Generating Swagger documentation for all services")
 	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
+	@echo "$(CYAN)Verifying API documentation coverage...$(NC)"
+	@sh ./scripts/verify-api-docs.sh || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
 	@echo "$(CYAN)Generating documentation for onboarding component...$(NC)"
 	@cd $(ONBOARDING_DIR) && $(MAKE) generate-docs
 	@echo "$(CYAN)Generating documentation for transaction component...$(NC)"
 	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully for all services$(GREEN) ✔️$(NC)"
+	@echo "$(CYAN)Syncing Postman collection with the generated OpenAPI documentation...$(NC)"
+	@if command -v jq >/dev/null 2>&1; then \
+		sh ./scripts/sync-postman.sh; \
+	else \
+		echo "$(YELLOW)Warning: jq is not installed. Skipping Postman collection sync.$(NC)"; \
+		echo "$(YELLOW)To install jq: brew install jq$(NC)"; \
+		echo "$(YELLOW)Then run: make sync-postman$(NC)"; \
+	fi
+
+.PHONY: sync-postman
+sync-postman:
+	$(call title1,"Syncing Postman collection with OpenAPI documentation")
+	$(call check_command,jq,"brew install jq")
+	@sh ./scripts/sync-postman.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Postman collection synced successfully with OpenAPI documentation$(GREEN) ✔️$(NC)"
+
+.PHONY: verify-api-docs
+verify-api-docs:
+	$(call title1,"Verifying API documentation coverage")
+	$(call check_command,jq,"brew install jq")
+	@sh ./scripts/verify-api-docs.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
+
+.PHONY: mdz-goreleaser
+mdz-goreleaser:
+	$(call title1,"Releasing MDZ CLI using goreleaser")
+	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
+	@if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
+		echo "$(YELLOW)No goreleaser configuration found in root directory. Creating a default configuration...$(NC)"; \
+		goreleaser init; \
+	fi
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "$(RED)Error: GITHUB_TOKEN environment variable is required for releases.$(NC)"; \
+		echo "$(YELLOW)Please set it using: export GITHUB_TOKEN=your_github_token$(NC)"; \
+		echo "$(YELLOW)You can create a token at: https://github.com/settings/tokens$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)Building and releasing MDZ CLI...$(NC)"
+	@goreleaser release --clean
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI released successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: mdz-goreleaser-snapshot
+mdz-goreleaser-snapshot:
+	$(call title1,"Creating snapshot release of MDZ CLI")
+	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
+	@if [ ! -f .goreleaser.yml ] && [ ! -f .goreleaser.yaml ]; then \
+		echo "$(YELLOW)No goreleaser configuration found in root directory. Creating a default configuration...$(NC)"; \
+		goreleaser init; \
+	fi
+	@echo "$(CYAN)Building snapshot release of MDZ CLI...$(NC)"
+	@goreleaser release --snapshot --clean
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) MDZ CLI snapshot created successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: goreleaser
+goreleaser:
+	$(call title1,"Running goreleaser (CI/CD compatible)")
+	$(call check_command,goreleaser,"go install github.com/goreleaser/goreleaser@latest")
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo "$(RED)Error: GITHUB_TOKEN environment variable is required for releases.$(NC)"; \
+		echo "$(YELLOW)Please set it using: export GITHUB_TOKEN=your_github_token$(NC)"; \
+		echo "$(YELLOW)You can create a token at: https://github.com/settings/tokens$(NC)"; \
+		exit 1; \
+	fi
+	@echo "$(CYAN)Running goreleaser...$(NC)"
+	@goreleaser release --clean
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Release completed successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: regenerate-mocks
 regenerate-mocks:
