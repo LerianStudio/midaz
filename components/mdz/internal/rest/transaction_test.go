@@ -189,8 +189,12 @@ func Test_transaction_Get(t *testing.T) {
 
 	URIAPITransaction := "http://127.0.0.1:3001"
 
-	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions?limit=%d&page=%d&sort=%s&startDate=%s&endDate=%s",
-		URIAPITransaction, organizationID, ledgerID, limit, page, sortOrder, startDate, endDate)
+	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/transactions",
+		URIAPITransaction, organizationID, ledgerID)
+
+	// Use BuildPaginatedURL to ensure the URL is constructed correctly
+	uri, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+	assert.NoError(t, err)
 
 	httpmock.RegisterResponder(http.MethodGet, uri,
 		mockutil.MockResponseFromFile(http.StatusOK, "./.fixtures/transaction_response_get.json"))
@@ -210,8 +214,10 @@ func Test_transaction_Get(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, 1, len(result.Items))
 	assert.Equal(t, "01933f96-ed04-7c57-be5b-c091388830f8", result.Items[0].ID)
-	assert.Equal(t, "next_page_token", result.Pagination.NextCursor)
-	assert.Equal(t, "prev_page_token", result.Pagination.PrevCursor)
+	assert.NotNil(t, result.Pagination.NextCursor)
+	assert.Equal(t, "next_page_token", *result.Pagination.NextCursor)
+	assert.NotNil(t, result.Pagination.PrevCursor)
+	assert.Equal(t, "prev_page_token", *result.Pagination.PrevCursor)
 
 	info := httpmock.GetCallCountInfo()
 	assert.Equal(t, 1, info["GET "+uri])
