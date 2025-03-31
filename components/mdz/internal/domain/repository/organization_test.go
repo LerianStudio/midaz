@@ -15,7 +15,7 @@ func TestOrganizationInterface(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOrganization := repository.NewMockOrganization(ctrl)
-	
+
 	// Test interface compliance by using the mock
 	var _ repository.Organization = mockOrganization
 }
@@ -25,7 +25,7 @@ func TestOrganization_Create(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOrganization := repository.NewMockOrganization(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		input          mmodel.CreateOrganizationInput
@@ -75,16 +75,16 @@ func TestOrganization_Create(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockOrganization.Create(tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -95,7 +95,7 @@ func TestOrganization_Get(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOrganization := repository.NewMockOrganization(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		limit          int
@@ -163,22 +163,22 @@ func TestOrganization_Get(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockOrganization.Get(
-				tc.limit, 
-				tc.page, 
-				tc.sortOrder, 
-				tc.startDate, 
+				tc.limit,
+				tc.page,
+				tc.sortOrder,
+				tc.startDate,
 				tc.endDate,
 			)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -189,7 +189,7 @@ func TestOrganization_GetByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOrganization := repository.NewMockOrganization(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -233,16 +233,16 @@ func TestOrganization_GetByID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockOrganization.GetByID(tc.organizationID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -253,7 +253,7 @@ func TestOrganization_Update(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOrganization := repository.NewMockOrganization(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -304,16 +304,16 @@ func TestOrganization_Update(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockOrganization.Update(tc.organizationID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -324,7 +324,7 @@ func TestOrganization_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOrganization := repository.NewMockOrganization(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -356,9 +356,9 @@ func TestOrganization_Delete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			err := mockOrganization.Delete(tc.organizationID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())

@@ -15,7 +15,7 @@ func TestSegmentInterface(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSegment := repository.NewMockSegment(ctrl)
-	
+
 	// Test interface compliance by using the mock
 	var _ repository.Segment = mockSegment
 }
@@ -25,7 +25,7 @@ func TestSegment_Create(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSegment := repository.NewMockSegment(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -81,16 +81,16 @@ func TestSegment_Create(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockSegment.Create(tc.organizationID, tc.ledgerID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -101,7 +101,7 @@ func TestSegment_Get(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSegment := repository.NewMockSegment(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -177,24 +177,24 @@ func TestSegment_Get(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockSegment.Get(
-				tc.organizationID, 
-				tc.ledgerID, 
-				tc.limit, 
-				tc.page, 
-				tc.sortOrder, 
-				tc.startDate, 
+				tc.organizationID,
+				tc.ledgerID,
+				tc.limit,
+				tc.page,
+				tc.sortOrder,
+				tc.startDate,
 				tc.endDate,
 			)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -205,7 +205,7 @@ func TestSegment_GetByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSegment := repository.NewMockSegment(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -257,16 +257,16 @@ func TestSegment_GetByID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockSegment.GetByID(tc.organizationID, tc.ledgerID, tc.segmentID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -277,7 +277,7 @@ func TestSegment_Update(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSegment := repository.NewMockSegment(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -336,16 +336,16 @@ func TestSegment_Update(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockSegment.Update(tc.organizationID, tc.ledgerID, tc.segmentID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -356,7 +356,7 @@ func TestSegment_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockSegment := repository.NewMockSegment(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -394,9 +394,9 @@ func TestSegment_Delete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			err := mockSegment.Delete(tc.organizationID, tc.ledgerID, tc.segmentID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())

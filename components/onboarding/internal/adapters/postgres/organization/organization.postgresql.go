@@ -25,8 +25,7 @@ import (
 )
 
 // Repository provides an interface for operations related to organization entities.
-//
-//go:generate mockgen --destination=organization.mock.go --package=organization . Repository
+// It defines methods for creating, updating, finding, and deleting organizations.
 type Repository interface {
 	Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error)
 	Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error)

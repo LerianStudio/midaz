@@ -15,7 +15,7 @@ func TestAuthInterface(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAuth := repository.NewMockAuth(ctrl)
-	
+
 	// Test interface compliance by using the mock
 	var _ repository.Auth = mockAuth
 }
@@ -25,7 +25,7 @@ func TestAuth_AuthenticateWithCredentials(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAuth := repository.NewMockAuth(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		username       string
@@ -90,16 +90,16 @@ func TestAuth_AuthenticateWithCredentials(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockAuth.AuthenticateWithCredentials(tc.username, tc.password)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -110,7 +110,7 @@ func TestAuth_ExchangeToken(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAuth := repository.NewMockAuth(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		code           string
@@ -171,16 +171,16 @@ func TestAuth_ExchangeToken(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockAuth.ExchangeToken(tc.code)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}

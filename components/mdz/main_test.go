@@ -67,7 +67,7 @@ func TestMainCommandExecution(t *testing.T) {
 
 			// Create a new environment with test streams
 			env := environment.New()
-			
+
 			// Create test IO streams
 			io := &iostreams.IOStreams{
 				In:  stdin,
@@ -110,7 +110,7 @@ func TestInvalidCommand(t *testing.T) {
 
 	// Create a new environment
 	env := environment.New()
-	
+
 	// Create a factory with the environment
 	f := factory.NewFactory(env)
 
@@ -134,7 +134,7 @@ func TestMainFunction(t *testing.T) {
 
 	cmd := root.NewCmdRoot(f)
 	assert.NotNil(t, cmd)
-	
+
 	// Test that we can create a new command with the factory
 	assert.NotPanics(t, func() {
 		cmd := root.NewCmdRoot(f)
@@ -147,7 +147,7 @@ func TestMainFunction(t *testing.T) {
 func TestMain(m *testing.M) {
 	// Run the tests
 	exitCode := m.Run()
-	
+
 	// Exit with the same code
 	os.Exit(exitCode)
 }

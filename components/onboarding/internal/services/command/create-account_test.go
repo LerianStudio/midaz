@@ -110,7 +110,8 @@ func TestCreateAccountScenarios(t *testing.T) {
 				Type:      "invalid",
 				AssetCode: "USD",
 			},
-			mockSetup:    func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {},
+			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
+			},
 			expectedErr:  "0066 - The provided 'type' is not valid. Accepted types are: deposit, savings, loans, marketplace, creditCard or external. Please provide a valid type.",
 			expectedName: "",
 			expectError:  true,
@@ -227,7 +228,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(true, pkg.ValidateBusinessError(constant.ErrAliasUnavailability, "Account")).AnyTimes()
 			},
-			expectError: true,
+			expectError:  true,
 			expectedErr:  "alias",
 			expectedName: "",
 		},
@@ -241,7 +242,7 @@ func TestCreateAccountScenarios(t *testing.T) {
 			defer ctrl.Finish()
 
 			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo := setupTest(ctrl)
-			
+
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo)
 
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input)
@@ -283,7 +284,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 	ctx := context.Background()
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
-	
+
 	// Create reusable IDs as strings
 	portfolioIDStr := uuid.New().String()
 	parentAccountIDStr := uuid.New().String()
@@ -356,16 +357,16 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("portfolio not found")).AnyTimes()
 			},
-			expectError: true,
+			expectError:  true,
 			expectedErr:  "portfolio not found",
 			expectedName: "",
 		},
 		{
 			name: "parent account check - success",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Test Account",
-				Type:           "deposit",
-				AssetCode:      "USD",
+				Name:            "Test Account",
+				Type:            "deposit",
+				AssetCode:       "USD",
 				ParentAccountID: &parentAccountIDStr,
 			},
 			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
@@ -406,9 +407,9 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 		{
 			name: "parent account not found",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Test Account",
-				Type:           "deposit",
-				AssetCode:      "USD",
+				Name:            "Test Account",
+				Type:            "deposit",
+				AssetCode:       "USD",
 				ParentAccountID: &parentAccountIDStr,
 			},
 			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
@@ -420,16 +421,16 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("parent account not found")).AnyTimes()
 			},
-			expectError: true,
+			expectError:  true,
 			expectedErr:  "parent account",
 			expectedName: "",
 		},
 		{
 			name: "mismatched asset code",
 			input: &mmodel.CreateAccountInput{
-				Name:           "Test Account",
-				Type:           "deposit",
-				AssetCode:      "USD",
+				Name:            "Test Account",
+				Type:            "deposit",
+				AssetCode:       "USD",
 				ParentAccountID: &parentAccountIDStr,
 			},
 			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockRabbitMQ *rabbitmq.MockProducerRepository, mockMetadataRepo *mongodb.MockRepository) {
@@ -444,7 +445,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 						AssetCode: "EUR", // Different from the input's USD
 					}, nil).AnyTimes()
 			},
-			expectError: true,
+			expectError:  true,
 			expectedErr:  "asset code",
 			expectedName: "",
 		},
@@ -478,7 +479,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 					Create(gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(errors.New("metadata creation error")).AnyTimes()
 			},
-			expectError: true,
+			expectError:  true,
 			expectedErr:  "metadata creation error",
 			expectedName: "",
 		},
@@ -566,7 +567,7 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			defer ctrl.Finish()
 
 			uc, mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo := setupTest(ctrl)
-			
+
 			tt.mockSetup(mockAssetRepo, mockPortfolioRepo, mockAccountRepo, mockRabbitMQ, mockMetadataRepo)
 
 			account, err := uc.CreateAccount(ctx, organizationID, ledgerID, tt.input)

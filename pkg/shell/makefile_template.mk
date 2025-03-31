@@ -1,8 +1,9 @@
-# Onboarding Component Makefile
+# Component Makefile Template
+# This template provides a standardized structure for all component Makefiles
 
-# Component-specific variables
-SERVICE_NAME := onboarding-service
-BIN_DIR := ./.bin
+# Component-specific variables (to be customized)
+SERVICE_NAME := {{service-name}}
+BIN_DIR := ./bin
 ARTIFACTS_DIR := ./artifacts
 
 # Ensure artifacts directory exists
@@ -15,6 +16,17 @@ MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
 include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
 include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 
+# Check if Go is installed
+GO := $(shell which go)
+ifeq (, $(GO))
+$(error "No go binary found in your system, please install go before continuing")
+endif
+
+# Load environment variables if .env exists
+ifneq (,$(wildcard .env))
+    include .env
+endif
+
 #-------------------------------------------------------
 # Core Commands
 #-------------------------------------------------------
@@ -22,47 +34,46 @@ include $(MIDAZ_ROOT)/pkg/shell/makefile_utils.mk
 .PHONY: help
 help:
 	@echo ""
-	@echo "$(BOLD)Onboarding Service Commands$(NC)"
+	@echo "$(BOLD)$(SERVICE_NAME) Commands$(NC)"
 	@echo ""
 	@echo "$(BOLD)Core Commands:$(NC)"
 	@echo "  make help                        - Display this help message"
 	@echo "  make build                       - Build the component"
 	@echo "  make test                        - Run tests"
 	@echo "  make clean                       - Clean build artifacts"
-	@echo "  make run                         - Run the application with .env config"
-	@echo "  make cover-html                  - Generate HTML test coverage report"
 	@echo ""
 	@echo "$(BOLD)Code Quality Commands:$(NC)"
 	@echo "  make lint                        - Run linting tools"
 	@echo "  make format                      - Format code"
 	@echo "  make tidy                        - Clean dependencies"
 	@echo ""
-	@echo "$(BOLD)Docker Commands:$(NC)"
-	@echo "  make up                          - Start services with Docker Compose"
-	@echo "  make down                        - Stop services with Docker Compose"
-	@echo "  make start                       - Start existing containers"
-	@echo "  make stop                        - Stop running containers"
-	@echo "  make restart                     - Restart all containers"
-	@echo "  make logs                        - Show logs for all services"
-	@echo "  make logs-api                    - Show logs for onboarding service"
-	@echo "  make ps                          - List container status"
-	@echo "  make rebuild-up                  - Rebuild and restart services during development"
-	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
-	@echo "  make destroy                     - Alias for clean-docker (maintained for compatibility)"
-	@echo ""
-	@echo "$(BOLD)Onboarding-Specific Commands:$(NC)"
-	@echo "  make generate-docs               - Generate Swagger API documentation"
-	@echo ""
-	@echo "$(BOLD)Developer Helper Commands:$(NC)"
-	@echo "  make dev-setup                   - Set up development environment"
-	@echo ""
+	@if [ -f docker-compose.yml ]; then \
+		echo "$(BOLD)Docker Commands:$(NC)"; \
+		echo "  make up                          - Start services with Docker Compose"; \
+		echo "  make down                        - Stop services with Docker Compose"; \
+		echo "  make start                       - Start existing containers"; \
+		echo "  make stop                        - Stop running containers"; \
+		echo "  make restart                     - Restart all containers"; \
+		echo "  make logs                        - Show logs for all services"; \
+		echo "  make ps                          - List container status"; \
+		echo ""; \
+	fi
+	@echo "$(BOLD)Security Commands:$(NC)"
+	@echo "  make sec                          - Run security checks"
+	@echo "  make check-tests                  - Verify test coverage"
+	@echo "$(BOLD)Development Setup Commands:$(NC)"
+	@echo "  make dev-setup                    - Set up development environment"
+	@echo "$(BOLD)Component-Specific Commands:$(NC)"
+	@echo "  {{component-specific-commands}}"
+
 #-------------------------------------------------------
 # Build Commands
 #-------------------------------------------------------
 
 .PHONY: build
 build:
-	$(call title1,"Building Onboarding component")
+	$(call title1,"Building $(SERVICE_NAME)")
+	@go version
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Build completed successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
@@ -75,18 +86,31 @@ test:
 	@go test -v ./...
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Tests completed successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: cover-html
-cover-html:
-	$(call title1,"Generating HTML test coverage report")
+.PHONY: cover
+cover:
+	$(call title1,"Generating test coverage")
 	@go test -coverprofile=$(ARTIFACTS_DIR)/coverage.out ./...
 	@go tool cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
 	@echo "$(GREEN)Coverage report generated at $(ARTIFACTS_DIR)/coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=$(ARTIFACTS_DIR)/coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open $(ARTIFACTS_DIR)/coverage.html in your browser to view detailed coverage report$(NC)"
+
+#-------------------------------------------------------
+# Security Commands
+#-------------------------------------------------------
+
+.PHONY: sec
+sec:
+	$(call title1,"Running security checks using gosec")
+	@if ! command -v gosec >/dev/null 2>&1; then \
+		echo "$(YELLOW)Installing gosec...$(NC)"; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	@if find . -name "*.go" -type f | grep -q .; then \
+		echo "$(CYAN)Running security checks...$(NC)"; \
+		gosec ./...; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
+	fi
 
 #-------------------------------------------------------
 # Test Coverage Commands
@@ -140,25 +164,6 @@ tidy:
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
-# Security Commands
-#-------------------------------------------------------
-
-.PHONY: sec
-sec:
-	$(call title1,"Running security checks using gosec")
-	@if ! command -v gosec >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@if find . -name "*.go" -type f | grep -q .; then \
-		echo "$(CYAN)Running security checks...$(NC)"; \
-		gosec ./...; \
-		echo "$(GREEN)$(BOLD)[ok]$(NC) Security checks completed$(GREEN) ✔️$(NC)"; \
-	else \
-		echo "$(YELLOW)No Go files found, skipping security checks$(NC)"; \
-	fi
-
-#-------------------------------------------------------
 # Clean Commands
 #-------------------------------------------------------
 
@@ -169,48 +174,40 @@ clean:
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
-# Docker Commands
+# Docker Commands (if applicable)
 #-------------------------------------------------------
 
-.PHONY: build-docker
-build-docker:
-	$(call title1,"Building Docker images")
-	@$(DOCKER_CMD) -f docker-compose.yml build $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker images built successfully$(GREEN) ✔️$(NC)"
+ifneq (,$(wildcard docker-compose.yml))
 
 .PHONY: up
 up:
-	$(call title1,"Starting all services in detached mode")
+	$(call title1,"Starting services")
 	@$(DOCKER_CMD) -f docker-compose.yml up $(c) -d
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services started successfully$(GREEN) ✔️$(NC)"
 
-.PHONY: start
-start:
-	$(call title1,"Starting existing containers")
-	@$(DOCKER_CMD) -f docker-compose.yml start $(c)
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers started successfully$(GREEN) ✔️$(NC)"
-
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers, networks, and volumes")
-	@if [ -f "docker-compose.yml" ]; then \
-		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
-	else \
-		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
-	fi
+	$(call title1,"Stopping services")
+	@$(DOCKER_CMD) -f docker-compose.yml down
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services stopped successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: start
+start:
+	$(call title1,"Starting containers")
+	@$(DOCKER_CMD) -f docker-compose.yml start
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers started successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: stop
 stop:
-	$(call title1,"Stopping running containers")
-	@$(DOCKER_CMD) -f docker-compose.yml stop $(c)
+	$(call title1,"Stopping containers")
+	@$(DOCKER_CMD) -f docker-compose.yml stop
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers stopped successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: restart
 restart:
-	$(call title1,"Restarting all services")
+	$(call title1,"Restarting containers")
 	@make stop && make up
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Services restarted successfully$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Containers restarted successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: rebuild-up
 rebuild-up:
@@ -231,89 +228,51 @@ clean-docker:
 	@docker volume prune -f
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker resources cleaned successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: destroy
+destroy: clean-docker
+	@echo "$(YELLOW)Note: 'make destroy' is now an alias for 'make clean-docker'$(NC)"
+
 .PHONY: logs
 logs:
-	$(call title1,"Showing logs for all services")
-	@if [ -f "docker-compose.yml" ]; then \
-		echo "$(CYAN)Logs for component: $(BOLD)onboarding$(NC)"; \
-		docker compose -f docker-compose.yml logs --tail=100 -f $(c) 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=100 -f $(c); \
-	else \
-		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs command.$(NC)"; \
-	fi
-
-.PHONY: logs-api
-logs-api:
-	$(call title1,"Showing logs for onboarding service")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f onboarding
+	$(call title1,"Showing logs")
+	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f
 
 .PHONY: ps
 ps:
 	$(call title1,"Listing container status")
 	@$(DOCKER_CMD) -f docker-compose.yml ps
 
-# Alias for backward compatibility
-.PHONY: destroy
-destroy: clean-docker
-	@echo "$(YELLOW)Note: 'make destroy' is now an alias for 'make clean-docker'$(NC)"
+endif
 
 #-------------------------------------------------------
-# Onboarding-Specific Commands
-#-------------------------------------------------------
-
-.PHONY: run
-run:
-	$(call title1,"Running the application with .env config")
-	@go run cmd/app/main.go .env
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Application started successfully$(GREEN) ✔️$(NC)"
-
-.PHONY: generate-docs
-generate-docs:
-	$(call title1,"Generating Swagger API documentation")
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
-	@cd $(MIDAZ_ROOT)/components/onboarding && swag init -g cmd/app/main.go -o api --parseDependency --parseInternal
-	@docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api
-	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
-	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
-
-#-------------------------------------------------------
-# Developer Helper Commands
+# Development Setup Commands
 #-------------------------------------------------------
 
 .PHONY: dev-setup
 dev-setup:
 	$(call title1,"Setting up development environment")
-	@echo "$(CYAN)Installing development tools...$(NC)"
+	@echo "$(CYAN)Installing required tools...$(NC)"
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
 		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-	fi
-	@if ! command -v swag >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing swag...$(NC)"; \
-		go install github.com/swaggo/swag/cmd/swag@latest; \
-	fi
-	@if ! command -v mockgen >/dev/null 2>&1; then \
-		echo "$(YELLOW)Installing mockgen...$(NC)"; \
-		go install github.com/golang/mock/mockgen@latest; \
 	fi
 	@if ! command -v gosec >/dev/null 2>&1; then \
 		echo "$(YELLOW)Installing gosec...$(NC)"; \
 		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
 	fi
-	@echo "$(CYAN)Setting up environment...$(NC)"
 	@if [ -f .env.example ] && [ ! -f .env ]; then \
+		echo "$(YELLOW)Creating .env file from .env.example...$(NC)"; \
 		cp .env.example .env; \
-		echo "$(GREEN)Created .env file from template$(NC)"; \
 	fi
-	@make tidy
-	@make check-tests
-	@make sec
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Development environment set up successfully$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You're ready to start developing! Here are some useful commands:$(NC)"
 	@echo "  make build         - Build the component"
 	@echo "  make test          - Run tests"
 	@echo "  make up            - Start services"
 	@echo "  make rebuild-up    - Rebuild and restart services during development"
+
+#-------------------------------------------------------
+# Component-Specific Commands
+#-------------------------------------------------------
+
+# {{component-specific-targets}}

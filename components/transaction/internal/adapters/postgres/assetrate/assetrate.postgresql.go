@@ -22,8 +22,7 @@ import (
 )
 
 // Repository provides an interface for asset_rate template entities.
-//
-//go:generate mockgen --destination=assetrate.mock.go --package=assetrate . Repository
+// It defines methods for creating, finding, and updating asset rates.
 type Repository interface {
 	Create(ctx context.Context, assetRate *AssetRate) (*AssetRate, error)
 	FindByCurrencyPair(ctx context.Context, organizationID, ledgerID uuid.UUID, from, to string) (*AssetRate, error)

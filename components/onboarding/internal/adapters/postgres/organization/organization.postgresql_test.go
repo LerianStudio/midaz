@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
@@ -362,7 +362,7 @@ func (r *mockRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Check if any row was affected
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -508,9 +508,9 @@ func TestOrganizationRepository_Update(t *testing.T) {
 			},
 			id: uuid.New(),
 			organization: &mmodel.Organization{
-				LegalName: "Updated Organization",
+				LegalName:       "Updated Organization",
 				DoingBusinessAs: func() *string { s := "Updated DBA"; return &s }(),
-				UpdatedAt: time.Now(),
+				UpdatedAt:       time.Now(),
 			},
 			expectedError: false,
 		},
@@ -533,9 +533,9 @@ func TestOrganizationRepository_Update(t *testing.T) {
 			},
 			id: uuid.New(),
 			organization: &mmodel.Organization{
-				LegalName: "Updated Organization",
+				LegalName:       "Updated Organization",
 				DoingBusinessAs: func() *string { s := "Updated DBA"; return &s }(),
-				UpdatedAt: time.Now(),
+				UpdatedAt:       time.Now(),
 			},
 			expectedError: true,
 		},
@@ -546,9 +546,9 @@ func TestOrganizationRepository_Update(t *testing.T) {
 			},
 			id: uuid.New(),
 			organization: &mmodel.Organization{
-				LegalName: "Updated Organization",
+				LegalName:       "Updated Organization",
 				DoingBusinessAs: func() *string { s := "Updated DBA"; return &s }(),
-				UpdatedAt: time.Now(),
+				UpdatedAt:       time.Now(),
 			},
 			expectedError: true,
 		},
@@ -731,7 +731,7 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 				assert.Nil(t, organizations)
 			} else {
 				assert.NoError(t, err)
-				
+
 				// For empty results, we still expect a non-nil empty slice
 				if tc.expectEmpty {
 					assert.Empty(t, organizations)
@@ -828,7 +828,7 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 				assert.Nil(t, organizations)
 			} else {
 				assert.NoError(t, err)
-				
+
 				// For empty results, we still expect a non-nil empty slice
 				if tc.expectEmpty {
 					assert.Empty(t, organizations)

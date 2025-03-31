@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to balance template entities.
-//
-//go:generate mockgen --destination=balance.mock.go --package=balance . Repository
+// It defines methods for creating, finding, listing, updating, and deleting balance templates.
 type Repository interface {
 	Create(ctx context.Context, balance *mmodel.Balance) error
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Balance, error)

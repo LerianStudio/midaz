@@ -10,8 +10,7 @@ import (
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
-//
-//go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
+// It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
 	Register(queueName string, handler QueueHandlerFunc)
 	RunConsumers() error
