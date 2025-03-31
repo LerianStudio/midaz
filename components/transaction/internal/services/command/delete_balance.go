@@ -22,7 +22,6 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on repo by id", err)
-
 		logger.Errorf("Error getting balance: %v", err)
 
 		return err
@@ -30,9 +29,7 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 
 	if balance != nil && (balance.Available != 0 || balance.OnHold != 0) {
 		err = pkg.ValidateBusinessError(constant.ErrBalancesCantDeleted, "DeleteBalance")
-
 		libOpentelemetry.HandleSpanError(&span, "Balance cannot be deleted because it still has funds in it.", err)
-
 		logger.Errorf("Error deleting balance: %v", err)
 
 		return err
@@ -41,7 +38,6 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	err = uc.BalanceRepo.Delete(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete balance on repo", err)
-
 		logger.Errorf("Error delete balance: %v", err)
 
 		return err

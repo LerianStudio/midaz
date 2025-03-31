@@ -53,8 +53,6 @@ func (uc *UseCase) CreateBalance(ctx context.Context, data mmodel.Queue) error {
 			} else {
 				logger.Errorf("Error creating balance on repo: %v", err)
 
-				logger.Infof("Error creating balance on repo")
-
 				return err
 			}
 		}
