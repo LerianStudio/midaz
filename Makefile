@@ -107,7 +107,7 @@ test:
 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
 	@echo "$(CYAN)Starting tests at $$(date)$(NC)"
 	@start_time=$$(date +%s); \
-	test_output=$$(go test -v ./... ./... 2>&1); \
+	test_output=$$(go test -v ./... 2>&1); \
 	exit_code=$$?; \
 	end_time=$$(date +%s); \
 	duration=$$((end_time - start_time)); \

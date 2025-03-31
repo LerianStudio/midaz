@@ -18,6 +18,11 @@ import (
 	"testing"
 )
 
+// Int64Ptr returns a pointer to the given int64 value
+func Int64Ptr(v int64) *int64 {
+	return &v
+}
+
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
 
