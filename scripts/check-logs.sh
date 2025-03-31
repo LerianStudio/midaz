@@ -10,9 +10,9 @@ BOLD='\033[1m'
 
 
 # Display header
-echo -e "${CYAN}----------------------------------------------${NC}"
-echo -e "${CYAN}   Verifying error logging in usecases  ${NC}"
-echo -e "${CYAN}----------------------------------------------${NC}"
+echo "${CYAN}----------------------------------------------${NC}"
+echo "${CYAN}   Verifying error logging in usecases  ${NC}"
+echo "${CYAN}----------------------------------------------${NC}"
 
 # Check for error logging in usecases
 echo "${CYAN}Checking for proper error logging in usecases...${NC}"
