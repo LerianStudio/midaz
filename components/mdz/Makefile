@@ -273,9 +273,10 @@ install-local: build
 logs:
 	$(call title1,"Showing logs for all services")
 	@if [ -f "docker-compose.yml" ]; then \
-		$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c); \
+		echo "$(CYAN)Logs for component: $(BOLD)mdz$(NC)"; \
+		docker compose -f docker-compose.yml logs --tail=100 -f $(c) 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=100 -f $(c); \
 	else \
-		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs.$(NC)"; \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs command.$(NC)"; \
 	fi
 
 .PHONY: down

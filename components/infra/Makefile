@@ -220,7 +220,12 @@ clean-docker:
 .PHONY: logs
 logs:
 	$(call title1,"Showing logs for all services")
-	@$(DOCKER_CMD) -f docker-compose.yml logs --tail=100 -f $(c)
+	@if [ -f "docker-compose.yml" ]; then \
+		echo "$(CYAN)Logs for component: $(BOLD)infra$(NC)"; \
+		docker compose -f docker-compose.yml logs --tail=100 -f $(c) 2>/dev/null || docker-compose -f docker-compose.yml logs --tail=100 -f $(c); \
+	else \
+		echo "$(YELLOW)No docker-compose.yml file found. Skipping logs command.$(NC)"; \
+	fi
 
 .PHONY: ps
 ps:
