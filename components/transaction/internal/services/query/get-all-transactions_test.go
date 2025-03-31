@@ -37,7 +37,7 @@ func TestGetAllTransactions(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	
+
 	mockTransactionRepo := transaction.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 	mockOperationRepo := operation.NewMockRepository(ctrl)
@@ -59,7 +59,7 @@ func TestGetAllTransactions(t *testing.T) {
 				Operations:     []*operation.Operation{},
 			},
 		}
-		
+
 		// Mock metadata
 		metadata := []*mongodb.Metadata{
 			{
@@ -68,7 +68,7 @@ func TestGetAllTransactions(t *testing.T) {
 				Data:       map[string]any{"key": "value"},
 			},
 		}
-		
+
 		// Mock operations
 		operations := []*operation.Operation{
 			{
@@ -95,14 +95,14 @@ func TestGetAllTransactions(t *testing.T) {
 			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
 			Return(trans, mockCur, nil).
 			Times(1)
-		
+
 		// Mock metadata repo FindList for transactions
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), "Transaction", filter).
 			Return(metadata, nil).
 			Times(1)
-		
+
 		// Mock metadata repo FindList for operations
 		mockMetadataRepo.
 			EXPECT().
@@ -120,7 +120,7 @@ func TestGetAllTransactions(t *testing.T) {
 				},
 			}, nil).
 			Times(1)
-		
+
 		// Mock operation repo FindAll for GetAllOperations
 		mockOperationRepo.
 			EXPECT().
@@ -192,7 +192,7 @@ func TestGetAllTransactions(t *testing.T) {
 			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
 			Return(trans, mockCur, nil).
 			Times(1)
-		
+
 		// Mock metadata repo FindList for transactions to return an error
 		mockMetadataRepo.
 			EXPECT().
@@ -221,7 +221,7 @@ func TestGetAllTransactions(t *testing.T) {
 				Operations:     []*operation.Operation{},
 			},
 		}
-		
+
 		// Mock metadata
 		metadata := []*mongodb.Metadata{
 			{
@@ -237,14 +237,14 @@ func TestGetAllTransactions(t *testing.T) {
 			FindAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
 			Return(trans, mockCur, nil).
 			Times(1)
-		
+
 		// Mock metadata repo FindList for transactions
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), "Transaction", filter).
 			Return(metadata, nil).
 			Times(1)
-		
+
 		// Mock operation repo FindAll for GetAllOperations to return an error
 		mockOperationRepo.
 			EXPECT().

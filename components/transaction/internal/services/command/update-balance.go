@@ -21,8 +21,9 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
+
+		return err
 	}
 
 	fromTo := make(map[string]libTransaction.Amount)
@@ -47,8 +48,7 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 	err = uc.BalanceRepo.SelectForUpdate(ctxProcessBalances, organizationID, ledgerID, validate.Aliases, fromTo)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
-
-		logger.Error("Failed to update balances on database", err.Error())
+		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
 		return err
 	}
@@ -67,8 +67,9 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
-
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
+
+		return err
 	}
 
 	fromTo := make(map[string]libTransaction.Amount)
@@ -114,8 +115,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	err = uc.BalanceRepo.BalancesUpdate(ctxProcessBalances, organizationID, ledgerID, newBalances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances on database", err)
-
-		logger.Error("Failed to update balances on database", err.Error())
+		logger.Errorf("Failed to update balances on database: %v", err.Error())
 
 		return err
 	}
@@ -136,7 +136,6 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update balance on repo", err)
-
 		logger.Errorf("Error update balance: %v", err)
 
 		return err

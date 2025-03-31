@@ -15,7 +15,7 @@ func TestPortfolioInterface(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPortfolio := repository.NewMockPortfolio(ctrl)
-	
+
 	// Test interface compliance by using the mock
 	var _ repository.Portfolio = mockPortfolio
 }
@@ -25,7 +25,7 @@ func TestPortfolio_Create(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPortfolio := repository.NewMockPortfolio(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -85,16 +85,16 @@ func TestPortfolio_Create(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockPortfolio.Create(tc.organizationID, tc.ledgerID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -105,7 +105,7 @@ func TestPortfolio_Get(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPortfolio := repository.NewMockPortfolio(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -183,24 +183,24 @@ func TestPortfolio_Get(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockPortfolio.Get(
-				tc.organizationID, 
-				tc.ledgerID, 
-				tc.limit, 
-				tc.page, 
-				tc.sortOrder, 
-				tc.startDate, 
+				tc.organizationID,
+				tc.ledgerID,
+				tc.limit,
+				tc.page,
+				tc.sortOrder,
+				tc.startDate,
 				tc.endDate,
 			)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -211,7 +211,7 @@ func TestPortfolio_GetByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPortfolio := repository.NewMockPortfolio(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -265,16 +265,16 @@ func TestPortfolio_GetByID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockPortfolio.GetByID(tc.organizationID, tc.ledgerID, tc.portfolioID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -285,7 +285,7 @@ func TestPortfolio_Update(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPortfolio := repository.NewMockPortfolio(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -346,16 +346,16 @@ func TestPortfolio_Update(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockPortfolio.Update(tc.organizationID, tc.ledgerID, tc.portfolioID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -366,7 +366,7 @@ func TestPortfolio_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockPortfolio := repository.NewMockPortfolio(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -404,9 +404,9 @@ func TestPortfolio_Delete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			err := mockPortfolio.Delete(tc.organizationID, tc.ledgerID, tc.portfolioID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())

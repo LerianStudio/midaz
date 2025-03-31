@@ -16,17 +16,17 @@ func TestSendAccountQueueTransaction(t *testing.T) {
 	// Save original env vars to restore after test
 	originalExchange := os.Getenv("RABBITMQ_EXCHANGE")
 	originalKey := os.Getenv("RABBITMQ_KEY")
-	
+
 	// Set test env vars
 	os.Setenv("RABBITMQ_EXCHANGE", "test-exchange")
 	os.Setenv("RABBITMQ_KEY", "test-key")
-	
+
 	// Restore env vars after test
 	defer func() {
 		os.Setenv("RABBITMQ_EXCHANGE", originalExchange)
 		os.Setenv("RABBITMQ_KEY", originalKey)
 	}()
-	
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -43,7 +43,7 @@ func TestSendAccountQueueTransaction(t *testing.T) {
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	accountID := uuid.New()
-	
+
 	account := mmodel.Account{
 		ID:        accountID.String(),
 		Name:      "Test Account",
@@ -67,7 +67,7 @@ func TestSendAccountQueueTransaction(t *testing.T) {
 
 		// Call the function
 		uc.SendAccountQueueTransaction(ctx, organizationID, ledgerID, account)
-		
+
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
 	})

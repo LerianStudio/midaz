@@ -95,14 +95,14 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 					libOpentelemetry.HandleSpanError(&span, "Failed to create operation", er)
 
 					logger.Errorf("Error creating operation: %v", er)
-
 					err <- er
 				}
 
 				er = uc.CreateMetadata(ctx, logger, fromTo[i].Metadata, op)
 				if er != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to create metadata on operation", er)
-
+					logger.Errorf("Failed to create metadata on operation: %v", er)
+					logger.Errorf("Returning error: %v", er)
 					err <- er
 				}
 
@@ -120,6 +120,8 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 func (uc *UseCase) CreateMetadata(ctx context.Context, logger libLog.Logger, metadata map[string]any, o *operation.Operation) error {
 	if metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
+			logger.Errorf("Error checking metadata key and value length: %v", err)
+
 			return err
 		}
 

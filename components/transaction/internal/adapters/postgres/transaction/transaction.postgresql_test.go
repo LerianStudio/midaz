@@ -571,14 +571,14 @@ func TestTransactionRepository_FindAll(t *testing.T) {
 				assert.Nil(t, transactions)
 			} else {
 				assert.NoError(t, err)
-				
+
 				// For empty results, we still expect a non-nil empty slice and valid pagination
 				if tc.expectEmpty {
 					assert.Empty(t, transactions)
 				} else {
 					assert.NotNil(t, transactions)
 				}
-				
+
 				assert.NotNil(t, pagination)
 				// Check Next and Prev instead of Cursor
 				assert.Equal(t, "", pagination.Next)

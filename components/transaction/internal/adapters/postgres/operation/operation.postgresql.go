@@ -22,8 +22,7 @@ import (
 )
 
 // Repository provides an interface for operations related to operation template entities.
-//
-//go:generate mockgen --destination=operation.mock.go --package=operation . Repository
+// It defines methods for creating, retrieving, updating, and deleting operation templates.
 type Repository interface {
 	Create(ctx context.Context, operation *Operation) (*Operation, error)
 	FindAll(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.Pagination) ([]*Operation, libHTTP.CursorPagination, error)

@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to segment entities.
-//
-//go:generate mockgen --destination=segment.mock.go --package=segment . Repository
+// It defines methods for creating, finding, updating, and deleting segments in the database.
 type Repository interface {
 	Create(ctx context.Context, segment *mmodel.Segment) (*mmodel.Segment, error)
 	FindByName(ctx context.Context, organizationID, ledgerID uuid.UUID, name string) (bool, error)

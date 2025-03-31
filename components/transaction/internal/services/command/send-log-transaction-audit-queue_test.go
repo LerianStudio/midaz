@@ -15,19 +15,19 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 	originalExchange := os.Getenv("RABBITMQ_TRANSACTION_AUDIT_EXCHANGE")
 	originalKey := os.Getenv("RABBITMQ_TRANSACTION_AUDIT_KEY")
 	originalAuditEnabled := os.Getenv("AUDIT_LOG_ENABLED")
-	
+
 	// Set test env vars
 	os.Setenv("RABBITMQ_TRANSACTION_AUDIT_EXCHANGE", "test-exchange")
 	os.Setenv("RABBITMQ_TRANSACTION_AUDIT_KEY", "test-key")
 	os.Setenv("AUDIT_LOG_ENABLED", "true")
-	
+
 	// Restore env vars after test
 	defer func() {
 		os.Setenv("RABBITMQ_TRANSACTION_AUDIT_EXCHANGE", originalExchange)
 		os.Setenv("RABBITMQ_TRANSACTION_AUDIT_KEY", originalKey)
 		os.Setenv("AUDIT_LOG_ENABLED", originalAuditEnabled)
 	}()
-	
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -107,24 +107,24 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
 	})
-	
+
 	t.Run("audit disabled", func(t *testing.T) {
 		// Disable audit logging
 		os.Setenv("AUDIT_LOG_ENABLED", "false")
-		
+
 		// No expectations for RabbitMQRepo as it shouldn't be called
 
 		// Call the method
 		uc.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, transactionID)
-		
+
 		// No assertions needed as the function doesn't return anything
 		// The test passes if no mock expectations are called
 	})
-	
+
 	t.Run("audit enabled by default", func(t *testing.T) {
 		// Unset AUDIT_LOG_ENABLED to test default behavior
 		os.Unsetenv("AUDIT_LOG_ENABLED")
-		
+
 		// Set exchange and key environment variables
 		os.Setenv("RABBITMQ_AUDIT_EXCHANGE", "test-exchange")
 		os.Setenv("RABBITMQ_AUDIT_KEY", "test-key")
@@ -133,7 +133,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 			os.Unsetenv("RABBITMQ_AUDIT_EXCHANGE")
 			os.Unsetenv("RABBITMQ_AUDIT_KEY")
 		}()
-		
+
 		// Mock RabbitMQRepo.ProducerDefault
 		mockRabbitMQRepo.EXPECT().
 			ProducerDefault(gomock.Any(), "test-exchange", "test-key", gomock.Any()).
@@ -142,7 +142,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 
 		// Call the method
 		uc.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, transactionID)
-		
+
 		// No assertions needed as the function doesn't return anything
 		// The test passes if the mock expectations are met
 	})

@@ -43,7 +43,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
-
 		logger.Errorf("Failed to update balances: %v", err.Error())
 
 		return err
@@ -82,7 +81,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	err = uc.CreateMetadataAsync(ctx, logger, tran.Metadata, tran.ID, reflect.TypeOf(transaction.Transaction{}).Name())
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create metadata on transaction", err)
-
 		logger.Errorf("Failed to create metadata on transaction: %v", err.Error())
 
 		return err
@@ -101,7 +99,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				logger.Infof("Operation already exists: %v", oper.ID)
-
 				continue
 			} else {
 				logger.Errorf("Error creating operation: %v", err)
@@ -113,7 +110,6 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, reflect.TypeOf(operation.Operation{}).Name())
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create metadata on operation", err)
-
 			logger.Errorf("Failed to create metadata on operation: %v", err)
 
 			return err
@@ -127,6 +123,8 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger, metadata map[string]any, ID string, collection string) error {
 	if metadata != nil {
 		if err := libCommons.CheckMetadataKeyAndValueLength(100, metadata); err != nil {
+			logger.Errorf("Error checking metadata key and value length: %v", err)
+
 			return err
 		}
 

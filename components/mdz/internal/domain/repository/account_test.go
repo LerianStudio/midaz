@@ -15,7 +15,7 @@ func TestAccountInterface(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAccount := repository.NewMockAccount(ctrl)
-	
+
 	// Test interface compliance by using the mock
 	var _ repository.Account = mockAccount
 }
@@ -25,7 +25,7 @@ func TestAccount_Create(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAccount := repository.NewMockAccount(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -85,16 +85,16 @@ func TestAccount_Create(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockAccount.Create(tc.organizationID, tc.ledgerID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -105,7 +105,7 @@ func TestAccount_Get(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAccount := repository.NewMockAccount(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -181,24 +181,24 @@ func TestAccount_Get(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockAccount.Get(
-				tc.organizationID, 
-				tc.ledgerID, 
-				tc.limit, 
-				tc.page, 
-				tc.sortOrder, 
-				tc.startDate, 
+				tc.organizationID,
+				tc.ledgerID,
+				tc.limit,
+				tc.page,
+				tc.sortOrder,
+				tc.startDate,
 				tc.endDate,
 			)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -209,7 +209,7 @@ func TestAccount_GetByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAccount := repository.NewMockAccount(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -261,16 +261,16 @@ func TestAccount_GetByID(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockAccount.GetByID(tc.organizationID, tc.ledgerID, tc.accountID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -281,7 +281,7 @@ func TestAccount_Update(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAccount := repository.NewMockAccount(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -340,16 +340,16 @@ func TestAccount_Update(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			result, err := mockAccount.Update(tc.organizationID, tc.ledgerID, tc.accountID, tc.input)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -360,7 +360,7 @@ func TestAccount_Delete(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockAccount := repository.NewMockAccount(ctrl)
-	
+
 	testCases := []struct {
 		name           string
 		organizationID string
@@ -398,9 +398,9 @@ func TestAccount_Delete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.mockSetup()
-			
+
 			err := mockAccount.Delete(tc.organizationID, tc.ledgerID, tc.accountID)
-			
+
 			if tc.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tc.expectedError.Error(), err.Error())

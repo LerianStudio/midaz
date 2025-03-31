@@ -26,11 +26,12 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 	if err := uc.SegmentRepo.Delete(ctx, organizationID, ledgerID, id); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete segment on repo by id", err)
 
-		logger.Errorf("Error deleting segment on repo by id: %v", err)
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
+			logger.Errorf("Segment ID not found: %s", id.String())
 			return pkg.ValidateBusinessError(constant.ErrSegmentIDNotFound, reflect.TypeOf(mmodel.Segment{}).Name())
 		}
+
+		logger.Errorf("Error deleting segment: %v", err)
 
 		return err
 	}
