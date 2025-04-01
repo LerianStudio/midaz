@@ -1012,44 +1012,6 @@ paths:
       summary: Create an Account
       tags:
       - Accounts
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}:
-    get:
-      description: Get an Account with the input Alias
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Alias
-        in: path
-        name: alias
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/Account'
-      summary: Get an Account by Alias
-      tags:
-      - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
       description: Delete an Account with the input ID
@@ -1164,6 +1126,44 @@ paths:
           schema:
             $ref: '#/definitions/Account'
       summary: Update an Account
+      tags:
+      - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
+    get:
+      description: Get an Account with the input Alias
+      parameters:
+      - description: Authorization Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: Alias
+        in: path
+        name: alias
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/Account'
+      summary: Get an Account by Alias
       tags:
       - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:

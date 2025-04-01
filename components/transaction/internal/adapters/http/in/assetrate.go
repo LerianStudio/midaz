@@ -32,7 +32,7 @@ type AssetRateHandler struct {
 //	@Param			ledger_id		path		string							true	"Ledger ID"
 //	@Param			asset-rate		body		assetrate.CreateAssetRateInput	true	"AssetRate Input"
 //	@Success		200				{object}	assetrate.AssetRate
-//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [post]
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates [Put]
 func (handler *AssetRateHandler) CreateOrUpdateAssetRate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 

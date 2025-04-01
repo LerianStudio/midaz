@@ -1,2610 +1,2959 @@
 {
-	"info": {
-		"_postman_id": "00b3869d-895d-49b2-a6b5-68b193471560",
-		"name": "MIDAZ",
-		"description": "<img src=\"https://content.pstmn.io/cab136c1-1b54-4c18-8fff-5e7ee3d5af73/aW1hZ2UucG5n\" width=\"1600\" height=\"650\">\n\n  \n  \n\n  \n  \n  \n\n# Midaz: Next-Gen Open-Source Ledger\n\nMidaz is an open-source ledger system that is part of a Core Banking Platform being developed by Lerian. The ledger and the other components of the platform are currently UNDER CONSTRUCTION and should not be used in production.\n\nMidaz is designed to address the limitations of traditional ledger systems and provide a comprehensive, multi-asset, multi-currency, and immutable ledger solution for the modern financial landscape.\n\n## Understanding Core Banking\n\nAt Lerian, we view a core banking system as a comprehensive platform consisting of four main components:\n\n1. **Onboarding (Core)**: The central database that manages all transactions and accounts. This is where Midaz plays a crucial role, serving as the foundation of the core banking system.\n    \n2. **Transactional Services**: These generate debits and credits in the onboarding. Examples include instant payments (like PIX in Brazil), card transactions, and wire transfers.\n    \n3. **Governance**: This component includes integrations for onboarding, anti-fraud/AML measures, management reporting, regulatory compliance, and accounting.\n    \n4. **Connectivity Infrastructure**: This provides the necessary (if any, since most advanced regional financial systems are moving to the cloud) physical connections to external systems and networks.\n    \n\nOur open-source approach allows developers to integrate Midaz seamlessly with other components, creating a complete core banking solution tailored to their specific needs. Whether you're building a new financial product, modernizing legacy systems, or creating innovative fintech solutions, Midaz provides the solid foundation you need for your core banking infrastructure.\n\nLerian is committed to also providing a robust set of Transactional Services and Governance integrations to complement Midaz. More to come soon.\n\n## Key Features\n\n- **Open-source under Apache 2.0 License**: Freely available for developers to access, modify, and contribute.\n    \n- **Double-entry chart-of-accounts engine**: Ensures financial integrity and accuracy.\n    \n- **Multi-asset and multi-currency support**: Seamlessly handle transactions across various currencies and asset types.\n    \n- **Complex \"n:n\" transactions**: Efficiently process transactions involving multiple senders and receivers.\n    \n- **Native immutability and auditability**: Tamper-proof transaction records for enhanced security and compliance.\n    \n- **Cloud-native and cloud-agnostic design**: Flexible deployment across various cloud environments.\n    \n- **API-based + CLI and console**: Easy integration and interaction with existing systems.\n    \n- **Advanced security measures**: Including encryption and double-token authentication.\n    \n- **SOC-2, GDPR and PCI-DSS ready**: Adherence to strict security and compliance standards.\n    \n- **Customizable governance flows**: Define and implement custom transaction approval workflows.\n    \n- **Proprietary DSL**: For efficient transaction modeling and customization.\n    \n- **Smart contract integration**: Enabling the programming of complex types of transactions, as well as automated compliance.\n    \n\n## Getting Started\n\nTo start using Midaz, please follow our [Getting Started Guide](https://docs.lerian.studio/docs/getting-started). For comprehensive documentation on Midaz features, API references, and best practices, visit our [Official Documentation](https://docs.lerian.studio).\n\n## Quick Installation Guide: Localhost\n\nFirst, make sure you have Docker and Docker Compose installed.\n\n``` bash\n   # Clone the repository\n   git clone https://github.com/LerianStudio/midaz.git\n   cd midaz\n   # Set up environment variables\n   make set-env\n   # Start all services\n   make up\n\n ```\n\nThis will start all components using Docker Compose:\n\n- Authentication Service\n    \n- Infrastructure Service\n    \n- Onboarding Service\n    \n- Transaction Service\n    \n\n### Additional Commands\n\n- **Run tests**: `make test`\n    \n- **Format code**: `make format`\n    \n- **Run linter**: `make lint`\n    \n- **Set up git hooks**: `make setup-git-hooks`\n    \n- **Show help**: `make help` for all possible project management commands\n    \n\n## Community & Support\n\n- Join our [Discord community](https://discord.gg/DnhqKwkGv3) for discussions, support, and updates.\n    \n- For bug reports and feature requests, please use our [GitHub Issues](https://github.com/LerianStudio/midaz/issues).\n    \n- If you want to raise anything to the attention of the community, open a Discussion in our [GitHub](https://github.com/LerianStudio/midaz/discussions).\n    \n- Follow us on [Twitter](https://twitter.com/LerianStudio) for the latest news and announcements.\n    \n\n## Repo Activity\n\n<img src=\"https://repobeats.axiom.co/api/embed/827f95068c3eb21900ed6a7191a53639481cbc75.svg\" alt=\"Alt\">\n\n## Contributing & License\n\nWe welcome contributions from the community! Please read our [Contributing Guidelines](https://CONTRIBUTING.md) to get started. Midaz is released under the Apache License 2.0. See [LICENSE](https://LICENSE.md) for more information. In a nutshell, this means you can use, modify, and distribute Midaz as you see fit, as long as you include the original copyright and license notice.\n\n## About Lerian\n\nMidaz is developed by Lerian, a tech company founded in 2023, led by a team with a track record in developing ledger and core banking solutions. For any inquiries or support, please reach out to us at [contact@lerian.studio](https://mailto:contact@lerian.studio) or simply open a Discussion in our [GitHub repository](https://github.com/LerianStudio/midaz/discussions).",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "32592108"
-	},
-	"item": [
-		{
-			"name": "Organizations",
-			"item": [
-				{
-					"name": "Organizations",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"organization_id before: \" + pm.collectionVariables.get(\"organization_id\"));",
-									"    pm.collectionVariables.set(\"organization_id\", jsonData.id);",
-									"    console.log(\"organization_id after: \" + pm.collectionVariables.get(\"organization_id\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io\", //opcional\n    \"legalDocument\": \"78425230000190\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Ledger Test\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"01310916\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_chave\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Organizations",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"legalName\": \"{{$randomCompanyName}}\",\n    //\"parentOrganizationId\": \"{{organization_id}}\",\n    \"doingBusinessAs\": \"The ledger.io 2\", //opcional\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked organization\"\n    },\n    \"address\": {\n        \"line1\": \"Avenida Paulista, 1234\",\n        \"line2\": \"CJ 203\",\n        \"zipCode\": \"01310916\",\n        \"city\": \"{{$randomCity}}\",\n        \"state\": \"{{$randomCountryCode}}\",\n        \"country\": \"{{$randomCountryCode}}\" //de acordo com a ISO 3166-1 alpha2\n    },\n    \"metadata\": {\n        \"chave\": \"testettetetete\"\n    },\n    \"metadatas\": {\n        \"zozo\": null\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Organizations",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations?limit=6&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "6",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								},
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Organizations by Id",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text"
-							},
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Organizations",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json",
-								"type": "text"
-							},
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Ledgers",
-			"item": [
-				{
-					"name": "Ledgers",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"ledger_id before: \" + pm.collectionVariables.get(\"ledger_id\"));",
-									"    pm.collectionVariables.set(\"ledger_id\", jsonData.id);",
-									"    console.log(\"ledger_id after: \" + pm.collectionVariables.get(\"ledger_id\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomCompanyName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Ledger Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Ledgers",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"BLOCKED Tech LTDA\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked ledger\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Ledgers",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers?limit=5&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "5",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								},
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Ledgers by Id",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Ledgers",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Assets",
-			"item": [
-				{
-					"name": "Assets",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"asset_id before: \" + pm.collectionVariables.get(\"asset_id\"));",
-									"    pm.collectionVariables.set(\"asset_id\", jsonData.id);",
-									"    console.log(\"asset_id after: \" + pm.collectionVariables.get(\"asset_id\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Brazilian Real\",\n    //\"name\": \"{{$randomCurrencyName}}\",\n    \"type\": \"currency\",\n    \"code\": \"BRL\",\n    //\"code\": \"{{$randomCurrencyCode}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Asset Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"assets"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Assets",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Bitcoin\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked asset\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"boolean\": true,\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets/{{asset_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"assets",
-								"{{asset_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Assets",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets?limit=2&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"assets"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "2",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								},
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Assets by Id",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets/{{asset_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"assets",
-								"{{asset_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Assets",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets/{{asset_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"assets",
-								"{{asset_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Portfolios",
-			"item": [
-				{
-					"name": "Portfolios",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"portfolio_id before: \" + pm.collectionVariables.get(\"portfolio_id\"));",
-									"    pm.collectionVariables.set(\"portfolio_id\", jsonData.id);",
-									"    console.log(\"portfolio_id after: \" + pm.collectionVariables.get(\"portfolio_id\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"entityId\": \"{{$randomUUID}}\",\n    \"name\": \"{{$randomUserName}} Portfolio\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Portfolio Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Portfolios",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomUserName}} Blocked Portfolio\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Portfolio\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios",
-								"{{portfolio_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Portfolios",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios?limit=10&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								},
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Portfolios by Id",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios",
-								"{{portfolio_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Portfolios",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/portfolios/{{portfolio_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"portfolios",
-								"{{portfolio_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Segments",
-			"item": [
-				{
-					"name": "Segments",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"segment_id before: \" + pm.collectionVariables.get(\"segment_id\"));",
-									"    pm.collectionVariables.set(\"segment_id\", jsonData.id);",
-									"    console.log(\"segment_id after: \" + pm.collectionVariables.get(\"segment_id\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Segment {{$randomProductName}}\",\n    \"status\": {\n        \"code\": \"ACTIVE\",\n        \"description\": \"Segment Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"segments"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Segments",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"Segment {{$randomProductName}} BLOCKED\",\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked Segment\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments/{{segment_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"segments",
-								"{{segment_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Segments",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments?limit=5&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"segments"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "5",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								},
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Segments by Id",
-					"protocolProfileBehavior": {
-						"disableBodyPruning": true
-					},
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments/{{segment_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"segments",
-								"{{segment_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Segments",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/segments/{{segment_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"segments",
-								"{{segment_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Accounts",
-			"item": [
-				{
-					"name": "Accounts",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"",
-									"// Check and set account_id",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"account_id before: \" + pm.collectionVariables.get(\"account_id\"));",
-									"    pm.collectionVariables.set(\"account_id\", jsonData.id);",
-									"    console.log(\"account_id after: \" + pm.collectionVariables.get(\"account_id\"));",
-									"}",
-									"",
-									"// Check and set account_alias",
-									"if (jsonData.hasOwnProperty('alias')) {",
-									"    console.log(\"account_alias before: \" + pm.collectionVariables.get(\"account_alias\"));",
-									"    pm.collectionVariables.set(\"account_alias\", jsonData.alias);",
-									"    console.log(\"account_alias after: \" + pm.collectionVariables.get(\"account_alias\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"assetCode\": \"BRL\",\n    \"name\": \"{{$randomBankAccountName}}\",\n    \"alias\": \"@wallet_{{$randomBankAccount}}\",\n    \"type\": \"creditCard\",\n    //\"parentAccountId\": \"{{account_id}}\",\n    //\"entityId\": \"{{$randomUUID}}\", //optional\n    \"portfolioId\": \"{{portfolio_id}}\",\n    \"segmentId\": \"{{segment_id}}\",\n    \"status\": {\n        \"code\": \"CREDIT\",\n        \"description\": \"Account Test\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Accounts",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"name\": \"{{$randomBankAccountName}} Blocked Account\", //opcional\n    \"segmentId\": \"{{segment_id}}\",\n    // \"portfolioId\": {{portfolio_id}},\n    \"status\": {\n        \"code\": \"BLOCKED\",\n        \"description\": \"My blocked account\"\n    },\n    \"metadata\": {\n        \"chave\": \"metadata_sample_update\",\n        \"bitcoinn\": \"{{$randomBitcoin}}\",\n        \"boolean\": {{$randomBoolean}},\n        \"double\": 10.5,\n        \"int\": 1\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Account by Id",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Accounts",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts?limit=10&page=1",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts"
-							],
-							"query": [
-								{
-									"key": "metadata.chave",
-									"value": "mymetadata",
-									"description": "Search on MongoDB",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10"
-								},
-								{
-									"key": "page",
-									"value": "1",
-									"description": "Default 1"
-								},
-								{
-									"key": "portfolio_id",
-									"value": "{{portfolio_id}}",
-									"description": "Retrives only accounts from the specified portfolio",
-									"disabled": true
-								},
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Accounts",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "formdata",
-							"formdata": []
-						},
-						"url": {
-							"raw": "{{url_ledger}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}",
-							"host": [
-								"{{url_ledger}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Transaction",
-			"item": [
-				{
-					"name": "Transaction JSON",
-					"item": [
-						{
-							"name": "Transaction",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"const jsonData = JSON.parse(responseBody);",
-											"if (jsonData.hasOwnProperty('id')) {",
-											"    console.log(\"transaction_id before: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"    pm.collectionVariables.set(\"transaction_id\", jsonData.id);",
-											"    console.log(\"transaction_id after: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Request-Id",
-										"value": "{{$randomUUID}}",
-										"type": "text"
-									},
-									{
-										"key": "X-Idempotency",
-										"value": "{{$randomUUID}}",
-										"description": "Idempotency Key, if not pass through we create base on body sha-256",
-										"type": "text"
-									},
-									{
-										"key": "X-TTL",
-										"value": "5",
-										"description": "Idempotency ttl, if not pass through we use 5 minutes default",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"chartOfAccountsGroupName\": \"PAG_CONTAS_CODE_1\",\n    \"description\": \"description for the transaction person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"200\"\n    },\n    \"send\": {\n        \"asset\": \"BRL\",\n        \"value\": 200,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"{{account_external_brl}}\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"description\": \"Loan payment person1\",\n                    \"metadata\": {\n                        \"1\": \"m\",\n                        \"Cpf\": \"43049498x\"\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"{{account_alias}}\",\n                    \"amount\": {\n                        \"asset\": \"BRL\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    },\n                    \"metadata\": {\n                        \"mensagem\": \"tks\"\n                    }\n                }\n            ]\n        }\n    }\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/json",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"json"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Transaction DSL",
-					"item": [
-						{
-							"name": "Transaction",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"const jsonData = JSON.parse(responseBody);",
-											"if (jsonData.hasOwnProperty('id')) {",
-											"    console.log(\"transaction_id before: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"    pm.collectionVariables.set(\"transaction_id\", jsonData.id);",
-											"    console.log(\"transaction_id after: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Request-Id",
-										"value": "{{$randomUUID}}",
-										"type": "text"
-									},
-									{
-										"key": "X-Idempotency",
-										"value": "key-test",
-										"description": "Idempotency Key, if not pass through we create base on body sha-256",
-										"type": "text"
-									},
-									{
-										"key": "X-TTL",
-										"value": "5",
-										"description": "Idempotency ttl, if not pass through we use 5 minutes default",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "dsl",
-											"description": "test 1",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/POSTMAN/examples/rate.gold "
-										}
-									]
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/dsl",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"dsl"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Transaction Template",
-					"item": [
-						{
-							"name": "Transaction",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"const jsonData = JSON.parse(responseBody);",
-											"if (jsonData.hasOwnProperty('id')) {",
-											"    console.log(\"transaction_id before: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"    pm.collectionVariables.set(\"transaction_id\", jsonData.id);",
-											"    console.log(\"transaction_id after: \" + pm.collectionVariables.get(\"transaction_id\"));",
-											"}"
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "X-Request-Id",
-										"value": "{{$randomUUID}}",
-										"type": "text"
-									},
-									{
-										"key": "X-Idempotency",
-										"value": "key-test",
-										"description": "Idempotency Key, if not pass through we create base on body sha-256",
-										"type": "text"
-									},
-									{
-										"key": "X-TTL",
-										"value": "5",
-										"description": "Idempotency ttl, if not pass through we use 5 minutes default",
-										"type": "text"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"transactionType\": \"{{$randomUUID}}\",\n    \"transactionTypeCode\": \"P2P_TRANSFER\",\n    \"variables\": {\n        \"amount\": 100,\n        \"destination\": \"@Wallet_16750673\",\n        \"sourceAccount\": \"@person1\",\n        \"scale\": 0\n    }\n}",
-									"options": {
-										"raw": {
-											"language": "json"
-										}
-									}
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/templates",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"templates"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						},
-						{
-							"name": "Transactions Commit",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Successful POST request\", function () {",
-											"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-											"});",
-											""
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "dsl",
-											"description": "ok",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.gold"
-										},
-										{
-											"key": "dsl",
-											"description": "empty",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/empty.gold",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "error",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/error.gold",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "wrong extension",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.yml",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "template",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction-template.gold",
-											"disabled": true
-										}
-									]
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/commit",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"{{transaction_id}}",
-										"commit"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						},
-						{
-							"name": "Transactions Cancel",
-							"event": [
-								{
-									"listen": "test",
-									"script": {
-										"exec": [
-											"pm.test(\"Successful POST request\", function () {",
-											"    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-											"});",
-											""
-										],
-										"type": "text/javascript",
-										"packages": {}
-									}
-								}
-							],
-							"request": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "dsl",
-											"description": "ok",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.gold"
-										},
-										{
-											"key": "dsl",
-											"description": "empty",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/empty.gold",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "error",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/error.gold",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "wrong extension",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction.yml",
-											"disabled": true
-										},
-										{
-											"key": "dsl",
-											"description": "template",
-											"type": "file",
-											"src": "/Users/mcgregor/Documents/LERIAND/GO/midaz/components/transaction/examples/transaction-template.gold",
-											"disabled": true
-										}
-									]
-								},
-								"url": {
-									"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/cancel",
-									"host": [
-										"{{url_transaction}}"
-									],
-									"path": [
-										"v1",
-										"organizations",
-										"{{organization_id}}",
-										"ledgers",
-										"{{ledger_id}}",
-										"transactions",
-										"{{transaction_id}}",
-										"cancel"
-									]
-								},
-								"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-							},
-							"response": []
-						}
-					]
-				},
-				{
-					"name": "Transactions",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"description\": \"transaction description person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"transactions",
-								"{{transaction_id}}"
-							]
-						},
-						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-					},
-					"response": []
-				},
-				{
-					"name": "Transaction by id",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"transactions",
-								"{{transaction_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Transactions",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"transactions"
-							],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								},
-								{
-									"key": "cursor",
-									"value": null,
-									"description": "Cursor Pagination",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Transactions Revert",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const jsonData = JSON.parse(responseBody);",
-									"if (jsonData.hasOwnProperty('id')) {",
-									"    console.log(\"parent_transaction_id before: \" + pm.collectionVariables.get(\"parent_transaction_id\"));",
-									"    pm.collectionVariables.set(\"parent_transaction_id\", jsonData.id);",
-									"    console.log(\"parent_transaction_id after: \" + pm.collectionVariables.get(\"parent_transaction_id\"));",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/revert",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"transactions",
-								"{{transaction_id}}",
-								"revert"
-							]
-						},
-						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Operations",
-			"item": [
-				{
-					"name": "Operations",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"description\": \"transaction description person1 to person2 value of 100 reais\",\n    \"metadata\": {\n        \"mensagem\": \"pagamento\",\n        \"valor\": \"100\"\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{transaction_id}}/operations/{{operation_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"transactions",
-								"{{transaction_id}}",
-								"operations",
-								"{{operation_id}}"
-							]
-						},
-						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-					},
-					"response": []
-				},
-				{
-					"name": "Account -> Operations",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/operations",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}",
-								"operations"
-							],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "cursor",
-									"value": null,
-									"description": "Cursor Pagination",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Accounts -> Operation by id",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/operations/{{operation_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}",
-								"operations",
-								"{{operation_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Balances",
-			"item": [
-				{
-					"name": "Operations",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"allowSending\": true,\n    \"allowReceiving\": false\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances/{{balance_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"balances",
-								"{{balance_id}}"
-							]
-						},
-						"description": "This is a POST request, submitting data to an API via the request body. This request submits JSON data, and the data is reflected in the response.\n\nA successful POST request typically returns a `200 OK` or `201 Created` response code."
-					},
-					"response": []
-				},
-				{
-					"name": "List All",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"balances"
-							],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "cursor",
-									"value": "",
-									"description": "Cursor Pagination",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "List All By Account",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id}}/balances",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"accounts",
-								"{{account_id}}",
-								"balances"
-							],
-							"query": [
-								{
-									"key": "start_date",
-									"value": "2021-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "cursor",
-									"value": null,
-									"description": "Cursor Pagination",
-									"disabled": true
-								},
-								{
-									"key": "end_date",
-									"value": "2025-01-01",
-									"description": "Date in the format yyyy-mm-dd",
-									"disabled": true
-								},
-								{
-									"key": "sort_order",
-									"value": "asc",
-									"description": "Enum(asc,desc)",
-									"disabled": true
-								},
-								{
-									"key": "limit",
-									"value": "10",
-									"description": "Default 10",
-									"disabled": true
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Find",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances/{{balance_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"balances",
-								"{{balance_id}}"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Delete",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "X-Request-Id",
-								"value": "{{$randomUUID}}",
-								"type": "text",
-								"disabled": true
-							}
-						],
-						"url": {
-							"raw": "{{url_transaction}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/balances/{{balance_id}}",
-							"host": [
-								"{{url_transaction}}"
-							],
-							"path": [
-								"v1",
-								"organizations",
-								"{{organization_id}}",
-								"ledgers",
-								"{{ledger_id}}",
-								"balances",
-								"{{balance_id}}"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		}
-	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		}
-	],
-	"variable": [
-		{
-			"key": "url_ledger",
-			"value": "http://127.0.0.1:3000",
-			"type": "default"
-		},
-		{
-			"key": "url_transaction",
-			"value": "http://127.0.0.1:3001",
-			"type": "default"
-		},
-		{
-			"key": "organization_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "ledger_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "segment_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "portfolio_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "asset_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "account_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "account_external_brl",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "account_alias",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "transaction_id",
-			"value": "",
-			"type": "default"
-		},
-		{
-			"key": "operation_id",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "parent_transaction_id",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"key": "balance_id",
-			"value": "",
-			"type": "string"
-		}
-	]
+  "info": {
+    "name": "MIDAZ",
+    "description": "This is a swagger documentation for the Midaz Ledger API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "00b3869d-895d-49b2-a6b5-68b193471560"
+  },
+  "item": [
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "Get all Organizations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations"
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "Metadata",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Organizations with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create an Organization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations"
+              ]
+            },
+            "description": "Create an Organization with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an Organization by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Organization ID"
+                }
+              ]
+            },
+            "description": "Get an Organization with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete an Organization by ID",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Organization ID"
+                }
+              ]
+            },
+            "description": "Delete an Organization with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update an Organization",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Organization ID"
+                }
+              ]
+            },
+            "description": "Update an Organization with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Ledgers",
+      "item": [
+        {
+          "name": "Get all Ledgers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Ledgers with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a Ledger",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                }
+              ]
+            },
+            "description": "Create a Ledger with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Get a Ledger by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Get a Ledger with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete a Ledger by ID",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Delete a Ledger with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update a Ledger",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Update a Ledger with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Get all Accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "Metadata",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Accounts with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create an Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create an Account with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an Account by Alias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "alias",
+                "{alias}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "alias",
+                  "value": "",
+                  "description": "Alias"
+                }
+              ]
+            },
+            "description": "Get an Account with the input Alias"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an Account by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Account ID"
+                }
+              ]
+            },
+            "description": "Get an Account with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete an Account by ID",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Account ID"
+                }
+              ]
+            },
+            "description": "Delete an Account with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update an Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Account ID"
+                }
+              ]
+            },
+            "description": "Update an Account with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Assets",
+      "item": [
+        {
+          "name": "Get all Assets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "assets"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "Metadata",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Assets with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create an Asset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "assets"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create an Asset with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an Asset by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "assets",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset ID"
+                }
+              ]
+            },
+            "description": "Get an Asset with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete an Asset by ID",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "assets",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset ID"
+                }
+              ]
+            },
+            "description": "Delete an Asset with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update an Asset",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "assets",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Asset ID"
+                }
+              ]
+            },
+            "description": "Update an Asset with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Portfolios",
+      "item": [
+        {
+          "name": "Get all Portfolios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "portfolios"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "Metadata query",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Portfolios with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a Portfolio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "portfolios"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Portfolio with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Get a Portfolio by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "portfolios",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Portfolio ID"
+                }
+              ]
+            },
+            "description": "Get a Portfolio with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete a Portfolio by ID",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "portfolios",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Portfolio ID"
+                }
+              ]
+            },
+            "description": "Delete a Portfolio with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update a Portfolio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "portfolios",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Portfolio ID"
+                }
+              ]
+            },
+            "description": "Update a Portfolio with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Segments",
+      "item": [
+        {
+          "name": "Get all Segments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "segments"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "Metadata",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "description": "Page",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Segments with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a Segment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "segments"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Segment with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Get a Segment by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "segments",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Segment ID"
+                }
+              ]
+            },
+            "description": "Get a Segment with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete a Segment by ID",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "segments",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Segment ID"
+                }
+              ]
+            },
+            "description": "Delete a Segment with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update a Segment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "segments",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Segment ID"
+                }
+              ]
+            },
+            "description": "Update a Segment with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Balances",
+      "item": [
+        {
+          "name": "Get all balances by account id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "{account_id}",
+                "balances"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "account_id",
+                  "value": "",
+                  "description": "Account ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all balances by account id"
+          },
+          "response": []
+        },
+        {
+          "name": "Get all balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "balances"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all balances"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Balance by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "balances",
+                "{balance_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Get a Balance with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Balance by account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "balances",
+                "{balance_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Delete a Balance with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Balance",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "balances",
+                "{balance_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "balance_id",
+                  "value": "",
+                  "description": "Balance ID"
+                }
+              ]
+            },
+            "description": "Update a Balance with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "Get all Operations by account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "{account_id}",
+                "operations"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "account_id",
+                  "value": "",
+                  "description": "Account ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Operations with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an Operation by account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "accounts",
+                "{account_id}",
+                "operations",
+                "{operation_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "account_id",
+                  "value": "",
+                  "description": "Account ID"
+                },
+                {
+                  "key": "operation_id",
+                  "value": "",
+                  "description": "Operation ID"
+                }
+              ]
+            },
+            "description": "Get an Operation with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update an Operation",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "{transaction_id}",
+                "operations",
+                "{operation_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "",
+                  "description": "Transaction ID"
+                },
+                {
+                  "key": "operation_id",
+                  "value": "",
+                  "description": "Operation ID"
+                }
+              ]
+            },
+            "description": "Update an Operation with the input payload"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Asset Rates",
+      "item": [
+        {
+          "name": "Create or Update an AssetRate",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "asset-rates"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create or Update an AssetRate with the input details"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an AssetRate by the Asset Code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/from/{asset_code}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "asset-rates",
+                "from",
+                "{asset_code}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "asset_code",
+                  "value": "",
+                  "description": "From Asset Code"
+                }
+              ],
+              "query": [
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "To Asset Codes",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get an AssetRate by the Asset Code with the input details"
+          },
+          "response": []
+        },
+        {
+          "name": "Get an AssetRate by External ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/asset-rates/{external_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "asset-rates",
+                "{external_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "external_id",
+                  "value": "",
+                  "description": "External ID"
+                }
+              ]
+            },
+            "description": "Get an AssetRate by External ID with the input details"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Get all Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "description": "Limit",
+                  "disabled": true
+                },
+                {
+                  "key": "start_date",
+                  "value": "",
+                  "description": "Start Date",
+                  "disabled": true
+                },
+                {
+                  "key": "end_date",
+                  "value": "",
+                  "description": "End Date",
+                  "disabled": true
+                },
+                {
+                  "key": "sort_order",
+                  "value": "",
+                  "description": "Sort Order",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "Cursor",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all Transactions with the input metadata or without metadata"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a Transaction using DSL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "dsl"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Transaction with the input DSL file"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a Transaction using JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "json"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Transaction with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Create a Transaction Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "templates"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                }
+              ]
+            },
+            "description": "Create a Transaction with the input template"
+          },
+          "response": []
+        },
+        {
+          "name": "Get a Transaction by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "{transaction_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Get a Transaction with the input ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update a Transaction",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "{transaction_id}"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Update a Transaction with the input payload"
+          },
+          "response": []
+        },
+        {
+          "name": "Commit a Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "{transaction_id}",
+                "commit"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Commit a previously created transaction"
+          },
+          "response": []
+        },
+        {
+          "name": "Revert a Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "",
+                "description": "Authorization Bearer Token",
+                "disabled": false
+              },
+              {
+                "key": "X-Request-Id",
+                "value": "",
+                "description": "Request ID",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{organization_id}",
+                "ledgers",
+                "{ledger_id}",
+                "transactions",
+                "{transaction_id}",
+                "revert"
+              ],
+              "variable": [
+                {
+                  "key": "organization_id",
+                  "value": "",
+                  "description": "Organization ID"
+                },
+                {
+                  "key": "ledger_id",
+                  "value": "",
+                  "description": "Ledger ID"
+                },
+                {
+                  "key": "transaction_id",
+                  "value": "",
+                  "description": "Transaction ID"
+                }
+              ]
+            },
+            "description": "Revert a Transaction with Transaction ID only"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
 }

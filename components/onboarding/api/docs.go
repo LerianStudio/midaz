@@ -772,7 +772,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
             "get": {
                 "description": "Get an Account with the input Alias",
                 "produces": [

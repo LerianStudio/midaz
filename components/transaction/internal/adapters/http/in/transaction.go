@@ -132,7 +132,21 @@ func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 
 // CreateTransactionTemplate method that create transaction template
 //
-// TODO: Implement this method and the swagger documentation related to it
+//	@Summary		Create a Transaction Template
+//	@Description	Create a Transaction with the input template
+//	@Tags			Transactions
+//	@Accept			json
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			input			body		transaction.InputDSL	true	"Transaction Template Input"
+//	@Success		201				{object}	transaction.InputDSL
+//	@Failure		400				{object}	interface{}
+//	@Failure		401				{object}	interface{}
+//	@Failure		500				{object}	interface{}
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates [Post]
 func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
@@ -149,7 +163,21 @@ func (handler *TransactionHandler) CreateTransactionTemplate(p any, c *fiber.Ctx
 
 // CommitTransaction method that commit transaction created before
 //
-// TODO: Implement this method and the swagger documentation related to it
+//	@Summary		Commit a Transaction
+//	@Description	Commit a previously created transaction
+//	@Tags			Transactions
+//	@Produce		json
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
+//	@Param			X-Request-Id	header		string	false	"Request ID"
+//	@Param			organization_id	path		string	true	"Organization ID"
+//	@Param			ledger_id		path		string	true	"Ledger ID"
+//	@Param			transaction_id	path		string	true	"Transaction ID"
+//	@Success		201				{object}	interface{}
+//	@Failure		400				{object}	interface{}
+//	@Failure		401				{object}	interface{}
+//	@Failure		404				{object}	interface{}
+//	@Failure		500				{object}	interface{}
+//	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit [Post]
 func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
