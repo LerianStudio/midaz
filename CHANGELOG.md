@@ -1,3 +1,10 @@
+## [1.51.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.9...v1.51.0-beta.10) (2025-04-01)
+
+
+### Features
+
+* adding plugin auth network into midaz ([3ad0a6f](https://github.com/LerianStudio/midaz/commit/3ad0a6f62236dab02b1a99648de2e12c68147152))
+
 ## [1.51.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.8...v1.51.0-beta.9) (2025-04-01)
 
 
