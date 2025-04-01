@@ -1,3 +1,10 @@
+## [1.51.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.8...v1.51.0-beta.9) (2025-04-01)
+
+
+### Features
+
+* update libs on go.mod and go.sum; :sparkles: ([1b04822](https://github.com/LerianStudio/midaz/commit/1b04822c3309fda6c3094988fff3f616bd23d46a))
+
 ## [1.51.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.7...v1.51.0-beta.8) (2025-04-01)
 
 ## [1.51.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.6...v1.51.0-beta.7) (2025-03-31)
