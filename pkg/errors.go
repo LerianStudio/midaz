@@ -738,19 +738,19 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Audit Tree Record Not Found",
 			Message:    fmt.Sprintf("The record %v does not exist in the audit tree. Please ensure the audit tree is available and try again.", args...),
 		},
-		constant.ErrInvalidDateFormat: EntityNotFoundError{
+		constant.ErrInvalidDateFormat: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidDateFormat.Error(),
 			Title:      "Invalid Date Format Error",
 			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' format and try again.",
 		},
-		constant.ErrInvalidFinalDate: EntityNotFoundError{
+		constant.ErrInvalidFinalDate: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidFinalDate.Error(),
 			Title:      "Invalid Final Date Error",
 			Message:    "The 'finalDate' cannot be earlier than the 'initialDate'. Please verify the dates and try again.",
 		},
-		constant.ErrDateRangeExceedsLimit: EntityNotFoundError{
+		constant.ErrDateRangeExceedsLimit: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrDateRangeExceedsLimit.Error(),
 			Title:      "Date Range Exceeds Limit Error",
@@ -762,7 +762,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Pagination Limit Exceeded",
 			Message:    fmt.Sprintf("The pagination limit exceeds the maximum allowed of %v items per page. Please verify the limit and try again.", args...),
 		},
-		constant.ErrInvalidSortOrder: EntityNotFoundError{
+		constant.ErrInvalidSortOrder: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidSortOrder.Error(),
 			Title:      "Invalid Sort Order",
