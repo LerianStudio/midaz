@@ -1,3 +1,11 @@
+## [1.51.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.11...v1.51.0-beta.12) (2025-04-02)
+
+
+### Features
+
+* add entity_id optional on post and add on patch to update; :sparkles: ([405cab3](https://github.com/LerianStudio/midaz/commit/405cab3cfa3733c6658208e65b5e2c88ef7021ad))
+* migrate golangci-lint to v2 on pipeline validations ([6fa1dc5](https://github.com/LerianStudio/midaz/commit/6fa1dc57498f081c8d4c32d5352b130627774ee3))
+
 ## [1.51.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.10...v1.51.0-beta.11) (2025-04-02)
 
 
