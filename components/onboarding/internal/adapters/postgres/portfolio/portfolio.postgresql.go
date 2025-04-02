@@ -374,6 +374,11 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 	var args []any
 
+	if portfolio.EntityID != "" {
+		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.EntityID)
+	}
+
 	if portfolio.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
 		args = append(args, record.Name)
