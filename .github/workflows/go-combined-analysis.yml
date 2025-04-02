@@ -14,7 +14,7 @@ on:
 permissions:
   id-token: write
   contents: read
-  pull-requests: read
+  pull-requests: write
   actions: read
   security-events: write
 
@@ -67,6 +67,7 @@ jobs:
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           go_version: '1.23'  # Versão do Go, se necessário alterar
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          golangci_lint_version: 'v2.0.2'  # Versão do GolangCI-Lint, se necessário mude para a versão desejada
 
   GoSec:
     name: Run GoSec to Midaz
