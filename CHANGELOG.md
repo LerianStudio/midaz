@@ -1,3 +1,10 @@
+## [1.51.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.10...v1.51.0-beta.11) (2025-04-02)
+
+
+### Bug Fixes
+
+* http error code data range and sort fields; :bug: ([b267c47](https://github.com/LerianStudio/midaz/commit/b267c47d5b1a2e4b35870ed4602d9704f8ee110c))
+
 ## [1.51.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.9...v1.51.0-beta.10) (2025-04-01)
 
 
