@@ -108,7 +108,7 @@ fi
 # Display comprehensive summary
 end_time=$(date +%s)
 duration=$((end_time - start_time))
-echo "Comprehensive Test Summary (excluding mocks packages):"
+echo "Comprehensive Test Summary (considering coverage_ignore.txt):"
 echo "----------------------------------------"
 echo "✓ Passed:  $total_passed tests"
 if [ $total_failed -gt 0 ]; then
@@ -122,7 +122,7 @@ echo "----------------------------------------"
 
 # List packages with no test files (excluding ignored packages)
 if [ ${#no_test_packages[@]} -gt 0 ]; then
-    echo "Packages with no test files (excluding mocks packages):"
+    echo "Packages with no test files (excluding ignored packages):"
     echo "----------------------------------------"
     for pkg in "${no_test_packages[@]}"; do
         echo "  - $pkg"
