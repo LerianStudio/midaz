@@ -66,10 +66,10 @@ func New(options ...Option) (*Client, error) {
 
 	// Set default URLs if not provided
 	if client.onboardingURL == "" {
-		client.onboardingURL = "https://api.midaz.io/onboarding"
+		client.onboardingURL = "http://localhost:3000/v1"
 	}
 	if client.transactionURL == "" {
-		client.transactionURL = "https://api.midaz.io/transaction"
+		client.transactionURL = "http://localhost:3001/v1"
 	}
 
 	// Set base URLs
