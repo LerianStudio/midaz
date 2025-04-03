@@ -143,6 +143,38 @@ definitions:
     required:
     - to
     type: object
+  Error:
+    description: Standardized error response format used across all API endpoints
+      for error situations
+    properties:
+      code:
+        description: |-
+          Error code identifying the specific error condition
+          example: ERR_INVALID_INPUT
+        type: string
+      entityType:
+        description: |-
+          Optional type of entity associated with the error
+          example: Organization
+        type: string
+      fields:
+        additionalProperties:
+          type: string
+        description: |-
+          Optional detailed field validations for client-side handling
+          example: {"name": "Field 'name' is required"}
+        type: object
+      message:
+        description: |-
+          Detailed error message explaining the issue
+          example: The request contains invalid fields. Please check the field 'name' and try again.
+        type: string
+      title:
+        description: |-
+          Short, human-readable error title
+          example: Bad Request
+        type: string
+    type: object
   FromTo:
     description: FromTo is the struct designed to represent the from/to fields of
       an operation.
@@ -577,6 +609,26 @@ paths:
                 limit:
                   type: integer
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get all balances by account id
       tags:
       - Balances
@@ -649,6 +701,26 @@ paths:
                 limit:
                   type: integer
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get all Operations by account
       tags:
       - Operations
@@ -692,6 +764,22 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Operation'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Operation not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get an Operation by account
       tags:
       - Operations
@@ -733,6 +821,26 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/AssetRate'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Create or Update an AssetRate
       tags:
       - Asset Rates
@@ -771,6 +879,22 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/AssetRate'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Asset rate not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get an AssetRate by External ID
       tags:
       - Asset Rates
@@ -853,6 +977,26 @@ paths:
                 prev_cursor:
                   type: string
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Asset code not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get an AssetRate by the Asset Code
       tags:
       - Asset Rates
@@ -920,6 +1064,22 @@ paths:
                 limit:
                   type: integer
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get all balances
       tags:
       - Balances
@@ -954,10 +1114,30 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "204":
+          description: Balance successfully deleted
           schema:
-            $ref: '#/definitions/mmodel.Balance'
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Cannot delete balance with active operations'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Delete Balance by account
       tags:
       - Balances
@@ -995,6 +1175,22 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/mmodel.Balance'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get Balance by id
       tags:
       - Balances
@@ -1040,6 +1236,26 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/mmodel.Balance'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Balance not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Update Balance
       tags:
       - Balances
@@ -1112,6 +1328,22 @@ paths:
                 prev_cursor:
                   type: string
               type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get all Transactions
       tags:
       - Transactions
@@ -1150,6 +1382,26 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Get a Transaction by ID
       tags:
       - Transactions
@@ -1195,6 +1447,26 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Update a Transaction
       tags:
       - Transactions
@@ -1295,6 +1567,26 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Operation'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Operation not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Update an Operation
       tags:
       - Operations
@@ -1335,6 +1627,30 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid request or transaction cannot be reverted
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Transaction not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: Transaction already has a parent transaction
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Revert a Transaction
       tags:
       - Transactions
@@ -1375,6 +1691,22 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid DSL file format or validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Create a Transaction using DSL
       tags:
       - Transactions
@@ -1416,6 +1748,22 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/Transaction'
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
       summary: Create a Transaction using JSON
       tags:
       - Transactions

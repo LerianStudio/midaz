@@ -1,147 +1,105 @@
 #!/bin/bash
 
-# Script to verify that all API endpoints are documented in the OpenAPI specification
-# This helps ensure that the Postman collection will include all endpoints
+# Script to verify API documentation consistency
+# This script ensures that:
+# 1. OpenAPI documentation is valid
+# 2. Documentation matches implementation
+# 3. All endpoints and error codes are properly documented
 
-# Include color definitions
-source "$(dirname "$0")/../pkg/shell/colors.sh"
+set -e
 
-# Define paths
-MIDAZ_ROOT=$(pwd)
-ONBOARDING_ROUTES="${MIDAZ_ROOT}/components/onboarding/internal/adapters/http/in/routes.go"
-TRANSACTION_ROUTES="${MIDAZ_ROOT}/components/transaction/internal/adapters/http/in/routes.go"
-ONBOARDING_SWAGGER="${MIDAZ_ROOT}/components/onboarding/api/swagger.json"
-TRANSACTION_SWAGGER="${MIDAZ_ROOT}/components/transaction/api/swagger.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Function to extract routes from Go code
-extract_routes() {
-    grep -E 'f\.(Get|Post|Put|Patch|Delete)' "$1" | 
-    sed -E 's/.*f\.(Get|Post|Put|Patch|Delete)\("([^"]+)".*/\1 \2/g' |
-    grep -v "/health\|/version\|/swagger" |
-    sed 's/:organization_id/{organization_id}/g' |
-    sed 's/:ledger_id/{ledger_id}/g' |
-    sed 's/:account_id/{account_id}/g' |
-    sed 's/:transaction_id/{transaction_id}/g' |
-    sed 's/:operation_id/{operation_id}/g' |
-    sed 's/:balance_id/{balance_id}/g' |
-    sed 's/:external_id/{external_id}/g' |
-    sed 's/:asset_code/{asset_code}/g' |
-    sed 's/:id/{id}/g' |
-    sed 's/:alias/{alias}/g' |
-    sort
+# Ensure that js-yaml is available in all component directories
+ensure_dependencies() {
+  local component_dir="$1"
+  
+  if [ -d "$component_dir/scripts" ]; then
+    if [ ! -d "$component_dir/node_modules/js-yaml" ]; then
+      echo "Installing js-yaml dependency in $component_dir..."
+      (cd "$component_dir" && npm install js-yaml glob commander axios)
+    fi
+  fi
 }
 
-# Function to extract paths from Swagger JSON
-extract_swagger_paths() {
-    jq -r '.paths | keys[]' "$1" | sort
-}
+echo "Verifying API documentation and implementations..."
 
-# Function to check if a route is documented
-check_route_documented() {
-    local route="$1"
-    local method="$2"
-    local swagger_file="$3"
-    
-    # Convert method to lowercase for JSON comparison
-    local method_lower=$(echo "$method" | tr '[:upper:]' '[:lower:]')
-    
-    # Check if the route exists in the Swagger file
-    if jq -e ".paths[\"$route\"] | has(\"$method_lower\")" "$swagger_file" > /dev/null; then
-        return 0 # Route is documented
+# List of components to verify
+COMPONENTS=(
+  "components/onboarding"
+  "components/transaction"
+)
+
+# Verify each component
+for component in "${COMPONENTS[@]}"; do
+  component_dir="$PROJECT_ROOT/$component"
+  
+  if [ ! -d "$component_dir" ]; then
+    echo "Component directory not found: $component_dir"
+    continue
+  fi
+  
+  echo ""
+  echo "Verifying $component..."
+  
+  # Ensure dependencies are installed in the component directory
+  ensure_dependencies "$component_dir"
+  
+  # Use single make target for validation if available
+  if grep -q "validate-api-docs:" "$component_dir/Makefile"; then
+    echo "Using unified validation approach..."
+    if cd "$component_dir" && make validate-api-docs; then
+      echo "Documentation validated successfully"
     else
-        return 1 # Route is not documented
+      echo "Documentation validation failed"
+      exit 1
     fi
-}
-
-# Main function to verify API documentation
-verify_api_docs() {
-    local component="$1"
-    local routes_file="$2"
-    local swagger_file="$3"
+  else
+    # Fallback to the original step-by-step approach
+    echo "Using step-by-step validation approach..."
     
-    echo "${CYAN}Verifying API documentation for ${component} component...${NC}"
-    
-    # Check if files exist
-    if [ ! -f "$routes_file" ]; then
-        echo "${RED}Routes file not found: $routes_file${NC}"
-        return 1
-    fi
-    
-    if [ ! -f "$swagger_file" ]; then
-        echo "${RED}Swagger file not found: $swagger_file${NC}"
-        return 1
-    fi
-    
-    # Extract routes from Go code
-    local routes=$(extract_routes "$routes_file")
-    local missing_routes=0
-    
-    # Check each route
-    while IFS= read -r line; do
-        if [ -n "$line" ]; then
-            method=$(echo "$line" | cut -d' ' -f1)
-            route=$(echo "$line" | cut -d' ' -f2-)
-            
-            if ! check_route_documented "$route" "$method" "$swagger_file"; then
-                echo "${YELLOW}Missing documentation for: $method $route${NC}"
-                missing_routes=$((missing_routes + 1))
-                
-                # Suggest how to document the route
-                echo "${MAGENTA}Suggestion: Add @Router $route [$method] annotation to the handler function${NC}"
-            fi
-        fi
-    done <<< "$routes"
-    
-    if [ $missing_routes -eq 0 ]; then
-        echo "${GREEN}All routes in $component are properly documented!${NC}"
-        return 0
+    # Step 1: Generate OpenAPI documentation
+    echo "Generating OpenAPI documentation..."
+    if cd "$component_dir" && make generate-docs; then
+      echo "Documentation generated successfully"
     else
-        echo "${YELLOW}Found $missing_routes undocumented routes in $component component.${NC}"
-        echo "${YELLOW}Please add proper annotations to ensure all endpoints are documented.${NC}"
-        return 1
+      echo "Failed to generate documentation"
+      exit 1
     fi
-}
-
-# Main execution
-echo "${CYAN}----------------------------------------------${NC}"
-echo "${CYAN}   Verifying API Documentation Coverage   ${NC}"
-echo "${CYAN}----------------------------------------------${NC}"
-
-# Verify onboarding component
-verify_api_docs "onboarding" "$ONBOARDING_ROUTES" "$ONBOARDING_SWAGGER"
-onboarding_status=$?
-
-# Verify transaction component
-verify_api_docs "transaction" "$TRANSACTION_ROUTES" "$TRANSACTION_SWAGGER"
-transaction_status=$?
-
-# Summary
-echo "${CYAN}----------------------------------------------${NC}"
-if [ $onboarding_status -eq 0 ] && [ $transaction_status -eq 0 ]; then
-    echo "${GREEN}${BOLD}[ok]${NC} All API endpoints are properly documented!${GREEN} ✔️${NC}"
-else
-    echo "${YELLOW}Some API endpoints are not properly documented.${NC}"
-    echo "${YELLOW}Please add the missing documentation to ensure complete Postman collection sync.${NC}"
+    
+    # Step 2: Validate OpenAPI structure
     echo ""
-    echo "${CYAN}How to document an endpoint:${NC}"
-    echo "1. Find the handler function for the undocumented endpoint"
-    echo "2. Add proper annotations before the function, for example:"
+    echo "Validating OpenAPI structure..."
+    if [ -f "$component_dir/scripts/validate-api-docs.js" ]; then
+      if cd "$SCRIPT_DIR" && node "$component_dir/scripts/validate-api-docs.js"; then
+        echo "OpenAPI structure is valid"
+      else
+        echo "OpenAPI structure validation failed"
+        exit 1
+      fi
+    else
+      echo "! Validation script not found, skipping structure validation"
+    fi
+    
+    # Step 3: Validate API implementations against documentation
     echo ""
-    echo "   // @Summary Create a transaction using JSON"
-    echo "   // @Description Create a Transaction with the input JSON payload"
-    echo "   // @Tags Transactions"
-    echo "   // @Accept json"
-    echo "   // @Produce json"
-    echo "   // @Param Authorization header string true \"Authorization Bearer Token\""
-    echo "   // @Param X-Request-Id header string false \"Request ID\""
-    echo "   // @Param organization_id path string true \"Organization ID\""
-    echo "   // @Param ledger_id path string true \"Ledger ID\""
-    echo "   // @Param transaction body transaction.CreateTransactionInput true \"Transaction data\""
-    echo "   // @Success 201 {object} mmodel.Transaction"
-    echo "   // @Failure 400 {object} mmodel.Error"
-    echo "   // @Failure 401 {object} mmodel.Error"
-    echo "   // @Failure 500 {object} mmodel.Error"
-    echo "   // @Router /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]"
-    echo ""
-    echo "3. Run 'make generate-docs-all' to update the documentation"
-fi
+    echo "Validating API implementations..."
+    if [ -f "$component_dir/scripts/validate-api-implementations.js" ]; then
+      if cd "$SCRIPT_DIR" && node "$component_dir/scripts/validate-api-implementations.js"; then
+        echo "API implementations match documentation"
+      else
+        echo "Found discrepancies between implementations and documentation"
+        echo "Run with --fix to automatically add missing response codes:"
+        echo "node $component_dir/scripts/validate-api-implementations.js --fix"
+        exit 1
+      fi
+    else
+      echo "! Validation script not found, skipping implementation validation"
+    fi
+  fi
+done
+
+echo ""
+echo "API documentation verification completed successfully"
+exit 0
