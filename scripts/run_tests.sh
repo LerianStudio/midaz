@@ -12,7 +12,7 @@ exit_code=0
 
 # Get the root directory
 ROOT_DIR=$(pwd)
-SDK_GO_DIR="${ROOT_DIR}/sdks/go"
+SDK_GO_DIR="${ROOT_DIR}/sdks/go-sdk"
 
 # Run main project tests
 echo "Running main project tests..."

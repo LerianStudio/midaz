@@ -320,7 +320,7 @@ func (b *segmentBuilder) Create(ctx context.Context) (*models.Segment, error) {
 	}
 
 	if b.name == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, fmt.Errorf("segment name is required")
 	}
 
 	// Create segment input
@@ -516,7 +516,7 @@ func (b *segmentUpdateBuilder) WithTags(tags []string) SegmentUpdateBuilder {
 func (b *segmentUpdateBuilder) Update(ctx context.Context) (*models.Segment, error) {
 	// Check if any fields are set for update
 	if len(b.fieldsToUpdate) == 0 {
-		return nil, fmt.Errorf("no fields specified for update")
+		return nil, fmt.Errorf("no fields to update")
 	}
 
 	// Validate required IDs

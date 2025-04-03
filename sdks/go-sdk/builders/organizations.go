@@ -555,7 +555,12 @@ func (b *organizationUpdateBuilder) WithTags(tags []string) OrganizationUpdateBu
 func (b *organizationUpdateBuilder) Update(ctx context.Context) (*models.Organization, error) {
 	// Check if any fields are set for update
 	if len(b.fieldsToUpdate) == 0 {
-		return nil, fmt.Errorf("no fields specified for update")
+		return nil, fmt.Errorf("no fields to update")
+	}
+
+	// Validate required IDs
+	if b.organizationID == "" {
+		return nil, fmt.Errorf("organization ID is required")
 	}
 
 	// Create update input

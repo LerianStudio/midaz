@@ -357,7 +357,7 @@ func (b *baseBuilder) validate() error {
 	}
 
 	if b.amount <= 0 {
-		return fmt.Errorf("amount must be greater than 0, got %d", b.amount)
+		return fmt.Errorf("amount must be greater than zero")
 	}
 
 	if b.scale <= 0 {

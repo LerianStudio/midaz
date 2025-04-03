@@ -182,7 +182,7 @@ func (b *balanceUpdateBuilder) WithAllowReceiving(allowed bool) BalanceUpdateBui
 func (b *balanceUpdateBuilder) Update(ctx context.Context) (*models.Balance, error) {
 	// Check if any fields are set for update
 	if len(b.fieldsToUpdate) == 0 {
-		return nil, fmt.Errorf("no fields specified for update")
+		return nil, fmt.Errorf("no fields to update")
 	}
 
 	// Validate required IDs

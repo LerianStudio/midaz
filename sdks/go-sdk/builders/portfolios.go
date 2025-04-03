@@ -315,7 +315,7 @@ func (b *portfolioBuilder) Create(ctx context.Context) (*models.Portfolio, error
 	}
 
 	if b.name == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, fmt.Errorf("portfolio name is required")
 	}
 
 	if b.entityID == "" {
@@ -514,7 +514,7 @@ func (b *portfolioUpdateBuilder) WithTags(tags []string) PortfolioUpdateBuilder 
 func (b *portfolioUpdateBuilder) Update(ctx context.Context) (*models.Portfolio, error) {
 	// Check if any fields are set for update
 	if len(b.fieldsToUpdate) == 0 {
-		return nil, fmt.Errorf("no fields specified for update")
+		return nil, fmt.Errorf("no fields to update")
 	}
 
 	// Validate required IDs

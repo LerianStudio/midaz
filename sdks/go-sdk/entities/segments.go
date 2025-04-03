@@ -115,6 +115,15 @@ func (e *segmentsEntity) ListSegments(
 
 	defer resp.Body.Close()
 
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
+
 	var response models.ListResponse[models.Segment]
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -165,6 +174,15 @@ func (e *segmentsEntity) GetSegment(
 	}
 
 	defer resp.Body.Close()
+
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
 
 	var segment models.Segment
 
@@ -228,6 +246,15 @@ func (e *segmentsEntity) CreateSegment(
 	}
 
 	defer resp.Body.Close()
+
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
 
 	var segment models.Segment
 
@@ -297,6 +324,15 @@ func (e *segmentsEntity) UpdateSegment(
 
 	defer resp.Body.Close()
 
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
+
 	var segment models.Segment
 
 	if err := json.NewDecoder(resp.Body).Decode(&segment); err != nil {
@@ -347,6 +383,15 @@ func (e *segmentsEntity) DeleteSegment(
 	}
 
 	defer resp.Body.Close()
+
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("server error: %v", errorResponse)
+	}
 
 	return nil
 }

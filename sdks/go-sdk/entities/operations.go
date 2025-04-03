@@ -96,6 +96,15 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 
 	defer resp.Body.Close()
 
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
+
 	var response models.ListResponse[models.Operation]
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -141,9 +150,21 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 
 	defer resp.Body.Close()
 
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
+
 	var operation models.Operation
 
-	if err := json.NewDecoder(resp.Body).Decode(&operation); err != nil {
+	decoder := json.NewDecoder(resp.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&operation); err != nil {
 		return nil, fmt.Errorf("internal error: %w", err)
 	}
 
@@ -196,9 +217,21 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 
 	defer resp.Body.Close()
 
+	// Check for error status codes
+	if resp.StatusCode >= 400 {
+		var errorResponse map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&errorResponse); err != nil {
+			return nil, fmt.Errorf("server returned status %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server error: %v", errorResponse)
+	}
+
 	var operation models.Operation
 
-	if err := json.NewDecoder(resp.Body).Decode(&operation); err != nil {
+	decoder := json.NewDecoder(resp.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&operation); err != nil {
 		return nil, fmt.Errorf("internal error: %w", err)
 	}
 
