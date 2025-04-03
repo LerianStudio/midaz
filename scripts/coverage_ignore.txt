@@ -9,3 +9,10 @@ github.com/LerianStudio/midaz/components/transaction/api
 github.com/LerianStudio/midaz/components/onboarding/api
 github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres
 github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres
+github.com/LerianStudio/midaz/sdks/go-sdk/builders/mocks
+github.com/LerianStudio/midaz/sdks/go-sdk/entities/mocks
+github.com/LerianStudio/midaz/sdks/go-sdk/models
+github.com/LerianStudio/midaz/components/mdz/internal/mocks
+github.com/LerianStudio/midaz/components/onboarding/internal/mocks
+github.com/LerianStudio/midaz/components/transaction/internal/mocks
+github.com/LerianStudio/midaz/components/mdz/pkg/mockutil
