@@ -1,3 +1,10 @@
+## [1.51.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.12...v1.51.0-beta.13) (2025-04-03)
+
+
+### Bug Fixes
+
+* adjust to return right error and status code; :bug: ([7aaca78](https://github.com/LerianStudio/midaz/commit/7aaca782afb65de385f22b0eadb1dbc6c373efcd))
+
 ## [1.51.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.11...v1.51.0-beta.12) (2025-04-02)
 
 
