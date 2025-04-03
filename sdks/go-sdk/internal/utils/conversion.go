@@ -64,7 +64,7 @@ func FormatAmount(amount int64, scale int) string {
 //	    log.Fatal(err)
 //	}
 //	// Result: amount=12345, scale=2
-func ParseAmount(amountStr string) (amount int64, scale int, err error) {
+func ParseAmount(amountStr string) (amount int64, scale int32, err error) {
 	// Check for empty string
 	if amountStr == "" {
 		return 0, 0, fmt.Errorf("amount string cannot be empty")
@@ -95,9 +95,9 @@ func ParseAmount(amountStr string) (amount int64, scale int, err error) {
 	}
 
 	// Handle decimal part if exists
-	scale = 0
+	var scaleInt int = 0
 	if len(parts) == 2 {
-		scale = len(parts[1])
+		scaleInt = len(parts[1])
 
 		// Remove trailing zeros from decimal part for parsing
 		decimalPart := strings.TrimRight(parts[1], "0")
@@ -111,20 +111,20 @@ func ParseAmount(amountStr string) (amount int64, scale int, err error) {
 			}
 
 			// Multiply integer part appropriately and add decimal
-			for i := 0; i < scale; i++ {
+			for i := 0; i < scaleInt; i++ {
 				result *= 10
 			}
 
 			// Calculate proper power of 10 for the actual digits in decimal part
 			decimalMultiplier := 1
-			for i := 0; i < scale-len(decimalPart); i++ {
+			for i := 0; i < scaleInt-len(decimalPart); i++ {
 				decimalMultiplier *= 10
 			}
 
 			result += decimal * int64(decimalMultiplier)
 		} else {
 			// All zeros in decimal part, just multiply integer part
-			for i := 0; i < scale; i++ {
+			for i := 0; i < scaleInt; i++ {
 				result *= 10
 			}
 		}
@@ -135,7 +135,7 @@ func ParseAmount(amountStr string) (amount int64, scale int, err error) {
 		result = -result
 	}
 
-	return result, scale, nil
+	return result, int32(scaleInt), nil
 }
 
 // ConvertToISODate formats a time.Time as an ISO date string (YYYY-MM-DD).
