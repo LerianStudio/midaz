@@ -189,7 +189,7 @@ func TestCreateDeposit(t *testing.T) {
 			}
 
 			// Call the function
-			result, err := abs.CreateDeposit(context.Background(), tt.organizationID, tt.ledgerID, tt.targetAccountAlias, tt.amount, tt.scale, tt.assetCode, tt.description, tt.options...)
+			result, err := abs.Deposits.CreateDeposit(context.Background(), tt.organizationID, tt.ledgerID, tt.targetAccountAlias, tt.amount, int64(tt.scale), tt.assetCode, tt.description, tt.options...)
 
 			// Check the error
 			if tt.expectedError != "" {

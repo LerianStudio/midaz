@@ -8,11 +8,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// CreateDeposit creates a deposit transaction, adding funds to an internal account.
+// CreateDeposit implements the DepositService interface.
 //
 // A deposit represents money coming into the system from an external source.
 // The source is implicitly an external account, and the target must be a valid
@@ -37,7 +36,7 @@ import (
 // Example - Basic deposit:
 //
 //	// Deposit $100.00 to a customer's account
-//	tx, err := txAbstraction.CreateDeposit(
+//	tx, err := abstraction.Deposits.CreateDeposit(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
@@ -49,69 +48,57 @@ import (
 // Example - Deposit with idempotency key:
 //
 //	// Deposit with idempotency key to prevent duplicate transactions
-//	tx, err := txAbstraction.CreateDeposit(
+//	tx, err := abstraction.Deposits.CreateDeposit(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
 //	    10000, 2, "USD",
 //	    "Customer deposit",
-//	    abstractions.WithIdempotencyKey("deposit-20230315-123"),
+//	    abstractions.WithIdempotencyKey("deposit-2023-03-15-12345"),
 //	)
-//
-// Example - Pending deposit (requires explicit commit):
-//
-//	// Create a pending deposit that requires explicit commitment
-//	tx, err := txAbstraction.CreateDeposit(
-//	    ctx,
-//	    "org-123", "ledger-456",
-//	    "customer:john.doe",
-//	    10000, 2, "USD",
-//	    "Customer deposit pending verification",
-//	    abstractions.WithPending(true),
-//	)
-//
-//	// Later, after verification:
-//	// client.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", tx.ID)
-func (a *Abstraction) CreateDeposit(
+func (s *depositService) CreateDeposit(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	targetAccountAlias string,
-	amount int64,
-	scale int,
+	amount int64, scale int64,
 	assetCode string,
 	description string,
 	options ...Option,
 ) (*models.Transaction, error) {
 	// Validate required parameters
+	if organizationID == "" {
+		return nil, errors.New("organizationID is required")
+	}
+	if ledgerID == "" {
+		return nil, errors.New("ledgerID is required")
+	}
 	if targetAccountAlias == "" {
-		return nil, errors.New("target account alias is required")
+		return nil, errors.New("targetAccountAlias is required")
 	}
-
 	if amount <= 0 {
-		return nil, errors.New("amount must be greater than zero")
+		return nil, errors.New("amount must be positive")
 	}
-
+	if scale < 0 {
+		return nil, errors.New("scale must be non-negative")
+	}
 	if assetCode == "" {
-		return nil, errors.New("asset code is required")
+		return nil, errors.New("assetCode is required")
 	}
 
-	// Create the external account reference
-	externalAccount := utils.GetExternalAccountReference(assetCode)
-
-	// Build the DSL input
+	// Create a DSL transaction input
 	input := &models.TransactionDSLInput{
 		Description: description,
 		Send: &models.DSLSend{
 			Asset: assetCode,
 			Value: amount,
-			Scale: int64(scale),
+			Scale: scale,
 			Source: &models.DSLSource{
 				From: []models.DSLFromTo{
 					{
-						Account: externalAccount,
+						Account: "external:" + assetCode,
 						Amount: &models.DSLAmount{
 							Value: amount,
-							Scale: int64(scale),
+							Scale: scale,
 							Asset: assetCode,
 						},
 					},
@@ -123,7 +110,7 @@ func (a *Abstraction) CreateDeposit(
 						Account: targetAccountAlias,
 						Amount: &models.DSLAmount{
 							Value: amount,
-							Scale: int64(scale),
+							Scale: scale,
 							Asset: assetCode,
 						},
 					},
@@ -132,16 +119,11 @@ func (a *Abstraction) CreateDeposit(
 		},
 	}
 
-	// Apply any optional configuration
+	// Apply options
 	for _, option := range options {
 		option(input)
 	}
 
-	// Validate the transaction before sending to the API
-	if err := utils.ValidateTransactionDSL(input); err != nil {
-		return nil, err
-	}
-
-	// Create the transaction using DSL
-	return a.createTransactionWithDSL(ctx, organizationID, ledgerID, input)
+	// Create the transaction
+	return s.createTx(ctx, organizationID, ledgerID, input)
 }

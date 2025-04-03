@@ -349,12 +349,21 @@ The abstractions package provides high-level transaction operations that simplif
 ### Abstraction
 
 - `NewAbstraction()` - Creates a new Abstraction instance with the provided transaction creation function
+- `Abstraction.Deposits` - Returns the DepositService interface for deposit operations
+- `Abstraction.Withdrawals` - Returns the WithdrawalService interface for withdrawal operations
+- `Abstraction.Transfers` - Returns the TransferService interface for transfer operations
 
-### Transaction Operations
+### Deposit Service
 
-- `Abstraction.CreateDeposit()` - Creates a deposit transaction, adding funds to an internal account from an external source
-- `Abstraction.CreateWithdrawal()` - Creates a withdrawal transaction, removing funds from an internal account to an external destination
-- `Abstraction.CreateTransfer()` - Creates a transfer transaction between two internal accounts
+- `DepositService.CreateDeposit()` - Creates a deposit transaction, adding funds to an internal account from an external source
+
+### Withdrawal Service
+
+- `WithdrawalService.CreateWithdrawal()` - Creates a withdrawal transaction, removing funds from an internal account to an external destination
+
+### Transfer Service
+
+- `TransferService.CreateTransfer()` - Creates a transfer transaction between two internal accounts
 
 ### Transaction Options
 

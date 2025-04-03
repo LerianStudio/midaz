@@ -207,7 +207,7 @@ func TestCreateWithdrawal(t *testing.T) {
 			}
 
 			// Call the function
-			result, err := abs.CreateWithdrawal(context.Background(), "org123", "ledger123", tt.sourceAccountAlias, tt.amount, tt.scale, tt.assetCode, tt.description, tt.options...)
+			result, err := abs.Withdrawals.CreateWithdrawal(context.Background(), "org123", "ledger123", tt.sourceAccountAlias, tt.amount, int64(tt.scale), tt.assetCode, tt.description, tt.options...)
 
 			// Check the error
 			if tt.expectedError != "" {

@@ -8,11 +8,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// CreateTransfer creates a transfer transaction between two internal accounts.
+// CreateTransfer implements the TransferService interface.
 //
 // A transfer moves funds from one internal account to another within the same ledger.
 // Both the source and target must be valid internal accounts identified by their aliases.
@@ -37,7 +36,7 @@ import (
 // Example - Basic transfer:
 //
 //	// Transfer $100.00 between two accounts
-//	tx, err := txAbstraction.CreateTransfer(
+//	tx, err := abstraction.Transfers.CreateTransfer(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
@@ -50,78 +49,61 @@ import (
 // Example - Transfer with idempotency key:
 //
 //	// Transfer with idempotency key to prevent duplicate transactions
-//	tx, err := txAbstraction.CreateTransfer(
+//	tx, err := abstraction.Transfers.CreateTransfer(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
 //	    "merchant:acme",
 //	    10000, 2, "USD",
 //	    "Payment for services",
-//	    abstractions.WithIdempotencyKey("payment-20230315-123"),
+//	    abstractions.WithIdempotencyKey("transfer-2023-03-15-12345"),
 //	)
-//
-// Example - Pending transfer (requires explicit commit):
-//
-//	// Create a pending transfer that requires explicit approval
-//	tx, err := txAbstraction.CreateTransfer(
-//	    ctx,
-//	    "org-123", "ledger-456",
-//	    "account:reserves",
-//	    "account:investments",
-//	    1000000, 2, "USD", // $10,000.00
-//	    "Investment allocation pending approval",
-//	    abstractions.WithPending(true),
-//	    abstractions.WithNotes("Requires CFO approval for investment allocations"),
-//	)
-//
-//	// Later, after approval:
-//	// client.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", tx.ID)
-func (a *Abstraction) CreateTransfer(
+func (s *transferService) CreateTransfer(
 	ctx context.Context,
 	organizationID, ledgerID string,
-	sourceAccountAlias string,
-	targetAccountAlias string,
-	amount int64,
-	scale int,
+	sourceAccountAlias, targetAccountAlias string,
+	amount int64, scale int64,
 	assetCode string,
 	description string,
 	options ...Option,
 ) (*models.Transaction, error) {
 	// Validate required parameters
+	if organizationID == "" {
+		return nil, errors.New("organizationID is required")
+	}
+	if ledgerID == "" {
+		return nil, errors.New("ledgerID is required")
+	}
 	if sourceAccountAlias == "" {
-		return nil, errors.New("source account alias is required")
+		return nil, errors.New("sourceAccountAlias is required")
 	}
-
 	if targetAccountAlias == "" {
-		return nil, errors.New("target account alias is required")
+		return nil, errors.New("targetAccountAlias is required")
 	}
-
-	if sourceAccountAlias == targetAccountAlias {
-		return nil, errors.New("source and target accounts must be different")
-	}
-
 	if amount <= 0 {
-		return nil, errors.New("amount must be greater than zero")
+		return nil, errors.New("amount must be positive")
 	}
-
+	if scale < 0 {
+		return nil, errors.New("scale must be non-negative")
+	}
 	if assetCode == "" {
-		return nil, errors.New("asset code is required")
+		return nil, errors.New("assetCode is required")
 	}
 
-	// Build the DSL input
+	// Create a DSL transaction input
 	input := &models.TransactionDSLInput{
 		Description: description,
 		Send: &models.DSLSend{
 			Asset: assetCode,
 			Value: amount,
-			Scale: int64(scale),
+			Scale: scale,
 			Source: &models.DSLSource{
 				From: []models.DSLFromTo{
 					{
 						Account: sourceAccountAlias,
 						Amount: &models.DSLAmount{
 							Value: amount,
-							Scale: int64(scale),
+							Scale: scale,
 							Asset: assetCode,
 						},
 					},
@@ -133,7 +115,7 @@ func (a *Abstraction) CreateTransfer(
 						Account: targetAccountAlias,
 						Amount: &models.DSLAmount{
 							Value: amount,
-							Scale: int64(scale),
+							Scale: scale,
 							Asset: assetCode,
 						},
 					},
@@ -142,16 +124,11 @@ func (a *Abstraction) CreateTransfer(
 		},
 	}
 
-	// Apply any optional configuration
+	// Apply options
 	for _, option := range options {
 		option(input)
 	}
 
-	// Validate the transaction before sending to the API
-	if err := utils.ValidateTransactionDSL(input); err != nil {
-		return nil, err
-	}
-
-	// Create the transaction using DSL
-	return a.createTransactionWithDSL(ctx, organizationID, ledgerID, input)
+	// Create the transaction
+	return s.createTx(ctx, organizationID, ledgerID, input)
 }

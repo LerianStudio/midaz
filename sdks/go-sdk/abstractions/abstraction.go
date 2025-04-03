@@ -1,7 +1,7 @@
 // Package abstractions provides high-level transaction operations for the Midaz platform.
 //
-// This package contains functions and options for creating and managing financial transactions
-// like deposits, withdrawals, and transfers.
+// This package contains interfaces and functions for creating and managing financial transactions
+// like deposits, withdrawals, and transfers in a simplified way.
 package abstractions
 
 import (
@@ -10,20 +10,78 @@ import (
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// Abstraction provides high-level transaction operations.
-// This abstraction simplifies the creation of common transaction types like deposits,
-// withdrawals, and transfers by abstracting away the complexities of the underlying
-// Domain-Specific Language (DSL) format.
-//
-// The Abstraction is designed to be used through the TransactionService in the services
-// package, but can also be used directly if needed.
+// Abstraction provides a centralized access point to all transaction abstraction types.
+// It acts as a factory for creating specific transaction operations and follows the same
+// pattern as the Entity and Builder types in other packages.
 type Abstraction struct {
-	// createTransactionWithDSL is a function that creates a transaction using the DSL format
+	// Service interfaces for different transaction types
+	Deposits    DepositService
+	Withdrawals WithdrawalService
+	Transfers   TransferService
+
+	// Implementation function for creating transactions
 	createTransactionWithDSL func(context.Context, string, string, *models.TransactionDSLInput) (*models.Transaction, error)
 }
 
-// NewAbstraction creates a new transactions abstraction with the given implementation function.
-// This constructor initializes an Abstraction that provides high-level transaction operations.
+// DepositService provides methods for creating deposit transactions.
+type DepositService interface {
+	// CreateDeposit creates a deposit transaction, adding funds to an internal account.
+	CreateDeposit(
+		ctx context.Context,
+		organizationID, ledgerID string,
+		targetAccountAlias string,
+		amount int64, scale int64,
+		assetCode string,
+		description string,
+		options ...Option,
+	) (*models.Transaction, error)
+}
+
+// WithdrawalService provides methods for creating withdrawal transactions.
+type WithdrawalService interface {
+	// CreateWithdrawal creates a withdrawal transaction, removing funds from an internal account.
+	CreateWithdrawal(
+		ctx context.Context,
+		organizationID, ledgerID string,
+		sourceAccountAlias string,
+		amount int64, scale int64,
+		assetCode string,
+		description string,
+		options ...Option,
+	) (*models.Transaction, error)
+}
+
+// TransferService provides methods for creating transfer transactions.
+type TransferService interface {
+	// CreateTransfer creates a transfer transaction between two internal accounts.
+	CreateTransfer(
+		ctx context.Context,
+		organizationID, ledgerID string,
+		sourceAccountAlias, targetAccountAlias string,
+		amount int64, scale int64,
+		assetCode string,
+		description string,
+		options ...Option,
+	) (*models.Transaction, error)
+}
+
+// depositService implements the DepositService interface.
+type depositService struct {
+	createTx func(context.Context, string, string, *models.TransactionDSLInput) (*models.Transaction, error)
+}
+
+// withdrawalService implements the WithdrawalService interface.
+type withdrawalService struct {
+	createTx func(context.Context, string, string, *models.TransactionDSLInput) (*models.Transaction, error)
+}
+
+// transferService implements the TransferService interface.
+type transferService struct {
+	createTx func(context.Context, string, string, *models.TransactionDSLInput) (*models.Transaction, error)
+}
+
+// NewAbstraction creates a new Abstraction instance with the provided transaction creation function.
+// This constructor initializes an Abstraction that provides access to all transaction services.
 //
 // The Abstraction abstracts away the complexities of the DSL (Domain-Specific Language) format
 // used by the Midaz API for creating transactions. It provides simplified methods for
@@ -55,7 +113,7 @@ type Abstraction struct {
 // Example - Using the abstraction to create a deposit:
 //
 //	// After creating the abstraction, use it to create a deposit
-//	tx, err := txAbstraction.CreateDeposit(
+//	tx, err := txAbstraction.Deposits.CreateDeposit(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
@@ -63,25 +121,22 @@ type Abstraction struct {
 //	    "Customer deposit",
 //	    abstractions.WithMetadata(map[string]any{"reference": "DEP12345"}),
 //	)
-//
-// Example - Creating an abstraction with a custom implementation:
-//
-//	// Create an abstraction with a custom implementation for testing or special handling
-//	mockCreateTx := func(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
-//	    // Custom implementation for testing or special handling
-//	    return &models.Transaction{
-//	        ID:          "tx-mock-123",
-//	        Description: input.Description,
-//	        Status:      models.StatusCompleted,
-//	        // ... other fields
-//	    }, nil
-//	}
-//
-//	txAbstraction := abstractions.NewAbstraction(mockCreateTx)
 func NewAbstraction(
 	createTransactionWithDSL func(context.Context, string, string, *models.TransactionDSLInput) (*models.Transaction, error),
 ) *Abstraction {
-	return &Abstraction{
+	abstraction := &Abstraction{
 		createTransactionWithDSL: createTransactionWithDSL,
 	}
+
+	// Initialize service interfaces
+	abstraction.initServices()
+
+	return abstraction
+}
+
+// initServices initializes the service interfaces for the abstraction.
+func (a *Abstraction) initServices() {
+	a.Deposits = &depositService{createTx: a.createTransactionWithDSL}
+	a.Withdrawals = &withdrawalService{createTx: a.createTransactionWithDSL}
+	a.Transfers = &transferService{createTx: a.createTransactionWithDSL}
 }

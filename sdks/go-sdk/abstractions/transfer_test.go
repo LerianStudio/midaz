@@ -247,7 +247,7 @@ func TestCreateTransfer(t *testing.T) {
 			}
 
 			// Call the function
-			result, err := abs.CreateTransfer(context.Background(), "org123", "ledger123", tt.sourceAccountAlias, tt.targetAccountAlias, tt.amount, tt.scale, tt.assetCode, tt.description, tt.options...)
+			result, err := abs.Transfers.CreateTransfer(context.Background(), "org123", "ledger123", tt.sourceAccountAlias, tt.targetAccountAlias, tt.amount, int64(tt.scale), tt.assetCode, tt.description, tt.options...)
 
 			// Check the error
 			if tt.expectedError != "" {
