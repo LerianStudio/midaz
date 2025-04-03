@@ -41,6 +41,10 @@ type TransactionHandler struct {
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction		body		transaction.CreateTransactionInput	true	"Transaction Input"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json [post]
 func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -75,6 +79,10 @@ func (handler *TransactionHandler) CreateTransactionJSON(p any, c *fiber.Ctx) er
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction		formData	file	true	"Transaction DSL file"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid DSL file format or validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/dsl [post]
 func (handler *TransactionHandler) CreateTransactionDSL(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -203,6 +211,12 @@ func (handler *TransactionHandler) CommitTransaction(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string								true	"Ledger ID"
 //	@Param			transaction_id	path		string								true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid request or transaction cannot be reverted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		409				{object}	mmodel.Error	"Transaction already has a parent transaction"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert [post]
 func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -285,6 +299,11 @@ func (handler *TransactionHandler) RevertTransaction(c *fiber.Ctx) error {
 //	@Param			transaction_id	path		string								true	"Transaction ID"
 //	@Param			transaction		body		transaction.UpdateTransactionInput	true	"Transaction Input"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [patch]
 func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -339,6 +358,11 @@ func (handler *TransactionHandler) UpdateTransaction(p any, c *fiber.Ctx) error 
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			transaction_id	path		string	true	"Transaction ID"
 //	@Success		200				{object}	transaction.Transaction
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Transaction not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id} [get]
 func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -407,6 +431,10 @@ func (handler *TransactionHandler) GetTransaction(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]transaction.Transaction,next_cursor=string,prev_cursor=string,limit=int,page=nil}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions [get]
 func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 	ctx := c.UserContext()
