@@ -11,6 +11,8 @@ import (
 // swagger:model CreateAccountInput
 //
 // @Description CreateAccountInput is the input payload to create an account within a ledger, representing an individual financial entity like a bank account, credit card, or expense category.
+//
+// @Description CreateAccountInput is the input payload to create an account within a ledger, representing an individual financial entity like a bank account, credit card, or expense category.
 type CreateAccountInput struct {
 	// Name of the account (optional, max length 256 characters)
 	Name string `json:"name" validate:"max=256" example:"My Account"`
@@ -49,6 +51,8 @@ type CreateAccountInput struct {
 // swagger:model UpdateAccountInput
 //
 // @Description UpdateAccountInput is the input payload to update an existing account's properties such as name, status, portfolio, segment, and metadata.
+//
+// @Description UpdateAccountInput is the input payload to update an existing account's properties such as name, status, portfolio, segment, and metadata.
 type UpdateAccountInput struct {
 	// Updated name of the account (optional, max length 256 characters)
 	Name string `json:"name" validate:"max=256" example:"My Account Updated" maxLength:"256"`
@@ -70,6 +74,8 @@ type UpdateAccountInput struct {
 // Account is a struct designed to encapsulate response payload data.
 //
 // swagger:model Account
+//
+// @Description Account represents an individual financial entity within a ledger, such as a bank account, credit card, or expense category.
 //
 // @Description Account represents an individual financial entity within a ledger, such as a bank account, credit card, or expense category.
 type Account struct {
@@ -132,7 +138,10 @@ func (a *Account) IDtoUUID() uuid.UUID {
 // swagger:model Accounts
 //
 // @Description Accounts represents a paginated collection of account records returned by list operations.
+//
+// @Description Accounts represents a paginated collection of account records returned by list operations.
 type Accounts struct {
+	// Array of account records
 	// Array of account records
 	Items []Account `json:"items"`
 

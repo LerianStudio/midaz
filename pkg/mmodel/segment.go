@@ -7,6 +7,8 @@ import "time"
 // swagger:model CreateSegmentInput
 //
 // @Description CreateSegmentInput is the input payload to create a segment within a ledger, representing a logical division such as a business area, product line, or customer category.
+//
+// @Description CreateSegmentInput is the input payload to create a segment within a ledger, representing a logical division such as a business area, product line, or customer category.
 type CreateSegmentInput struct {
 	// Name of the segment (required, max length 256 characters)
 	Name string `json:"name" validate:"required,max=256" example:"My Segment"`
@@ -24,6 +26,8 @@ type CreateSegmentInput struct {
 // swagger:model UpdateSegmentInput
 //
 // @Description UpdateSegmentInput is the input payload to update an existing segment's properties such as name, status, and metadata.
+//
+// @Description UpdateSegmentInput is the input payload to update an existing segment's properties such as name, status, and metadata.
 type UpdateSegmentInput struct {
 	// Updated name of the segment (optional, max length 256 characters)
 	Name string `json:"name" validate:"max=256" example:"My Segment Updated"`
@@ -39,6 +43,8 @@ type UpdateSegmentInput struct {
 // Segment is a struct designed to encapsulate payload data.
 //
 // swagger:model Segment
+//
+// @Description Segment represents a logical division within a ledger such as a business area, product line, or customer category.
 //
 // @Description Segment represents a logical division within a ledger such as a business area, product line, or customer category.
 type Segment struct {
@@ -75,7 +81,10 @@ type Segment struct {
 // swagger:model Segments
 //
 // @Description Segments represents a paginated collection of segment records returned by list operations.
+//
+// @Description Segments represents a paginated collection of segment records returned by list operations.
 type Segments struct {
+	// Array of segment records
 	// Array of segment records
 	Items []Segment `json:"items"`
 

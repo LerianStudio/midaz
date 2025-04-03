@@ -6,6 +6,7 @@ import "time"
 //
 // swagger:model CreateLedgerInput
 // @Description Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata.
+// @Description Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata.
 type CreateLedgerInput struct {
 	// Display name of the ledger (required)
 	Name string `json:"name" validate:"required,max=256" example:"Lerian Studio" maxLength:"256"`
@@ -21,6 +22,7 @@ type CreateLedgerInput struct {
 //
 // swagger:model UpdateLedgerInput
 // @Description Request payload for updating an existing ledger. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
+// @Description Request payload for updating an existing ledger. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 type UpdateLedgerInput struct {
 	// Updated display name of the ledger (optional)
 	Name string `json:"name" validate:"max=256" example:"Lerian Studio Updated" maxLength:"256"`
@@ -35,6 +37,7 @@ type UpdateLedgerInput struct {
 // Ledger is a struct designed to encapsulate payload data.
 //
 // swagger:model Ledger
+// @Description Complete ledger entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for ledger operations.
 // @Description Complete ledger entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for ledger operations.
 type Ledger struct {
 	// Unique identifier for the ledger (UUID format)
@@ -66,7 +69,9 @@ type Ledger struct {
 //
 // swagger:model Ledgers
 // @Description Paginated list of ledgers with metadata about the current page, limit, and the ledger items themselves.
+// @Description Paginated list of ledgers with metadata about the current page, limit, and the ledger items themselves.
 type Ledgers struct {
+	// List of ledger items in the current page
 	// List of ledger items in the current page
 	Items []Ledger `json:"items"`
 

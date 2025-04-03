@@ -1,3 +1,18 @@
+## [1.51.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.13...v1.51.0-beta.14) (2025-04-03)
+
+
+### Bug Fixes
+
+* change return error 400 to 404 when find account by alias; :bug: ([7a4bb31](https://github.com/LerianStudio/midaz/commit/7a4bb31aa84b4c0da73f90462d41d9dce1d3c895))
+* update postman add api find by alias; :bug: ([46fcc3c](https://github.com/LerianStudio/midaz/commit/46fcc3c34c76901df34b9ac8ef76822184ccfbf3))
+
+## [1.51.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.12...v1.51.0-beta.13) (2025-04-03)
+
+
+### Bug Fixes
+
+* adjust to return right error and status code; :bug: ([7aaca78](https://github.com/LerianStudio/midaz/commit/7aaca782afb65de385f22b0eadb1dbc6c373efcd))
+
 ## [1.51.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.11...v1.51.0-beta.12) (2025-04-02)
 
 

@@ -7,6 +7,8 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
@@ -42,7 +44,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	if err := libCommons.ValidateCountryAddress(coi.Address.Country); err != nil {
 		libOpentelemetry.HandleSpanError(&spanAddressValidation, "Failed to validate country address", err)
 
-		return nil, libCommons.ValidateBusinessError(err, reflect.TypeOf(mmodel.Organization{}).Name())
+		return nil, pkg.ValidateBusinessError(constant.ErrInvalidCountryCode, reflect.TypeOf(mmodel.Organization{}).Name())
 	}
 
 	spanAddressValidation.End()

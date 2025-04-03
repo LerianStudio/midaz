@@ -4,6 +4,7 @@ package mmodel
 //
 // swagger:model Status
 // @Description Entity status information with a standardized code and optional description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED.
+// @Description Entity status information with a standardized code and optional description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED.
 type Status struct {
 	// Status code identifier, common values include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED
 	Code string `json:"code" validate:"max=100" example:"ACTIVE" maxLength:"100" enum:"ACTIVE,INACTIVE,PENDING,SUSPENDED,DELETED"`

@@ -7,6 +7,8 @@ import "time"
 // swagger:model CreatePortfolioInput
 //
 // @Description CreatePortfolioInput is the input payload to create a portfolio within a ledger, representing a collection of accounts grouped for specific purposes.
+//
+// @Description CreatePortfolioInput is the input payload to create a portfolio within a ledger, representing a collection of accounts grouped for specific purposes.
 type CreatePortfolioInput struct {
 	// Optional external entity identifier (max length 256 characters)
 	EntityID string `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
@@ -27,6 +29,8 @@ type CreatePortfolioInput struct {
 // swagger:model UpdatePortfolioInput
 //
 // @Description UpdatePortfolioInput is the input payload to update an existing portfolio's properties such as name, entity ID, status, and metadata.
+//
+// @Description UpdatePortfolioInput is the input payload to update an existing portfolio's properties such as name, entity ID, status, and metadata.
 type UpdatePortfolioInput struct {
 	// Updated external entity identifier (optional, max length 256 characters)
 	EntityID string `json:"entityId" validate:"omitempty,max=256" example:"00000000-0000-0000-0000-000000000000"`
@@ -45,6 +49,8 @@ type UpdatePortfolioInput struct {
 // Portfolio is a struct designed to encapsulate request update payload data.
 //
 // swagger:model Portfolio
+//
+// @Description Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.
 //
 // @Description Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.
 type Portfolio struct {
@@ -84,7 +90,10 @@ type Portfolio struct {
 // swagger:model Portfolios
 //
 // @Description Portfolios represents a paginated collection of portfolio records returned by list operations.
+//
+// @Description Portfolios represents a paginated collection of portfolio records returned by list operations.
 type Portfolios struct {
+	// Array of portfolio records
 	// Array of portfolio records
 	Items []Portfolio `json:"items"`
 

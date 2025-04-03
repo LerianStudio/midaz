@@ -6,6 +6,7 @@ import "time"
 //
 // // swagger:model CreateOrganizationInput
 // @Description Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such.
+// @Description Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such.
 type CreateOrganizationInput struct {
 	// Official legal name of the organization (required)
 	LegalName string `json:"legalName" validate:"required,max=256" example:"Lerian Studio" maxLength:"256"`
@@ -33,6 +34,7 @@ type CreateOrganizationInput struct {
 //
 // // swagger:model UpdateOrganizationInput
 // @Description Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
+// @Description Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.
 type UpdateOrganizationInput struct {
 	// Updated legal name of the organization (optional)
 	LegalName string `json:"legalName" validate:"max=256" example:"Lerian Studio Updated" maxLength:"256"`
@@ -56,6 +58,7 @@ type UpdateOrganizationInput struct {
 // Organization is a struct designed to encapsulate response payload data.
 //
 // swagger:model Organization
+// @Description Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations.
 // @Description Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations.
 type Organization struct {
 	// Unique identifier for the organization (UUID format)
@@ -96,6 +99,7 @@ type Organization struct {
 //
 // swagger:model Address
 // @Description Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes).
+// @Description Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes).
 type Address struct {
 	// Primary address line (street address or PO Box)
 	Line1 string `json:"line1" example:"Street 1" maxLength:"256"`
@@ -124,6 +128,7 @@ func (a Address) IsEmpty() bool {
 // Organizations struct to return get all.
 //
 // swagger:model Organizations
+// @Description Paginated list of organizations with metadata about the current page, limit, and the organization items themselves.
 // @Description Paginated list of organizations with metadata about the current page, limit, and the organization items themselves.
 type Organizations struct {
 	Items []Organization `json:"items"`
