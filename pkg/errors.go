@@ -786,7 +786,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
 		},
-		constant.ErrAccountAliasNotFound: ValidationError{
+		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasNotFound.Error(),
 			Title:      "Account Alias Not Found",
