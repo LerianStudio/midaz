@@ -12,54 +12,57 @@ import (
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// CreateTransfer implements the TransferService interface.
+// Create creates a transfer transaction between two internal accounts.
 //
-// A transfer moves funds from one internal account to another within the same ledger.
-// Both the source and target must be valid internal accounts identified by their aliases.
+// This method creates a transaction that represents a transfer of funds between two accounts
+// within the Midaz system. A transfer involves debiting one internal account and crediting
+// another internal account with the same amount and asset type.
 //
 // Parameters:
-//   - ctx: Context for the request, can be used for cancellation and timeout
-//   - organizationID: The unique identifier of the organization (e.g., "org-123")
-//   - ledgerID: The unique identifier of the ledger within the organization (e.g., "ledger-456")
-//   - sourceAccountAlias: The alias of the account providing the funds (e.g., "user:alice")
-//   - targetAccountAlias: The alias of the account receiving the funds (e.g., "user:bob")
-//   - amount: The amount as a fixed-point integer (actual amount = amount / 10^scale)
-//     For example, 2500 with scale 2 represents $25.00
-//   - scale: The decimal scale factor for the amount (typically 2 for cents, 0 for whole units)
-//   - assetCode: The currency or asset code (e.g., "USD", "EUR", "BTC")
-//   - description: A human-readable description of the purpose of the transfer
-//   - options: Optional settings like metadata, externalID, or idempotency key
+//
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//
+//   - organizationID: The ID of the organization that owns the ledger.
+//
+//   - ledgerID: The ID of the ledger where the transaction will be created.
+//
+//   - sourceAccountAlias: The alias of the account to transfer funds from.
+//     This should be a valid account alias in the format "type:identifier[:subtype]".
+//
+//   - targetAccountAlias: The alias of the account to transfer funds to.
+//     This should be a valid account alias in the format "type:identifier[:subtype]".
+//
+//   - amount: The amount to transfer as a fixed-point integer.
+//     The actual amount is calculated as amount / 10^scale.
+//
+//   - scale: The decimal precision for the amount.
+//     For example, a scale of 2 means the amount is in cents (100 = $1.00).
+//
+//   - assetCode: The currency or asset type for this transaction (e.g., "USD", "EUR").
+//
+//   - description: A human-readable description of the transaction.
+//
+//   - options: Optional parameters for the transaction, such as metadata or idempotency key.
+//     See the Option type for available options.
 //
 // Returns:
-//   - *models.Transaction: The created transaction with details including ID, status, and operations
-//   - error: An error if the operation fails, such as validation errors, insufficient funds, or API communication issues
 //
-// Example - Basic transfer:
+//   - *models.Transaction: The created transaction if successful.
 //
-//	// Transfer $100.00 between two accounts
-//	tx, err := abstraction.Transfers.CreateTransfer(
+//   - error: An error if the operation fails, such as invalid parameters or API errors.
+//
+// Example:
+//
+//	// Create a transfer of $100.00 USD between two accounts
+//	tx, err := abstraction.Transfers.Create(
 //	    ctx,
 //	    "org-123", "ledger-456",
-//	    "customer:john.doe",
-//	    "merchant:acme",
+//	    "customer:john.doe", "merchant:acme",
 //	    10000, 2, "USD",
 //	    "Payment for services",
-//	    abstractions.WithMetadata(map[string]any{"reference": "INV12345"}),
+//	    abstractions.WithMetadata(map[string]any{"reference": "TRF12345"}),
 //	)
-//
-// Example - Transfer with idempotency key:
-//
-//	// Transfer with idempotency key to prevent duplicate transactions
-//	tx, err := abstraction.Transfers.CreateTransfer(
-//	    ctx,
-//	    "org-123", "ledger-456",
-//	    "customer:john.doe",
-//	    "merchant:acme",
-//	    10000, 2, "USD",
-//	    "Payment for services",
-//	    abstractions.WithIdempotencyKey("transfer-2023-03-15-12345"),
-//	)
-func (s *transferService) CreateTransfer(
+func (s *transferService) Create(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	sourceAccountAlias, targetAccountAlias string,
@@ -69,29 +72,27 @@ func (s *transferService) CreateTransfer(
 	options ...Option,
 ) (*models.Transaction, error) {
 	// Validate required parameters
-	if organizationID == "" {
-		return nil, errors.New("organizationID is required")
-	}
-	if ledgerID == "" {
-		return nil, errors.New("ledgerID is required")
-	}
 	if sourceAccountAlias == "" {
-		return nil, errors.New("sourceAccountAlias is required")
-	}
-	if targetAccountAlias == "" {
-		return nil, errors.New("targetAccountAlias is required")
-	}
-	if amount <= 0 {
-		return nil, errors.New("amount must be positive")
-	}
-	if scale < 0 {
-		return nil, errors.New("scale must be non-negative")
-	}
-	if assetCode == "" {
-		return nil, errors.New("assetCode is required")
+		return nil, errors.New("source account alias is required")
 	}
 
-	// Create a DSL transaction input
+	if targetAccountAlias == "" {
+		return nil, errors.New("target account alias is required")
+	}
+
+	if sourceAccountAlias == targetAccountAlias {
+		return nil, errors.New("source and target accounts must be different")
+	}
+
+	if amount <= 0 {
+		return nil, errors.New("amount must be greater than zero")
+	}
+
+	if assetCode == "" {
+		return nil, errors.New("asset code is required")
+	}
+
+	// Create the DSL input
 	input := &models.TransactionDSLInput{
 		Description: description,
 		Send: &models.DSLSend{
@@ -126,16 +127,23 @@ func (s *transferService) CreateTransfer(
 	}
 
 	// Apply options
-	for _, option := range options {
-		option(input)
+	for _, opt := range options {
+		if err := opt(input); err != nil {
+			return nil, fmt.Errorf("option application error: %w", err)
+		}
+	}
+
+	// Validate the DSL input
+	if err := input.Validate(); err != nil {
+		return nil, fmt.Errorf("DSL validation error: %w", err)
 	}
 
 	// Create the transaction
 	return s.createTx(ctx, organizationID, ledgerID, input)
 }
 
-// ListTransfers lists transfer transactions with optional filtering.
-func (s *transferService) ListTransfers(
+// List retrieves transfer transactions with optional filtering.
+func (s *transferService) List(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	opts *models.ListOptions,
@@ -158,8 +166,8 @@ func (s *transferService) ListTransfers(
 	return s.txService.ListTransactions(ctx, organizationID, ledgerID, opts)
 }
 
-// GetTransfer retrieves a specific transfer transaction by ID.
-func (s *transferService) GetTransfer(
+// Get retrieves a specific transfer transaction by ID.
+func (s *transferService) Get(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
@@ -177,14 +185,14 @@ func (s *transferService) GetTransfer(
 	return tx, nil
 }
 
-// UpdateTransfer updates a transfer transaction (e.g., metadata or status).
-func (s *transferService) UpdateTransfer(
+// Update modifies a transfer transaction (e.g., metadata or status).
+func (s *transferService) Update(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID string,
 	input *models.UpdateTransactionInput,
 ) (*models.Transaction, error) {
 	// First verify this is a transfer transaction
-	_, err := s.GetTransfer(ctx, organizationID, ledgerID, transactionID)
+	_, err := s.Get(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, err
 	}

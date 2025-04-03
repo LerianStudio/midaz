@@ -45,9 +45,81 @@ type AccountsService interface {
 	GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)
 
 	// CreateAccount creates a new account in the specified ledger.
-	// The organizationID and ledgerID parameters specify which organization and ledger to create the account in.
-	// The input parameter contains the account details such as name, asset code, and type.
-	// Returns the created account, or an error if the operation fails.
+	//
+	// This method creates a new account in the specified organization and ledger.
+	// Accounts are used to track assets and balances within the Midaz system.
+	// Each account has a type, name, and can be associated with a specific asset code.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the account will be created. Must be a valid ledger ID.
+	//   - input: The account details, including name, type, asset code, and optional fields.
+	//     Required fields in the input are:
+	//     - Name: The human-readable name of the account (max 256 characters)
+	//     - Type: The account type (e.g., "customer", "revenue", "liability")
+	//     - AssetCode: The currency or asset code (e.g., "USD", "EUR") if applicable
+	//
+	// Returns:
+	//   - *models.Account: The created account if successful, containing the account ID,
+	//     status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization or ledger ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic customer account:
+	//
+	//	// Create a customer account
+	//	account, err := accountsService.CreateAccount(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    &models.CreateAccountInput{
+	//	        Name: "John Doe",
+	//	        Type: "customer",
+	//	        AssetCode: "USD",
+	//	        Metadata: map[string]interface{}{
+	//	            "customer_id": "cust-789",
+	//	            "email": "john.doe@example.com",
+	//	        },
+	//	    },
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the account
+	//	fmt.Printf("Account created: %s (alias: %s)\n", account.ID, account.Alias)
+	//
+	// Example - Creating an account with portfolio and segment:
+	//
+	//	// Create an account within a portfolio and segment
+	//	account, err := accountsService.CreateAccount(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    &models.CreateAccountInput{
+	//	        Name: "Investment Account",
+	//	        Type: "investment",
+	//	        AssetCode: "USD",
+	//	        PortfolioID: "portfolio-789",
+	//	        SegmentID: "segment-012",
+	//	        Status: models.StatusActive,
+	//	    },
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the account
+	//	fmt.Printf("Account created: %s (status: %s)\n", account.ID, account.Status)
 	CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
 
 	// UpdateAccount updates an existing account.
@@ -74,9 +146,49 @@ type AccountsService interface {
     manage account balances.
 
 func NewAccountsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AccountsService
-    NewAccountsEntity creates a new accounts entity. It takes the HTTP client,
-    auth token, and base URLs which are used to make HTTP requests to the Midaz
-    API. Returns an implementation of the AccountsService interface.
+    NewAccountsEntity creates a new accounts entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - AccountsService: An implementation of the AccountsService interface
+        that provides methods for creating, retrieving, updating, and managing
+        accounts.
+
+    Example:
+
+        // Create an accounts entity with default HTTP client
+        accountsEntity := entities.NewAccountsEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to create an account
+        account, err := accountsEntity.CreateAccount(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            &models.CreateAccountInput{
+                Name: "Customer Account",
+                Type: "customer",
+                AssetCode: "USD",
+            },
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create account: %v", err)
+        }
+
+        fmt.Printf("Account created: %s\n", account.ID)
 
 type AssetRatesService interface {
 	// GetAssetRate retrieves the exchange rate between two assets.
@@ -95,9 +207,51 @@ type AssetRatesService interface {
     It provides methods to manage exchange rates between different assets.
 
 func NewAssetRatesEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AssetRatesService
-    NewAssetRatesEntity creates a new asset rates entity. It takes the HTTP
-    client, auth token, and base URLs which are used to make HTTP requests to
-    the Midaz API. Returns an implementation of the AssetRatesService interface.
+    NewAssetRatesEntity creates a new asset rates entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - AssetRatesService: An implementation of the AssetRatesService interface
+        that provides methods for creating, retrieving, and managing asset
+        exchange rates.
+
+    Example:
+
+        // Create an asset rates entity with default HTTP client
+        assetRatesEntity := entities.NewAssetRatesEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to create or update an exchange rate
+        rate, err := assetRatesEntity.CreateOrUpdateAssetRate(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            &models.UpdateAssetRateInput{
+                FromAsset: "USD",
+                ToAsset: "EUR",
+                Rate: 0.92,
+                EffectiveAt: time.Now(),
+                ExpirationAt: time.Now().Add(24 * time.Hour),
+            },
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create asset rate: %v", err)
+        }
+
+        fmt.Printf("Asset rate created: %s (rate: %.4f)\n", rate.ID, rate.Rate)
 
 type AssetsService interface {
 	// ListAssets retrieves a paginated list of assets for a ledger with optional filters.
@@ -113,9 +267,80 @@ type AssetsService interface {
 	GetAsset(ctx context.Context, organizationID, ledgerID, id string) (*models.Asset, error)
 
 	// CreateAsset creates a new asset in the specified ledger.
-	// The organizationID and ledgerID parameters specify which organization and ledger to create the asset in.
-	// The input parameter contains the asset details such as code, name, and precision.
-	// Returns the created asset, or an error if the operation fails.
+	//
+	// Assets represent units of value that can be tracked and transferred within the Midaz
+	// ledger system. Each asset has a unique code and can be used in transactions.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the asset will be created. Must be a valid ledger ID.
+	//   - input: The asset details, including required fields:
+	//     - Name: The human-readable name of the asset (e.g., "US Dollar")
+	//     - Code: The unique asset code (e.g., "USD")
+	//     Optional fields include:
+	//     - Type: The asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the asset
+	//
+	// Returns:
+	//   - *models.Asset: The created asset if successful, containing the asset ID,
+	//     status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization or ledger ID)
+	//     - Conflict (asset code already exists)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic currency asset:
+	//
+	//	// Create a currency asset
+	//	asset, err := assetsService.CreateAsset(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    &models.CreateAssetInput{
+	//	        Name: "US Dollar",
+	//	        Code: "USD",
+	//	        Type: "CURRENCY",
+	//	    },
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the asset
+	//	fmt.Printf("Asset created: %s (code: %s)\n", asset.ID, asset.Code)
+	//
+	// Example - Creating an asset with metadata:
+	//
+	//	// Create a security asset with metadata
+	//	asset, err := assetsService.CreateAsset(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    models.NewCreateAssetInput("Apple Inc. Stock", "AAPL").
+	//	        WithType("SECURITY").
+	//	        WithStatus(models.StatusActive).
+	//	        WithMetadata(map[string]any{
+	//	            "exchange": "NASDAQ",
+	//	            "sector": "Technology",
+	//	            "currency": "USD",
+	//	            "isin": "US0378331005",
+	//	        }),
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the asset
+	//	fmt.Printf("Security asset created: %s\n", asset.ID)
 	CreateAsset(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)
 
 	// UpdateAsset updates an existing asset.
@@ -135,21 +360,214 @@ type AssetsService interface {
     It provides methods to create, read, update, and delete assets.
 
 func NewAssetsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AssetsService
-    NewAssetsEntity creates a new assets entity. It takes the HTTP client, auth
-    token, and base URLs which are used to make HTTP requests to the Midaz API.
-    Returns an implementation of the AssetsService interface.
+    NewAssetsEntity creates a new assets entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - AssetsService: An implementation of the AssetsService interface that
+        provides methods for creating, retrieving, updating, and managing
+        assets.
+
+    Example:
+
+        // Create an assets entity with default HTTP client
+        assetsEntity := entities.NewAssetsEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to create an asset
+        asset, err := assetsEntity.CreateAsset(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            &models.CreateAssetInput{
+                Name: "US Dollar",
+                Code: "USD",
+                Type: "CURRENCY",
+            },
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create asset: %v", err)
+        }
+
+        fmt.Printf("Asset created: %s\n", asset.ID)
 
 type BalancesService interface {
-	// ListBalances retrieves a paginated list of all balances for a ledger.
-	// The orgID and ledgerID parameters specify which organization and ledger to query.
-	// The opts parameter can be used to specify pagination, sorting, and filtering options.
-	// Returns a ListResponse containing the balances and pagination information, or an error if the operation fails.
+	// ListBalances retrieves a paginated list of all balances for a specified ledger.
+	//
+	// This method returns all balances within a ledger, with optional filtering and
+	// pagination controls. Balances represent the current state of funds for each
+	// account-asset combination in the ledger.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger to retrieve balances from. Must be a valid ledger ID.
+	//   - opts: Optional pagination and filtering options:
+	//     - Page: The page number to retrieve (1-based indexing)
+	//     - Limit: The maximum number of items per page
+	//     - Filter: Criteria to filter balances by (e.g., by account ID or asset code)
+	//     - Sort: Sorting options for the results
+	//     If nil, default pagination settings will be used.
+	//
+	// Returns:
+	//   - *models.ListResponse[models.Balance]: A paginated list of balances, including:
+	//     - Items: The array of balance objects for the current page
+	//     - Page: The current page number
+	//     - Limit: The maximum number of items per page
+	//     - Total: The total number of balances matching the filter criteria
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization or ledger ID)
+	//     - Network or server errors
+	//
+	// Example - Basic usage:
+	//
+	//	// List balances with default pagination
+	//	balances, err := balancesService.ListBalances(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    nil, // Use default pagination
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to list balances: %v", err)
+	//	}
+	//
+	//	// Process the balances
+	//	fmt.Printf("Retrieved %d balances (page %d of %d)\n",
+	//	    len(balances.Items), balances.Page, balances.TotalPages)
+	//
+	//	for _, balance := range balances.Items {
+	//	    fmt.Printf("Balance: %s, Asset: %s, Available: %d/%d\n",
+	//	        balance.ID, balance.AssetCode, balance.Available, balance.Scale)
+	//	}
+	//
+	// Example - With pagination and filtering:
+	//
+	//	// Create pagination options with filtering
+	//	opts := &models.ListOptions{
+	//	    Page: 1,
+	//	    Limit: 10,
+	//	    Filter: map[string]interface{}{
+	//	        "assetCode": "USD", // Only show USD balances
+	//	    },
+	//	    Sort: []string{"available:desc"}, // Sort by available amount (descending)
+	//	}
+	//
+	//	// List balances with pagination and filtering
+	//	balances, err := balancesService.ListBalances(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    opts,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to list balances: %v", err)
+	//	}
+	//
+	//	// Process the balances
+	//	fmt.Printf("Retrieved %d USD balances\n", len(balances.Items))
 	ListBalances(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
 
 	// ListAccountBalances retrieves a paginated list of all balances for a specific account.
-	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account to query.
-	// The opts parameter can be used to specify pagination, sorting, and filtering options.
-	// Returns a ListResponse containing the account balances and pagination information, or an error if the operation fails.
+	//
+	// This method returns all balances for a single account within a ledger, with optional
+	// filtering and pagination controls. Each balance represents a different asset held
+	// by the account.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
+	//   - accountID: The ID of the account to retrieve balances for. Must be a valid account ID.
+	//   - opts: Optional pagination and filtering options:
+	//     - Page: The page number to retrieve (1-based indexing)
+	//     - Limit: The maximum number of items per page
+	//     - Filter: Criteria to filter balances by (e.g., by asset code)
+	//     - Sort: Sorting options for the results
+	//     If nil, default pagination settings will be used.
+	//
+	// Returns:
+	//   - *models.ListResponse[models.Balance]: A paginated list of balances for the account, including:
+	//     - Items: The array of balance objects for the current page
+	//     - Page: The current page number
+	//     - Limit: The maximum number of items per page
+	//     - Total: The total number of balances matching the filter criteria
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization, ledger, or account ID)
+	//     - Network or server errors
+	//
+	// Example - Basic usage:
+	//
+	//	// List all balances for an account with default pagination
+	//	balances, err := balancesService.ListAccountBalances(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "account-789",
+	//	    nil, // Use default pagination
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to list account balances: %v", err)
+	//	}
+	//
+	//	// Process the balances
+	//	fmt.Printf("Account has %d different asset balances\n", len(balances.Items))
+	//
+	//	for _, balance := range balances.Items {
+	//	    // Calculate the decimal value of the balance
+	//	    decimalValue := float64(balance.Available) / math.Pow10(int(balance.Scale))
+	//	    fmt.Printf("Asset: %s, Available: %.2f\n", balance.AssetCode, decimalValue)
+	//	}
+	//
+	// Example - With filtering by asset code:
+	//
+	//	// Create pagination options with filtering for specific assets
+	//	opts := &models.ListOptions{
+	//	    Filter: map[string]interface{}{
+	//	        "assetCode": []string{"USD", "EUR", "GBP"}, // Only show these currencies
+	//	    },
+	//	    Sort: []string{"assetCode:asc"}, // Sort alphabetically by asset code
+	//	}
+	//
+	//	// List filtered balances for an account
+	//	balances, err := balancesService.ListAccountBalances(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "account-789",
+	//	    opts,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to list account balances: %v", err)
+	//	}
+	//
+	//	// Process the balances
+	//	fmt.Println("Currency balances for account:")
+	//	for _, balance := range balances.Items {
+	//	    decimalValue := float64(balance.Available) / math.Pow10(int(balance.Scale))
+	//	    fmt.Printf("%s: %.2f\n", balance.AssetCode, decimalValue)
+	//	}
 	ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
 
 	// GetBalance retrieves a specific balance by its ID.
@@ -173,9 +591,46 @@ type BalancesService interface {
     ledgers and specific accounts.
 
 func NewBalancesEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) BalancesService
-    NewBalancesEntity creates a new balances entity. It takes the HTTP client,
-    auth token, and base URLs which are used to make HTTP requests to the Midaz
-    API. Returns an implementation of the BalancesService interface.
+    NewBalancesEntity creates a new balances entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - BalancesService: An implementation of the BalancesService interface
+        that provides methods for retrieving, updating, and managing account
+        balances.
+
+    Example:
+
+        // Create a balances entity with default HTTP client
+        balancesEntity := entities.NewBalancesEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to retrieve account balances
+        balances, err := balancesEntity.ListAccountBalances(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            "account-789",
+            nil, // No pagination options
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to retrieve balances: %v", err)
+        }
+
+        fmt.Printf("Retrieved %d balances\n", len(balances.Items))
 
 type Entity struct {
 
@@ -202,15 +657,75 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
     to all entity types in the Midaz SDK.
 
     Parameters:
-      - client: The HTTP client to use for API requests
-      - authToken: The authentication token for API requests
-      - baseURLs: Map of base URLs for different API endpoints
-      - options: Optional configuration options
+      - client: The HTTP client to use for API requests. Can be configured with
+        custom timeouts and transport options. If nil, a default client will be
+        used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+      - options: Optional configuration options for customizing the entity
+        behavior. These are applied in order after the entity is created.
 
     Returns:
       - *Entity: A pointer to the newly created Entity, ready to interact with
-        the Midaz API
-      - error: An error if the client initialization fails
+        the Midaz API. The Entity provides access to all service interfaces
+        (Accounts, Assets, Ledgers, etc.).
+      - error: An error if the client initialization fails, such as when
+        required parameters are missing or when options cannot be applied.
+
+    Example - Basic usage:
+
+        // Create a new entity with default settings
+        entity, err := entities.NewEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create entity: %v", err)
+        }
+
+        // Use the entity to access different services
+        organization, err := entity.Organizations.GetOrganization(
+            context.Background(),
+            "org-123",
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to retrieve organization: %v", err)
+        }
+
+        fmt.Printf("Organization: %s\n", organization.LegalName)
+
+    Example - With custom options:
+
+        // Create a new entity with debug logging enabled
+        entity, err := entities.NewEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+            entities.WithDebug(true),
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create entity: %v", err)
+        }
+
+        // Create a ledger using the entity
+        ledger, err := entity.Ledgers.CreateLedger(
+            context.Background(),
+            "org-123",
+            models.NewCreateLedgerInput("Main Ledger"),
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create ledger: %v", err)
+        }
+
+        fmt.Printf("Ledger created: %s\n", ledger.ID)
 
 type LedgersService interface {
 	// ListLedgers retrieves a paginated list of ledgers for an organization with optional filters.
@@ -226,9 +741,71 @@ type LedgersService interface {
 	GetLedger(ctx context.Context, organizationID, id string) (*models.Ledger, error)
 
 	// CreateLedger creates a new ledger in the specified organization.
-	// The organizationID parameter specifies which organization to create the ledger in.
-	// The input parameter contains the ledger details such as name and description.
-	// Returns the created ledger, or an error if the operation fails.
+	//
+	// Ledgers are the top-level financial record-keeping systems that contain accounts
+	// and track all transactions between those accounts. Each ledger belongs to a specific
+	// organization and can have multiple accounts.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization where the ledger will be created.
+	//     Must be a valid organization ID.
+	//   - input: The ledger details, including required fields:
+	//     - Name: The human-readable name of the ledger (max length: 256 characters)
+	//     Optional fields include:
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the ledger
+	//
+	// Returns:
+	//   - *models.Ledger: The created ledger if successful, containing the ledger ID,
+	//     name, status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields or invalid values)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic ledger:
+	//
+	//	// Create a simple ledger with just a name
+	//	ledger, err := ledgersService.CreateLedger(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    models.NewCreateLedgerInput("Main Ledger"),
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the ledger
+	//	fmt.Printf("Ledger created: %s (status: %s)\n", ledger.ID, ledger.Status.Code)
+	//
+	// Example - Creating a ledger with metadata:
+	//
+	//	// Create a ledger with custom status and metadata
+	//	ledger, err := ledgersService.CreateLedger(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    models.NewCreateLedgerInput("Finance Ledger").
+	//	        WithStatus(models.StatusActive).
+	//	        WithMetadata(map[string]any{
+	//	            "department": "Finance",
+	//	            "fiscalYear": 2025,
+	//	            "currency": "USD",
+	//	            "description": "Primary ledger for financial operations",
+	//	        }),
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the ledger
+	//	fmt.Printf("Finance ledger created: %s\n", ledger.ID)
 	CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)
 
 	// UpdateLedger updates an existing ledger.
@@ -249,21 +826,191 @@ type LedgersService interface {
     organization.
 
 func NewLedgersEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) LedgersService
-    NewLedgersEntity creates a new ledgers entity. It takes the HTTP client,
-    auth token, and base URLs which are used to make HTTP requests to the Midaz
-    API. Returns an implementation of the LedgersService interface.
+    NewLedgersEntity creates a new ledgers entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - LedgersService: An implementation of the LedgersService interface
+        that provides methods for creating, retrieving, updating, and managing
+        ledgers.
+
+    Example:
+
+        // Create a ledgers entity with default HTTP client
+        ledgersEntity := entities.NewLedgersEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to create a new ledger
+        ledger, err := ledgersEntity.CreateLedger(
+            context.Background(),
+            "org-123",
+            models.NewCreateLedgerInput("Main Ledger").
+                WithMetadata(map[string]any{
+                    "department": "Finance",
+                    "fiscalYear": 2025,
+                }),
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create ledger: %v", err)
+        }
+
+        fmt.Printf("Ledger created: %s\n", ledger.ID)
 
 type OperationsService interface {
-	// ListOperations retrieves a paginated list of operations for an account with optional filters.
-	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account to query.
-	// The opts parameter can be used to specify pagination, sorting, and filtering options.
-	// Returns a ListResponse containing the operations and pagination information, or an error if the operation fails.
+	// ListOperations retrieves a paginated list of operations for a specific account.
+	//
+	// Operations represent the individual accounting entries (debits and credits) that make up
+	// transactions in the ledger. This method allows you to retrieve all operations for a
+	// specific account, with optional filtering and pagination controls.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
+	//   - accountID: The ID of the account to retrieve operations for. Must be a valid account ID.
+	//   - opts: Optional pagination and filtering options:
+	//     - Page: The page number to retrieve (1-based indexing)
+	//     - Limit: The maximum number of items per page
+	//     - Filter: Criteria to filter operations by (e.g., by transaction ID or asset code)
+	//     - Sort: Sorting options for the results
+	//     If nil, default pagination settings will be used.
+	//
+	// Returns:
+	//   - *models.ListResponse[models.Operation]: A paginated list of operations, including:
+	//     - Items: The array of operation objects for the current page
+	//     - Page: The current page number
+	//     - Limit: The maximum number of items per page
+	//     - Total: The total number of operations matching the filter criteria
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization, ledger, or account ID)
+	//     - Network or server errors
+	//
+	// Example - Basic usage:
+	//
+	//	// List operations with default pagination
+	//	operations, err := operationsService.ListOperations(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "account-789",
+	//	    nil, // Use default pagination
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to list operations: %v", err)
+	//	}
+	//
+	//	// Process the operations
+	//	fmt.Printf("Retrieved %d operations (page %d of %d)\n",
+	//	    len(operations.Items), operations.Page, operations.TotalPages)
+	//
+	//	for _, op := range operations.Items {
+	//	    fmt.Printf("Operation: %s, Type: %s, Amount: %d %s\n",
+	//	        op.ID, op.Type, op.Amount, op.AssetCode)
+	//	}
+	//
+	// Example - With pagination and filtering:
+	//
+	//	// Create pagination options with filtering
+	//	opts := &models.ListOptions{
+	//	    Page: 1,
+	//	    Limit: 10,
+	//	    Filter: map[string]interface{}{
+	//	        "type": "debit", // Only show debit operations
+	//	        "assetCode": "USD", // Only show USD operations
+	//	    },
+	//	    Sort: []string{"createdAt:desc"}, // Sort by creation time (newest first)
+	//	}
+	//
+	//	// List operations with pagination and filtering
+	//	operations, err := operationsService.ListOperations(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "account-789",
+	//	    opts,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to list operations: %v", err)
+	//	}
+	//
+	//	// Process the operations
+	//	fmt.Printf("Retrieved %d debit operations in USD\n", len(operations.Items))
 	ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error)
 
 	// GetOperation retrieves a specific operation by its ID.
-	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account the operation belongs to.
-	// The operationID parameter is the unique identifier of the operation to retrieve.
-	// Returns the operation if found, or an error if the operation fails or the operation doesn't exist.
+	//
+	// Operations represent the individual accounting entries (debits and credits) that make up
+	// transactions in the ledger. This method retrieves a single operation by its unique identifier.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
+	//   - accountID: The ID of the account the operation belongs to. Must be a valid account ID.
+	//   - operationID: The unique identifier of the operation to retrieve. Must be a valid operation ID.
+	//
+	// Returns:
+	//   - *models.Operation: The operation if found, containing details such as:
+	//     - ID: The unique identifier of the operation
+	//     - Type: The operation type (debit or credit)
+	//     - AccountID: The account affected by the operation
+	//     - Amount: The monetary value of the operation
+	//     - AssetCode: The currency or asset type involved
+	//     - TransactionID: The ID of the transaction this operation belongs to
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization, ledger, account, or operation ID)
+	//     - Network or server errors
+	//
+	// Example:
+	//
+	//	// Retrieve a specific operation
+	//	operation, err := operationsService.GetOperation(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "account-789",
+	//	    "operation-abc",
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to retrieve operation: %v", err)
+	//	}
+	//
+	//	// Process the operation details
+	//	fmt.Printf("Operation: %s\n", operation.ID)
+	//	fmt.Printf("Type: %s\n", operation.Type)
+	//	fmt.Printf("Account: %s\n", operation.AccountID)
+	//	fmt.Printf("Transaction: %s\n", operation.TransactionID)
+	//
+	//	// Calculate the decimal value of the amount
+	//	decimalValue := float64(operation.Amount) / math.Pow10(int(operation.Scale))
+	//	fmt.Printf("Amount: %.2f %s\n", decimalValue, operation.AssetCode)
+	//
+	//	// Check if this is a debit or credit operation
+	//	if operation.Type == models.OperationTypeDebit {
+	//	    fmt.Println("This is a debit operation (funds leaving the account)")
+	//	} else if operation.Type == models.OperationTypeCredit {
+	//	    fmt.Println("This is a credit operation (funds entering the account)")
+	//	}
 	GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string) (*models.Operation, error)
 
 	// UpdateOperation updates an existing operation.
@@ -278,9 +1025,46 @@ type OperationsService interface {
     accounts and transactions.
 
 func NewOperationsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) OperationsService
-    NewOperationsEntity creates a new operations entity. It takes the HTTP
-    client, auth token, and base URLs which are used to make HTTP requests to
-    the Midaz API. Returns an implementation of the OperationsService interface.
+    NewOperationsEntity creates a new operations entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - OperationsService: An implementation of the OperationsService interface
+        that provides methods for retrieving, updating, and managing transaction
+        operations.
+
+    Example:
+
+        // Create an operations entity with default HTTP client
+        operationsEntity := entities.NewOperationsEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to retrieve operations for an account
+        operations, err := operationsEntity.ListOperations(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            "account-789",
+            nil, // No pagination options
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to retrieve operations: %v", err)
+        }
+
+        fmt.Printf("Retrieved %d operations\n", len(operations.Items))
 
 type Option func(*Entity) error
     Option is a function that configures an Entity.
@@ -304,8 +1088,92 @@ type OrganizationsService interface {
 	GetOrganization(ctx context.Context, id string) (*models.Organization, error)
 
 	// CreateOrganization creates a new organization.
-	// The input parameter contains the organization details such as name and description.
-	// Returns the created organization, or an error if the operation fails.
+	//
+	// Organizations are the top-level entities in the Midaz system that own ledgers,
+	// accounts, and other resources. Each organization has a legal identity and
+	// can manage multiple ledgers.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - input: The organization details, including required fields:
+	//     - LegalName: The official registered name of the organization
+	//     - LegalDocument: The official identification document (e.g., tax ID)
+	//     Optional fields include:
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Address: The physical address of the organization
+	//     - Metadata: Additional custom information about the organization
+	//     - ParentOrganizationID: Reference to a parent organization, if applicable
+	//     - DoingBusinessAs: Trading or brand name, if different from legal name
+	//
+	// Returns:
+	//   - *models.Organization: The created organization if successful, containing the organization ID,
+	//     legal name, status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields or invalid values)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic organization:
+	//
+	//	// Create a simple organization with just required fields
+	//	organization, err := organizationsService.CreateOrganization(
+	//	    context.Background(),
+	//	    models.NewCreateOrganizationInput(
+	//	        "Acme Corporation",
+	//	        "123456789",
+	//	    ),
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create organization: %v", err)
+	//	}
+	//
+	//	// Use the organization
+	//	fmt.Printf("Organization created: %s (status: %s)\n",
+	//	    organization.ID, organization.Status.Code)
+	//
+	// Example - Creating an organization with all options:
+	//
+	//	// Create an organization with all available options
+	//	input := models.NewCreateOrganizationInput(
+	//	    "Acme Corporation",
+	//	    "123456789",
+	//	).WithStatus(
+	//	    models.StatusActive,
+	//	).WithAddress(
+	//	    models.Address{
+	//	        Line1:      "123 Main Street",
+	//	        City:       "San Francisco",
+	//	        State:      "CA",
+	//	        PostalCode: "94105",
+	//	        Country:    "US",
+	//	    },
+	//	).WithMetadata(
+	//	    map[string]any{
+	//	        "industry": "Technology",
+	//	        "founded": 2023,
+	//	        "website": "https://acme.example.com",
+	//	    },
+	//	).WithDoingBusinessAs(
+	//	    "Acme Tech",
+	//	)
+	//
+	//	organization, err := organizationsService.CreateOrganization(
+	//	    context.Background(),
+	//	    input,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create organization: %v", err)
+	//	}
+	//
+	//	// Use the organization
+	//	fmt.Printf("Organization created: %s\n", organization.ID)
+	//	fmt.Printf("Legal name: %s\n", organization.LegalName)
+	//	if organization.DoingBusinessAs != nil {
+	//	    fmt.Printf("DBA: %s\n", *organization.DoingBusinessAs)
+	//	}
 	CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
 
 	// UpdateOrganization updates an existing organization.
@@ -324,10 +1192,43 @@ type OrganizationsService interface {
     organizations in the Midaz platform.
 
 func NewOrganizationsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) OrganizationsService
-    NewOrganizationsEntity creates a new organizations entity. It takes the
-    HTTP client, auth token, and base URLs which are used to make HTTP requests
-    to the Midaz API. Returns an implementation of the OrganizationsService
-    interface.
+    NewOrganizationsEntity creates a new organizations entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - OrganizationsService: An implementation of the OrganizationsService
+        interface that provides methods for creating, retrieving, updating,
+        and managing organizations.
+
+    Example:
+
+        // Create an organizations entity with default HTTP client
+        organizationsEntity := entities.NewOrganizationsEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to retrieve organizations
+        organizations, err := organizationsEntity.ListOrganizations(
+            context.Background(),
+            nil, // No pagination options
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to retrieve organizations: %v", err)
+        }
+
+        fmt.Printf("Retrieved %d organizations\n", len(organizations.Items))
 
 type PortfoliosService interface {
 	// ListPortfolios retrieves a paginated list of portfolios for a ledger with optional filters.
@@ -343,9 +1244,87 @@ type PortfoliosService interface {
 	GetPortfolio(ctx context.Context, organizationID, ledgerID, id string) (*models.Portfolio, error)
 
 	// CreatePortfolio creates a new portfolio in the specified ledger.
-	// The organizationID and ledgerID parameters specify which organization and ledger to create the portfolio in.
-	// The input parameter contains the portfolio details such as name and description.
-	// Returns the created portfolio, or an error if the operation fails.
+	//
+	// Portfolios are collections of accounts that belong to a specific entity within
+	// an organization and ledger. They help organize accounts for better management
+	// and reporting.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization where the portfolio will be created.
+	//     Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the portfolio will be created.
+	//     Must be a valid ledger ID within the specified organization.
+	//   - input: The portfolio details, including required fields:
+	//     - EntityID: The ID of the entity that will own this portfolio
+	//     - Name: The human-readable name of the portfolio
+	//     Optional fields include:
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the portfolio
+	//
+	// Returns:
+	//   - *models.Portfolio: The created portfolio if successful, containing the portfolio ID,
+	//     name, entity ID, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields or invalid values)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization or ledger ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic portfolio:
+	//
+	//	// Create a simple portfolio with just required fields
+	//	portfolio, err := portfoliosService.CreatePortfolio(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    models.NewCreatePortfolioInput(
+	//	        "entity-789",
+	//	        "Investment Portfolio",
+	//	    ),
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create portfolio: %v", err)
+	//	}
+	//
+	//	// Use the portfolio
+	//	fmt.Printf("Portfolio created: %s (status: %s)\n",
+	//	    portfolio.ID, portfolio.Status.Code)
+	//
+	// Example - Creating a portfolio with metadata:
+	//
+	//	// Create a portfolio with custom metadata
+	//	input := models.NewCreatePortfolioInput(
+	//	    "entity-789",
+	//	    "Retirement Portfolio",
+	//	).WithStatus(
+	//	    models.StatusActive,
+	//	).WithMetadata(
+	//	    map[string]any{
+	//	        "portfolioType": "retirement",
+	//	        "riskProfile": "moderate",
+	//	        "targetYear": 2045,
+	//	        "manager": "Jane Smith",
+	//	    },
+	//	)
+	//
+	//	portfolio, err := portfoliosService.CreatePortfolio(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    input,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create portfolio: %v", err)
+	//	}
+	//
+	//	// Use the portfolio
+	//	fmt.Printf("Portfolio created: %s\n", portfolio.ID)
+	//	fmt.Printf("Name: %s\n", portfolio.Name)
+	//	fmt.Printf("Entity: %s\n", portfolio.EntityID)
 	CreatePortfolio(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error)
 
 	// UpdatePortfolio updates an existing portfolio.
@@ -366,9 +1345,45 @@ type PortfoliosService interface {
     ledger and organization.
 
 func NewPortfoliosEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) PortfoliosService
-    NewPortfoliosEntity creates a new portfolios entity. It takes the HTTP
-    client, auth token, and base URLs which are used to make HTTP requests to
-    the Midaz API. Returns an implementation of the PortfoliosService interface.
+    NewPortfoliosEntity creates a new portfolios entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - PortfoliosService: An implementation of the PortfoliosService interface
+        that provides methods for creating, retrieving, updating, and managing
+        portfolios.
+
+    Example:
+
+        // Create a portfolios entity with default HTTP client
+        portfoliosEntity := entities.NewPortfoliosEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to retrieve portfolios
+        portfolios, err := portfoliosEntity.ListPortfolios(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            nil, // No pagination options
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to retrieve portfolios: %v", err)
+        }
+
+        fmt.Printf("Retrieved %d portfolios\n", len(portfolios.Items))
 
 type SegmentsService interface {
 	// ListSegments retrieves a paginated list of segments for a portfolio with optional filters.
@@ -384,9 +1399,80 @@ type SegmentsService interface {
 	GetSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string) (*models.Segment, error)
 
 	// CreateSegment creates a new segment in the specified portfolio.
-	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio to create the segment in.
-	// The input parameter contains the segment details such as name and description.
-	// Returns the created segment, or an error if the operation fails.
+	//
+	// Segments allow for further categorization and grouping of accounts or other entities
+	// within a portfolio, enabling more detailed reporting and management.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization where the segment will be created.
+	//     Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the segment will be created.
+	//     Must be a valid ledger ID within the specified organization.
+	//   - portfolioID: The ID of the portfolio where the segment will be created.
+	//     Must be a valid portfolio ID within the specified ledger.
+	//   - input: The segment details, including required fields:
+	//     - Name: The human-readable name of the segment
+	//     Optional fields include:
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the segment
+	//
+	// Returns:
+	//   - *models.Segment: The created segment if successful, containing the segment ID,
+	//     name, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields or invalid values)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization, ledger, or portfolio ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic segment:
+	//
+	//	// Create a simple segment with just required fields
+	//	segment, err := segmentsService.CreateSegment(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "portfolio-789",
+	//	    models.NewCreateSegmentInput("North America Region"),
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create segment: %v", err)
+	//	}
+	//
+	//	// Use the segment
+	//	fmt.Printf("Segment created: %s (status: %s)\n",
+	//	    segment.ID, segment.Status.Code)
+	//
+	// Example - Creating a segment with metadata:
+	//
+	//	// Create a segment with custom metadata
+	//	input := models.NewCreateSegmentInput("EMEA Region").
+	//	    WithStatus(models.StatusActive).
+	//	    WithMetadata(map[string]any{
+	//	        "regionCode": "EMEA",
+	//	        "countries": []string{"UK", "France", "Germany", "Italy"},
+	//	        "headquarters": "London",
+	//	        "manager": "John Smith",
+	//	    })
+	//
+	//	segment, err := segmentsService.CreateSegment(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "portfolio-789",
+	//	    input,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create segment: %v", err)
+	//	}
+	//
+	//	// Use the segment
+	//	fmt.Printf("Segment created: %s\n", segment.ID)
+	//	fmt.Printf("Name: %s\n", segment.Name)
 	CreateSegment(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.CreateSegmentInput) (*models.Segment, error)
 
 	// UpdateSegment updates an existing segment.
@@ -407,9 +1493,46 @@ type SegmentsService interface {
     portfolio, ledger, and organization.
 
 func NewSegmentsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) SegmentsService
-    NewSegmentsEntity creates a new segments entity. It takes the HTTP client,
-    auth token, and base URLs which are used to make HTTP requests to the Midaz
-    API. Returns an implementation of the SegmentsService interface.
+    NewSegmentsEntity creates a new segments entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include an
+        "onboarding" key with the URL of the onboarding service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - SegmentsService: An implementation of the SegmentsService interface
+        that provides methods for creating, retrieving, updating, and managing
+        segments.
+
+    Example:
+
+        // Create a segments entity with default HTTP client
+        segmentsEntity := entities.NewSegmentsEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"onboarding": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to retrieve segments
+        segments, err := segmentsEntity.ListSegments(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            "portfolio-789",
+            nil, // No pagination options
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to retrieve segments: %v", err)
+        }
+
+        fmt.Printf("Retrieved %d segments\n", len(segments.Items))
 
 type TransactionsService interface {
 	// CreateTransaction creates a new transaction using the standard format.

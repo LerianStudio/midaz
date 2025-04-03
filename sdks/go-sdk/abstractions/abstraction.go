@@ -35,8 +35,8 @@ type TransactionsServiceInterface interface {
 
 // DepositService provides methods for creating and managing deposit transactions.
 type DepositService interface {
-	// CreateDeposit creates a deposit transaction, adding funds to an internal account.
-	CreateDeposit(
+	// Create creates a deposit transaction, adding funds to an internal account.
+	Create(
 		ctx context.Context,
 		organizationID, ledgerID string,
 		targetAccountAlias string,
@@ -46,21 +46,21 @@ type DepositService interface {
 		options ...Option,
 	) (*models.Transaction, error)
 
-	// ListDeposits lists deposit transactions with optional filtering.
-	ListDeposits(
+	// List retrieves deposit transactions with optional filtering.
+	List(
 		ctx context.Context,
 		organizationID, ledgerID string,
 		opts *models.ListOptions,
 	) (*models.ListResponse[models.Transaction], error)
 
-	// GetDeposit retrieves a specific deposit transaction by ID.
-	GetDeposit(
+	// Get retrieves a specific deposit transaction by ID.
+	Get(
 		ctx context.Context,
 		organizationID, ledgerID, transactionID string,
 	) (*models.Transaction, error)
 
-	// UpdateDeposit updates a deposit transaction (e.g., metadata or status).
-	UpdateDeposit(
+	// Update modifies a deposit transaction (e.g., metadata or status).
+	Update(
 		ctx context.Context,
 		organizationID, ledgerID, transactionID string,
 		input *models.UpdateTransactionInput,
@@ -69,8 +69,8 @@ type DepositService interface {
 
 // WithdrawalService provides methods for creating and managing withdrawal transactions.
 type WithdrawalService interface {
-	// CreateWithdrawal creates a withdrawal transaction, removing funds from an internal account.
-	CreateWithdrawal(
+	// Create creates a withdrawal transaction, removing funds from an internal account.
+	Create(
 		ctx context.Context,
 		organizationID, ledgerID string,
 		sourceAccountAlias string,
@@ -80,21 +80,21 @@ type WithdrawalService interface {
 		options ...Option,
 	) (*models.Transaction, error)
 
-	// ListWithdrawals lists withdrawal transactions with optional filtering.
-	ListWithdrawals(
+	// List retrieves withdrawal transactions with optional filtering.
+	List(
 		ctx context.Context,
 		organizationID, ledgerID string,
 		opts *models.ListOptions,
 	) (*models.ListResponse[models.Transaction], error)
 
-	// GetWithdrawal retrieves a specific withdrawal transaction by ID.
-	GetWithdrawal(
+	// Get retrieves a specific withdrawal transaction by ID.
+	Get(
 		ctx context.Context,
 		organizationID, ledgerID, transactionID string,
 	) (*models.Transaction, error)
 
-	// UpdateWithdrawal updates a withdrawal transaction (e.g., metadata or status).
-	UpdateWithdrawal(
+	// Update modifies a withdrawal transaction (e.g., metadata or status).
+	Update(
 		ctx context.Context,
 		organizationID, ledgerID, transactionID string,
 		input *models.UpdateTransactionInput,
@@ -103,8 +103,8 @@ type WithdrawalService interface {
 
 // TransferService provides methods for creating and managing transfer transactions.
 type TransferService interface {
-	// CreateTransfer creates a transfer transaction between two internal accounts.
-	CreateTransfer(
+	// Create creates a transfer transaction between two internal accounts.
+	Create(
 		ctx context.Context,
 		organizationID, ledgerID string,
 		sourceAccountAlias, targetAccountAlias string,
@@ -114,21 +114,21 @@ type TransferService interface {
 		options ...Option,
 	) (*models.Transaction, error)
 
-	// ListTransfers lists transfer transactions with optional filtering.
-	ListTransfers(
+	// List retrieves transfer transactions with optional filtering.
+	List(
 		ctx context.Context,
 		organizationID, ledgerID string,
 		opts *models.ListOptions,
 	) (*models.ListResponse[models.Transaction], error)
 
-	// GetTransfer retrieves a specific transfer transaction by ID.
-	GetTransfer(
+	// Get retrieves a specific transfer transaction by ID.
+	Get(
 		ctx context.Context,
 		organizationID, ledgerID, transactionID string,
 	) (*models.Transaction, error)
 
-	// UpdateTransfer updates a transfer transaction (e.g., metadata or status).
-	UpdateTransfer(
+	// Update modifies a transfer transaction (e.g., metadata or status).
+	Update(
 		ctx context.Context,
 		organizationID, ledgerID, transactionID string,
 		input *models.UpdateTransactionInput,
@@ -188,7 +188,7 @@ type transferService struct {
 // Example - Using the abstraction to create a deposit:
 //
 //	// After creating the abstraction, use it to create a deposit
-//	tx, err := txAbstraction.Deposits.CreateDeposit(
+//	tx, err := txAbstraction.Deposits.Create(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",

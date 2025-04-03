@@ -12,32 +12,46 @@ import (
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// CreateDeposit implements the DepositService interface.
+// Create creates a deposit transaction, adding funds to an internal account.
 //
-// A deposit represents money coming into the system from an external source.
-// The source is implicitly an external account, and the target must be a valid
-// internal account identified by its alias.
+// This method creates a transaction that represents a deposit of funds into an account
+// within the Midaz system. A deposit typically involves crediting an internal account
+// without a corresponding debit from another internal account (the funds come from outside).
 //
 // Parameters:
-//   - ctx: Context for the request, can be used for cancellation and timeout
-//   - organizationID: The unique identifier of the organization (e.g., "org-123")
-//   - ledgerID: The unique identifier of the ledger within the organization (e.g., "ledger-456")
-//   - targetAccountAlias: The alias of the account receiving the funds (e.g., "customer:john.doe")
-//   - amount: The amount as a fixed-point integer (actual amount = amount / 10^scale)
-//     For example, 10000 with scale 2 represents $100.00
-//   - scale: The decimal scale factor for the amount (typically 2 for cents, 0 for whole units)
-//   - assetCode: The currency or asset code (e.g., "USD", "EUR", "BTC")
-//   - description: A human-readable description of the purpose of the deposit
-//   - options: Optional settings like metadata, externalID, or idempotency key
+//
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//
+//   - organizationID: The ID of the organization that owns the ledger.
+//
+//   - ledgerID: The ID of the ledger where the transaction will be created.
+//
+//   - targetAccountAlias: The alias of the account to deposit funds into.
+//     This should be a valid account alias in the format "type:identifier[:subtype]".
+//
+//   - amount: The amount to deposit as a fixed-point integer.
+//     The actual amount is calculated as amount / 10^scale.
+//
+//   - scale: The decimal precision for the amount.
+//     For example, a scale of 2 means the amount is in cents (100 = $1.00).
+//
+//   - assetCode: The currency or asset type for this transaction (e.g., "USD", "EUR").
+//
+//   - description: A human-readable description of the transaction.
+//
+//   - options: Optional parameters for the transaction, such as metadata or idempotency key.
+//     See the Option type for available options.
 //
 // Returns:
-//   - *models.Transaction: The created transaction with details including ID, status, and operations
-//   - error: An error if the operation fails, such as validation errors or API communication issues
 //
-// Example - Basic deposit:
+//   - *models.Transaction: The created transaction if successful.
 //
-//	// Deposit $100.00 to a customer's account
-//	tx, err := abstraction.Deposits.CreateDeposit(
+//   - error: An error if the operation fails, such as invalid parameters or API errors.
+//
+// Example:
+//
+//	// Create a deposit of $100.00 USD to a customer account
+//	tx, err := abstraction.Deposits.Create(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
@@ -45,19 +59,7 @@ import (
 //	    "Customer deposit",
 //	    abstractions.WithMetadata(map[string]any{"reference": "DEP12345"}),
 //	)
-//
-// Example - Deposit with idempotency key:
-//
-//	// Deposit with idempotency key to prevent duplicate transactions
-//	tx, err := abstraction.Deposits.CreateDeposit(
-//	    ctx,
-//	    "org-123", "ledger-456",
-//	    "customer:john.doe",
-//	    10000, 2, "USD",
-//	    "Customer deposit",
-//	    abstractions.WithIdempotencyKey("deposit-2023-03-15-12345"),
-//	)
-func (s *depositService) CreateDeposit(
+func (s *depositService) Create(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	targetAccountAlias string,
@@ -67,26 +69,19 @@ func (s *depositService) CreateDeposit(
 	options ...Option,
 ) (*models.Transaction, error) {
 	// Validate required parameters
-	if organizationID == "" {
-		return nil, errors.New("organizationID is required")
-	}
-	if ledgerID == "" {
-		return nil, errors.New("ledgerID is required")
-	}
 	if targetAccountAlias == "" {
-		return nil, errors.New("targetAccountAlias is required")
-	}
-	if amount <= 0 {
-		return nil, errors.New("amount must be positive")
-	}
-	if scale < 0 {
-		return nil, errors.New("scale must be non-negative")
-	}
-	if assetCode == "" {
-		return nil, errors.New("assetCode is required")
+		return nil, errors.New("target account alias is required")
 	}
 
-	// Create a DSL transaction input
+	if amount <= 0 {
+		return nil, errors.New("amount must be greater than zero")
+	}
+
+	if assetCode == "" {
+		return nil, errors.New("asset code is required")
+	}
+
+	// Create the DSL input
 	input := &models.TransactionDSLInput{
 		Description: description,
 		Send: &models.DSLSend{
@@ -121,16 +116,23 @@ func (s *depositService) CreateDeposit(
 	}
 
 	// Apply options
-	for _, option := range options {
-		option(input)
+	for _, opt := range options {
+		if err := opt(input); err != nil {
+			return nil, fmt.Errorf("option application error: %w", err)
+		}
+	}
+
+	// Validate the DSL input
+	if err := input.Validate(); err != nil {
+		return nil, fmt.Errorf("DSL validation error: %w", err)
 	}
 
 	// Create the transaction
 	return s.createTx(ctx, organizationID, ledgerID, input)
 }
 
-// ListDeposits lists deposit transactions with optional filtering.
-func (s *depositService) ListDeposits(
+// List retrieves deposit transactions with optional filtering.
+func (s *depositService) List(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	opts *models.ListOptions,
@@ -153,8 +155,8 @@ func (s *depositService) ListDeposits(
 	return s.txService.ListTransactions(ctx, organizationID, ledgerID, opts)
 }
 
-// GetDeposit retrieves a specific deposit transaction by ID.
-func (s *depositService) GetDeposit(
+// Get retrieves a specific deposit transaction by ID.
+func (s *depositService) Get(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
@@ -172,14 +174,14 @@ func (s *depositService) GetDeposit(
 	return tx, nil
 }
 
-// UpdateDeposit updates a deposit transaction (e.g., metadata or status).
-func (s *depositService) UpdateDeposit(
+// Update modifies a deposit transaction (e.g., metadata or status).
+func (s *depositService) Update(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID string,
 	input *models.UpdateTransactionInput,
 ) (*models.Transaction, error) {
 	// First verify this is a deposit transaction
-	_, err := s.GetDeposit(ctx, organizationID, ledgerID, transactionID)
+	_, err := s.Get(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, err
 	}

@@ -12,52 +12,54 @@ import (
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// CreateWithdrawal implements the WithdrawalService interface.
+// Create creates a withdrawal transaction, removing funds from an internal account.
 //
-// A withdrawal represents money leaving the system to an external destination.
-// The source must be a valid internal account identified by its alias, and the
-// destination is implicitly an external account.
+// This method creates a transaction that represents a withdrawal of funds from an account
+// within the Midaz system. A withdrawal typically involves debiting an internal account
+// without a corresponding credit to another internal account (the funds go outside).
 //
 // Parameters:
-//   - ctx: Context for the request, can be used for cancellation and timeout
-//   - organizationID: The unique identifier of the organization (e.g., "org-123")
-//   - ledgerID: The unique identifier of the ledger within the organization (e.g., "ledger-456")
-//   - sourceAccountAlias: The alias of the account providing the funds (e.g., "merchant:acme")
-//   - amount: The amount as a fixed-point integer (actual amount = amount / 10^scale)
-//     For example, 5000 with scale 2 represents $50.00
-//   - scale: The decimal scale factor for the amount (typically 2 for cents, 0 for whole units)
-//   - assetCode: The currency or asset code (e.g., "USD", "EUR", "BTC")
-//   - description: A human-readable description of the purpose of the withdrawal
-//   - options: Optional settings like metadata, externalID, or idempotency key
+//
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//
+//   - organizationID: The ID of the organization that owns the ledger.
+//
+//   - ledgerID: The ID of the ledger where the transaction will be created.
+//
+//   - sourceAccountAlias: The alias of the account to withdraw funds from.
+//     This should be a valid account alias in the format "type:identifier[:subtype]".
+//
+//   - amount: The amount to withdraw as a fixed-point integer.
+//     The actual amount is calculated as amount / 10^scale.
+//
+//   - scale: The decimal precision for the amount.
+//     For example, a scale of 2 means the amount is in cents (100 = $1.00).
+//
+//   - assetCode: The currency or asset type for this transaction (e.g., "USD", "EUR").
+//
+//   - description: A human-readable description of the transaction.
+//
+//   - options: Optional parameters for the transaction, such as metadata or idempotency key.
+//     See the Option type for available options.
 //
 // Returns:
-//   - *models.Transaction: The created transaction with details including ID, status, and operations
-//   - error: An error if the operation fails, such as validation errors, insufficient funds, or API communication issues
 //
-// Example - Basic withdrawal:
+//   - *models.Transaction: The created transaction if successful.
 //
-//	// Withdraw $100.00 from a customer's account
-//	tx, err := abstraction.Withdrawals.CreateWithdrawal(
+//   - error: An error if the operation fails, such as invalid parameters or API errors.
+//
+// Example:
+//
+//	// Create a withdrawal of $100.00 USD from a customer account
+//	tx, err := abstraction.Withdrawals.Create(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "customer:john.doe",
 //	    10000, 2, "USD",
 //	    "Customer withdrawal",
-//	    abstractions.WithMetadata(map[string]any{"reference": "WD12345"}),
+//	    abstractions.WithMetadata(map[string]any{"reference": "WDR12345"}),
 //	)
-//
-// Example - Withdrawal with idempotency key:
-//
-//	// Withdrawal with idempotency key to prevent duplicate transactions
-//	tx, err := abstraction.Withdrawals.CreateWithdrawal(
-//	    ctx,
-//	    "org-123", "ledger-456",
-//	    "customer:john.doe",
-//	    10000, 2, "USD",
-//	    "Customer withdrawal",
-//	    abstractions.WithIdempotencyKey("withdrawal-2023-03-15-12345"),
-//	)
-func (s *withdrawalService) CreateWithdrawal(
+func (s *withdrawalService) Create(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	sourceAccountAlias string,
@@ -67,26 +69,19 @@ func (s *withdrawalService) CreateWithdrawal(
 	options ...Option,
 ) (*models.Transaction, error) {
 	// Validate required parameters
-	if organizationID == "" {
-		return nil, errors.New("organizationID is required")
-	}
-	if ledgerID == "" {
-		return nil, errors.New("ledgerID is required")
-	}
 	if sourceAccountAlias == "" {
-		return nil, errors.New("sourceAccountAlias is required")
-	}
-	if amount <= 0 {
-		return nil, errors.New("amount must be positive")
-	}
-	if scale < 0 {
-		return nil, errors.New("scale must be non-negative")
-	}
-	if assetCode == "" {
-		return nil, errors.New("assetCode is required")
+		return nil, errors.New("source account alias is required")
 	}
 
-	// Create a DSL transaction input
+	if amount <= 0 {
+		return nil, errors.New("amount must be greater than zero")
+	}
+
+	if assetCode == "" {
+		return nil, errors.New("asset code is required")
+	}
+
+	// Create the DSL input
 	input := &models.TransactionDSLInput{
 		Description: description,
 		Send: &models.DSLSend{
@@ -109,11 +104,6 @@ func (s *withdrawalService) CreateWithdrawal(
 				To: []models.DSLFromTo{
 					{
 						Account: "external:" + assetCode,
-						Amount: &models.DSLAmount{
-							Value: amount,
-							Scale: scale,
-							Asset: assetCode,
-						},
 					},
 				},
 			},
@@ -121,16 +111,23 @@ func (s *withdrawalService) CreateWithdrawal(
 	}
 
 	// Apply options
-	for _, option := range options {
-		option(input)
+	for _, opt := range options {
+		if err := opt(input); err != nil {
+			return nil, fmt.Errorf("option application error: %w", err)
+		}
+	}
+
+	// Validate the DSL input
+	if err := input.Validate(); err != nil {
+		return nil, fmt.Errorf("DSL validation error: %w", err)
 	}
 
 	// Create the transaction
 	return s.createTx(ctx, organizationID, ledgerID, input)
 }
 
-// ListWithdrawals lists withdrawal transactions with optional filtering.
-func (s *withdrawalService) ListWithdrawals(
+// List retrieves withdrawal transactions with optional filtering.
+func (s *withdrawalService) List(
 	ctx context.Context,
 	organizationID, ledgerID string,
 	opts *models.ListOptions,
@@ -153,8 +150,8 @@ func (s *withdrawalService) ListWithdrawals(
 	return s.txService.ListTransactions(ctx, organizationID, ledgerID, opts)
 }
 
-// GetWithdrawal retrieves a specific withdrawal transaction by ID.
-func (s *withdrawalService) GetWithdrawal(
+// Get retrieves a specific withdrawal transaction by ID.
+func (s *withdrawalService) Get(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
@@ -172,14 +169,14 @@ func (s *withdrawalService) GetWithdrawal(
 	return tx, nil
 }
 
-// UpdateWithdrawal updates a withdrawal transaction (e.g., metadata or status).
-func (s *withdrawalService) UpdateWithdrawal(
+// Update modifies a withdrawal transaction (e.g., metadata or status).
+func (s *withdrawalService) Update(
 	ctx context.Context,
 	organizationID, ledgerID, transactionID string,
 	input *models.UpdateTransactionInput,
 ) (*models.Transaction, error) {
 	// First verify this is a withdrawal transaction
-	_, err := s.GetWithdrawal(ctx, organizationID, ledgerID, transactionID)
+	_, err := s.Get(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
 		return nil, err
 	}

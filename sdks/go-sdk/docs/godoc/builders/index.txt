@@ -2283,7 +2283,7 @@ type TransferBuilder interface {
 	//     - errors.ErrNotFound: If the organization, ledger, or account is not found
 	//     - errors.ErrInternal: For other internal errors
 	//
-	// Example:
+	// Example - Basic transfer with error handling:
 	//
 	//	// Create a transfer transaction
 	//	tx, err := builders.NewTransfer(client).
@@ -2302,12 +2302,93 @@ type TransferBuilder interface {
 	//	    Execute(context.Background())
 	//
 	//	if err != nil {
-	//	    // Handle error
-	//	    return err
+	//	    // Handle different error types
+	//	    switch {
+	//	    case errors.Is(err, errors.ErrValidation):
+	//	        // Handle validation errors (missing required fields)
+	//	        fmt.Printf("Validation error: %v\n", err)
+	//	        return err
+	//	    case errors.Is(err, errors.ErrAuthentication):
+	//	        // Handle authentication errors (invalid token)
+	//	        fmt.Printf("Authentication error: %v\n", err)
+	//	        return err
+	//	    case errors.Is(err, errors.ErrPermission):
+	//	        // Handle permission errors (insufficient privileges)
+	//	        fmt.Printf("Permission error: %v\n", err)
+	//	        return err
+	//	    case errors.Is(err, errors.ErrNotFound):
+	//	        // Handle not found errors (invalid organization, ledger, or account)
+	//	        fmt.Printf("Resource not found: %v\n", err)
+	//	        return err
+	//	    case strings.Contains(err.Error(), "insufficient funds"):
+	//	        // Handle insufficient funds errors
+	//	        fmt.Printf("Insufficient funds: %v\n", err)
+	//
+	//	        // Get the current balance
+	//	        balance, balErr := client.Accounts.GetBalance(
+	//	            context.Background(),
+	//	            "org-123",
+	//	            "ledger-456",
+	//	            "source-account",
+	//	        )
+	//
+	//	        if balErr == nil {
+	//	            fmt.Printf("Current balance: %d.%02d %s\n",
+	//	                balance.Amount/int64(math.Pow10(int(balance.Scale))),
+	//	                balance.Amount%int64(math.Pow10(int(balance.Scale))),
+	//	                balance.AssetCode)
+	//	        }
+	//	        return err
+	//	    default:
+	//	        // Handle other errors
+	//	        fmt.Printf("Unexpected error: %v\n", err)
+	//	        return err
+	//	    }
 	//	}
 	//
 	//	// Use the transaction
 	//	fmt.Printf("Created transfer transaction: %s (status: %s)\n", tx.ID, tx.Status)
+	//
+	// Example - Handling idempotency with existing transactions:
+	//
+	//	// Attempt to create a transfer with an existing idempotency key
+	//	tx, err := builders.NewTransfer(client).
+	//	    WithOrganization("org-123").
+	//	    WithLedger("ledger-456").
+	//	    WithAmount(5000, 2). // $50.00
+	//	    WithAssetCode("USD").
+	//	    WithDescription("Recurring payment").
+	//	    WithIdempotencyKey("payment-may-2023").
+	//	    FromAccount("customer-account").
+	//	    ToAccount("revenue-account").
+	//	    Execute(context.Background())
+	//
+	//	if err != nil {
+	//	    if strings.Contains(err.Error(), "idempotency key already exists") {
+	//	        // If the transaction already exists, retrieve it
+	//	        existingTx, findErr := client.Transactions.GetTransactionByIdempotencyKey(
+	//	            context.Background(),
+	//	            "org-123",
+	//	            "ledger-456",
+	//	            "payment-may-2023",
+	//	        )
+	//
+	//	        if findErr == nil {
+	//	            // Use the existing transaction
+	//	            fmt.Printf("Found existing transaction: %s (created: %s)\n",
+	//	                existingTx.ID, existingTx.CreatedAt)
+	//	            return nil
+	//	        }
+	//
+	//	        // If we can't find the existing transaction, return the original error
+	//	        return err
+	//	    }
+	//
+	//	    // Handle other errors
+	//	    return fmt.Errorf("transfer failed: %w", err)
+	//	}
+	//
+	//	fmt.Printf("Created new transaction: %s\n", tx.ID)
 	Execute(ctx context.Context) (*models.Transaction, error)
 }
     TransferBuilder defines the builder interface for transfer transactions. A

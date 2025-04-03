@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCreateDeposit(t *testing.T) {
+func TestCreate(t *testing.T) {
 	// Test cases
 	tests := []struct {
 		name               string
@@ -197,7 +197,7 @@ func TestCreateDeposit(t *testing.T) {
 			}
 
 			// Call the function
-			result, err := abs.Deposits.CreateDeposit(context.Background(), tt.organizationID, tt.ledgerID, tt.targetAccountAlias, tt.amount, int64(tt.scale), tt.assetCode, tt.description, tt.options...)
+			result, err := abs.Deposits.Create(context.Background(), tt.organizationID, tt.ledgerID, tt.targetAccountAlias, tt.amount, int64(tt.scale), tt.assetCode, tt.description, tt.options...)
 
 			// Check the error
 			if tt.expectedError != "" {
@@ -220,7 +220,7 @@ func TestCreateDeposit(t *testing.T) {
 	}
 }
 
-func TestDepositService_ListDeposits(t *testing.T) {
+func TestDepositService_List(t *testing.T) {
 	// Create a mock transactions service
 	mockTxService := &MockTransactionsService{
 		ReturnTransactionList: &models.ListResponse[models.Transaction]{
@@ -249,8 +249,8 @@ func TestDepositService_ListDeposits(t *testing.T) {
 		mockTxService,
 	)
 
-	// Call the ListDeposits method
-	result, err := abs.Deposits.ListDeposits(
+	// Call the List method
+	result, err := abs.Deposits.List(
 		context.Background(),
 		"org-123",
 		"ledger-456",
@@ -264,7 +264,7 @@ func TestDepositService_ListDeposits(t *testing.T) {
 	assert.Equal(t, "tx-deposit-123", result.Items[0].ID)
 }
 
-func TestDepositService_GetDeposit(t *testing.T) {
+func TestDepositService_Get(t *testing.T) {
 	// Create a deposit transaction with credit operations
 	depositTx := &models.Transaction{
 		ID:     "tx-deposit-123",
@@ -287,8 +287,8 @@ func TestDepositService_GetDeposit(t *testing.T) {
 		mockTxService,
 	)
 
-	// Call the GetDeposit method
-	result, err := abs.Deposits.GetDeposit(
+	// Call the Get method
+	result, err := abs.Deposits.Get(
 		context.Background(),
 		"org-123",
 		"ledger-456",
@@ -301,7 +301,7 @@ func TestDepositService_GetDeposit(t *testing.T) {
 	assert.Equal(t, "tx-deposit-123", result.ID)
 }
 
-func TestDepositService_UpdateDeposit(t *testing.T) {
+func TestDepositService_Update(t *testing.T) {
 	// Create a deposit transaction with credit operations
 	depositTx := &models.Transaction{
 		ID:     "tx-deposit-123",
@@ -332,8 +332,8 @@ func TestDepositService_UpdateDeposit(t *testing.T) {
 		},
 	}
 
-	// Call the UpdateDeposit method
-	result, err := abs.Deposits.UpdateDeposit(
+	// Call the Update method
+	result, err := abs.Deposits.Update(
 		context.Background(),
 		"org-123",
 		"ledger-456",

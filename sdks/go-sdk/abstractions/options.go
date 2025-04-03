@@ -8,8 +8,8 @@ import "github.com/LerianStudio/midaz/sdks/go-sdk/models"
 
 // Option is a function that configures transaction creation.
 //
-// Options are used with the CreateDeposit, CreateWithdrawal, and CreateTransfer
-// methods to customize the transaction's properties beyond the basic required parameters.
+// Options are used with the Create methods of DepositService, WithdrawalService, and TransferService
+// to customize the transaction's properties beyond the basic required parameters.
 // These options allow for adding metadata, specifying idempotency keys, setting transaction
 // status, and other advanced configurations.
 //
@@ -19,7 +19,7 @@ import "github.com/LerianStudio/midaz/sdks/go-sdk/models"
 //
 // Multiple options can be combined to fully customize a transaction:
 //
-//	tx, err := client.CreateTransfer(
+//	tx, err := client.Transfers.Create(
 //	    ctx,
 //	    "org-123", "ledger-456",
 //	    "account-source", "account-target",
@@ -41,7 +41,7 @@ import "github.com/LerianStudio/midaz/sdks/go-sdk/models"
 //   - WithCode: Add a custom transaction code for categorization
 //   - WithNotes: Add detailed notes about the transaction
 //   - WithRequestID: Track the transaction with a request identifier
-type Option func(*models.TransactionDSLInput)
+type Option func(*models.TransactionDSLInput) error
 
 // WithMetadata adds structured metadata to a transaction.
 //
@@ -122,8 +122,9 @@ type Option func(*models.TransactionDSLInput)
 //	    }),
 //	)
 func WithMetadata(metadata map[string]any) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		input.Metadata = metadata
+		return nil
 	}
 }
 
@@ -144,8 +145,9 @@ func WithMetadata(metadata map[string]any) Option {
 //
 //	transactions.WithChartOfAccountsGroupName("revenue:subscription")
 func WithChartOfAccountsGroupName(name string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		input.ChartOfAccountsGroupName = name
+		return nil
 	}
 }
 
@@ -165,8 +167,9 @@ func WithChartOfAccountsGroupName(name string) Option {
 //
 //	transactions.WithCode("SUBS-RENEW")
 func WithCode(code string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		input.Code = code
+		return nil
 	}
 }
 
@@ -247,8 +250,9 @@ func WithCode(code string) Option {
 //	    err = client.Transactions.DeleteTransaction(ctx, orgID, ledgerID, pendingTransactionID)
 //	}
 func WithPending(pending bool) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		input.Pending = pending
+		return nil
 	}
 }
 
@@ -317,12 +321,13 @@ func WithPending(pending bool) Option {
 //	// Use the structured key
 //	abstractions.WithIdempotencyKey(idempotencyKey)
 func WithIdempotencyKey(key string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		if input.Metadata == nil {
 			input.Metadata = make(map[string]any)
 		}
 
 		input.Metadata["idempotencyKey"] = key
+		return nil
 	}
 }
 
@@ -341,12 +346,13 @@ func WithIdempotencyKey(key string) Option {
 //
 //	transactions.WithExternalID("PO-12345")
 func WithExternalID(externalID string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		if input.Metadata == nil {
 			input.Metadata = make(map[string]any)
 		}
 
 		input.Metadata["externalID"] = externalID
+		return nil
 	}
 }
 
@@ -366,12 +372,13 @@ func WithExternalID(externalID string) Option {
 //
 //	transactions.WithNotes("Customer requested refund due to damaged product.")
 func WithNotes(notes string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		if input.Metadata == nil {
 			input.Metadata = make(map[string]any)
 		}
 
 		input.Metadata["notes"] = notes
+		return nil
 	}
 }
 
@@ -390,18 +397,19 @@ func WithNotes(notes string) Option {
 //
 //	transactions.WithRequestID("req-abc-123-xyz")
 func WithRequestID(id string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		if input.Metadata == nil {
 			input.Metadata = make(map[string]any)
 		}
 
 		input.Metadata["requestID"] = id
+		return nil
 	}
 }
 
 // WithSendingOptions configures sending options for a transaction.
 func WithSendingOptions(asset string, value int64, scale int64, source *models.DSLSource, distribute *models.DSLDistribute) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		input.Send = &models.DSLSend{
 			Asset:      asset,
 			Value:      value,
@@ -409,12 +417,13 @@ func WithSendingOptions(asset string, value int64, scale int64, source *models.D
 			Source:     source,
 			Distribute: distribute,
 		}
+		return nil
 	}
 }
 
 // WithFromTo adds a from/to entry to a transaction.
 func WithFromTo(account string, amount *models.DSLAmount, isSource bool, description string, chartOfAccounts string, metadata map[string]any) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		fromTo := models.DSLFromTo{
 			Account:         account,
 			Amount:          amount,
@@ -438,12 +447,13 @@ func WithFromTo(account string, amount *models.DSLAmount, isSource bool, descrip
 			}
 			input.Send.Distribute.To = append(input.Send.Distribute.To, fromTo)
 		}
+		return nil
 	}
 }
 
 // WithShare adds a share configuration to a from/to entry.
 func WithShare(percentage int64, percentageOfPercentage int64) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		share := &models.Share{
 			Percentage:             percentage,
 			PercentageOfPercentage: percentageOfPercentage,
@@ -458,12 +468,13 @@ func WithShare(percentage int64, percentageOfPercentage int64) Option {
 			lastIdx := len(input.Send.Distribute.To) - 1
 			input.Send.Distribute.To[lastIdx].Share = share
 		}
+		return nil
 	}
 }
 
 // WithRate adds an exchange rate to a from/to entry.
 func WithRate(from, to string, value, scale int64, externalID string) Option {
-	return func(input *models.TransactionDSLInput) {
+	return func(input *models.TransactionDSLInput) error {
 		rate := &models.Rate{
 			From:       from,
 			To:         to,
@@ -481,5 +492,6 @@ func WithRate(from, to string, value, scale int64, externalID string) Option {
 			lastIdx := len(input.Send.Distribute.To) - 1
 			input.Send.Distribute.To[lastIdx].Rate = rate
 		}
+		return nil
 	}
 }

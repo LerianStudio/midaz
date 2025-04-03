@@ -24,7 +24,7 @@ To generate static documentation files:
 make godoc-static
 ```
 
-This will generate text-based documentation files in the `artifacts/godoc/` directory.
+This will generate text-based documentation files in the `docs/godoc/` directory.
 
 ## API Mappings
 
@@ -40,6 +40,7 @@ The [External APIs](./mapping/external_apis.md) document provides a comprehensiv
 - High-Level APIs (top-level package)
 - Resource Services (organizations, ledgers, accounts, etc.)
 - Builder APIs (fluent interfaces for resource creation and updates)
+- Abstraction APIs (simplified interfaces for common transaction operations)
 - Error Handling utilities
 
 ### Internal APIs

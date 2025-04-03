@@ -57,66 +57,159 @@ CONSTANTS
 
 const (
 	// TransactionStatusPending represents a transaction that is not yet completed
+	// Pending transactions have been created but require explicit commitment
+	// before their operations are applied to account balances. This status
+	// is useful for implementing approval workflows or two-phase commits.
 	TransactionStatusPending = "pending"
 
 	// TransactionStatusCompleted represents a successfully completed transaction
+	// Completed transactions have been fully processed and their operations
+	// have been applied to the relevant account balances. This is the final
+	// state for successful transactions.
 	TransactionStatusCompleted = "completed"
 
 	// TransactionStatusFailed represents a transaction that failed to process
+	// Failed transactions encountered an error during processing and were
+	// not applied to account balances. The transaction's FailureReason field
+	// provides details about why the transaction failed.
 	TransactionStatusFailed = "failed"
 
 	// TransactionStatusCancelled represents a transaction that was cancelled
+	// Cancelled transactions were explicitly cancelled before being committed.
+	// Only pending transactions can be cancelled; completed transactions cannot
+	// be reversed through cancellation.
 	TransactionStatusCancelled = "cancelled"
 )
-    Transaction status constants
+    Transaction status constants define the possible states of a transaction in
+    the Midaz system. These constants are used throughout the SDK to represent
+    transaction statuses in a consistent way.
+
+    Transaction Lifecycle: 1. A transaction is created with status "pending"
+    if it requires explicit commitment 2. When committed, the transaction
+    transitions to "completed" 3. If issues occur, the transaction may
+    transition to "failed" 4. A pending transaction can be cancelled,
+    transitioning to "cancelled"
+
+    Usage Examples:
+
+        // Check if a transaction is pending and needs to be committed
+        if transaction.Status == models.TransactionStatusPending {
+            // Commit the transaction
+            committedTx, err := client.Transactions.CommitTransaction(
+                context.Background(),
+                "org-123",
+                "ledger-456",
+                transaction.ID,
+            )
+        }
+
+        // Handle different transaction statuses
+        switch transaction.Status {
+        case models.TransactionStatusCompleted:
+            fmt.Println("Transaction completed successfully")
+        case models.TransactionStatusPending:
+            fmt.Println("Transaction is pending commitment")
+        case models.TransactionStatusFailed:
+            fmt.Println("Transaction failed: ", transaction.FailureReason)
+        case models.TransactionStatusCancelled:
+            fmt.Println("Transaction was cancelled")
+        }
+
+const (
+	// StatusActive represents an active resource that can be used normally
+	// Active accounts can participate in transactions as both source and destination.
+	StatusActive = "ACTIVE"
+
+	// StatusInactive represents a temporarily inactive resource
+	// Inactive accounts cannot participate in new transactions but can be reactivated.
+	StatusInactive = "INACTIVE"
+
+	// StatusPending represents a resource awaiting activation or approval
+	// Pending accounts are in the process of being set up or approved.
+	StatusPending = "PENDING"
+
+	// StatusClosed represents a permanently closed resource
+	// Closed accounts cannot participate in new transactions and cannot be reopened.
+	StatusClosed = "CLOSED"
+)
+    Account status constants define the possible states of an account in the
+    Midaz system. These constants are used throughout the SDK to represent
+    account statuses in a consistent way.
 
 
 TYPES
 
 type Account struct {
 	// ID is the unique identifier for the account
+	// This is a system-generated UUID that uniquely identifies the account
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
 	// Name is the human-readable name of the account
+	// This should be descriptive and meaningful to users, with a maximum
+	// length of 256 characters.
 	Name string `json:"name"`
 
 	// ParentAccountID is the ID of the parent account, if this is a sub-account
+	// This enables hierarchical account structures, where accounts can be
+	// nested under parent accounts for better organization.
 	ParentAccountID *string `json:"parentAccountId,omitempty"`
 
 	// EntityID is an optional external identifier for the account owner
+	// This can be used to link the account to an external system or entity,
+	// such as a customer ID in a CRM system.
 	EntityID *string `json:"entityId,omitempty"`
 
 	// AssetCode identifies the type of asset held in this account
+	// Examples include currency codes like "USD", "EUR", or custom asset
+	// codes for commodities, cryptocurrencies, or other assets.
 	AssetCode string `json:"assetCode"`
 
 	// OrganizationID is the ID of the organization that owns this account
+	// All accounts must belong to an organization, which provides the
+	// top-level ownership and access control.
 	OrganizationID string `json:"organizationId"`
 
 	// LedgerID is the ID of the ledger that contains this account
+	// Accounts are always created within a specific ledger, which defines
+	// the accounting boundaries and rules.
 	LedgerID string `json:"ledgerId"`
 
 	// PortfolioID is the optional ID of the portfolio this account belongs to
+	// Portfolios allow for grouping related accounts together for reporting
+	// and management purposes.
 	PortfolioID *string `json:"portfolioId,omitempty"`
 
 	// SegmentID is the optional ID of the segment this account belongs to
+	// Segments provide finer-grained classification within portfolios,
+	// enabling more detailed reporting and analysis.
 	SegmentID *string `json:"segmentId,omitempty"`
 
 	// Status represents the current status of the account (e.g., "ACTIVE", "CLOSED")
+	// The status determines whether the account can participate in transactions.
 	Status Status `json:"status"`
 
 	// Alias is an optional human-friendly identifier for the account
+	// Aliases can be used in place of IDs in many API calls, making it easier
+	// to reference accounts with meaningful names like "customer:john.doe".
 	Alias *string `json:"alias,omitempty"`
 
 	// Type defines the account type (e.g., "ASSET", "LIABILITY", "EQUITY")
+	// The type determines the account's behavior in accounting operations
+	// and its position in financial statements.
 	Type string `json:"type"`
 
-	// Metadata contains additional custom data associated with the account
+	// Metadata stores additional custom information about the account
+	// This can include any arbitrary key-value pairs for application-specific
+	// data that doesn't fit into the standard account fields.
 	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// CreatedAt is the timestamp when the account was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
 	// UpdatedAt is the timestamp when the account was last updated
+	// This is automatically updated by the system whenever the account is modified.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the account was deleted, if applicable
@@ -126,6 +219,60 @@ type Account struct {
     fundamental entities for tracking assets and their movements within the
     ledger system. Each account belongs to a specific organization and ledger,
     and is associated with a particular asset type.
+
+    Account Types:
+      - ASSET: Represents resources owned by the entity (e.g., cash, inventory,
+        receivables)
+      - LIABILITY: Represents obligations owed by the entity (e.g., loans,
+        payables)
+      - EQUITY: Represents the residual interest in the assets after deducting
+        liabilities
+      - REVENUE: Represents increases in economic benefits during the accounting
+        period
+      - EXPENSE: Represents decreases in economic benefits during the accounting
+        period
+
+    Account Statuses:
+      - ACTIVE: The account is in use and can participate in transactions
+      - INACTIVE: The account is temporarily not in use but can be reactivated
+      - CLOSED: The account is permanently closed and cannot be used in new
+        transactions
+      - PENDING: The account is awaiting approval or activation
+
+    Example Usage:
+
+        // Create a new customer asset account
+        customerAccount := models.NewAccount(
+            "acc-123",
+            "John Doe",
+            "USD",
+            "org-456",
+            "ledger-789",
+            "ASSET",
+            models.StatusActive,
+        ).WithAlias("customer:john.doe").
+          WithMetadata(map[string]any{
+            "customer_id": "cust-123",
+            "email": "john.doe@example.com",
+            "account_manager": "manager-456",
+          })
+
+        // Create a revenue account
+        revenueAccount := models.NewAccount(
+            "acc-456",
+            "Subscription Revenue",
+            "USD",
+            "org-456",
+            "ledger-789",
+            "REVENUE",
+            models.StatusActive,
+        ).WithAlias("revenue:subscriptions")
+
+    Portfolio and Segment Organization: Accounts can be organized into
+    portfolios and segments for better categorization and reporting. Portfolios
+    represent high-level groupings (e.g., "Investments"), while segments provide
+    finer-grained classification within portfolios (e.g., "US Equities",
+    "International Bonds").
 
 func FromMmodelAccount(account mmodel.Account) Account
     FromMmodelAccount converts an mmodel Account to an SDK Account. This
@@ -349,42 +496,112 @@ type Amount struct {
 
 type Asset struct {
 	// ID is the unique identifier for the asset
+	// This is a system-generated UUID that uniquely identifies the asset
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
 	// Name is the human-readable name of the asset
+	// This should be descriptive and meaningful to users, with a maximum
+	// length of 256 characters (e.g., "US Dollar", "Apple Inc. Stock").
 	Name string `json:"name"`
 
 	// Type defines the asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	// The type categorizes the asset and may affect how it behaves in
+	// certain operations or reports.
 	Type string `json:"type"`
 
 	// Code is a unique identifier for the asset type (e.g., "USD", "BTC", "AAPL")
+	// This is typically a short, recognizable string that follows standard
+	// conventions where applicable (e.g., ISO 4217 for currencies).
 	Code string `json:"code"`
 
 	// Status represents the current status of the asset (e.g., "ACTIVE", "INACTIVE")
+	// The status determines whether the asset can be used in new transactions.
 	Status Status `json:"status"`
 
 	// LedgerID is the ID of the ledger that contains this asset
+	// Assets are always created within a specific ledger, which defines
+	// the accounting boundaries and rules.
 	LedgerID string `json:"ledgerId"`
 
 	// OrganizationID is the ID of the organization that owns this asset
+	// All assets must belong to an organization, which provides the
+	// top-level ownership and access control.
 	OrganizationID string `json:"organizationId"`
 
 	// CreatedAt is the timestamp when the asset was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
 	// UpdatedAt is the timestamp when the asset was last updated
+	// This is automatically updated by the system whenever the asset is modified.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the asset was deleted, if applicable
+	// This is set when an asset is soft-deleted, allowing for potential recovery.
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 
 	// Metadata contains additional custom data associated with the asset
+	// This can include any arbitrary key-value pairs for application-specific
+	// data that doesn't fit into the standard asset fields, such as:
+	// - For currencies: symbol, decimal places, ISO code
+	// - For securities: exchange, sector, ISIN, CUSIP
+	// - For commodities: unit of measure, grade, origin
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
     Asset represents an asset in the Midaz Ledger. Assets are the fundamental
     units of value that can be tracked and transferred within the ledger system.
     Each asset has a unique code and belongs to a specific organization and
     ledger.
+
+    Asset Types:
+      - CURRENCY: Represents fiat currencies like USD, EUR, JPY
+      - SECURITY: Represents financial instruments like stocks, bonds,
+        derivatives
+      - COMMODITY: Represents physical goods like gold, oil, agricultural
+        products
+      - CRYPTOCURRENCY: Represents digital currencies like BTC, ETH
+      - LOYALTY: Represents loyalty points or rewards
+      - CUSTOM: Represents user-defined asset types
+
+    Asset Statuses:
+      - ACTIVE: The asset is in use and can participate in transactions
+      - INACTIVE: The asset is temporarily not in use but can be reactivated
+      - DEPRECATED: The asset is being phased out but still supports existing
+        transactions
+
+    Example Usage:
+
+        // Create a new currency asset
+        usdAsset := models.NewAsset(
+            "asset-123",
+            "US Dollar",
+            "USD",
+            "org-456",
+            "ledger-789",
+            models.StatusActive,
+        ).WithType("CURRENCY").
+          WithMetadata(map[string]any{
+            "symbol": "$",
+            "iso_code": "USD",
+            "decimal_places": 2,
+          })
+
+        // Create a security asset
+        stockAsset := models.NewAsset(
+            "asset-456",
+            "Apple Inc. Stock",
+            "AAPL",
+            "org-456",
+            "ledger-789",
+            models.StatusActive,
+        ).WithType("SECURITY").
+          WithMetadata(map[string]any{
+            "exchange": "NASDAQ",
+            "sector": "Technology",
+            "currency": "USD",
+            "isin": "US0378331005",
+          })
 
 func FromMmodelAsset(asset mmodel.Asset) Asset
     FromMmodelAsset converts an mmodel Asset to an SDK Asset. This function is
@@ -447,32 +664,107 @@ type AssetFilter struct {
 
 type AssetRate struct {
 	// ID is the unique identifier for the asset rate
+	// This is a system-generated UUID that uniquely identifies the rate
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
-	// FromAsset is the source asset code
+	// FromAsset is the source asset code for the conversion
+	// This is the asset being converted from (e.g., "USD" in a USD→EUR conversion).
+	// Must be a valid asset code in the ledger.
 	FromAsset string `json:"fromAsset"`
 
-	// ToAsset is the target asset code
+	// ToAsset is the target asset code for the conversion
+	// This is the asset being converted to (e.g., "EUR" in a USD→EUR conversion).
+	// Must be a valid asset code in the ledger.
 	ToAsset string `json:"toAsset"`
 
-	// Rate is the exchange rate value (FromAsset to ToAsset)
+	// Rate is the exchange rate value
+	// Represents how many units of ToAsset equal one unit of FromAsset.
+	// For example, if FromAsset is "USD", ToAsset is "EUR", and Rate is 0.92,
+	// then 1 USD = 0.92 EUR.
 	Rate float64 `json:"rate"`
 
-	// CreatedAt is the timestamp when the rate was created
+	// CreatedAt is the timestamp when the asset rate was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
-	// UpdatedAt is the timestamp when the rate was last updated
+	// UpdatedAt is the timestamp when the asset rate was last updated
+	// This is automatically updated by the system whenever the rate is modified.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// EffectiveAt is the timestamp when the rate becomes effective
+	// Rates are only applied to transactions that occur on or after this time.
+	// This allows for scheduling future rate changes.
 	EffectiveAt time.Time `json:"effectiveAt"`
 
 	// ExpirationAt is the timestamp when the rate expires
+	// Rates are only applied to transactions that occur before this time.
+	// This allows for defining the validity period of a rate.
 	ExpirationAt time.Time `json:"expirationAt"`
 }
     AssetRate represents an asset exchange rate in the Midaz Ledger. Asset rates
     define the conversion ratio between two different assets and are used for
     currency conversion and other asset exchange operations.
+
+    Exchange rates in Midaz are directional, meaning they specify the conversion
+    from one specific asset (FromAsset) to another (ToAsset). The Rate value
+    indicates how many units of ToAsset equal one unit of FromAsset.
+
+    Time-Based Rate Management: Midaz supports time-based rate management
+    through the EffectiveAt and ExpirationAt fields. This allows for:
+      - Historical rates: Retrieving rates that were valid at a specific point
+        in time
+      - Scheduled rate changes: Setting future rates in advance
+      - Rate versioning: Maintaining a history of rate changes over time
+
+    Common Use Cases:
+      - Currency conversion for multi-currency ledgers
+      - Foreign exchange (FX) operations
+      - Asset valuation and reporting
+      - Time-series analysis of exchange rates
+
+    Example Usage:
+
+        // Create a new USD to EUR exchange rate
+        now := time.Now()
+        tomorrow := now.Add(24 * time.Hour)
+
+        usdEurRate := models.NewAssetRate(
+            "rate-123",
+            "USD",
+            "EUR",
+            0.92,
+            now,
+            tomorrow,
+        )
+
+        // Calculate conversion
+        usdAmount := 100.00
+        eurAmount := usdAmount * usdEurRate.Rate
+        fmt.Printf("%.2f USD = %.2f EUR\n", usdAmount, eurAmount)
+
+    Example - Creating a rate schedule:
+
+        // Current rate (effective immediately)
+        currentRate := models.NewUpdateAssetRateInput(
+            "USD",
+            "EUR",
+            0.92,
+            time.Now(),
+            time.Now().Add(24 * time.Hour),
+        )
+
+        // Future rate (effective tomorrow)
+        tomorrow := time.Now().Add(24 * time.Hour)
+        nextWeek := time.Now().Add(7 * 24 * time.Hour)
+
+        futureRate := models.NewUpdateAssetRateInput(
+            "USD",
+            "EUR",
+            0.94,
+            tomorrow,
+            nextWeek,
+        )
 
 func NewAssetRate(id, fromAsset, toAsset string, rate float64, effectiveAt, expirationAt time.Time) *AssetRate
     NewAssetRate creates a new AssetRate with required fields. This constructor
@@ -514,51 +806,71 @@ func FromMmodelAssets(assets mmodel.Assets) Assets
 
 type Balance struct {
 	// ID is the unique identifier for the balance
+	// This is a system-generated UUID that uniquely identifies the balance
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
 	// OrganizationID is the ID of the organization that owns this balance
+	// All balances must belong to an organization, which provides the
+	// top-level ownership and access control.
 	OrganizationID string `json:"organizationId"`
 
 	// LedgerID is the ID of the ledger that contains this balance
+	// Balances are always associated with a specific ledger, which defines
+	// the accounting boundaries and rules.
 	LedgerID string `json:"ledgerId"`
 
 	// AccountID is the ID of the account this balance belongs to
+	// Each balance is associated with a specific account within the ledger.
 	AccountID string `json:"accountId"`
 
 	// Alias is a human-friendly identifier for the account
+	// This provides a more readable reference to the account than the ID.
 	Alias string `json:"alias"`
 
 	// AssetCode identifies the type of asset for this balance
+	// Examples include currency codes like "USD", "EUR", or custom asset
+	// codes for other types of assets.
 	AssetCode string `json:"assetCode"`
 
 	// Available is the amount available for use in the account
+	// This represents funds that can be freely used in transactions.
 	// The actual value is Available/Scale (e.g., 1000/100 = 10.00)
 	Available int64 `json:"available"`
 
 	// OnHold is the amount that is reserved but not yet settled
+	// This represents funds that are temporarily reserved for pending operations.
 	// The actual value is OnHold/Scale (e.g., 500/100 = 5.00)
 	OnHold int64 `json:"onHold"`
 
 	// Scale is the divisor to convert the integer amounts to decimal values
-	// For example, a scale of 100 means the values are stored as cents
+	// For example, a scale of 100 means the values are stored as cents,
+	// and a scale of 1000 means the values are stored with three decimal places.
 	Scale int64 `json:"scale"`
 
 	// Version is the optimistic concurrency control version number
+	// This is used to prevent conflicts when multiple processes attempt
+	// to update the same balance simultaneously.
 	Version int64 `json:"version"`
 
 	// AccountType defines the type of the account (e.g., "ASSET", "LIABILITY")
+	// This indicates the accounting classification of the account.
 	AccountType string `json:"accountType"`
 
 	// AllowSending indicates whether the account can send funds
+	// If false, the account cannot be used as a source in transactions.
 	AllowSending bool `json:"allowSending"`
 
 	// AllowReceiving indicates whether the account can receive funds
+	// If false, the account cannot be used as a destination in transactions.
 	AllowReceiving bool `json:"allowReceiving"`
 
 	// CreatedAt is the timestamp when the balance was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
 	// UpdatedAt is the timestamp when the balance was last updated
+	// This is automatically updated by the system whenever the balance changes.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the balance was deleted, if applicable
@@ -571,6 +883,49 @@ type Balance struct {
     tracks the available and on-hold amounts for a specific account and asset.
     Balances are used to determine the current state of funds in an account and
     to enforce constraints on transactions.
+
+    Balance Components:
+      - Available: The amount that can be freely used in transactions
+      - OnHold: The amount that is reserved but not yet settled (e.g., pending
+        transactions)
+      - Total: The sum of Available and OnHold amounts
+
+    Balance Permissions:
+      - AllowSending: Controls whether funds can be sent from the account
+      - AllowReceiving: Controls whether funds can be received into the account
+
+    Common Use Cases:
+      - Account balance reporting and monitoring
+      - Transaction validation (sufficient funds checks)
+      - Funds reservation for pending operations
+      - Balance reconciliation and auditing
+
+    Example Usage:
+
+        // Checking if an account has sufficient funds for a transaction
+        func hasSufficientFunds(balance *models.Balance, amount int64) bool {
+            // Check if the account allows sending funds
+            if !balance.AllowSending {
+                return false
+            }
+
+            // Check if the available balance is sufficient
+            return balance.Available >= amount
+        }
+
+        // Calculate total balance (available + on-hold)
+        func getTotalBalance(balance *models.Balance) int64 {
+            return balance.Available + balance.OnHold
+        }
+
+        // Format balance for display with proper scale
+        func formatBalance(balance *models.Balance) string {
+            divisor := math.Pow10(int(balance.Scale))
+            available := float64(balance.Available) / divisor
+            onHold := float64(balance.OnHold) / divisor
+            return fmt.Sprintf("Available: %.2f %s, On Hold: %.2f %s",
+                available, balance.AssetCode, onHold, balance.AssetCode)
+        }
 
 func FromMmodelBalance(balance mmodel.Balance) Balance
     FromMmodelBalance converts a backend Balance to an SDK Balance. This
@@ -1884,6 +2239,97 @@ type Operation struct {
       - Amount: The value of the operation
       - Asset: The currency or asset type involved
 
+    Common Use Cases:
+      - Recording financial transactions (payments, transfers, etc.)
+      - Tracking account activity and history
+      - Generating financial reports and statements
+      - Auditing and reconciliation
+
+    Double-Entry Accounting Rules:
+      - Asset accounts: Debits increase, credits decrease
+      - Liability accounts: Debits decrease, credits increase
+      - Equity accounts: Debits decrease, credits increase
+      - Revenue accounts: Debits decrease, credits increase
+      - Expense accounts: Debits increase, credits decrease
+
+    Example - Payment Transaction:
+
+        // A payment transaction typically involves:
+        // 1. Debit to an expense account (increase expense)
+        // 2. Credit to a cash/bank account (decrease asset)
+
+        // Debit operation (expense)
+        debitOp := Operation{
+            Type:         "debit",
+            AccountID:    "acc-expense-123",
+            AccountAlias: stringPtr("expenses:office"),
+            Amount:       5000,
+            Scale:        2,
+            AssetCode:    "USD",
+        }
+
+        // Credit operation (bank account)
+        creditOp := Operation{
+            Type:         "credit",
+            AccountID:    "acc-bank-456",
+            AccountAlias: stringPtr("assets:bank"),
+            Amount:       5000,
+            Scale:        2,
+            AssetCode:    "USD",
+        }
+
+    Example - Transfer Transaction:
+
+        // A transfer between accounts typically involves:
+        // 1. Debit to the source account (decrease asset)
+        // 2. Credit to the destination account (increase asset)
+
+        // Debit operation (source account)
+        debitOp := Operation{
+            Type:         "debit",
+            AccountID:    "acc-savings-123",
+            AccountAlias: stringPtr("assets:savings"),
+            Amount:       10000,
+            Scale:        2,
+            AssetCode:    "USD",
+        }
+
+        // Credit operation (destination account)
+        creditOp := Operation{
+            Type:         "credit",
+            AccountID:    "acc-checking-456",
+            AccountAlias: stringPtr("assets:checking"),
+            Amount:       10000,
+            Scale:        2,
+            AssetCode:    "USD",
+        }
+
+    Example - Revenue Transaction:
+
+        // A revenue transaction typically involves:
+        // 1. Debit to a cash/bank account (increase asset)
+        // 2. Credit to a revenue account (increase revenue)
+
+        // Debit operation (bank account)
+        debitOp := Operation{
+            Type:         "debit",
+            AccountID:    "acc-bank-123",
+            AccountAlias: stringPtr("assets:bank"),
+            Amount:       15000,
+            Scale:        2,
+            AssetCode:    "USD",
+        }
+
+        // Credit operation (revenue account)
+        creditOp := Operation{
+            Type:         "credit",
+            AccountID:    "acc-revenue-456",
+            AccountAlias: stringPtr("revenue:sales"),
+            Amount:       15000,
+            Scale:        2,
+            AssetCode:    "USD",
+        }
+
     Example usage:
 
         // Accessing operation details
@@ -3174,4 +3620,46 @@ func (u *UpdateSegmentInput) WithStatus(status Status) *UpdateSegmentInput
 
     Returns:
       - A pointer to the modified UpdateSegmentInput for method chaining
+
+type UpdateTransactionInput struct {
+	// Metadata contains additional custom data for the transaction
+	// This can be used to store application-specific information
+	// such as references to external systems, tags, or other contextual data
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Description is a human-readable description of the transaction
+	// This should provide context about the purpose or nature of the transaction
+	Description string `json:"description,omitempty"`
+
+	// ExternalID is an optional identifier for linking to external systems
+	// This can be used to correlate transactions with records in other systems
+	ExternalID string `json:"externalId,omitempty"`
+}
+    UpdateTransactionInput represents the input for updating a transaction.
+    This structure contains the fields that can be updated on an existing
+    transaction.
+
+    UpdateTransactionInput is used with the
+    TransactionsService.UpdateTransaction method to update existing
+    transactions. It allows for updating metadata and other mutable properties
+    of a transaction.
+
+    Note that not all fields of a transaction can be updated after creation,
+    especially for transactions that have already been committed. Typically,
+    only metadata and certain status-related fields can be modified.
+
+    Example - Updating transaction metadata:
+
+        // Update a transaction's metadata
+        input := &models.UpdateTransactionInput{
+            Metadata: map[string]interface{}{
+                "updated_by": "admin",
+                "approval_status": "approved",
+                "notes": "Verified and approved by finance team",
+            },
+        }
+
+        updatedTx, err := client.Transactions.UpdateTransaction(
+            ctx, orgID, ledgerID, transactionID, input,
+        )
 
