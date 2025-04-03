@@ -15,8 +15,7 @@ components/mdz/bin/mdz
 dist/
 coverage.out
 scripts/coverage_ignore.txt
-sdks/go-sdk/bin/
-sdks/go-sdk/examples/*/bin/
+bin/
 
 # Docker compose files
 components/ledger/_docker-compose.yml
