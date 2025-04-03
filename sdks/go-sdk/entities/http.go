@@ -105,7 +105,7 @@ func (h *httpClient) logRequest(req *http.Request) error {
 	}
 
 	fmt.Printf("[DEBUG] Request: %s %s\n", req.Method, req.URL.String())
-	fmt.Printf("[DEBUG] Headers: %v\n", req.Header)
+	// fmt.Printf("[DEBUG] Headers: %v\n", headers)
 
 	if bodyStr != "" {
 		fmt.Printf("[DEBUG] Body: %s\n", bodyStr)
@@ -124,7 +124,7 @@ func (h *httpClient) logResponse(resp *http.Response) error {
 	resp.Body = io.NopCloser(bytes.NewReader(body))
 
 	fmt.Printf("[DEBUG] Response: %d %s\n", resp.StatusCode, resp.Status)
-	fmt.Printf("[DEBUG] Headers: %v\n", resp.Header)
+	// fmt.Printf("[DEBUG] Headers: %v\n", resp.Header)
 	fmt.Printf("[DEBUG] Body: %s\n", string(body))
 
 	return nil
