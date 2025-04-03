@@ -7,20 +7,59 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
+	"strconv"
 	"time"
 
 	midaz "github.com/LerianStudio/midaz/sdks/go-sdk"
+	"github.com/joho/godotenv"
 )
 
 // RunCreateWorkflow demonstrates a complete workflow using the Midaz Go SDK.
 // It creates an organization, ledger, assets, accounts, and performs various transactions.
 func RunCreateWorkflow() error {
-	// Create a new Midaz client with all API interfaces enabled
-	client, err := midaz.New(
-		midaz.WithAuthToken("your-auth-token"),
-		midaz.WithDebug(true),
-		midaz.UseAllAPIs(), // Enable all API interfaces
-	)
+	// Load environment variables
+	options := []midaz.Option{}
+
+	// Add auth token from environment
+	authToken := os.Getenv("MIDAZ_AUTH_TOKEN")
+	if authToken != "" {
+		options = append(options, midaz.WithAuthToken(authToken))
+	} else {
+		return fmt.Errorf("MIDAZ_AUTH_TOKEN environment variable is required")
+	}
+
+	// Add onboarding URL if specified
+	if onboardingURL := os.Getenv("MIDAZ_ONBOARDING_URL"); onboardingURL != "" {
+		options = append(options, midaz.WithOnboardingURL(onboardingURL))
+	}
+
+	// Add transaction URL if specified
+	if transactionURL := os.Getenv("MIDAZ_TRANSACTION_URL"); transactionURL != "" {
+		options = append(options, midaz.WithTransactionURL(transactionURL))
+	}
+
+	// Add debug mode if specified
+	if debugStr := os.Getenv("MIDAZ_DEBUG"); debugStr != "" {
+		debug, err := strconv.ParseBool(debugStr)
+		if err == nil && debug {
+			options = append(options, midaz.WithDebug(true))
+		}
+	}
+
+	// Add timeout if specified
+	if timeoutStr := os.Getenv("MIDAZ_TIMEOUT"); timeoutStr != "" {
+		timeout, err := strconv.Atoi(timeoutStr)
+		if err == nil && timeout > 0 {
+			options = append(options, midaz.WithTimeout(time.Duration(timeout)*time.Second))
+		}
+	}
+
+	// Enable all API interfaces
+	options = append(options, midaz.UseAllAPIs())
+
+	// Create a new Midaz client with options from environment
+	client, err := midaz.New(options...)
 	if err != nil {
 		return fmt.Errorf("failed to create Midaz client: %w", err)
 	}
@@ -193,25 +232,25 @@ func RunCreateWorkflow() error {
 	if err != nil {
 		return fmt.Errorf("failed to get customer USD balance: %w", err)
 	}
-	fmt.Printf("Customer USD balance: $%.2f\n", float64(customerUsdBalance.Amount)/math.Pow10(customerUsdBalance.Scale))
+	fmt.Printf("Customer USD balance: $%.2f\n", float64(customerUsdBalance.Available)/math.Pow10(int(customerUsdBalance.Scale)))
 
 	customerEurBalance, err := GetBalance(ctx, client, org.ID, ledger.ID, "customer:john:eur")
 	if err != nil {
 		return fmt.Errorf("failed to get customer EUR balance: %w", err)
 	}
-	fmt.Printf("Customer EUR balance: €%.2f\n", float64(customerEurBalance.Amount)/math.Pow10(customerEurBalance.Scale))
+	fmt.Printf("Customer EUR balance: €%.2f\n", float64(customerEurBalance.Available)/math.Pow10(int(customerEurBalance.Scale)))
 
 	operationalUsdBalance, err := GetBalance(ctx, client, org.ID, ledger.ID, "operational:usd")
 	if err != nil {
 		return fmt.Errorf("failed to get operational USD balance: %w", err)
 	}
-	fmt.Printf("Operational USD balance: $%.2f\n", float64(operationalUsdBalance.Amount)/math.Pow10(operationalUsdBalance.Scale))
+	fmt.Printf("Operational USD balance: $%.2f\n", float64(operationalUsdBalance.Available)/math.Pow10(int(operationalUsdBalance.Scale)))
 
 	operationalEurBalance, err := GetBalance(ctx, client, org.ID, ledger.ID, "operational:eur")
 	if err != nil {
 		return fmt.Errorf("failed to get operational EUR balance: %w", err)
 	}
-	fmt.Printf("Operational EUR balance: €%.2f\n", float64(operationalEurBalance.Amount)/math.Pow10(operationalEurBalance.Scale))
+	fmt.Printf("Operational EUR balance: €%.2f\n", float64(operationalEurBalance.Available)/math.Pow10(int(operationalEurBalance.Scale)))
 
 	fmt.Println("\nWorkflow completed successfully!")
 	return nil
@@ -219,6 +258,14 @@ func RunCreateWorkflow() error {
 
 // Main function to run the example
 func main() {
+	// Load .env file if it exists
+	if err := godotenv.Load(); err != nil {
+		// Try to load from the parent directory if not found in current directory
+		if err := godotenv.Load("../../.env"); err != nil {
+			log.Println("Warning: .env file not found, using environment variables")
+		}
+	}
+
 	if err := RunCreateWorkflow(); err != nil {
 		log.Fatalf("Error running workflow: %v", err)
 	}

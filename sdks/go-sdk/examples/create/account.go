@@ -13,7 +13,7 @@ import (
 //
 // This function creates a new account for the specified organization and ledger using the builder pattern.
 // It shows how to set required fields like organization ID, ledger ID, name, asset code, and type,
-// as well as optional fields like status, metadata, and reference.
+// as well as optional fields like status, metadata, and alias.
 //
 // Parameters:
 //   - ctx: The context for the API request
@@ -23,7 +23,7 @@ import (
 //   - name: The human-readable name for the account
 //   - assetCode: The code of the asset for this account (e.g., "USD", "EUR")
 //   - accountType: The type of account (e.g., "ASSET", "LIABILITY")
-//   - reference: An optional external reference for the account
+//   - alias: An optional alias/reference for the account
 //
 // Returns:
 //   - *models.Account: The created account
@@ -31,7 +31,7 @@ import (
 func CreateAccount(
 	ctx context.Context,
 	client *midaz.Client,
-	organizationID, ledgerID, name, assetCode, accountType, reference string,
+	organizationID, ledgerID, name, assetCode, accountType, alias string,
 ) (*models.Account, error) {
 	// Create a new account using the Builder interface
 	accountBuilder := client.Builder.NewAccount().
@@ -47,9 +47,9 @@ func CreateAccount(
 		}).
 		WithTags([]string{accountType, assetCode, "example"})
 
-	// Add reference if provided
-	if reference != "" {
-		accountBuilder = accountBuilder.WithReference(reference)
+	// Add alias if provided
+	if alias != "" {
+		accountBuilder = accountBuilder.WithAlias(alias)
 	}
 
 	// Create the account

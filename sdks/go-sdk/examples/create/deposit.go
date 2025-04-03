@@ -40,19 +40,18 @@ func MakeDeposit(
 	depositBuilder := client.Builder.NewDeposit().
 		WithOrganization(organizationID).
 		WithLedger(ledgerID).
-		WithAccountReference(accountRef).
-		WithAmount(amount).
-		WithScale(scale).
+		WithAmount(amount, int(scale)).
 		WithAssetCode(assetCode).
 		WithMetadata(map[string]any{
 			"source":      "external",
 			"method":      "bank_transfer",
 			"description": description,
 		}).
-		WithTags([]string{"deposit", "example"})
+		WithTags([]string{"deposit", "example"}).
+		ToAccount(accountRef)
 
 	// Create the deposit transaction
-	transaction, err := depositBuilder.Create(ctx)
+	transaction, err := depositBuilder.Execute(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deposit: %w", err)
 	}

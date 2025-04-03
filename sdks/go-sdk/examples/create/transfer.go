@@ -42,19 +42,18 @@ func MakeTransfer(
 	transferBuilder := client.Builder.NewTransfer().
 		WithOrganization(organizationID).
 		WithLedger(ledgerID).
-		WithSourceAccountReference(sourceAccountRef).
-		WithDestinationAccountReference(destAccountRef).
-		WithAmount(amount).
-		WithScale(scale).
+		WithAmount(amount, int(scale)).
 		WithAssetCode(assetCode).
 		WithMetadata(map[string]any{
 			"type":        "internal_transfer",
 			"description": description,
 		}).
-		WithTags([]string{"transfer", "example"})
+		WithTags([]string{"transfer", "example"}).
+		FromAccount(sourceAccountRef).
+		ToAccount(destAccountRef)
 
 	// Create the transfer transaction
-	transaction, err := transferBuilder.Create(ctx)
+	transaction, err := transferBuilder.Execute(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transfer: %w", err)
 	}

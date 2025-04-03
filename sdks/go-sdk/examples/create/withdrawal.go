@@ -40,19 +40,18 @@ func MakeWithdrawal(
 	withdrawalBuilder := client.Builder.NewWithdrawal().
 		WithOrganization(organizationID).
 		WithLedger(ledgerID).
-		WithAccountReference(accountRef).
-		WithAmount(amount).
-		WithScale(scale).
+		WithAmount(amount, int(scale)).
 		WithAssetCode(assetCode).
 		WithMetadata(map[string]any{
 			"destination": "external",
 			"method":      "bank_transfer",
 			"description": description,
 		}).
-		WithTags([]string{"withdrawal", "example"})
+		WithTags([]string{"withdrawal", "example"}).
+		FromAccount(accountRef)
 
 	// Create the withdrawal transaction
-	transaction, err := withdrawalBuilder.Create(ctx)
+	transaction, err := withdrawalBuilder.Execute(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create withdrawal: %w", err)
 	}

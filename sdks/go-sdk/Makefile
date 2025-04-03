@@ -73,6 +73,11 @@ help:
 	@echo "  make fmt                         - Format code"
 	@echo "  make tidy                        - Clean dependencies"
 	@echo ""
+	@echo "$(BOLD)Example Applications:$(NC)"
+	@echo "  make example-create-setup        - Setup the create example with environment file"
+	@echo "  make example-create-build        - Build the create example application"
+	@echo "  make example-create-run          - Run the create example application"
+	@echo ""
 	@echo "$(BOLD)API Management Commands:$(NC)"
 	@echo "  make check-api-changes           - Check for API changes"
 	@echo "  make update-api-hashes           - Update API hashes"
@@ -141,6 +146,31 @@ clean:
 	@$(GOCLEAN)
 	@rm -rf $(BIN_DIR)/ $(ARTIFACTS_DIR)/coverage.out $(ARTIFACTS_DIR)/coverage.html
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
+
+#-------------------------------------------------------
+# Example Applications
+#-------------------------------------------------------
+
+.PHONY: example-create-setup
+example-create-setup:
+	$(call title1,"Setting up create example")
+	@echo "$(CYAN)Copying environment file...$(NC)"
+	@cp $(ENV_EXAMPLE) examples/create/.env
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Environment file copied to examples/create/.env$(GREEN) ✔️$(NC)"
+
+.PHONY: example-create-build
+example-create-build: example-create-setup
+	$(call title1,"Building create example")
+	@echo "$(CYAN)Building create example...$(NC)"
+	@cd examples/create && $(GOBUILD) -o $(BIN_DIR)/create
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Create example built successfully at $(BIN_DIR)/create$(GREEN) ✔️$(NC)"
+
+.PHONY: example-create-run
+example-create-run: example-create-build
+	$(call title1,"Running create example")
+	@echo "$(CYAN)Running create example...$(NC)"
+	@cd examples/create && $(BIN_DIR)/create
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Create example executed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # API Management Commands

@@ -9,9 +9,9 @@ import (
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
-// GetBalance demonstrates how to retrieve the balance for an account using the Builder interface.
+// GetBalance demonstrates how to retrieve the balance for an account using the Entity API.
 //
-// This function retrieves the current balance for the specified account using the builder pattern.
+// This function retrieves the current balance for the specified account using the Entity API.
 // It shows how to set required fields like organization ID, ledger ID, and account reference.
 //
 // Parameters:
@@ -29,13 +29,24 @@ func GetBalance(
 	client *midaz.Client,
 	organizationID, ledgerID, accountRef string,
 ) (*models.Balance, error) {
-	// Get the balance for the account using the Builder interface
-	balance, err := client.Builder.NewBalance().
-		WithOrganization(organizationID).
-		WithLedger(ledgerID).
-		WithAccountReference(accountRef).
-		Get(ctx)
+	// First get the account by its reference/alias
+	account, err := client.Entity.Accounts.GetAccountByAlias(
+		ctx,
+		organizationID,
+		ledgerID,
+		accountRef,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get account with reference %s: %w", accountRef, err)
+	}
 
+	// Get the balance for the account using its ID
+	balance, err := client.Entity.Accounts.GetBalance(
+		ctx,
+		organizationID,
+		ledgerID,
+		account.ID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance for account %s: %w", accountRef, err)
 	}
