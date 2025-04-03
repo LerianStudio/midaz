@@ -1,3 +1,12 @@
+## [1.51.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.14...v1.51.0-beta.15) (2025-04-03)
+
+
+### Bug Fixes
+
+* adjust to return right error code and status; :bug: ([a887f4f](https://github.com/LerianStudio/midaz/commit/a887f4f6fb876dcf0f7e5bfeec968e0fc9ac3b3d))
+* update go mod and go sum; :bug: ([0dcd926](https://github.com/LerianStudio/midaz/commit/0dcd92605116ea4c8df9e094a83cff57b8f43136))
+* update go mod and sum; :bug: ([0648e2d](https://github.com/LerianStudio/midaz/commit/0648e2d52208205ea978045431ad3750eb9c536d))
+
 ## [1.51.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.13...v1.51.0-beta.14) (2025-04-03)
 
 
