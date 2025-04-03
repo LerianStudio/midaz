@@ -286,6 +286,10 @@ Manages transaction resources:
 // List transactions in a ledger
 transactions, err := entity.Transactions.ListTransactions(ctx, "org-123", "ledger-456", &models.ListOptions{
     Limit: 10,
+    Filter: map[string]string{
+        "status": "completed",
+        "asset_code": "USD",
+    },
 })
 
 // Get a transaction by ID
@@ -324,6 +328,10 @@ transaction, err := entity.Transactions.CreateTransactionWithDSL(ctx, "org-123",
 // Update a transaction
 transaction, err := entity.Transactions.UpdateTransaction(ctx, "org-123", "ledger-456", "tx-123", &models.UpdateTransactionInput{
     Description: "Updated transaction description",
+    Metadata: map[string]any{
+        "processed_by": "system",
+        "status": "reconciled",
+    },
 })
 
 // Commit a pending transaction
@@ -342,12 +350,18 @@ account, err := entity.Accounts.GetAccount(ctx, "org-123", "ledger-456", "accoun
 if err != nil {
     // Handle specific error types
     switch {
-    case strings.Contains(err.Error(), "not found"):
+    case errors.Is(err, errors.ErrNotFound):
         // Handle not found error
-    case strings.Contains(err.Error(), "permission denied"):
+        fmt.Printf("Account not found: %s\n", "account-789")
+    case errors.Is(err, errors.ErrPermission):
         // Handle permission error
+        fmt.Printf("Permission denied for account: %s\n", "account-789")
+    case errors.Is(err, errors.ErrValidation):
+        // Handle validation error
+        fmt.Printf("Validation error: %v\n", err)
     default:
         // Handle other errors
+        fmt.Printf("Unexpected error: %v\n", err)
     }
     return err
 }
@@ -360,8 +374,8 @@ All list operations support pagination and filtering through the `ListOptions` t
 ```go
 // List with pagination
 accounts, err := entity.Accounts.ListAccounts(ctx, "org-123", "ledger-456", &models.ListOptions{
-    Limit:  10,
-    Offset: 20,
+    Page:     2,
+    PageSize: 10,
 })
 
 // List with filtering
@@ -374,7 +388,58 @@ accounts, err := entity.Accounts.ListAccounts(ctx, "org-123", "ledger-456", &mod
 
 // List with sorting
 accounts, err := entity.Accounts.ListAccounts(ctx, "org-123", "ledger-456", &models.ListOptions{
-    Sort: "created_at:desc",
+    Sort:  "created_at",
+    Order: "desc",
+})
+```
+
+## Advanced Transaction Examples
+
+### Creating a Pending Transaction
+
+```go
+// Create a pending transaction
+pendingTx, err := entity.Transactions.CreateTransaction(ctx, "org-123", "ledger-456", &models.CreateTransactionInput{
+    Entries: []models.TransactionEntry{
+        {
+            AccountID: "account-source",
+            Amount:    -10000,
+            AssetCode: "USD",
+        },
+        {
+            AccountID: "account-target",
+            Amount:    10000,
+            AssetCode: "USD",
+        },
+    },
+    Description: "Transfer between accounts",
+    Pending:     true, // Mark as pending
+    ExternalID:  "ext-tx-123", // Optional external ID for reference
+})
+
+// Later, commit the transaction
+committedTx, err := entity.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", pendingTx.ID)
+```
+
+### Using Idempotency Keys
+
+```go
+// Create a transaction with an idempotency key
+transaction, err := entity.Transactions.CreateTransaction(ctx, "org-123", "ledger-456", &models.CreateTransactionInput{
+    Entries: []models.TransactionEntry{
+        {
+            AccountID: "account-source",
+            Amount:    -10000,
+            AssetCode: "USD",
+        },
+        {
+            AccountID: "account-target",
+            Amount:    10000,
+            AssetCode: "USD",
+        },
+    },
+    Description:    "Transfer between accounts",
+    IdempotencyKey: "payment-2023-04-01-123", // Ensure uniqueness
 })
 ```
 
@@ -391,4 +456,3 @@ if err != nil {
 
 // Use the client's services
 account, err := client.Accounts.GetAccount(ctx, "org-123", "ledger-456", "account-789")
-```

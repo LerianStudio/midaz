@@ -247,10 +247,15 @@ tx, err := builder.
 
 All transaction builders support the following common options:
 
+### Required Parameters
+
 - `WithOrganization(orgID string)` - Set the organization ID
 - `WithLedger(ledgerID string)` - Set the ledger ID
 - `WithAmount(amount int64, scale int)` - Set the transaction amount and scale
 - `WithAssetCode(assetCode string)` - Set the asset code
+
+### Optional Parameters
+
 - `WithDescription(description string)` - Add a human-readable description
 - `WithMetadata(metadata map[string]any)` - Add metadata key-value pairs
 - `WithTag(tag string)` - Add a single tag
@@ -281,12 +286,105 @@ tx, err := builder.
     Execute(context.Background())
 
 if err != nil {
-    // Handle error
+    // Handle specific error types
+    switch {
+    case errors.Is(err, errors.ErrValidation):
+        // Handle validation errors (missing required fields)
+        fmt.Printf("Validation error: %v\n", err)
+    case errors.Is(err, errors.ErrAuthentication):
+        // Handle authentication errors (invalid token)
+        fmt.Printf("Authentication error: %v\n", err)
+    case errors.Is(err, errors.ErrPermission):
+        // Handle permission errors (insufficient privileges)
+        fmt.Printf("Permission error: %v\n", err)
+    case errors.Is(err, errors.ErrNotFound):
+        // Handle not found errors (invalid organization, ledger, or account)
+        fmt.Printf("Resource not found: %v\n", err)
+    case strings.Contains(err.Error(), "insufficient funds"):
+        // Handle insufficient funds errors
+        fmt.Printf("Insufficient funds: %v\n", err)
+    default:
+        // Handle other errors
+        fmt.Printf("Unexpected error: %v\n", err)
+    }
     return err
 }
 
 // Use the transaction
 fmt.Printf("Created deposit transaction: %s (status: %s)\n", tx.ID, tx.Status)
+```
+
+## Advanced Usage Examples
+
+### Handling Idempotency
+
+```go
+// Attempt to create a transfer with an existing idempotency key
+tx, err := builder.
+    NewTransfer().
+    WithOrganization("org-123").
+    WithLedger("ledger-456").
+    WithAmount(5000, 2). // $50.00
+    WithAssetCode("USD").
+    WithDescription("Recurring payment").
+    WithIdempotencyKey("payment-may-2023").
+    FromAccount("customer-account").
+    ToAccount("revenue-account").
+    Execute(context.Background())
+
+if err != nil {
+    if strings.Contains(err.Error(), "idempotency key already exists") {
+        // If the transaction already exists, retrieve it
+        existingTx, findErr := client.Transactions.GetTransactionByIdempotencyKey(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            "payment-may-2023",
+        )
+
+        if findErr == nil {
+            // Use the existing transaction
+            fmt.Printf("Found existing transaction: %s (created: %s)\n",
+                existingTx.ID, existingTx.CreatedAt)
+            return nil
+        }
+    }
+    return fmt.Errorf("transfer failed: %w", err)
+}
+
+fmt.Printf("Created new transaction: %s\n", tx.ID)
+```
+
+### Creating Pending Transactions
+
+```go
+// Create a pending high-value transfer
+tx, err := builder.
+    NewTransfer().
+    WithOrganization("org-123").
+    WithLedger("ledger-456").
+    WithAmount(1000000, 2). // $10,000.00
+    WithAssetCode("USD").
+    WithDescription("Investment allocation").
+    WithMetadata(map[string]any{
+        "requires_approval": true,
+        "approval_level": "director",
+        "requested_by": "jane.doe",
+    }).
+    WithPending(true). // Mark as pending
+    FromAccount("account:treasury").
+    ToAccount("account:investments").
+    Execute(context.Background())
+
+// Store the transaction ID for the approval process
+pendingTransactionID := tx.ID
+
+// Later, in the approval handler:
+if approved {
+    err = client.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", pendingTransactionID)
+} else {
+    err = client.Transactions.DeleteTransaction(ctx, "org-123", "ledger-456", pendingTransactionID)
+}
 ```
 
 ## Direct Builder Creation

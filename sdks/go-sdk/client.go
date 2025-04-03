@@ -1,5 +1,5 @@
-// Package midaz provides a Go client for the Midaz API.
-package midaz
+// Package client provides a Go client for the Midaz API.
+package client
 
 import (
 	"context"
