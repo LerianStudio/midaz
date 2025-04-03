@@ -13,8 +13,10 @@ func loadJSONResponse(filename string) ([]byte, error) {
 	return os.ReadFile(filename)
 }
 
+// \1 performs an operation
 func MockResponseFromFile(status int, path string) httpmock.Responder {
 	data, err := loadJSONResponse(path)
+
 	if err != nil {
 		return httpmock.NewStringResponder(http.StatusInternalServerError,
 			"Failed to load mock response")

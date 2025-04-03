@@ -3,6 +3,7 @@ package account
 import (
 	"encoding/json"
 	"errors"
+
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/rest"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/cmd/utils"
@@ -38,6 +39,7 @@ type flagsUpdate struct {
 func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -47,6 +49,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -56,6 +59,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
+
 		if err != nil {
 			return err
 		}
@@ -65,6 +69,7 @@ func (f *factoryAccountUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("account-id") && len(f.AccountID) < 1 {
 		id, err := f.tuiInput("Enter your account-id")
+
 		if err != nil {
 			return err
 		}
@@ -84,6 +89,7 @@ func (f *factoryAccountUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &account)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -91,12 +97,14 @@ func (f *factoryAccountUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&account)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoAccount.Update(f.OrganizationID, f.LedgerID, f.AccountID, account)
+
 	if err != nil {
 		return err
 	}
@@ -106,8 +114,10 @@ func (f *factoryAccountUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// func (f *factoryAccountUpdate) UpdateRequestFromFlags(account *mmodel.UpdateAccountInput) error { performs an operation
 func (f *factoryAccountUpdate) UpdateRequestFromFlags(account *mmodel.UpdateAccountInput) error {
 	account.Name = f.Name
+
 	account.Status.Code = f.StatusCode
 
 	if len(f.StatusDescription) > 0 {
@@ -119,6 +129,7 @@ func (f *factoryAccountUpdate) UpdateRequestFromFlags(account *mmodel.UpdateAcco
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

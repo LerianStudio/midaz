@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // ListAccountsByIDs get Accounts from the repository by given ids.
@@ -19,11 +20,13 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.ListAccountsByIDs")
+
 	defer span.End()
 
 	logger.Infof("Retrieving account for id: %s", ids)
 
 	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, ids)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by ids", err)
 

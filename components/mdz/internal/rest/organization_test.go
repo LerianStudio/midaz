@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestCreateOrganization(t *testing.T) {
 	metadata := map[string]any{
 		"bitcoin": "3fozQHVceartTg14kwF4PkfgUU4JhsUX",
@@ -62,6 +63,7 @@ func TestCreateOrganization(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -94,6 +96,7 @@ func TestCreateOrganization(t *testing.T) {
 	assert.Equal(t, 1, info["POST http://127.0.0.1:3000/v1/organizations"])
 }
 
+// \1 performs an operation
 func TestOrganizationGetByID(t *testing.T) {
 	organizationID := "0192c559-62f4-738b-9be5-262b71f6375a"
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -116,6 +119,7 @@ func TestOrganizationGetByID(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	httpmock.RegisterResponder(http.MethodGet, URIAPILedger+"/v1/organizations/"+organizationID,
@@ -144,6 +148,7 @@ func TestOrganizationGetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192c559-62f4-738b-9be5-262b71f6375a"])
 }
 
+// \1 performs an operation
 func TestOrganizationUpdate(t *testing.T) {
 	inp := mmodel.UpdateOrganizationInput{
 		LegalName:       "Corwin LLC",
@@ -183,6 +188,7 @@ func TestOrganizationUpdate(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -214,9 +220,11 @@ func TestOrganizationUpdate(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH http://127.0.0.1:3000/v1/organizations/1a259e90-8f28-491d-8c09-c047293b1a0f"])
 }
 
+// \1 performs an operation
 func Test_organization_Delete(t *testing.T) {
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -242,6 +250,7 @@ func Test_organization_Delete(t *testing.T) {
 	assert.Equal(t, 1, info["DELETE http://127.0.0.1:3000/v1/organizations/1a259e90-8f28-491d-8c09-c047293b1a0f"])
 }
 
+// \1 performs an operation
 func Test_organization_Get(t *testing.T) {
 	organizationID := "0192c559-62f4-738b-9be5-262b71f6375a"
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -275,6 +284,7 @@ func Test_organization_Get(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	httpmock.RegisterResponder(http.MethodGet, URIAPILedger+"/v1/organizations?limit=5&page=1",
@@ -301,5 +311,6 @@ func Test_organization_Get(t *testing.T) {
 	assert.Equal(t, expectedResult.Page, page)
 
 	info := httpmock.GetCallCountInfo()
+
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations?limit=5&page=1"])
 }

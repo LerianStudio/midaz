@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 )
 
+// \1 performs an operation
 func TestFormat(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -37,6 +38,7 @@ func TestFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := Format(tt.commands...)
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
@@ -44,6 +46,7 @@ func TestFormat(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestFlagFileUnmarshalJSON(t *testing.T) {
 	type mockRequest struct {
 		Key string `json:"key"`
@@ -92,28 +95,37 @@ func TestFlagFileUnmarshalJSON(t *testing.T) {
 
 			if tt.path == "-" {
 				oldStdin := os.Stdin
+
 				defer func() { os.Stdin = oldStdin }()
 
 				r, w, _ := os.Pipe()
+
 				_, _ = w.Write([]byte(tt.content))
+
 				_ = w.Close()
+
 				os.Stdin = r
 			} else if tt.content != "" {
 				tmpFile, err := os.CreateTemp("", filepath.Base(tt.path))
+
 				if err != nil {
 					t.Fatalf("Failed to create temporary file: %v", err)
 				}
+
 				defer os.Remove(tmpFile.Name())
 
 				_, err = tmpFile.Write([]byte(tt.content))
 				if err != nil {
 					t.Fatalf("Failed to write to temporary file: %v", err)
 				}
+
 				_ = tmpFile.Close()
+
 				tt.path = tmpFile.Name()
 			}
 
 			err := FlagFileUnmarshalJSON(tt.path, &request)
+
 			if tt.hasError {
 				if err == nil {
 					t.Errorf("expected an error but got nil")
@@ -122,6 +134,7 @@ func TestFlagFileUnmarshalJSON(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
+
 				if request != tt.expected {
 					t.Errorf("expected %v, got %v", tt.expected, request)
 				}
@@ -129,6 +142,8 @@ func TestFlagFileUnmarshalJSON(t *testing.T) {
 		})
 	}
 }
+
+// \1 performs an operation
 func TestUnmarshalJSONFromReader(t *testing.T) {
 	type mockObject struct {
 		Name string `json:"name"`
@@ -196,6 +211,7 @@ func TestUnmarshalJSONFromReader(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestWriteDetailsToFile(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -225,8 +241,10 @@ func TestWriteDetailsToFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
 			defer func() {
 				if !tt.hasError {
+
 					_ = os.RemoveAll(filepath.Dir(tt.outPath))
 				}
 			}()
@@ -246,6 +264,7 @@ func TestWriteDetailsToFile(t *testing.T) {
 					t.Errorf("expected file to be created but it does not exist")
 				} else {
 					content, _ := os.ReadFile(tt.outPath)
+
 					if string(content) != string(tt.data) {
 						t.Errorf("expected file content %q, got %q", string(tt.data), string(content))
 					}
@@ -255,6 +274,7 @@ func TestWriteDetailsToFile(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestFormatAskFieldRequired(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -286,6 +306,7 @@ func TestFormatAskFieldRequired(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := FormatAskFieldRequired(tt.field)
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
@@ -293,6 +314,7 @@ func TestFormatAskFieldRequired(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAssignStringField(t *testing.T) {
 	mockInputFunc := func(expectedInput string, mockResponse string, mockError error) func(string) (string, error) {
 		return func(input string) (string, error) {
@@ -349,6 +371,7 @@ func TestAssignStringField(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
+
 				if result != tt.expected {
 					t.Errorf("expected %q, got %q", tt.expected, result)
 				}
@@ -357,6 +380,7 @@ func TestAssignStringField(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestParseAndAssign(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -406,6 +430,7 @@ func TestParseAndAssign(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
+
 				if tt.expected == nil {
 					if result != nil {
 						t.Errorf("expected nil, got %v", result)
@@ -420,6 +445,7 @@ func TestParseAndAssign(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAssignOptionalStringPtr(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -456,10 +482,12 @@ func TestAssignOptionalStringPtr(t *testing.T) {
 	}
 }
 
+// \1 represents an entity
 type Parent struct {
 	Field *string
 }
 
+// \1 performs an operation
 func TestSafeNestedString(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -494,6 +522,7 @@ func TestSafeNestedString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := SafeNestedString(tt.parent, tt.fieldFunc)
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
@@ -501,6 +530,7 @@ func TestSafeNestedString(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestSafeString(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -527,6 +557,7 @@ func TestSafeString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := SafeString(tt.value)
+
 			if result != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result)
 			}
@@ -534,6 +565,7 @@ func TestSafeString(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestValidateDate(t *testing.T) {
 	tests := []struct {
 		name          string

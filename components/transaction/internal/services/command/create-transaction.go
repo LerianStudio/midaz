@@ -2,6 +2,9 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -9,8 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 // CreateTransaction creates a new transaction persisting data in the repository.
@@ -19,6 +20,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction")
+
 	defer span.End()
 
 	logger.Infof("Trying to create new transaction")
@@ -33,6 +35,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 
 	if transactionID != uuid.Nil {
 		value := transactionID.String()
+
 		parentTransactionID = &value
 	}
 
@@ -54,6 +57,7 @@ func (uc *UseCase) CreateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	tran, err := uc.TransactionRepo.Create(ctx, save)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create transaction on repo", err)
 

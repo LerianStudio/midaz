@@ -31,6 +31,7 @@ type MockOrganizationMockRecorder struct {
 // NewMockOrganization creates a new mock instance.
 func NewMockOrganization(ctrl *gomock.Controller) *MockOrganization {
 	mock := &MockOrganization{ctrl: ctrl}
+
 	mock.recorder = &MockOrganizationMockRecorder{mock}
 	return mock
 }

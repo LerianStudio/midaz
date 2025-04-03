@@ -3,6 +3,11 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/pkg"
@@ -13,10 +18,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"gopkg.in/go-playground/validator.v9"
-	"reflect"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 // DecodeHandlerFunc is a handler which works with withBody decorator.
@@ -62,6 +63,7 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	}
 
 	marshaled, err := json.Marshal(s)
+
 	if err != nil {
 		return err
 	}
@@ -132,6 +134,7 @@ func ValidateStruct(s any) error {
 	v, trans := newValidator()
 
 	k := reflect.ValueOf(s).Kind()
+
 	if k == reflect.Ptr {
 		k = reflect.ValueOf(s).Elem().Kind()
 	}
@@ -141,6 +144,7 @@ func ValidateStruct(s any) error {
 	}
 
 	err := v.Struct(s)
+
 	if err != nil {
 		for _, fieldError := range err.(validator.ValidationErrors) {
 			switch fieldError.Tag() {
@@ -178,6 +182,7 @@ func ParseUUIDPathParameters(c *fiber.Ctx) error {
 		}
 
 		parsedUUID, err := uuid.Parse(value)
+
 		if err != nil {
 			invalidUUIDs = append(invalidUUIDs, param)
 			continue
@@ -213,6 +218,7 @@ func newValidator() (*validator.Validate, ut.Translator) {
 
 	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+
 		if name == "-" {
 			return ""
 		}
@@ -347,8 +353,10 @@ func validateMetadataValueMaxLength(fl validator.FieldLevel) bool {
 // validateSingleTransactionType checks if a transaction has only one type of transaction (amount, share, or remaining)
 func validateSingleTransactionType(fl validator.FieldLevel) bool {
 	arrField := fl.Field().Interface().([]libTransction.FromTo)
+
 	for _, f := range arrField {
 		count := 0
+
 		if f.Amount != nil {
 			count++
 		}
@@ -381,6 +389,7 @@ func formatErrorFieldName(text string) string {
 	re, _ := regexp.Compile(`\.(.+)$`)
 
 	matches := re.FindStringSubmatch(text)
+
 	if len(matches) > 1 {
 		return matches[1]
 	} else {
@@ -394,6 +403,7 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pk
 	requiredFields := fieldsRequired(invalidFieldsMap)
 
 	var vErr pkg.ValidationKnownFieldsError
+
 	_ = errors.As(pkg.ValidateBadRequestFieldsError(requiredFields, invalidFieldsMap, "", make(map[string]any)), &vErr)
 
 	return vErr
@@ -401,8 +411,10 @@ func malformedRequestErr(err validator.ValidationErrors, trans ut.Translator) pk
 
 func fields(errs validator.ValidationErrors, trans ut.Translator) pkg.FieldValidations {
 	l := len(errs)
+
 	if l > 0 {
 		fields := make(pkg.FieldValidations, l)
+
 		for _, e := range errs {
 			fields[e.Field()] = e.Translate(trans)
 		}
@@ -428,6 +440,7 @@ func fieldsRequired(myMap pkg.FieldValidations) pkg.FieldValidations {
 // parseMetadata For compliance with RFC7396 JSON Merge Patch
 func parseMetadata(s any, originalMap map[string]any) {
 	val := reflect.ValueOf(s)
+
 	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
 		return
 	}
@@ -435,6 +448,7 @@ func parseMetadata(s any, originalMap map[string]any) {
 	val = val.Elem()
 
 	metadataField := val.FieldByName("Metadata")
+
 	if !metadataField.IsValid() || !metadataField.CanSet() {
 		return
 	}
@@ -456,6 +470,7 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 		}
 
 		marshaledValue, ok := marshaled[key]
+
 		if !ok {
 			// If the key is not present in the marshaled map, marking as difference
 			diffFields[key] = value
@@ -467,6 +482,7 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 		case map[string]any:
 			if marshaledMap, ok := marshaledValue.(map[string]any); ok {
 				nestedDiff := findUnknownFields(originalValue, marshaledMap)
+
 				if len(nestedDiff) > 0 {
 					diffFields[key] = nestedDiff
 				}
@@ -478,6 +494,7 @@ func findUnknownFields(original, marshaled map[string]any) map[string]any {
 		case []any:
 			if marshaledArray, ok := marshaledValue.([]any); ok {
 				arrayDiff := compareSlices(originalValue, marshaledArray)
+
 				if len(arrayDiff) > 0 {
 					diffFields[key] = arrayDiff
 				}
@@ -512,6 +529,7 @@ func compareSlices(original, marshaled []any) []any {
 			if originalMap, ok := item.(map[string]any); ok {
 				if marshaledMap, ok := tmpMarshaled.(map[string]any); ok {
 					nestedDiff := findUnknownFields(originalMap, marshaledMap)
+
 					if len(nestedDiff) > 0 {
 						diff = append(diff, nestedDiff)
 					}

@@ -1,6 +1,7 @@
 package constant
 
 const (
-	DEBIT  = "DEBIT"
+	DEBIT = "DEBIT"
+
 	CREDIT = "CREDIT"
 )

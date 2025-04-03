@@ -2,14 +2,15 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 // CreateAsset creates a new asset persists data in the repository.
@@ -18,11 +19,13 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_asset")
+
 	defer span.End()
 
 	logger.Infof("Trying to create asset: %v", cii)
 
 	var status mmodel.Status
+
 	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
@@ -54,6 +57,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	_, err := uc.AssetRepo.FindByNameOrCode(ctx, organizationID, ledgerID, cii.Name, cii.Code)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to find asset by name or code", err)
 
@@ -74,6 +78,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	inst, err := uc.AssetRepo.Create(ctx, asset)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create asset", err)
 
@@ -83,6 +88,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), inst.ID, cii.Metadata)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create asset metadata", err)
 
@@ -97,6 +103,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	aStatusDescription := "Account external created by asset: " + cii.Code
 
 	account, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
 
@@ -129,6 +136,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		}
 
 		acc, err := uc.AccountRepo.Create(ctx, eAccount)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to create asset external account", err)
 

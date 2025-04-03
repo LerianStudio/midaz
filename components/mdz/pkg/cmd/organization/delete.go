@@ -21,6 +21,7 @@ type factoryOrganizationDelete struct {
 func (f *factoryOrganizationDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.organizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -29,6 +30,7 @@ func (f *factoryOrganizationDelete) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	err := f.repoOrganization.Delete(f.organizationID)
+
 	if err != nil {
 		return err
 	}

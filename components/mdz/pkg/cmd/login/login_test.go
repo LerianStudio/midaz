@@ -3,8 +3,9 @@ package login
 import (
 	"bytes"
 	"errors"
-	"go.uber.org/mock/gomock"
 	"testing"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/internal/model"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestRunE(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -123,6 +125,7 @@ func TestRunE(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestNewCmdLogin(t *testing.T) {
 	type args struct {
 		f *factory.Factory
@@ -138,6 +141,7 @@ func TestNewCmdLogin(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := NewCmdLogin(tt.args.f)

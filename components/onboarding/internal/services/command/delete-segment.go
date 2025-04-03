@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // DeleteSegmentByID delete a segment from the repository by ids.
@@ -19,6 +20,7 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_segment_by_id")
+
 	defer span.End()
 
 	logger.Infof("Remove segment for id: %s", id.String())

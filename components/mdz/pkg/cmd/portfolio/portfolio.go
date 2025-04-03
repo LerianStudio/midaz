@@ -19,6 +19,7 @@ func (f *factoryPortfolio) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdPortfolioDelete(newInjectFacDelete(f.factory)))
 }
 
+// \1 performs an operation
 func NewCmdPortfolio(f *factory.Factory) *cobra.Command {
 	fOrg := factoryPortfolio{
 		factory: f,

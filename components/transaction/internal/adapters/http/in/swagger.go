@@ -1,10 +1,11 @@
 package in
 
 import (
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/api"
 	"github.com/gofiber/fiber/v2"
-	"os"
 )
 
 // WithSwaggerEnvConfig sets the Swagger configuration for the API documentation from environment variables if they are set.

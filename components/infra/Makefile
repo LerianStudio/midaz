@@ -199,12 +199,13 @@ rebuild-up:
 clean-docker:
 	$(call title1,"Cleaning Docker resources")
 	@echo "$(YELLOW)Stopping and removing containers, networks, and volumes...$(NC)"
-	@$(DOCKER_CMD) -f docker-compose.yml down -v --rmi all --remove-orphans
+	@$(DOCKER_CMD) -f docker-compose.yml down -v --remove-orphans
 	@echo "$(YELLOW)Pruning unused Docker resources...$(NC)"
-	@docker system prune -f
+	@docker container prune -f
+	@docker network prune -f
 	@echo "$(YELLOW)Pruning unused volumes...$(NC)"
 	@docker volume prune -f
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker resources cleaned successfully$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Docker resources cleaned successfully (images preserved)$(GREEN) ✔️$(NC)"
 
 .PHONY: logs
 logs:

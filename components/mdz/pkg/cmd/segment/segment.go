@@ -19,6 +19,7 @@ func (f *factorySegment) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdSegmentDelete(newInjectFacDelete(f.factory)))
 }
 
+// \1 performs an operation
 func NewCmdSegment(f *factory.Factory) *cobra.Command {
 	fOrg := factorySegment{
 		factory: f,

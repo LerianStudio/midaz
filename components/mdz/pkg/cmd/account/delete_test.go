@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_newCmdAccountDelete(t *testing.T) {
 	t.Run("happy path informing all the necessary flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)

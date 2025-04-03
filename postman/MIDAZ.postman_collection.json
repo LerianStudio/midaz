@@ -10,20 +10,20 @@
       "name": "Organizations",
       "item": [
         {
-          "name": "Get all Organizations",
+          "name": "List all organizations",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -40,60 +40,60 @@
                 {
                   "key": "metadata",
                   "value": "",
-                  "description": "Metadata",
+                  "description": "JSON string to filter organizations by metadata fields",
                   "disabled": true
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit",
+                  "description": "Maximum number of records to return per page",
                   "disabled": true
                 },
                 {
                   "key": "page",
                   "value": "",
-                  "description": "Page",
+                  "description": "Page number for pagination",
                   "disabled": true
                 },
                 {
                   "key": "start_date",
                   "value": "",
-                  "description": "Start Date",
+                  "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "end_date",
                   "value": "",
-                  "description": "End Date",
+                  "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "",
-                  "description": "Sort Order",
+                  "description": "Sort direction for results based on creation date",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get all Organizations with the input metadata or without metadata"
+            "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria"
           },
           "response": []
         },
         {
-          "name": "Create an Organization",
+          "name": "Create a new organization",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -107,25 +107,25 @@
                 "organizations"
               ]
             },
-            "description": "Create an Organization with the input payload"
+            "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information"
           },
           "response": []
         },
         {
-          "name": "Get an Organization by ID",
+          "name": "Retrieve a specific organization",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -143,29 +143,29 @@
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Get an Organization with the input ID"
+            "description": "Returns detailed information about an organization identified by its UUID"
           },
           "response": []
         },
         {
-          "name": "Delete an Organization by ID",
+          "name": "Delete an organization",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -183,29 +183,29 @@
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Delete an Organization with the input ID"
+            "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": []
         },
         {
-          "name": "Update an Organization",
+          "name": "Update an existing organization",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -223,11 +223,11 @@
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Update an Organization with the input payload"
+            "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated."
           },
           "response": []
         }
@@ -237,20 +237,20 @@
       "name": "Ledgers",
       "item": [
         {
-          "name": "Get all Ledgers",
+          "name": "List all ledgers",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -269,66 +269,67 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
-                },
-                {
-                  "key": "id",
-                  "value": "",
-                  "description": "Ledger ID"
+                  "description": "Organization ID in UUID format"
                 }
               ],
               "query": [
                 {
+                  "key": "metadata",
+                  "value": "",
+                  "description": "JSON string to filter ledgers by metadata fields",
+                  "disabled": true
+                },
+                {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit",
+                  "description": "Maximum number of records to return per page",
                   "disabled": true
                 },
                 {
                   "key": "page",
                   "value": "",
-                  "description": "Page",
+                  "description": "Page number for pagination",
                   "disabled": true
                 },
                 {
                   "key": "start_date",
                   "value": "",
-                  "description": "Start Date",
+                  "description": "Filter ledgers created on or after this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "end_date",
                   "value": "",
-                  "description": "End Date",
+                  "description": "Filter ledgers created on or before this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "",
-                  "description": "Sort Order",
+                  "description": "Sort direction for results based on creation date",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get all Ledgers with the input metadata or without metadata"
+            "description": "Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria"
           },
           "response": []
         },
         {
-          "name": "Create a Ledger",
+          "name": "Create a new ledger",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -347,29 +348,29 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 }
               ]
             },
-            "description": "Create a Ledger with the input payload"
+            "description": "Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions."
           },
           "response": []
         },
         {
-          "name": "Get a Ledger by ID",
+          "name": "Retrieve a specific ledger",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -389,34 +390,34 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Get a Ledger with the input ID"
+            "description": "Returns detailed information about a ledger identified by its UUID within the specified organization"
           },
           "response": []
         },
         {
-          "name": "Delete a Ledger by ID",
+          "name": "Delete a ledger",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -436,34 +437,34 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Delete a Ledger with the input ID"
+            "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments."
           },
           "response": []
         },
         {
-          "name": "Update a Ledger",
+          "name": "Update an existing ledger",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -483,16 +484,16 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Update a Ledger with the input payload"
+            "description": "Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated."
           },
           "response": []
         }
@@ -502,20 +503,20 @@
       "name": "Accounts",
       "item": [
         {
-          "name": "Get all Accounts",
+          "name": "List all accounts",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -536,72 +537,72 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ],
               "query": [
                 {
                   "key": "metadata",
                   "value": "",
-                  "description": "Metadata",
+                  "description": "JSON string to filter accounts by metadata fields",
                   "disabled": true
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit",
+                  "description": "Maximum number of records to return per page",
                   "disabled": true
                 },
                 {
                   "key": "page",
                   "value": "",
-                  "description": "Page",
+                  "description": "Page number for pagination",
                   "disabled": true
                 },
                 {
                   "key": "start_date",
                   "value": "",
-                  "description": "Start Date",
+                  "description": "Filter accounts created on or after this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "end_date",
                   "value": "",
-                  "description": "End Date",
+                  "description": "Filter accounts created on or before this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "",
-                  "description": "Sort Order",
+                  "description": "Sort direction for results based on creation date",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get all Accounts with the input metadata or without metadata"
+            "description": "Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": []
         },
         {
-          "name": "Create an Account",
+          "name": "Create a new account",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -622,34 +623,34 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Create an Account with the input payload"
+            "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories."
           },
           "response": []
         },
         {
-          "name": "Get an Account by Alias",
+          "name": "Retrieve an account by alias",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -672,39 +673,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "alias",
                   "value": "",
-                  "description": "Alias"
+                  "description": "Account alias (e.g. @person1)"
                 }
               ]
             },
-            "description": "Get an Account with the input Alias"
+            "description": "Returns detailed information about an account identified by its alias within the specified ledger"
           },
           "response": []
         },
         {
-          "name": "Get an Account by ID",
+          "name": "Retrieve a specific account",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -726,39 +727,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Account ID"
+                  "description": "Account ID in UUID format"
                 }
               ]
             },
-            "description": "Get an Account with the input ID"
+            "description": "Returns detailed information about an account identified by its UUID within the specified ledger"
           },
           "response": []
         },
         {
-          "name": "Delete an Account by ID",
+          "name": "Delete an account",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -780,39 +781,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Account ID"
+                  "description": "Account ID in UUID format"
                 }
               ]
             },
-            "description": "Delete an Account with the input ID"
+            "description": "Permanently removes an account from the specified ledger. This operation cannot be undone."
           },
           "response": []
         },
         {
-          "name": "Update an Account",
+          "name": "Update an account",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -834,21 +835,21 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Account ID"
+                  "description": "Account ID in UUID format"
                 }
               ]
             },
-            "description": "Update an Account with the input payload"
+            "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger"
           },
           "response": []
         }
@@ -858,20 +859,20 @@
       "name": "Assets",
       "item": [
         {
-          "name": "Get all Assets",
+          "name": "List all assets",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -892,72 +893,72 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ],
               "query": [
                 {
                   "key": "metadata",
                   "value": "",
-                  "description": "Metadata",
+                  "description": "JSON string to filter assets by metadata fields",
                   "disabled": true
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit",
+                  "description": "Maximum number of records to return per page",
                   "disabled": true
                 },
                 {
                   "key": "page",
                   "value": "",
-                  "description": "Page",
+                  "description": "Page number for pagination",
                   "disabled": true
                 },
                 {
                   "key": "start_date",
                   "value": "",
-                  "description": "Start Date",
+                  "description": "Filter assets created on or after this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "end_date",
                   "value": "",
-                  "description": "End Date",
+                  "description": "Filter assets created on or before this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "",
-                  "description": "Sort Order",
+                  "description": "Sort direction for results based on creation date",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get all Assets with the input metadata or without metadata"
+            "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": []
         },
         {
-          "name": "Create an Asset",
+          "name": "Create a new asset",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -978,34 +979,34 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Create an Asset with the input payload"
+            "description": "Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger."
           },
           "response": []
         },
         {
-          "name": "Get an Asset by ID",
+          "name": "Retrieve a specific asset",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1027,39 +1028,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Asset ID"
+                  "description": "Asset ID in UUID format"
                 }
               ]
             },
-            "description": "Get an Asset with the input ID"
+            "description": "Returns detailed information about an asset identified by its UUID within the specified ledger"
           },
           "response": []
         },
         {
-          "name": "Delete an Asset by ID",
+          "name": "Delete an asset",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1081,39 +1082,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Asset ID"
+                  "description": "Asset ID in UUID format"
                 }
               ]
             },
-            "description": "Delete an Asset with the input ID"
+            "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone."
           },
           "response": []
         },
         {
-          "name": "Update an Asset",
+          "name": "Update an asset",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1135,21 +1136,21 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Asset ID"
+                  "description": "Asset ID in UUID format"
                 }
               ]
             },
-            "description": "Update an Asset with the input payload"
+            "description": "Updates an existing asset's properties such as name, status, and metadata within the specified ledger"
           },
           "response": []
         }
@@ -1159,20 +1160,20 @@
       "name": "Portfolios",
       "item": [
         {
-          "name": "Get all Portfolios",
+          "name": "List all portfolios",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1193,72 +1194,72 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ],
               "query": [
                 {
                   "key": "metadata",
                   "value": "",
-                  "description": "Metadata query",
+                  "description": "JSON string to filter portfolios by metadata fields",
                   "disabled": true
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit",
+                  "description": "Maximum number of records to return per page",
                   "disabled": true
                 },
                 {
                   "key": "page",
                   "value": "",
-                  "description": "Page",
+                  "description": "Page number for pagination",
                   "disabled": true
                 },
                 {
                   "key": "start_date",
                   "value": "",
-                  "description": "Start Date",
+                  "description": "Filter portfolios created on or after this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "end_date",
                   "value": "",
-                  "description": "End Date",
+                  "description": "Filter portfolios created on or before this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "",
-                  "description": "Sort Order",
+                  "description": "Sort direction for results based on creation date",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get all Portfolios with the input metadata or without metadata"
+            "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": []
         },
         {
-          "name": "Create a Portfolio",
+          "name": "Create a new portfolio",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1279,34 +1280,34 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Create a Portfolio with the input payload"
+            "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios."
           },
           "response": []
         },
         {
-          "name": "Get a Portfolio by ID",
+          "name": "Retrieve a specific portfolio",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1328,39 +1329,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Portfolio ID"
+                  "description": "Portfolio ID in UUID format"
                 }
               ]
             },
-            "description": "Get a Portfolio with the input ID"
+            "description": "Returns detailed information about a portfolio identified by its UUID within the specified ledger"
           },
           "response": []
         },
         {
-          "name": "Delete a Portfolio by ID",
+          "name": "Delete a portfolio",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1382,39 +1383,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Portfolio ID"
+                  "description": "Portfolio ID in UUID format"
                 }
               ]
             },
-            "description": "Delete a Portfolio with the input ID"
+            "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone."
           },
           "response": []
         },
         {
-          "name": "Update a Portfolio",
+          "name": "Update a portfolio",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1436,21 +1437,21 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Portfolio ID"
+                  "description": "Portfolio ID in UUID format"
                 }
               ]
             },
-            "description": "Update a Portfolio with the input payload"
+            "description": "Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger"
           },
           "response": []
         }
@@ -1460,20 +1461,20 @@
       "name": "Segments",
       "item": [
         {
-          "name": "Get all Segments",
+          "name": "List all segments",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1494,72 +1495,72 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ],
               "query": [
                 {
                   "key": "metadata",
                   "value": "",
-                  "description": "Metadata",
+                  "description": "JSON string to filter segments by metadata fields",
                   "disabled": true
                 },
                 {
                   "key": "limit",
                   "value": "",
-                  "description": "Limit",
+                  "description": "Maximum number of records to return per page",
                   "disabled": true
                 },
                 {
                   "key": "page",
                   "value": "",
-                  "description": "Page",
+                  "description": "Page number for pagination",
                   "disabled": true
                 },
                 {
                   "key": "start_date",
                   "value": "",
-                  "description": "Start Date",
+                  "description": "Filter segments created on or after this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "end_date",
                   "value": "",
-                  "description": "End Date",
+                  "description": "Filter segments created on or before this date (format: YYYY-MM-DD)",
                   "disabled": true
                 },
                 {
                   "key": "sort_order",
                   "value": "",
-                  "description": "Sort Order",
+                  "description": "Sort direction for results based on creation date",
                   "disabled": true
                 }
               ]
             },
-            "description": "Get all Segments with the input metadata or without metadata"
+            "description": "Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria"
           },
           "response": []
         },
         {
-          "name": "Create a Segment",
+          "name": "Create a new segment",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1580,34 +1581,34 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 }
               ]
             },
-            "description": "Create a Segment with the input payload"
+            "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories."
           },
           "response": []
         },
         {
-          "name": "Get a Segment by ID",
+          "name": "Retrieve a specific segment",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1629,39 +1630,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Segment ID"
+                  "description": "Segment ID in UUID format"
                 }
               ]
             },
-            "description": "Get a Segment with the input ID"
+            "description": "Returns detailed information about a segment identified by its UUID within the specified ledger"
           },
           "response": []
         },
         {
-          "name": "Delete a Segment by ID",
+          "name": "Delete a segment",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1683,39 +1684,39 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Segment ID"
+                  "description": "Segment ID in UUID format"
                 }
               ]
             },
-            "description": "Delete a Segment with the input ID"
+            "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone."
           },
           "response": []
         },
         {
-          "name": "Update a Segment",
+          "name": "Update a segment",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
                 "value": "",
-                "description": "Authorization Bearer Token",
+                "description": "Authorization Bearer Token with format: Bearer {token}",
                 "disabled": false
               },
               {
                 "key": "X-Request-Id",
                 "value": "",
-                "description": "Request ID",
+                "description": "Request ID for tracing",
                 "disabled": true
               }
             ],
@@ -1737,21 +1738,21 @@
                 {
                   "key": "organization_id",
                   "value": "",
-                  "description": "Organization ID"
+                  "description": "Organization ID in UUID format"
                 },
                 {
                   "key": "ledger_id",
                   "value": "",
-                  "description": "Ledger ID"
+                  "description": "Ledger ID in UUID format"
                 },
                 {
                   "key": "id",
                   "value": "",
-                  "description": "Segment ID"
+                  "description": "Segment ID in UUID format"
                 }
               ]
             },
-            "description": "Update a Segment with the input payload"
+            "description": "Updates an existing segment's properties such as name, status, and metadata within the specified ledger"
           },
           "response": []
         }

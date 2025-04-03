@@ -3,13 +3,14 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // DeleteAssetByID delete an asset from the repository by ids.
@@ -18,11 +19,13 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_asset_by_id")
+
 	defer span.End()
 
 	logger.Infof("Remove asset for id: %s", id)
 
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get asset on repo by id", err)
 
@@ -39,6 +42,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 	aAlias := constant.DefaultExternalAccountAliasPrefix + asset.Code
 
 	acc, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, []string{aAlias})
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve asset external account", err)
 		logger.Errorf("Error retrieving asset external account: %v", err)
@@ -48,6 +52,7 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 
 	if len(acc) > 0 {
 		err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, nil, uuid.MustParse(acc[0].ID))
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to delete asset external account", err)
 			logger.Errorf("Error deleting asset external account: %v", err)

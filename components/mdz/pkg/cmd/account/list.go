@@ -33,6 +33,7 @@ type factoryAccountList struct {
 func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -42,6 +43,7 @@ func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -51,6 +53,7 @@ func (f *factoryAccountList) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
+
 		if err != nil {
 			return err
 		}
@@ -82,12 +85,14 @@ func (f *factoryAccountList) runE(cmd *cobra.Command, _ []string) error {
 		f.OrganizationID, f.LedgerID,
 		f.Limit, f.Page, f.SortOrder, f.StartDate, f.EndDate,
 	)
+
 	if err != nil {
 		return err
 	}
 
 	if f.JSON {
 		b, err := json.Marshal(accounts)
+
 		if err != nil {
 			return err
 		}

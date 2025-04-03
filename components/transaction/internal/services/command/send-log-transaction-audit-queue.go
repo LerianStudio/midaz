@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"strings"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"os"
-	"strings"
 )
 
 // SendLogTransactionAuditQueue sends transaction audit log data to a message queue for processing and storage.
@@ -22,6 +23,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.transaction.log_transaction")
+
 	defer spanLogTransaction.End()
 
 	if !isAuditLogEnabled() {
@@ -35,6 +37,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 		oLog := o.ToLog()
 
 		marshal, err := json.Marshal(oLog)
+
 		if err != nil {
 			logger.Fatalf("Failed to marshal operation to JSON string: %s", err.Error())
 		}

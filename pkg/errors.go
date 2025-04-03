@@ -3,8 +3,9 @@ package pkg
 import (
 	"errors"
 	"fmt"
-	"github.com/LerianStudio/midaz/pkg/constant"
 	"strings"
+
+	"github.com/LerianStudio/midaz/pkg/constant"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -96,6 +97,7 @@ type UnauthorizedError struct {
 	Err        error  `json:"err,omitempty"`
 }
 
+// func (e UnauthorizedError) Error() string { performs an operation
 func (e UnauthorizedError) Error() string {
 	return e.Message
 }
@@ -109,6 +111,7 @@ type ForbiddenError struct {
 	Err        error  `json:"err,omitempty"`
 }
 
+// func (e ForbiddenError) Error() string { performs an operation
 func (e ForbiddenError) Error() string {
 	return e.Message
 }
@@ -122,6 +125,7 @@ type UnprocessableOperationError struct {
 	Err        error  `json:"err,omitempty"`
 }
 
+// func (e UnprocessableOperationError) Error() string { performs an operation
 func (e UnprocessableOperationError) Error() string {
 	return e.Message
 }
@@ -135,6 +139,7 @@ type HTTPError struct {
 	Err        error  `json:"err,omitempty"`
 }
 
+// func (e HTTPError) Error() string { performs an operation
 func (e HTTPError) Error() string {
 	return e.Message
 }
@@ -148,6 +153,7 @@ type FailedPreconditionError struct {
 	Err        error  `json:"err,omitempty"`
 }
 
+// func (e FailedPreconditionError) Error() string { performs an operation
 func (e FailedPreconditionError) Error() string {
 	return e.Message
 }
@@ -161,6 +167,7 @@ type InternalServerError struct {
 	Err        error  `json:"err,omitempty"`
 }
 
+// func (e InternalServerError) Error() string { performs an operation
 func (e InternalServerError) Error() string {
 	return e.Message
 }

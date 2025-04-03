@@ -1,40 +1,49 @@
 package transaction
 
 import (
+	"strconv"
+	"strings"
+
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/pkg/gold/parser"
 	"github.com/antlr4-go/antlr/v4"
-	"strconv"
-	"strings"
 )
 
+// \1 represents an entity
 type TransactionVisitor struct {
 	*parser.BaseTransactionVisitor
 }
 
+// \1 performs an operation
 func NewTransactionVisitor() *TransactionVisitor {
 	return new(TransactionVisitor)
 }
 
+// func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accept(v) } performs an operation
 func (v *TransactionVisitor) Visit(tree antlr.ParseTree) any { return tree.Accept(v) }
 
+// func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any { performs an operation
 func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) any {
 	var description string
+
 	if ctx.Description() != nil {
 		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
 	}
 
 	var code string
+
 	if ctx.Code() != nil {
 		code = v.VisitCode(ctx.Code().(*parser.CodeContext)).(string)
 	}
 
 	var pending bool
+
 	if ctx.Pending() != nil {
 		pending = v.VisitPending(ctx.Pending().(*parser.PendingContext)).(bool)
 	}
 
 	var metadata map[string]any
+
 	if ctx.Metadata() != nil {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
@@ -53,10 +62,12 @@ func (v *TransactionVisitor) VisitTransaction(ctx *parser.TransactionContext) an
 	return transaction
 }
 
+// func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any { performs an operation
 func (v *TransactionVisitor) VisitVisitChartOfAccountsGroupName(ctx *parser.ChartOfAccountsGroupNameContext) any {
 	return ctx.UUID().GetText()
 }
 
+// func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any { performs an operation
 func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
 	if ctx.UUID() != nil {
 		return ctx.UUID().GetText()
@@ -65,6 +76,7 @@ func (v *TransactionVisitor) VisitCode(ctx *parser.CodeContext) any {
 	return nil
 }
 
+// func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any { performs an operation
 func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 	if ctx.TrueOrFalse() != nil {
 		pending, _ := strconv.ParseBool(ctx.TrueOrFalse().GetText())
@@ -74,14 +86,17 @@ func (v *TransactionVisitor) VisitPending(ctx *parser.PendingContext) any {
 	return false
 }
 
+// func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) any { performs an operation
 func (v *TransactionVisitor) VisitDescription(ctx *parser.DescriptionContext) any {
 	return strings.Trim(ctx.STRING().GetText(), "\"")
 }
 
+// func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any { performs an operation
 func (v *TransactionVisitor) VisitVisitChartOfAccounts(ctx *parser.ChartOfAccountsContext) any {
 	return ctx.UUID().GetText()
 }
 
+// func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any { performs an operation
 func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	metadata := make(map[string]any, len(ctx.AllPair()))
 
@@ -93,6 +108,7 @@ func (v *TransactionVisitor) VisitMetadata(ctx *parser.MetadataContext) any {
 	return metadata
 }
 
+// func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any { performs an operation
 func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	return libTransaction.Metadata{
 		Key:   ctx.Key().GetText(),
@@ -100,6 +116,7 @@ func (v *TransactionVisitor) VisitPair(ctx *parser.PairContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableContext) any { performs an operation
 func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableContext) any {
 	if ctx.INT() != nil {
 		return ctx.INT().GetText()
@@ -108,6 +125,7 @@ func (v *TransactionVisitor) VisitValueOrVariable(ctx *parser.ValueOrVariableCon
 	return ctx.VARIABLE().GetText()
 }
 
+// func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any { performs an operation
 func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
@@ -127,8 +145,10 @@ func (v *TransactionVisitor) VisitSend(ctx *parser.SendContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any { performs an operation
 func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	var remaining string
+
 	if ctx.REMAINING() != nil {
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
 	}
@@ -137,6 +157,7 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 
 	for _, from := range ctx.AllFrom() {
 		f := v.VisitFrom(from.(*parser.FromContext)).(libTransaction.FromTo)
+
 		froms = append(froms, f)
 	}
 
@@ -146,6 +167,7 @@ func (v *TransactionVisitor) VisitSource(ctx *parser.SourceContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any { performs an operation
 func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	switch {
 	case ctx.UUID() != nil:
@@ -159,6 +181,7 @@ func (v *TransactionVisitor) VisitAccount(ctx *parser.AccountContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any { performs an operation
 func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	externalID := ctx.UUID(0).GetText()
 	from := ctx.UUID(1).GetText()
@@ -178,10 +201,12 @@ func (v *TransactionVisitor) VisitRate(ctx *parser.RateContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any { performs an operation
 func (v *TransactionVisitor) VisitRemaining(ctx *parser.RemainingContext) any {
 	return strings.Trim(ctx.GetText(), ":")
 }
 
+// func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any { performs an operation
 func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	asset := ctx.UUID().GetText()
 	val := v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string)
@@ -197,6 +222,7 @@ func (v *TransactionVisitor) VisitAmount(ctx *parser.AmountContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any { performs an operation
 func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable().(*parser.ValueOrVariableContext)).(string), 10, 64)
 
@@ -206,6 +232,7 @@ func (v *TransactionVisitor) VisitShareInt(ctx *parser.ShareIntContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any { performs an operation
 func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext) any {
 	percentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(0).(*parser.ValueOrVariableContext)).(string), 10, 64)
 	percentageOfPercentage, _ := strconv.ParseInt(v.VisitValueOrVariable(ctx.ValueOrVariable(1).(*parser.ValueOrVariableContext)).(string), 10, 64)
@@ -216,15 +243,18 @@ func (v *TransactionVisitor) VisitShareIntOfInt(ctx *parser.ShareIntOfIntContext
 	}
 }
 
+// func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any { performs an operation
 func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	account := v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
 
 	var description string
+
 	if ctx.Description() != nil {
 		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
 	}
 
 	var metadata map[string]any
+
 	if ctx.Metadata() != nil {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
@@ -268,15 +298,18 @@ func (v *TransactionVisitor) VisitFrom(ctx *parser.FromContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any { performs an operation
 func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	account := v.VisitAccount(ctx.Account().(*parser.AccountContext)).(string)
 
 	var description string
+
 	if ctx.Description() != nil {
 		description = v.VisitDescription(ctx.Description().(*parser.DescriptionContext)).(string)
 	}
 
 	var metadata map[string]any
+
 	if ctx.Metadata() != nil {
 		metadata = v.VisitMetadata(ctx.Metadata().(*parser.MetadataContext)).(map[string]any)
 	}
@@ -320,8 +353,10 @@ func (v *TransactionVisitor) VisitTo(ctx *parser.ToContext) any {
 	}
 }
 
+// func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any { performs an operation
 func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any {
 	var remaining string
+
 	if ctx.REMAINING() != nil {
 		remaining = strings.Trim(ctx.REMAINING().GetText(), ":")
 	}
@@ -330,6 +365,7 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 
 	for _, to := range ctx.AllTo() {
 		t := v.VisitTo(to.(*parser.ToContext)).(libTransaction.FromTo)
+
 		tos = append(tos, t)
 	}
 
@@ -339,12 +375,14 @@ func (v *TransactionVisitor) VisitDistribute(ctx *parser.DistributeContext) any 
 	}
 }
 
+// \1 performs an operation
 func Parse(dsl string) any {
 	input := antlr.NewInputStream(dsl)
 	lexer := parser.NewTransactionLexer(input)
 	stream := antlr.NewCommonTokenStream(lexer, antlr.TokenDefaultChannel)
 
 	p := parser.NewTransactionParser(stream)
+
 	p.BuildParseTrees = true
 	visitor := NewTransactionVisitor()
 	transaction := visitor.Visit(p.Transaction())

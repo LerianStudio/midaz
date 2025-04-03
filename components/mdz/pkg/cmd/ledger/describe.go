@@ -29,6 +29,7 @@ type factoryLedgerDescribe struct {
 func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -38,6 +39,7 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -46,12 +48,14 @@ func (f *factoryLedgerDescribe) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	org, err := f.repoLedger.GetByID(f.OrganizationID, f.LedgerID)
+
 	if err != nil {
 		return err
 	}
 
 	if f.JSON || cmd.Flags().Changed("out") {
 		b, err := json.Marshal(org)
+
 		if err != nil {
 			return err
 		}

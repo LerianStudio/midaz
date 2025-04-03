@@ -18,6 +18,7 @@ func (f *factoryVersion) runE(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewCmdVersion(f *factory.Factory) *cobra.Command {
 	fVersion := factoryVersion{
 		factory: f,

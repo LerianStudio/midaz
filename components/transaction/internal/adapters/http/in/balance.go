@@ -35,6 +35,10 @@ type BalanceHandler struct {
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances [Get]
 func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -43,12 +47,14 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
 	ledgerID := c.Locals("ledger_id").(uuid.UUID)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
@@ -77,6 +83,7 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 	}
 
 	balances, cur, err := handler.Query.GetAllBalances(ctx, organizationID, ledgerID, *headerParams)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Balances", err)
 
@@ -110,6 +117,11 @@ func (handler *BalanceHandler) GetAllBalances(c *fiber.Ctx) error {
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Balance, next_cursor=string, prev_cursor=string,limit=int}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances [Get]
 func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -118,6 +130,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_balances_by_account_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -125,6 +138,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	accountID := c.Locals("account_id").(uuid.UUID)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
@@ -153,6 +167,7 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 	}
 
 	balances, cur, err := handler.Query.GetAllBalancesByAccountID(ctx, organizationID, ledgerID, accountID, *headerParams)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Balances by account id", err)
 
@@ -181,6 +196,10 @@ func (handler *BalanceHandler) GetAllBalancesByAccountID(c *fiber.Ctx) error {
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
 //	@Success		200				{object}	mmodel.Balance
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Get]
 func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -189,6 +208,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_balance_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -198,6 +218,7 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating retrieval of balance by id")
 
 	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve balance by id", err)
 
@@ -222,7 +243,12 @@ func (handler *BalanceHandler) GetBalanceByID(c *fiber.Ctx) error {
 //	@Param			organization_id	path		string	true	"Organization ID"
 //	@Param			ledger_id		path		string	true	"Ledger ID"
 //	@Param			balance_id		path		string	true	"Balance ID"
-//	@Success		200				{object}	mmodel.Balance
+//	@Success		204				{string}	string	"Balance successfully deleted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: Cannot delete balance with active operations"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Delete]
 func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -231,6 +257,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_balance_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -240,6 +267,7 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating delete balance by id")
 
 	err := handler.Command.DeleteBalance(ctx, organizationID, ledgerID, balanceID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to delete balance by id", err)
 
@@ -267,6 +295,11 @@ func (handler *BalanceHandler) DeleteBalanceByID(c *fiber.Ctx) error {
 //	@Param			balance_id		path		string							true	"Balance ID"
 //	@Param			balance		    body		mmodel.UpdateBalance			true	"Balance Input"
 //	@Success		200				{object}	mmodel.Balance
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Balance not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id} [Patch]
 func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -275,6 +308,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_balance")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -287,6 +321,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	logger.Infof("Request to update a Balance with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -303,6 +338,7 @@ func (handler *BalanceHandler) UpdateBalance(p any, c *fiber.Ctx) error {
 	}
 
 	op, err := handler.Query.GetBalanceByID(ctx, organizationID, ledgerID, balanceID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Balance on query", err)
 

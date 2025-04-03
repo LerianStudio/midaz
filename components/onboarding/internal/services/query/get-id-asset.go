@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAssetByID get an Asset from the repository by given id.
@@ -19,11 +20,13 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_asset_by_id")
+
 	defer span.End()
 
 	logger.Infof("Retrieving asset for id: %s", id)
 
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get asset on repo by id", err)
 
@@ -38,6 +41,7 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 
 	if asset != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), id.String())
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset", err)
 

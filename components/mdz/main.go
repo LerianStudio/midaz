@@ -17,6 +17,7 @@ func main() {
 
 	if err := cmd.Execute(); err != nil {
 		printErr := output.Errorf(f.IOStreams.Err, err)
+
 		if printErr != nil {
 			output.Printf(os.Stderr, "Failed to print error output: "+printErr.Error())
 

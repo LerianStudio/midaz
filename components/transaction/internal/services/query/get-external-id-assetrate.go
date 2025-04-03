@@ -2,11 +2,12 @@ package query
 
 import (
 	"context"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAssetRateByExternalID gets data in the repository.
@@ -15,11 +16,13 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_asset_rate_by_external_id")
+
 	defer span.End()
 
 	logger.Infof("Trying to get asset rate by external id: %s", externalID.String())
 
 	assetRate, err := uc.AssetRateRepo.FindByExternalID(ctx, organizationID, ledgerID, externalID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get asset rate by external id on repository", err)
 
@@ -30,6 +33,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 
 	if assetRate != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), assetRate.ID)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb asset rate", err)
 

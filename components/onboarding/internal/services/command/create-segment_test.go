@@ -3,15 +3,17 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestCreateSegment(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -26,12 +26,14 @@ type factoryOrganizationDescribe struct {
 
 func (f *factoryOrganizationDescribe) runE(cmd *cobra.Command, _ []string) error {
 	org, err := f.repoOrganization.GetByID(f.organizationID)
+
 	if err != nil {
 		return err
 	}
 
 	if f.JSON || cmd.Flags().Changed("out") {
 		b, err := json.Marshal(org)
+
 		if err != nil {
 			return err
 		}

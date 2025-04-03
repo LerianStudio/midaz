@@ -2,16 +2,20 @@ package command
 
 import (
 	"context"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
+
 	// "github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 	"os"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestSendAccountQueueTransaction(t *testing.T) {
 	// Save original env vars to restore after test
 	originalExchange := os.Getenv("RABBITMQ_EXCHANGE")
@@ -22,6 +26,7 @@ func TestSendAccountQueueTransaction(t *testing.T) {
 	os.Setenv("RABBITMQ_KEY", "test-key")
 
 	// Restore env vars after test
+
 	defer func() {
 		os.Setenv("RABBITMQ_EXCHANGE", originalExchange)
 		os.Setenv("RABBITMQ_KEY", originalKey)

@@ -3,13 +3,15 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestGetOperationByID(t *testing.T) {
 	ID := libCommons.GenerateUUIDv7()
 	organizationID := libCommons.GenerateUUIDv7()
@@ -38,6 +40,7 @@ func TestGetOperationByID(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+// \1 performs an operation
 func TestGetOperationByIDError(t *testing.T) {
 	errMSG := "err to get operation on database"
 	ID := libCommons.GenerateUUIDv7()

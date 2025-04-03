@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
@@ -17,10 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to portfolio entities.
@@ -49,6 +50,7 @@ func NewPortfolioPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Portf
 	}
 
 	_, err := c.connection.GetDB()
+
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -61,9 +63,11 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_portfolio")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -94,10 +98,12 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) {
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
 		}
@@ -108,6 +114,7 @@ func (r *PortfolioPostgreSQLRepository) Create(ctx context.Context, portfolio *m
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -130,9 +137,11 @@ func (r *PortfolioPostgreSQLRepository) FindByIDEntity(ctx context.Context, orga
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio_by_id_entity")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -176,9 +185,11 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_portfolios")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -200,6 +211,7 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -209,17 +221,20 @@ func (r *PortfolioPostgreSQLRepository) FindAll(ctx context.Context, organizatio
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, reflect.TypeOf(mmodel.Portfolio{}).Name())
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var portfolio PortfolioPostgreSQLModel
+
 		if err := rows.Scan(
 			&portfolio.ID,
 			&portfolio.Name,
@@ -253,9 +268,11 @@ func (r *PortfolioPostgreSQLRepository) Find(ctx context.Context, organizationID
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_portfolio")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -299,9 +316,11 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_portfolios_by_ids")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -314,17 +333,20 @@ func (r *PortfolioPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM portfolio WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var portfolio PortfolioPostgreSQLModel
+
 		if err := rows.Scan(
 			&portfolio.ID,
 			&portfolio.Name,
@@ -358,9 +380,11 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_portfolio")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -376,16 +400,19 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 
 	if portfolio.EntityID != "" {
 		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.EntityID)
 	}
 
 	if portfolio.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Name)
 	}
 
 	if !portfolio.Status.IsEmpty() {
 		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Status)
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
@@ -399,8 +426,11 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE portfolio SET ` + strings.Join(updates, ", ") +
+
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
@@ -414,10 +444,12 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) {
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Portfolio{}).Name())
 		}
@@ -428,6 +460,7 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -450,9 +483,11 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_portfolio")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -463,6 +498,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 
 	result, err := db.ExecContext(ctx, `UPDATE portfolio SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
 
@@ -472,6 +508,7 @@ func (r *PortfolioPostgreSQLRepository) Delete(ctx context.Context, organization
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 

@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestGetAllAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -124,6 +126,7 @@ func TestGetAllAccount(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, len(tt.expectedAccounts), len(result))
+
 				for i, account := range result {
 					assert.Equal(t, tt.expectedAccounts[i].ID, account.ID)
 					assert.Equal(t, tt.expectedAccounts[i].Metadata, account.Metadata)

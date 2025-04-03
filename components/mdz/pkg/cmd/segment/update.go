@@ -36,6 +36,7 @@ type flagsUpdate struct {
 func (f *factorySegmentUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -45,6 +46,7 @@ func (f *factorySegmentUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -54,6 +56,7 @@ func (f *factorySegmentUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("segment-id") && len(f.SegmentID) < 1 {
 		id, err := f.tuiInput("Enter your segment-id")
+
 		if err != nil {
 			return err
 		}
@@ -73,6 +76,7 @@ func (f *factorySegmentUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &Segment)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -80,12 +84,14 @@ func (f *factorySegmentUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&Segment)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoSegment.Update(f.OrganizationID, f.LedgerID, f.SegmentID, Segment)
+
 	if err != nil {
 		return err
 	}
@@ -95,8 +101,10 @@ func (f *factorySegmentUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// func (f *factorySegmentUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdateSegmentInput) error { performs an operation
 func (f *factorySegmentUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdateSegmentInput) error {
 	portfolio.Name = f.Name
+
 	portfolio.Status.Code = f.StatusCode
 
 	if len(f.StatusDescription) > 0 {
@@ -104,6 +112,7 @@ func (f *factorySegmentUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdateSe
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

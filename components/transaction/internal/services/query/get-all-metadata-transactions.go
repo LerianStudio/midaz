@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllMetadataTransactions fetch all Transactions from the repository
@@ -20,11 +21,13 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_transactions")
+
 	defer span.End()
 
 	logger.Infof("Retrieving transactions")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
+
 	if err != nil || metadata == nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transactions on repo by metadata", err)
 
@@ -40,6 +43,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	}
 
 	trans, err := uc.TransactionRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transactions on repo by query params", err)
 

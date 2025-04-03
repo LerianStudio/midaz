@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestAddress_IsEmpty(t *testing.T) {
 	tests := []struct {
 		name    string

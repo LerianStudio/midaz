@@ -31,6 +31,7 @@ type MockLedgerMockRecorder struct {
 // NewMockLedger creates a new mock instance.
 func NewMockLedger(ctrl *gomock.Controller) *MockLedger {
 	mock := &MockLedger{ctrl: ctrl}
+
 	mock.recorder = &MockLedgerMockRecorder{mock}
 	return mock
 }

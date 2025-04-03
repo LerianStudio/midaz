@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // ListAccountsByAlias get Accounts from the repository by given alias.
@@ -19,11 +20,13 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledg
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.ListAccountsByAlias")
+
 	defer span.End()
 
 	logger.Infof("Retrieving account for alias: %s", aliases)
 
 	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Accounts by aliases", err)
 

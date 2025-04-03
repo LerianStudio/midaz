@@ -5,14 +5,17 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 )
 
+// \1 represents an entity
 type TransactionListener struct {
 	*parser.BaseTransactionListener
 }
 
+// \1 performs an operation
 func NewTransaction() *TransactionListener {
 	return new(TransactionListener)
 }
 
+// \1 performs an operation
 func Validate(dsl string) *Error {
 	lexerErrors := &Error{}
 	input := antlr.NewInputStream(dsl)
@@ -25,6 +28,7 @@ func Validate(dsl string) *Error {
 	p := parser.NewTransactionParser(stream)
 	p.RemoveErrorListeners()
 	p.AddErrorListener(parserErrors)
+
 	p.BuildParseTrees = true
 	p.AddErrorListener(antlr.NewDiagnosticErrorListener(true))
 

@@ -6,6 +6,7 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/ptr"
 )
 
+// \1 performs an operation
 func TestStatus_IsEmpty(t *testing.T) {
 	type fields struct {
 		Code        string
@@ -41,12 +42,14 @@ func TestStatus_IsEmpty(t *testing.T) {
 			want: false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := Status{
 				Code:        tt.fields.Code,
 				Description: tt.fields.Description,
 			}
+
 			if got := s.IsEmpty(); got != tt.want {
 				t.Errorf("Status.IsEmpty() = %v, want %v", got, tt.want)
 			}

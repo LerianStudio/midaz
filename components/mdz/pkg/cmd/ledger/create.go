@@ -36,6 +36,7 @@ func (f *factoryLedgerCreate) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -45,6 +46,7 @@ func (f *factoryLedgerCreate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &led)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -52,12 +54,14 @@ func (f *factoryLedgerCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.createRequestFromFlags(&led)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoLedger.Create(f.OrganizationID, led)
+
 	if err != nil {
 		return err
 	}
@@ -82,6 +86,7 @@ func (f *factoryLedgerCreate) createRequestFromFlags(led *mmodel.CreateLedgerInp
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

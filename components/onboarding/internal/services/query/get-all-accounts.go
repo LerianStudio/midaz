@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllAccount fetch all Account from the repository
@@ -20,11 +21,13 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_account")
+
 	defer span.End()
 
 	logger.Infof("Retrieving accounts")
 
 	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, filter.ToOffsetPagination())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get accounts on repo", err)
 
@@ -39,6 +42,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 	if accounts != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Account{}).Name(), filter)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
 

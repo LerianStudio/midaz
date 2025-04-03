@@ -10,6 +10,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+// \1 represents an entity
 type Setting struct {
 	Token string
 	environment.Env
@@ -19,6 +20,7 @@ type Setting struct {
 // this is the path where some cli configs will be persisted
 func getPathSetting() (string, error) {
 	homeDir, err := os.UserHomeDir()
+
 	if err != nil {
 		return "", err
 	}
@@ -30,11 +32,13 @@ func getPathSetting() (string, error) {
 // Save saves the b file in the ~/.config/mdz/mdz.toml directory, creating the directory if necessary.
 func Save(sett Setting) error {
 	b, err := toml.Marshal(sett)
+
 	if err != nil {
 		return errors.New("while marshalling toml file " + err.Error())
 	}
 
 	dir, err := getPathSetting()
+
 	if err != nil {
 		return err
 	}
@@ -58,6 +62,7 @@ func Save(sett Setting) error {
 // Read loads the configuration TOML file and deserializes it to the struct Setting.
 func Read() (*Setting, error) {
 	dir, err := getPathSetting()
+
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +71,7 @@ func Read() (*Setting, error) {
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err := os.MkdirAll(dir, 0750)
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to create directory %s: %v", dir, err)
 		}
@@ -78,6 +84,7 @@ func Read() (*Setting, error) {
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		err := os.WriteFile(dir, []byte(""), 0600)
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to create file %s: %v", dir, err)
 		}
@@ -86,11 +93,13 @@ func Read() (*Setting, error) {
 	}
 
 	fileContent, err := os.ReadFile(dir)
+
 	if err != nil {
 		return nil, errors.New("opening TOML file: " + err.Error())
 	}
 
 	var sett Setting
+
 	if err := toml.Unmarshal(fileContent, &sett); err != nil {
 		return nil, errors.New("decoding the TOML file: " + err.Error())
 	}

@@ -2,9 +2,10 @@ package asset
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"time"
 )
 
 // AssetPostgreSQLModel represents the entity Asset into SQL context in Database
@@ -44,6 +45,7 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		asset.DeletedAt = &deletedAtCopy
 	}
 
@@ -67,6 +69,7 @@ func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
 
 	if asset.DeletedAt != nil {
 		deletedAtCopy := *asset.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

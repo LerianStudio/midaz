@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestPortfolioInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestPortfolioInterface(t *testing.T) {
 	var _ repository.Portfolio = mockPortfolio
 }
 
+// \1 performs an operation
 func TestPortfolio_Create(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -51,6 +53,7 @@ func TestPortfolio_Create(t *testing.T) {
 					OrganizationID: "org123",
 					LedgerID:       "ledger123",
 				}
+
 				mockPortfolio.EXPECT().
 					Create("org123", "ledger123", gomock.Any()).
 					Return(expectedPortfolio, nil)
@@ -100,6 +103,7 @@ func TestPortfolio_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestPortfolio_Get(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -142,6 +146,7 @@ func TestPortfolio_Get(t *testing.T) {
 					Page:  1,
 					Limit: 10,
 				}
+
 				mockPortfolio.EXPECT().
 					Get("org123", "ledger123", 10, 1, "asc", "2025-01-01", "2025-03-30").
 					Return(expectedPortfolios, nil)
@@ -206,6 +211,7 @@ func TestPortfolio_Get(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestPortfolio_GetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -234,6 +240,7 @@ func TestPortfolio_GetByID(t *testing.T) {
 					OrganizationID: "org123",
 					LedgerID:       "ledger123",
 				}
+
 				mockPortfolio.EXPECT().
 					GetByID("org123", "ledger123", "portfolio123").
 					Return(expectedPortfolio, nil)
@@ -280,6 +287,7 @@ func TestPortfolio_GetByID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestPortfolio_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -312,6 +320,7 @@ func TestPortfolio_Update(t *testing.T) {
 					OrganizationID: "org123",
 					LedgerID:       "ledger123",
 				}
+
 				mockPortfolio.EXPECT().
 					Update("org123", "ledger123", "portfolio123", gomock.Any()).
 					Return(expectedPortfolio, nil)
@@ -361,6 +370,7 @@ func TestPortfolio_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestPortfolio_Delete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestAssetInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestAssetInterface(t *testing.T) {
 	var _ repository.Asset = mockAsset
 }
 
+// \1 performs an operation
 func TestAsset_Create(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -51,6 +53,7 @@ func TestAsset_Create(t *testing.T) {
 					Type: "currency",
 					Code: "BRL",
 				}
+
 				mockAsset.EXPECT().
 					Create("org123", "ledger123", gomock.Any()).
 					Return(expectedAsset, nil)
@@ -100,6 +103,7 @@ func TestAsset_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAsset_Get(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -141,6 +145,7 @@ func TestAsset_Get(t *testing.T) {
 					Page:  1,
 					Limit: 10,
 				}
+
 				mockAsset.EXPECT().
 					Get("org123", "ledger123", 10, 1, "asc", "2025-01-01", "2025-03-30").
 					Return(expectedAssets, nil)
@@ -204,6 +209,7 @@ func TestAsset_Get(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAsset_GetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -231,6 +237,7 @@ func TestAsset_GetByID(t *testing.T) {
 					Type: "currency",
 					Code: "BRL",
 				}
+
 				mockAsset.EXPECT().
 					GetByID("org123", "ledger123", "asset123").
 					Return(expectedAsset, nil)
@@ -276,6 +283,7 @@ func TestAsset_GetByID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAsset_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -307,6 +315,7 @@ func TestAsset_Update(t *testing.T) {
 					Type: "currency",
 					Code: "BRL",
 				}
+
 				mockAsset.EXPECT().
 					Update("org123", "ledger123", "asset123", gomock.Any()).
 					Return(expectedAsset, nil)
@@ -355,6 +364,7 @@ func TestAsset_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAsset_Delete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

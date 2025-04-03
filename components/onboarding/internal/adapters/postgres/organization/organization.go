@@ -2,8 +2,9 @@ package organization
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
@@ -45,6 +46,7 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		organization.DeletedAt = &deletedAtCopy
 	}
 
@@ -68,6 +70,7 @@ func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organizati
 
 	if organization.DeletedAt != nil {
 		deletedAtCopy := *organization.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -16,9 +17,11 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances")
+
 	defer spanUpdateBalances.End()
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
@@ -27,6 +30,7 @@ func (uc *UseCase) SelectForUpdateBalances(ctx context.Context, organizationID, 
 	}
 
 	fromTo := make(map[string]libTransaction.Amount)
+
 	for k, v := range validate.From {
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
@@ -62,9 +66,11 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
+
 	defer spanUpdateBalances.End()
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&spanUpdateBalances, "payload_update_balances", balances)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to convert balances from struct to JSON string", err)
 		logger.Errorf("Failed to convert balances from struct to JSON string: %v", err.Error())
@@ -73,6 +79,7 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	}
 
 	fromTo := make(map[string]libTransaction.Amount)
+
 	for k, v := range validate.From {
 		fromTo[k] = libTransaction.Amount{
 			Asset:     v.Asset,
@@ -129,11 +136,13 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.update_balance")
+
 	defer span.End()
 
 	logger.Infof("Trying to update balance")
 
 	err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update balance on repo", err)
 		logger.Errorf("Error update balance: %v", err)

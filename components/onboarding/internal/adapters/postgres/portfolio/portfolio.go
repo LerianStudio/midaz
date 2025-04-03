@@ -2,9 +2,10 @@ package portfolio
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"time"
 )
 
 // PortfolioPostgreSQLModel represents the entity Portfolio into SQL context in Database
@@ -43,6 +44,7 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		portfolio.DeletedAt = &deletedAtCopy
 	}
 
@@ -65,6 +67,7 @@ func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
 
 	if portfolio.DeletedAt != nil {
 		deletedAtCopy := *portfolio.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

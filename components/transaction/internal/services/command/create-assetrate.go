@@ -2,14 +2,15 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/google/uuid"
-	"reflect"
-	"time"
 )
 
 // CreateOrUpdateAssetRate creates or updates an asset rate.
@@ -18,6 +19,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_or_update_asset_rate")
+
 	defer span.End()
 
 	logger.Infof("Initializing the create or update asset rate operation: %v", cari)
@@ -43,6 +45,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	logger.Infof("Trying to find existing asset rate by currency pair: %v", cari)
 
 	arFound, err := uc.AssetRateRepo.FindByCurrencyPair(ctx, organizationID, ledgerID, cari.From, cari.To)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to find asset rate by currency pair", err)
 
@@ -74,6 +77,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		}
 
 		metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(assetrate.AssetRate{}).Name(), arFound.ID, cari.Metadata)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 
@@ -87,6 +91,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 
 	if emptyExternalID {
 		idStr := libCommons.GenerateUUIDv7().String()
+
 		externalID = &idStr
 	}
 
@@ -108,6 +113,7 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 	logger.Infof("Trying to create asset rate: %v", cari)
 
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create asset rate on repository", err)
 

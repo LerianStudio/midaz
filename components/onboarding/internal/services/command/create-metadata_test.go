@@ -3,13 +3,15 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestCreateMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -50,6 +52,7 @@ func TestCreateMetadata(t *testing.T) {
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}
+
 				mockMetadataRepo.EXPECT().
 					Create(gomock.Any(), "TestEntity", gomock.Any()).
 					DoAndReturn(func(ctx context.Context, entityName string, metadata *mongodb.Metadata) error {

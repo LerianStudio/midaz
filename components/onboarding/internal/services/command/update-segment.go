@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // UpdateSegmentByID update a segment from the repository by given id.
@@ -19,6 +20,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_segment_by_id")
+
 	defer span.End()
 
 	logger.Infof("Trying to update segment: %v", upi)
@@ -29,6 +31,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 	}
 
 	segmentUpdated, err := uc.SegmentRepo.Update(ctx, organizationID, ledgerID, id, segment)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update segment on repo by id", err)
 
@@ -42,6 +45,7 @@ func (uc *UseCase) UpdateSegmentByID(ctx context.Context, organizationID, ledger
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String(), upi.Metadata)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 

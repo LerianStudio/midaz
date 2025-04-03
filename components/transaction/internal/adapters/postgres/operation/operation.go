@@ -2,8 +2,9 @@ package operation
 
 import (
 	"database/sql"
-	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 )
 
 // OperationPostgreSQLModel represents the entity OperationPostgreSQLModel into SQL context in Database
@@ -40,7 +41,8 @@ type OperationPostgreSQLModel struct {
 // swagger:model Status
 // @Description Status is the struct designed to represent the status of an operation.
 type Status struct {
-	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
+	Code string `json:"code" validate:"max=100" example:"ACTIVE"`
+
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
 } // @name Status
 
@@ -151,6 +153,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		Operation.DeletedAt = &deletedAtCopy
 	}
 
@@ -160,6 +163,7 @@ func (t *OperationPostgreSQLModel) ToEntity() *Operation {
 // FromEntity converts an entity Operation to OperationPostgreSQLModel
 func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 	ID := libCommons.GenerateUUIDv7().String()
+
 	if operation.ID != "" {
 		ID = operation.ID
 	}
@@ -192,6 +196,7 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 
 	if operation.DeletedAt != nil {
 		deletedAtCopy := *operation.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }
@@ -201,8 +206,9 @@ func (t *OperationPostgreSQLModel) FromEntity(operation *Operation) {
 // swagger:model UpdateOperationInput
 // @Description UpdateOperationInput is the input payload to update an operation.
 type UpdateOperationInput struct {
-	Description string         `json:"description" validate:"max=256" example:"Credit card operation"`
-	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Description string `json:"description" validate:"max=256" example:"Credit card operation"`
+
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateOperationInput
 
 // OperationLog is a struct designed to represent the operation data that should be stored in the audit log

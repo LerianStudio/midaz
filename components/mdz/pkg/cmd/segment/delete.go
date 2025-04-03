@@ -23,6 +23,7 @@ type factorySegmentDelete struct {
 func (f *factorySegmentDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -32,6 +33,7 @@ func (f *factorySegmentDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -41,6 +43,7 @@ func (f *factorySegmentDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("segment-id") && len(f.SegmentID) < 1 {
 		id, err := f.tuiInput("Enter your segment-id")
+
 		if err != nil {
 			return err
 		}
@@ -57,6 +60,7 @@ func (f *factorySegmentDelete) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	err := f.repoSegment.Delete(f.OrganizationID, f.LedgerID, f.SegmentID)
+
 	if err != nil {
 		return err
 	}

@@ -1,29 +1,28 @@
 #!/bin/bash
 
-# Set colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-NC='\033[0m' # No Color
-BOLD='\033[1m'
+# Script to verify test coverage for all components and SDK
 
+# ===== Configuration =====
 # Minimum required test coverage percentage
 MIN_COVERAGE=80
 
-# Find all Go packages in the project
-echo "Checking test coverage for all components..."
+# ===== Header =====
+echo "===== Test Coverage Verification ====="
+
+# ===== Component Check =====
 echo ""
+echo "Checking Components:"
+COMPONENT_ISSUES=0
 
 # Check each component directory
 for component in ./components/*; do
     if [ -d "$component" ]; then
         component_name=$(basename "$component")
-        echo "${YELLOW}Checking $component_name component...${NC}"
+        echo "- $component_name"
         
         # Skip if no Go files
         if ! find "$component" -name "*.go" -type f | grep -q .; then
-            echo "${YELLOW}No Go files found in $component_name, skipping coverage check${NC}"
-            echo ""
+            echo "  ℹ️ No Go files found, skipping"
             continue
         fi
         
@@ -37,22 +36,74 @@ for component in ./components/*; do
                 
                 # Compare with minimum required
                 if (( $(echo "$coverage < $MIN_COVERAGE" | bc -l) )); then
-                    echo "${RED}${BOLD}[FAIL]${NC} $component_name coverage is ${RED}$coverage%${NC} (minimum required: ${GREEN}$MIN_COVERAGE%${NC})"
+                    echo "  ❌ Coverage: $coverage% (minimum: $MIN_COVERAGE%)"
+                    COMPONENT_ISSUES=$((COMPONENT_ISSUES + 1))
                 else
-                    echo "${GREEN}${BOLD}[PASS]${NC} $component_name coverage is ${GREEN}$coverage%${NC}"
+                    echo "  ✅ Coverage: $coverage%"
                 fi
                 
                 # Clean up temporary file
                 rm "$component/coverage.tmp"
             else
-                echo "${YELLOW}No coverage data generated for $component_name${NC}"
+                echo "  ⚠️ No coverage data generated"
             fi
         else
-            echo "${RED}${BOLD}[ERROR]${NC} Failed to run tests for $component_name"
+            echo "  ❌ Failed to run tests"
+            COMPONENT_ISSUES=$((COMPONENT_ISSUES + 1))
         fi
-        
-        echo ""
     fi
 done
 
-echo "Coverage check completed."
+# ===== SDK Check =====
+echo ""
+echo "Checking Go SDK:"
+SDK_ISSUES=0
+
+# Check the Go SDK
+SDK_DIR="./sdks/go"
+if [ -d "$SDK_DIR" ]; then
+    echo "  ℹ️ Using SDK's own coverage check"
+    
+    # Run the SDK's coverage check
+    SDK_OUTPUT=$(cd "$SDK_DIR" && make coverage 2>&1)
+    SDK_EXIT_CODE=$?
+    
+    # Extract coverage percentage from the output
+    SDK_COVERAGE=$(echo "$SDK_OUTPUT" | grep -o 'coverage: [0-9]*\.[0-9]*%' | head -1 | sed 's/coverage: //' | sed 's/%//')
+    
+    if [ -n "$SDK_COVERAGE" ]; then
+        # Compare with minimum required
+        if (( $(echo "$SDK_COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "  ❌ Coverage: $SDK_COVERAGE% (minimum: $MIN_COVERAGE%)"
+            SDK_ISSUES=$((SDK_ISSUES + 1))
+        else
+            echo "  ✅ Coverage: $SDK_COVERAGE%"
+        fi
+    else
+        if [ $SDK_EXIT_CODE -eq 0 ]; then
+            echo "  ⚠️ Could not determine coverage"
+        else
+            echo "  ❌ Failed to run tests"
+        fi
+        SDK_ISSUES=$((SDK_ISSUES + 1))
+    fi
+else
+    echo "  ℹ️ SDK directory not found"
+fi
+
+# ===== Summary =====
+echo ""
+echo "===== Summary ====="
+TOTAL_ISSUES=$((COMPONENT_ISSUES + SDK_ISSUES))
+
+if [ $TOTAL_ISSUES -eq 0 ]; then
+    echo "✅ All components and SDK meet the minimum coverage requirement of $MIN_COVERAGE%"
+else
+    echo "⚠️ Found $TOTAL_ISSUES coverage issues:"
+    echo "  - Components: $COMPONENT_ISSUES issues"
+    echo "  - Go SDK: $SDK_ISSUES issues"
+    echo ""
+    echo "➡️ Consider improving test coverage to meet the minimum requirement of $MIN_COVERAGE%"
+fi
+
+exit 0

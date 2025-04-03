@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
@@ -17,10 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to asset entities.
@@ -49,6 +50,7 @@ func NewAssetPostgreSQLRepository(pc *libPostgres.PostgresConnection) *AssetPost
 	}
 
 	_, err := c.connection.GetDB()
+
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -61,9 +63,11 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_asset")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -95,10 +99,12 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute insert query", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) {
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
@@ -109,6 +115,7 @@ func (r *AssetPostgreSQLRepository) Create(ctx context.Context, asset *mmodel.As
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -131,9 +138,11 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset_by_name_or_code")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -144,11 +153,13 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND (name LIKE $3 OR code = $4) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, name, code)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return false, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
@@ -169,9 +180,11 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -193,6 +206,7 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -202,17 +216,20 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var asset AssetPostgreSQLModel
+
 		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
 			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -237,9 +254,11 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -252,17 +271,20 @@ func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationI
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM asset WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var asset AssetPostgreSQLModel
+
 		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
 			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
@@ -287,9 +309,11 @@ func (r *AssetPostgreSQLRepository) Find(ctx context.Context, organizationID, le
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_asset")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -324,9 +348,11 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_asset")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -342,11 +368,13 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 
 	if asset.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Name)
 	}
 
 	if !asset.Status.IsEmpty() {
 		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Status)
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
@@ -360,8 +388,11 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE asset SET ` + strings.Join(updates, ", ") +
+
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
@@ -375,10 +406,12 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute update query", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) {
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
@@ -389,6 +422,7 @@ func (r *AssetPostgreSQLRepository) Update(ctx context.Context, organizationID, 
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -411,9 +445,11 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_asset")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -424,6 +460,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 
 	result, err := db.ExecContext(ctx, `UPDATE asset SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute delete query", err)
 
@@ -433,6 +470,7 @@ func (r *AssetPostgreSQLRepository) Delete(ctx context.Context, organizationID, 
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 

@@ -45,6 +45,7 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -54,6 +55,7 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &org)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -61,12 +63,14 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&org)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoOrganization.Update(f.OrganizationID, org)
+
 	if err != nil {
 		return err
 	}
@@ -76,8 +80,10 @@ func (f *factoryOrganizationUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrganizationInput) error { performs an operation
 func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrganizationInput) error {
 	var err error
+
 	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 
 	if err != nil {
@@ -91,6 +97,7 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrg
 	}
 
 	doingBusinessAsPtr, err := utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
+
 	if err != nil {
 		return err
 	}
@@ -112,6 +119,7 @@ func (f *factoryOrganizationUpdate) UpdateRequestFromFlags(org *mmodel.UpdateOrg
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

@@ -11,10 +11,12 @@ import (
 	"time"
 )
 
+// \1 performs an operation
 func Format(commands ...string) string {
 	return strings.Join(commands, "\n")
 }
 
+// \1 performs an operation
 func FlagFileUnmarshalJSON(path string, request any) error {
 	var (
 		file *os.File
@@ -29,14 +31,17 @@ func FlagFileUnmarshalJSON(path string, request any) error {
 			return errors.New("Failed to open a file. Verify if the path and file " +
 				"exists and/or the file is corrupted and try the command again " + path)
 		}
+
 		defer file.Close()
 	}
 
 	return UnmarshalJSONFromReader(file, &request)
 }
 
+// \1 performs an operation
 func UnmarshalJSONFromReader(file io.Reader, object any) error {
 	jsonFile, err := io.ReadAll(file)
+
 	if err != nil {
 		return err
 	}
@@ -49,8 +54,10 @@ func UnmarshalJSONFromReader(file io.Reader, object any) error {
 	return nil
 }
 
+// \1 performs an operation
 func WriteDetailsToFile(data []byte, outPath string) error {
 	err := os.MkdirAll(filepath.Dir(outPath), 0750)
+
 	if err != nil {
 		return err
 	}
@@ -63,13 +70,16 @@ func WriteDetailsToFile(data []byte, outPath string) error {
 	return nil
 }
 
+// \1 performs an operation
 func FormatAskFieldRequired(field string) string {
 	return fmt.Sprintf("Enter the %s field", field)
 }
 
+// \1 performs an operation
 func AssignStringField(flagValue string, fieldName string, inputFunc func(string) (string, error)) (string, error) {
 	if len(flagValue) < 1 {
 		answer, err := inputFunc(fieldName)
+
 		if err != nil {
 			return "", err
 		}
@@ -86,6 +96,7 @@ func ParseAndAssign[T any](value string, parseFunc func(string) (T, error)) (*T,
 	}
 
 	parsedValue, err := parseFunc(value)
+
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +104,7 @@ func ParseAndAssign[T any](value string, parseFunc func(string) (T, error)) (*T,
 	return &parsedValue, nil
 }
 
+// \1 performs an operation
 func AssignOptionalStringPtr(flagValue string) *string {
 	if len(flagValue) < 1 {
 		return nil
@@ -107,6 +119,7 @@ func SafeNestedString[T any](parent *T, fieldFunc func(*T) *string) string {
 	}
 
 	value := fieldFunc(parent)
+
 	if value == nil {
 		return ""
 	}
@@ -114,6 +127,7 @@ func SafeNestedString[T any](parent *T, fieldFunc func(*T) *string) string {
 	return *value
 }
 
+// \1 performs an operation
 func SafeString(value *string) string {
 	if value != nil {
 		return *value
@@ -122,10 +136,12 @@ func SafeString(value *string) string {
 	return ""
 }
 
+// \1 performs an operation
 func ValidateDate(date string) error {
 	const layout = "2006-01-02"
 
 	_, err := time.Parse(layout, date)
+
 	if err != nil {
 		return errors.New("invalid date format: expected YYYY-MM-DD")
 	}

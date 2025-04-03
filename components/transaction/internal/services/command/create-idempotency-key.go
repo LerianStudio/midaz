@@ -2,19 +2,22 @@ package command
 
 import (
 	"context"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/google/uuid"
-	"time"
 )
 
+// func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) error { performs an operation
 func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organizationID, ledgerID uuid.UUID, key, hash string, ttl time.Duration) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "command.create_idempotency_key")
+
 	defer span.End()
 
 	logger.Infof("Trying to create or check idempotency key in redis")
@@ -26,6 +29,7 @@ func (uc *UseCase) CreateOrCheckIdempotencyKey(ctx context.Context, organization
 	internalKey := libCommons.InternalKey(organizationID, ledgerID, key)
 
 	success, err := uc.RedisRepo.SetNX(ctx, internalKey, "", ttl)
+
 	if err != nil {
 		logger.Error("Error to lock idempotency key on redis failed:", err.Error())
 	}

@@ -21,17 +21,23 @@ type SegmentHandler struct {
 
 // CreateSegment is a method that creates segment information.
 //
-//	@Summary		Create a Segment
-//	@Description	Create a Segment with the input payload
+//	@Summary		Create a new segment
+//	@Description	Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.
 //	@Tags			Segments
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			segment			body		mmodel.CreateSegmentInput	true	"Segment"
-//	@Success		200				{object}	mmodel.Segment
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			segment			body		mmodel.CreateSegmentInput	true	"Segment details including name, status, and optional metadata"
+//	@Success		201				{object}	mmodel.Segment				"Successfully created segment"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Organization or ledger not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: Segment with the same name already exists"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments [post]
 func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -40,6 +46,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_segment")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -50,6 +57,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	logger.Infof("Request to create a Segment with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -57,6 +65,7 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 	}
 
 	segment, err := handler.Command.CreateSegment(ctx, organizationID, ledgerID, payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create Segment on command", err)
 
@@ -70,21 +79,26 @@ func (handler *SegmentHandler) CreateSegment(i any, c *fiber.Ctx) error {
 
 // GetAllSegments is a method that retrieves all Segments.
 //
-//	@Summary		Get all Segments
-//	@Description	Get all Segments with the input metadata or without metadata
+//	@Summary		List all segments
+//	@Description	Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Segments
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			metadata		query		string	false	"Metadata"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			page			query		int		false	"Page"			default(1)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Segment,page=int,limit=int}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string	false	"JSON string to filter segments by metadata fields"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
+//	@Param			start_date		query		string	false	"Filter segments created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter segments created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Segment,page=int,limit=int}	"Successfully retrieved segments list"
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments [get]
 func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -93,6 +107,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_segments")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -100,6 +115,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	logger.Infof("Get Segments with organization ID: %s and ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
@@ -120,6 +136,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 		logger.Infof("Initiating retrieval of all Segments by metadata")
 
 		segments, err := handler.Query.GetAllMetadataSegments(ctx, organizationID, ledgerID, *headerParams)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Segments on query", err)
 
@@ -140,6 +157,7 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 	headerParams.Metadata = &bson.M{}
 
 	segments, err := handler.Query.GetAllSegments(ctx, organizationID, ledgerID, *headerParams)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Segments on query", err)
 
@@ -157,16 +175,20 @@ func (handler *SegmentHandler) GetAllSegments(c *fiber.Ctx) error {
 
 // GetSegmentByID is a method that retrieves Segment information by a given id.
 //
-//	@Summary		Get a Segment by ID
-//	@Description	Get a Segment with the input ID
+//	@Summary		Retrieve a specific segment
+//	@Description	Returns detailed information about a segment identified by its UUID within the specified ledger
 //	@Tags			Segments
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			id				path		string	true	"Segment ID"
-//	@Success		200				{object}	mmodel.Segment
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			id				path		string	true	"Segment ID in UUID format"
+//	@Success		200				{object}	mmodel.Segment	"Successfully retrieved segment"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Segment, ledger, or organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id} [get]
 func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -175,6 +197,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_segment_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -183,6 +206,7 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating retrieval of Segment with Organization ID: %s and Ledger ID: %s and Segment ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	segment, err := handler.Query.GetSegmentByID(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Segment on query", err)
 
@@ -198,18 +222,24 @@ func (handler *SegmentHandler) GetSegmentByID(c *fiber.Ctx) error {
 
 // UpdateSegment is a method that updates Segment information.
 //
-//	@Summary		Update a Segment
-//	@Description	Update a Segment with the input payload
+//	@Summary		Update a segment
+//	@Description	Updates an existing segment's properties such as name, status, and metadata within the specified ledger
 //	@Tags			Segments
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			id				path		string						true	"Segment ID"
-//	@Param			segment			body		mmodel.UpdateSegmentInput	true	"Segment"
-//	@Success		200				{object}	mmodel.Segment
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			id				path		string						true	"Segment ID in UUID format"
+//	@Param			segment			body		mmodel.UpdateSegmentInput	true	"Segment properties to update including name, status, and optional metadata"
+//	@Success		200				{object}	mmodel.Segment				"Successfully updated segment"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Segment, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: Segment with the same name already exists"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id} [patch]
 func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -218,6 +248,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_segment")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -229,6 +260,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	logger.Infof("Request to update an Segment with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -245,6 +277,7 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 	}
 
 	segment, err := handler.Query.GetSegmentByID(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Segment on query", err)
 
@@ -260,15 +293,20 @@ func (handler *SegmentHandler) UpdateSegment(i any, c *fiber.Ctx) error {
 
 // DeleteSegmentByID is a method that removes Segment information by a given ids.
 //
-//	@Summary		Delete a Segment by ID
-//	@Description	Delete a Segment with the input ID
+//	@Summary		Delete a segment
+//	@Description	Permanently removes a segment from the specified ledger. This operation cannot be undone.
 //	@Tags			Segments
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header	string	false	"Request ID"
-//	@Param			organization_id	path	string	true	"Organization ID"
-//	@Param			ledger_id		path	string	true	"Ledger ID"
-//	@Param			id				path	string	true	"Segment ID"
-//	@Success		204
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Param			id				path	string	true	"Segment ID in UUID format"
+//	@Success		204				{object}	nil	"Segment successfully deleted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Segment, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: Segment cannot be deleted due to existing dependencies"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id} [delete]
 func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -277,6 +315,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_segment_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)

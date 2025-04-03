@@ -15,14 +15,17 @@ type organization struct {
 	Factory *factory.Factory
 }
 
+// func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organization, error) { performs an operation
 func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organization, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
 
 	req, err := http.NewRequest(http.MethodPost,
 		r.Factory.Env.URLAPILedger+"/v1/organizations", bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -31,6 +34,7 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -42,6 +46,7 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 	}
 
 	var org mmodel.Organization
+
 	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -49,15 +54,18 @@ func (r *organization) Create(inp mmodel.CreateOrganizationInput) (*mmodel.Organ
 	return &org, nil
 }
 
+// func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string) (*mmodel.Organizations, error) { performs an operation
 func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string) (*mmodel.Organizations, error) {
 	baseURL := r.Factory.Env.URLAPILedger + "/v1/organizations"
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+
 	if err != nil {
 		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -66,9 +74,11 @@ func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -76,6 +86,7 @@ func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string
 	}
 
 	var orgs mmodel.Organizations
+
 	if err := json.NewDecoder(resp.Body).Decode(&orgs); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -83,10 +94,12 @@ func (r *organization) Get(limit, page int, sortOrder, startDate, endDate string
 	return &orgs, nil
 }
 
+// func (r *organization) GetByID(organizationID string) (*mmodel.Organization, error) { performs an operation
 func (r *organization) GetByID(organizationID string) (*mmodel.Organization, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -95,9 +108,11 @@ func (r *organization) GetByID(organizationID string) (*mmodel.Organization, err
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -110,6 +125,7 @@ func (r *organization) GetByID(organizationID string) (*mmodel.Organization, err
 	}
 
 	var org mmodel.Organization
+
 	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -117,8 +133,10 @@ func (r *organization) GetByID(organizationID string) (*mmodel.Organization, err
 	return &org, nil
 }
 
+// func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) { performs an operation
 func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizationInput) (*mmodel.Organization, error) {
 	payloadBytes, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -128,6 +146,7 @@ func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizati
 	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, body)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -136,9 +155,11 @@ func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizati
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -151,6 +172,7 @@ func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizati
 	}
 
 	var org mmodel.Organization
+
 	if err := json.NewDecoder(resp.Body).Decode(&org); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -158,10 +180,12 @@ func (r *organization) Update(organizationID string, inp mmodel.UpdateOrganizati
 	return &org, nil
 }
 
+// func (r *organization) Delete(organizationID string) error { performs an operation
 func (r *organization) Delete(organizationID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s", r.Factory.Env.URLAPILedger, organizationID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+
 	if err != nil {
 		return errors.New("creating request: " + err.Error())
 	}
@@ -170,6 +194,7 @@ func (r *organization) Delete(organizationID string) error {
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return errors.New("making GET request: " + err.Error())
 	}
@@ -188,6 +213,7 @@ func (r *organization) Delete(organizationID string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewOrganization(f *factory.Factory) *organization {
 	return &organization{f}
 }

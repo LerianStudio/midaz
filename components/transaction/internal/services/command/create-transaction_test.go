@@ -3,11 +3,12 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // TestCreateTransactionSuccess is responsible to test CreateTransaction with success

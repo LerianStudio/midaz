@@ -36,6 +36,7 @@ or containerized PostgreSQL database.
 // Compile-time interface check
 var (
 	_ Repository = (*mockRepository)(nil)
+
 	_ Repository = (*OrganizationPostgreSQLRepository)(nil)
 )
 
@@ -47,12 +48,14 @@ type mockRepository struct {
 	err       error
 }
 
+// func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) { performs an operation
 func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
 
 	address, err := json.Marshal(organization.Address)
+
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +76,7 @@ func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organi
 		organization.UpdatedAt,
 		organization.DeletedAt,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +84,7 @@ func (r *mockRepository) Create(ctx context.Context, organization *mmodel.Organi
 	return organization, nil
 }
 
+// func (r *mockRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) { performs an operation
 func (r *mockRepository) Update(ctx context.Context, id uuid.UUID, organization *mmodel.Organization) (*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -88,18 +93,21 @@ func (r *mockRepository) Update(ctx context.Context, id uuid.UUID, organization 
 	// Execute the query to update the organization
 	result, err := r.db.ExecContext(
 		ctx,
+
 		`UPDATE organization SET legal_name = $1, doing_business_as = $2, updated_at = $3 WHERE id = $4 AND deleted_at IS NULL`,
 		organization.LegalName,
 		organization.DoingBusinessAs,
 		organization.UpdatedAt,
 		id.String(),
 	)
+
 	if err != nil {
 		return nil, err
 	}
 
 	// Check if any row was affected
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +122,7 @@ func (r *mockRepository) Update(ctx context.Context, id uuid.UUID, organization 
 	return organization, nil
 }
 
+// func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) { performs an operation
 func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -122,6 +131,7 @@ func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organi
 	// Query to get the organization
 	row := r.db.QueryRowContext(
 		ctx,
+
 		`SELECT id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at FROM organization WHERE id = $1 AND deleted_at IS NULL`,
 		id.String(),
 	)
@@ -144,6 +154,7 @@ func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organi
 		&organization.UpdatedAt,
 		&deletedAt,
 	)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("organization not found")
@@ -183,6 +194,7 @@ func (r *mockRepository) Find(ctx context.Context, id uuid.UUID) (*mmodel.Organi
 	return &organization, nil
 }
 
+// func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error) { performs an operation
 func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([]*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -194,9 +206,11 @@ func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([
 		`SELECT id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at FROM organization WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1`,
 		filter.Limit,
 	)
+
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	var organizations []*mmodel.Organization
@@ -219,6 +233,7 @@ func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([
 			&organization.UpdatedAt,
 			&deletedAt,
 		)
+
 		if err != nil {
 			return nil, err
 		}
@@ -262,6 +277,7 @@ func (r *mockRepository) FindAll(ctx context.Context, filter http.Pagination) ([
 	return organizations, nil
 }
 
+// func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) { performs an operation
 func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmodel.Organization, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -269,6 +285,7 @@ func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmo
 
 	// Convert UUIDs to strings for the query
 	idStrings := make([]string, len(ids))
+
 	for i, id := range ids {
 		idStrings[i] = id.String()
 	}
@@ -276,12 +293,15 @@ func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmo
 	// Execute the query to get organizations by IDs
 	rows, err := r.db.QueryContext(
 		ctx,
+
 		`SELECT id, parent_organization_id, legal_name, doing_business_as, legal_document, address, status, status_description, created_at, updated_at, deleted_at FROM organization WHERE id = ANY($1) AND deleted_at IS NULL`,
 		pq.Array(idStrings),
 	)
+
 	if err != nil {
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	var organizations []*mmodel.Organization
@@ -304,6 +324,7 @@ func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmo
 			&organization.UpdatedAt,
 			&deletedAt,
 		)
+
 		if err != nil {
 			return nil, err
 		}
@@ -347,6 +368,7 @@ func (r *mockRepository) ListByIDs(ctx context.Context, ids []uuid.UUID) ([]*mmo
 	return organizations, nil
 }
 
+// func (r *mockRepository) Delete(ctx context.Context, id uuid.UUID) error { performs an operation
 func (r *mockRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	if r.err != nil {
 		return r.err
@@ -355,16 +377,19 @@ func (r *mockRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	// Execute the query to soft delete the organization
 	result, err := r.db.ExecContext(
 		ctx,
+
 		`UPDATE organization SET deleted_at = $1 WHERE id = $2 AND deleted_at IS NULL`,
 		time.Now(),
 		id.String(),
 	)
+
 	if err != nil {
 		return err
 	}
 
 	// Check if any row was affected
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		return err
 	}
@@ -397,6 +422,7 @@ func setupErrorDB() *mockRepository {
 	}
 }
 
+// \1 performs an operation
 func TestOrganizationRepository_Create(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -480,6 +506,7 @@ func TestOrganizationRepository_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganizationRepository_Update(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -576,6 +603,7 @@ func TestOrganizationRepository_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganizationRepository_Find(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -648,6 +676,7 @@ func TestOrganizationRepository_Find(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganizationRepository_FindAll(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -751,6 +780,7 @@ func TestOrganizationRepository_FindAll(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganizationRepository_ListByIDs(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -848,6 +878,7 @@ func TestOrganizationRepository_ListByIDs(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganizationRepository_Delete(t *testing.T) {
 	// Test cases
 	tests := []struct {

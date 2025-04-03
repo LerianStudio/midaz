@@ -37,6 +37,7 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -46,6 +47,7 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -55,6 +57,7 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &led)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -62,12 +65,14 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&led)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoLedger.Update(f.OrganizationID, f.LedgerID, led)
+
 	if err != nil {
 		return err
 	}
@@ -77,8 +82,10 @@ func (f *factoryLedgerUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// func (f *factoryLedgerUpdate) UpdateRequestFromFlags(led *mmodel.UpdateLedgerInput) error { performs an operation
 func (f *factoryLedgerUpdate) UpdateRequestFromFlags(led *mmodel.UpdateLedgerInput) error {
 	led.Name = f.Name
+
 	led.Status.Code = f.Code
 
 	if len(f.Description) > 0 {
@@ -86,6 +93,7 @@ func (f *factoryLedgerUpdate) UpdateRequestFromFlags(led *mmodel.UpdateLedgerInp
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

@@ -2,8 +2,9 @@ package balance
 
 import (
 	"database/sql"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"time"
+
+	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
 // BalancePostgreSQLModel represents the entity Balance into SQL context in Database
@@ -48,6 +49,7 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 
 	if balance.DeletedAt != nil {
 		deletedAtCopy := *balance.DeletedAt
+
 		b.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

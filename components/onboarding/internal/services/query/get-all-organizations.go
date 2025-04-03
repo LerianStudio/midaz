@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
-	"reflect"
 )
 
 // GetAllOrganizations fetch all Organizations from the repository
@@ -19,11 +20,13 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_organizations")
+
 	defer span.End()
 
 	logger.Infof("Retrieving organizations")
 
 	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter.ToOffsetPagination())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get organizations on repo", err)
 
@@ -38,6 +41,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 	if organizations != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), filter)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
 

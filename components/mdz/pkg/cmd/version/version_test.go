@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestFactoryVersionRunE(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -55,6 +56,7 @@ func TestFactoryVersionRunE(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestNewCmdVersion(t *testing.T) {
 	f := factory.Factory{
 		IOStreams: &iostreams.IOStreams{

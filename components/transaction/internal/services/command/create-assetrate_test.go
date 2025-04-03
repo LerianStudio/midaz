@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // TestUpdateAssetRateSuccess is responsible to test TestUpdateAssetRateSuccess with success
@@ -41,6 +42,7 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 		Return(assetRate, nil).
 		Times(1)
 	res, err := uc.AssetRateRepo.FindByCurrencyPair(context.TODO(), orgID, ledgerID, assetRate.From, assetRate.To)
+
 	if err != nil {
 		t.Errorf("Error finding asset rate by currency pair: %v", err)
 	}
@@ -61,6 +63,7 @@ func TestUpdateAssetRateSuccess(t *testing.T) {
 		Update(gomock.Any(), orgID, ledgerID, id, assetRate).
 		Return(assetRate, nil).
 		Times(1)
+
 	res, err = uc.AssetRateRepo.Update(context.TODO(), orgID, ledgerID, id, assetRate)
 	if err != nil {
 		t.Errorf("Error creating asset rate: %v", err)
@@ -108,6 +111,7 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 		Return(nil, nil).
 		Times(1)
 	res, err := uc.AssetRateRepo.FindByCurrencyPair(context.TODO(), orgID, ledgerID, assetRate.From, assetRate.To)
+
 	if err != nil {
 		t.Errorf("Error finding asset rate by currency pair: %v", err)
 	}
@@ -120,6 +124,7 @@ func TestCreateAssetRateSuccess(t *testing.T) {
 		Create(gomock.Any(), assetRate).
 		Return(assetRate, nil).
 		Times(1)
+
 	res, err = uc.AssetRateRepo.Create(context.TODO(), assetRate)
 	if err != nil {
 		t.Errorf("Error creating asset rate: %v", err)

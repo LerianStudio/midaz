@@ -2,6 +2,7 @@ package repository
 
 import "github.com/LerianStudio/midaz/pkg/mmodel"
 
+// \1 represents an entity
 type Account interface {
 	Create(organizationID, ledgerID string, inp mmodel.CreateAccountInput) (*mmodel.Account, error)
 	Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Accounts, error)

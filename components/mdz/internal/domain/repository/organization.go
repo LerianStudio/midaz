@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
+// \1 represents an entity
 type Organization interface {
 	Create(org mmodel.CreateOrganizationInput) (*mmodel.Organization, error)
 	Get(limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Organizations, error)

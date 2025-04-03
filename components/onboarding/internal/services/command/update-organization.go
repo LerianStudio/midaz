@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // UpdateOrganizationByID update an organization from the repository.
@@ -19,6 +20,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_organization_by_id")
+
 	defer span.End()
 
 	logger.Infof("Trying to update organization: %v", uoi)
@@ -54,6 +56,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	}
 
 	organizationUpdated, err := uc.OrganizationRepo.Update(ctx, id, organization)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update organization on repo by id", err)
 
@@ -67,6 +70,7 @@ func (uc *UseCase) UpdateOrganizationByID(ctx context.Context, id uuid.UUID, uoi
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), id.String(), uoi.Metadata)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 

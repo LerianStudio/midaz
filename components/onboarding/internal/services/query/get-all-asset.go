@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllAssets fetch all Asset from the repository
@@ -20,11 +21,13 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_assets")
+
 	defer span.End()
 
 	logger.Infof("Retrieving assets")
 
 	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get assets on repo", err)
 
@@ -39,6 +42,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 
 	if assets != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Asset{}).Name(), filter)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
 

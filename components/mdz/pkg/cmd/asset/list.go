@@ -32,6 +32,7 @@ type factoryAssetList struct {
 func (f *factoryAssetList) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -41,6 +42,7 @@ func (f *factoryAssetList) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -64,12 +66,14 @@ func (f *factoryAssetList) runE(cmd *cobra.Command, _ []string) error {
 		f.OrganizationID, f.LedgerID, f.Limit, f.Page,
 		f.SortOrder, f.StartDate, f.EndDate,
 	)
+
 	if err != nil {
 		return err
 	}
 
 	if f.JSON {
 		b, err := json.Marshal(leds)
+
 		if err != nil {
 			return err
 		}

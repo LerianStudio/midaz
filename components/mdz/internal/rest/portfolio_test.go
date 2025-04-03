@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_portfolio_Create(t *testing.T) {
 	portfolioID := "01931b44-6e33-791a-bfad-27992fa15984"
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
@@ -54,6 +55,7 @@ func Test_portfolio_Create(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -89,6 +91,7 @@ func Test_portfolio_Create(t *testing.T) {
 	assert.Equal(t, 1, info["POST "+uri])
 }
 
+// \1 performs an operation
 func Test_portfolio_Get(t *testing.T) {
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
@@ -138,6 +141,7 @@ func Test_portfolio_Get(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -174,6 +178,7 @@ func Test_portfolio_Get(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_portfolio_GetByID(t *testing.T) {
 	portfolioID := "01931c99-adef-7b98-ad68-72d7e263066a"
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
@@ -198,6 +203,7 @@ func Test_portfolio_GetByID(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
@@ -234,6 +240,7 @@ func Test_portfolio_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_portfolio_Update(t *testing.T) {
 	portfolioID := "01931c99-adef-7b98-ad68-72d7e263066a"
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
@@ -271,6 +278,7 @@ func Test_portfolio_Update(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -306,6 +314,7 @@ func Test_portfolio_Update(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
+// \1 performs an operation
 func Test_portfolio_Delete(t *testing.T) {
 	portfolioID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
@@ -314,6 +323,7 @@ func Test_portfolio_Delete(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",

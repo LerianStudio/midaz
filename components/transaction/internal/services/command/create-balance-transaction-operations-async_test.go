@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"testing"
+
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
@@ -15,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
 // Int64Ptr returns a pointer to the given int64 value
@@ -26,25 +27,61 @@ func Int64Ptr(v int64) *int64 {
 // MockLogger is a mock implementation of logger for testing
 type MockLogger struct{}
 
-func (m *MockLogger) Debug(args ...any)                                        {}
-func (m *MockLogger) Debugf(format string, args ...any)                        {}
-func (m *MockLogger) Debugln(args ...any)                                      {}
-func (m *MockLogger) Info(args ...any)                                         {}
-func (m *MockLogger) Infof(format string, args ...any)                         {}
-func (m *MockLogger) Infoln(args ...any)                                       {}
-func (m *MockLogger) Warn(args ...any)                                         {}
-func (m *MockLogger) Warnf(format string, args ...any)                         {}
-func (m *MockLogger) Warnln(args ...any)                                       {}
-func (m *MockLogger) Error(args ...any)                                        {}
-func (m *MockLogger) Errorf(format string, args ...any)                        {}
-func (m *MockLogger) Errorln(args ...any)                                      {}
-func (m *MockLogger) Fatal(args ...any)                                        {}
-func (m *MockLogger) Fatalf(format string, args ...any)                        {}
-func (m *MockLogger) Fatalln(args ...any)                                      {}
-func (m *MockLogger) Sync() error                                              { return nil }
-func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
-func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m }
+// func (m *MockLogger) Debug(args ...any)                                        {} performs an operation
+func (m *MockLogger) Debug(args ...any) {}
 
+// func (m *MockLogger) Debugf(format string, args ...any)                        {} performs an operation
+func (m *MockLogger) Debugf(format string, args ...any) {}
+
+// func (m *MockLogger) Debugln(args ...any)                                      {} performs an operation
+func (m *MockLogger) Debugln(args ...any) {}
+
+// func (m *MockLogger) Info(args ...any)                                         {} performs an operation
+func (m *MockLogger) Info(args ...any) {}
+
+// func (m *MockLogger) Infof(format string, args ...any)                         {} performs an operation
+func (m *MockLogger) Infof(format string, args ...any) {}
+
+// func (m *MockLogger) Infoln(args ...any)                                       {} performs an operation
+func (m *MockLogger) Infoln(args ...any) {}
+
+// func (m *MockLogger) Warn(args ...any)                                         {} performs an operation
+func (m *MockLogger) Warn(args ...any) {}
+
+// func (m *MockLogger) Warnf(format string, args ...any)                         {} performs an operation
+func (m *MockLogger) Warnf(format string, args ...any) {}
+
+// func (m *MockLogger) Warnln(args ...any)                                       {} performs an operation
+func (m *MockLogger) Warnln(args ...any) {}
+
+// func (m *MockLogger) Error(args ...any)                                        {} performs an operation
+func (m *MockLogger) Error(args ...any) {}
+
+// func (m *MockLogger) Errorf(format string, args ...any)                        {} performs an operation
+func (m *MockLogger) Errorf(format string, args ...any) {}
+
+// func (m *MockLogger) Errorln(args ...any)                                      {} performs an operation
+func (m *MockLogger) Errorln(args ...any) {}
+
+// func (m *MockLogger) Fatal(args ...any)                                        {} performs an operation
+func (m *MockLogger) Fatal(args ...any) {}
+
+// func (m *MockLogger) Fatalf(format string, args ...any)                        {} performs an operation
+func (m *MockLogger) Fatalf(format string, args ...any) {}
+
+// func (m *MockLogger) Fatalln(args ...any)                                      {} performs an operation
+func (m *MockLogger) Fatalln(args ...any) {}
+
+// func (m *MockLogger) Sync() error                                              { return nil } performs an operation
+func (m *MockLogger) Sync() error { return nil }
+
+// func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m } performs an operation
+func (m *MockLogger) WithDefaultMessageTemplate(template string) libLog.Logger { return m }
+
+// func (m *MockLogger) WithFields(args ...any) libLog.Logger                     { return m } performs an operation
+func (m *MockLogger) WithFields(args ...any) libLog.Logger { return m }
+
+// \1 performs an operation
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -1019,6 +1056,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	})
 }
 
+// \1 performs an operation
 func TestCreateMetadataAsync(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -1058,6 +1096,7 @@ func TestCreateMetadataAsync(t *testing.T) {
 	})
 }
 
+// \1 performs an operation
 func TestCreateBTOAsync(t *testing.T) {
 	// This test simply verifies that CreateBTOAsync doesn't panic
 	// Since it's just a wrapper around CreateBalanceTransactionOperationsAsync

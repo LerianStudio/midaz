@@ -2,6 +2,9 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -10,8 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"reflect"
-	"time"
 )
 
 // CreateOperation creates a new operation based on transaction id and persisting data in the repository.
@@ -20,6 +21,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_operation")
+
 	defer span.End()
 
 	logger.Infof("Trying to create new operations")
@@ -27,7 +29,9 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 	var operations []*operation.Operation
 
 	var fromTo []libTransaction.FromTo
+
 	fromTo = append(fromTo, dsl.Send.Source.From...)
+
 	fromTo = append(fromTo, dsl.Send.Distribute.To...)
 
 	for _, blc := range balances {
@@ -42,6 +46,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				amt, bat, er := libTransaction.ValidateFromToOperation(fromTo[i], validate, blc.ConvertToLibBalance())
+
 				if er != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to validate operation", er)
 
@@ -60,11 +65,13 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				description := fromTo[i].Description
+
 				if libCommons.IsNilOrEmpty(&fromTo[i].Description) {
 					description = dsl.Description
 				}
 
 				var typeOperation string
+
 				if fromTo[i].IsFrom {
 					typeOperation = constant.DEBIT
 				} else {
@@ -91,6 +98,7 @@ func (uc *UseCase) CreateOperation(ctx context.Context, balances []*mmodel.Balan
 				}
 
 				op, er := uc.OperationRepo.Create(ctx, save)
+
 				if er != nil {
 					libOpentelemetry.HandleSpanError(&span, "Failed to create operation", er)
 

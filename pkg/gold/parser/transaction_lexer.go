@@ -4,9 +4,10 @@ package parser
 
 import (
 	"fmt"
-	"github.com/antlr4-go/antlr/v4"
 	"sync"
 	"unicode"
+
+	"github.com/antlr4-go/antlr/v4"
 )
 
 // Suppress unused import error
@@ -14,6 +15,7 @@ var _ = fmt.Printf
 var _ = sync.Once{}
 var _ = unicode.IsLetter
 
+// \1 represents an entity
 type TransactionLexer struct {
 	*antlr.BaseLexer
 	channelNames []string
@@ -36,12 +38,15 @@ var TransactionLexerLexerStaticData struct {
 
 func transactionlexerLexerInit() {
 	staticData := &TransactionLexerLexerStaticData
+
 	staticData.ChannelNames = []string{
 		"DEFAULT_TOKEN_CHANNEL", "HIDDEN",
 	}
+
 	staticData.ModeNames = []string{
 		"DEFAULT_MODE",
 	}
+
 	staticData.LiteralNames = []string{
 		"", "'('", "'transaction'", "'transaction-template'", "')'", "'chart-of-accounts-group-name'",
 		"'code'", "'false'", "'true'", "'pending'", "'description'", "'chart-of-accounts'",
@@ -49,18 +54,22 @@ func transactionlexerLexerInit() {
 		"'from'", "'source'", "'to'", "'distribute'", "'send'", "'V1'", "",
 		"", "", "':remaining'",
 	}
+
 	staticData.SymbolicNames = []string{
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 		"", "", "", "", "", "", "", "VERSION", "INT", "STRING", "UUID", "REMAINING",
 		"VARIABLE", "ACCOUNT", "WS",
 	}
+
 	staticData.RuleNames = []string{
 		"T__0", "T__1", "T__2", "T__3", "T__4", "T__5", "T__6", "T__7", "T__8",
 		"T__9", "T__10", "T__11", "T__12", "T__13", "T__14", "T__15", "T__16",
 		"T__17", "T__18", "T__19", "T__20", "T__21", "T__22", "VERSION", "INT",
 		"STRING", "UUID", "REMAINING", "VARIABLE", "ACCOUNT", "WS",
 	}
+
 	staticData.PredictionContextCache = antlr.NewPredictionContextCache()
+
 	staticData.serializedATN = []int32{
 		4, 0, 31, 306, 6, -1, 2, 0, 7, 0, 2, 1, 7, 1, 2, 2, 7, 2, 2, 3, 7, 3, 2,
 		4, 7, 4, 2, 5, 7, 5, 2, 6, 7, 6, 2, 7, 7, 7, 2, 8, 7, 8, 2, 9, 7, 9, 2,
@@ -195,10 +204,13 @@ func transactionlexerLexerInit() {
 		62, 1, 0, 0, 0, 7, 0, 258, 264, 272, 289, 296, 302, 1, 6, 0, 0,
 	}
 	deserializer := antlr.NewATNDeserializer(nil)
+
 	staticData.atn = deserializer.Deserialize(staticData.serializedATN)
 	atn := staticData.atn
+
 	staticData.decisionToDFA = make([]*antlr.DFA, len(atn.DecisionToState))
 	decisionToDFA := staticData.decisionToDFA
+
 	for index, state := range atn.DecisionToState {
 		decisionToDFA[index] = antlr.NewDFA(state, index)
 	}
@@ -217,15 +229,24 @@ func TransactionLexerInit() {
 func NewTransactionLexer(input antlr.CharStream) *TransactionLexer {
 	TransactionLexerInit()
 	l := new(TransactionLexer)
+
 	l.BaseLexer = antlr.NewBaseLexer(input)
 	staticData := &TransactionLexerLexerStaticData
+
 	l.Interpreter = antlr.NewLexerATNSimulator(l, staticData.atn, staticData.decisionToDFA, staticData.PredictionContextCache)
+
 	l.channelNames = staticData.ChannelNames
+
 	l.modeNames = staticData.ModeNames
+
 	l.RuleNames = staticData.RuleNames
+
 	l.LiteralNames = staticData.LiteralNames
+
 	l.SymbolicNames = staticData.SymbolicNames
+
 	l.GrammarFileName = "Transaction.g4"
+
 	// TODO: l.EOF = antlr.TokenEOF
 
 	return l
@@ -233,35 +254,65 @@ func NewTransactionLexer(input antlr.CharStream) *TransactionLexer {
 
 // TransactionLexer tokens.
 const (
-	TransactionLexerT__0      = 1
-	TransactionLexerT__1      = 2
-	TransactionLexerT__2      = 3
-	TransactionLexerT__3      = 4
-	TransactionLexerT__4      = 5
-	TransactionLexerT__5      = 6
-	TransactionLexerT__6      = 7
-	TransactionLexerT__7      = 8
-	TransactionLexerT__8      = 9
-	TransactionLexerT__9      = 10
-	TransactionLexerT__10     = 11
-	TransactionLexerT__11     = 12
-	TransactionLexerT__12     = 13
-	TransactionLexerT__13     = 14
-	TransactionLexerT__14     = 15
-	TransactionLexerT__15     = 16
-	TransactionLexerT__16     = 17
-	TransactionLexerT__17     = 18
-	TransactionLexerT__18     = 19
-	TransactionLexerT__19     = 20
-	TransactionLexerT__20     = 21
-	TransactionLexerT__21     = 22
-	TransactionLexerT__22     = 23
-	TransactionLexerVERSION   = 24
-	TransactionLexerINT       = 25
-	TransactionLexerSTRING    = 26
-	TransactionLexerUUID      = 27
+	TransactionLexerT__0 = 1
+
+	TransactionLexerT__1 = 2
+
+	TransactionLexerT__2 = 3
+
+	TransactionLexerT__3 = 4
+
+	TransactionLexerT__4 = 5
+
+	TransactionLexerT__5 = 6
+
+	TransactionLexerT__6 = 7
+
+	TransactionLexerT__7 = 8
+
+	TransactionLexerT__8 = 9
+
+	TransactionLexerT__9 = 10
+
+	TransactionLexerT__10 = 11
+
+	TransactionLexerT__11 = 12
+
+	TransactionLexerT__12 = 13
+
+	TransactionLexerT__13 = 14
+
+	TransactionLexerT__14 = 15
+
+	TransactionLexerT__15 = 16
+
+	TransactionLexerT__16 = 17
+
+	TransactionLexerT__17 = 18
+
+	TransactionLexerT__18 = 19
+
+	TransactionLexerT__19 = 20
+
+	TransactionLexerT__20 = 21
+
+	TransactionLexerT__21 = 22
+
+	TransactionLexerT__22 = 23
+
+	TransactionLexerVERSION = 24
+
+	TransactionLexerINT = 25
+
+	TransactionLexerSTRING = 26
+
+	TransactionLexerUUID = 27
+
 	TransactionLexerREMAINING = 28
-	TransactionLexerVARIABLE  = 29
-	TransactionLexerACCOUNT   = 30
-	TransactionLexerWS        = 31
+
+	TransactionLexerVARIABLE = 29
+
+	TransactionLexerACCOUNT = 30
+
+	TransactionLexerWS = 31
 )

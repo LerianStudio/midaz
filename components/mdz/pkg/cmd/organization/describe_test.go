@@ -2,9 +2,10 @@ package organization
 
 import (
 	"bytes"
-	"go.uber.org/mock/gomock"
 	"testing"
 	"time"
+
+	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/components/mdz/internal/domain/repository"
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
@@ -16,6 +17,7 @@ import (
 	"gotest.tools/golden"
 )
 
+// \1 performs an operation
 func Test_newCmdOrganizationDescribe(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

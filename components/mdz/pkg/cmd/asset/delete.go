@@ -23,6 +23,7 @@ type factoryAssetDelete struct {
 func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -32,6 +33,7 @@ func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -41,6 +43,7 @@ func (f *factoryAssetDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("asset-id") && len(f.AssetID) < 1 {
 		id, err := f.tuiInput("Enter your asset-id")
+
 		if err != nil {
 			return err
 		}
@@ -57,6 +60,7 @@ func (f *factoryAssetDelete) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	err := f.repoAsset.Delete(f.OrganizationID, f.LedgerID, f.AssetID)
+
 	if err != nil {
 		return err
 	}

@@ -2,12 +2,13 @@ package transaction
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"time"
 )
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
@@ -36,7 +37,8 @@ type TransactionPostgreSQLModel struct {
 // swagger:model Status
 // @Description Status is the struct designed to represent the status of a transaction.
 type Status struct {
-	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
+	Code string `json:"code" validate:"max=100" example:"ACTIVE"`
+
 	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
 } // @name Status
 
@@ -50,12 +52,15 @@ func (s Status) IsEmpty() bool {
 // swagger:model CreateTransactionInput
 // @Description CreateTransactionInput is the input payload to create a transaction.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName string               `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
-	Description              string               `json:"description,omitempty" validate:"max=256"`
-	Code                     string               `json:"code,omitempty" validate:"max=100"`
-	Pending                  bool                 `json:"pending,omitempty"`
-	Metadata                 map[string]any       `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	Send                     *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
+
+	Description string `json:"description,omitempty" validate:"max=256"`
+
+	Code    string `json:"code,omitempty" validate:"max=100"`
+	Pending bool   `json:"pending,omitempty"`
+
+	Metadata map[string]any       `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Send     *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.
@@ -70,8 +75,9 @@ type InputDSL struct {
 // swagger:model UpdateTransactionInput
 // @Description UpdateTransactionInput is the input payload to update a transaction.
 type UpdateTransactionInput struct {
-	Description string         `json:"description" validate:"max=256" example:"Transaction description"`
-	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Description string `json:"description" validate:"max=256" example:"Transaction description"`
+
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateTransactionInput
 
 // Transaction is a struct designed to encapsulate response payload data.
@@ -131,6 +137,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		transaction.DeletedAt = &deletedAtCopy
 	}
 
@@ -140,6 +147,7 @@ func (t *TransactionPostgreSQLModel) ToEntity() *Transaction {
 // FromEntity converts an entity Transaction to TransactionPostgreSQLModel
 func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 	ID := libCommons.GenerateUUIDv7().String()
+
 	if transaction.ID != "" {
 		ID = transaction.ID
 	}
@@ -164,6 +172,7 @@ func (t *TransactionPostgreSQLModel) FromEntity(transaction *Transaction) {
 
 	if transaction.DeletedAt != nil {
 		deletedAtCopy := *transaction.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }
@@ -195,6 +204,7 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 
 	for _, to := range t.Body.Send.Distribute.To {
 		to.IsFrom = true
+
 		froms = append(froms, to)
 	}
 
@@ -207,6 +217,7 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 
 	for _, from := range t.Body.Send.Source.From {
 		from.IsFrom = false
+
 		tos = append(tos, from)
 	}
 

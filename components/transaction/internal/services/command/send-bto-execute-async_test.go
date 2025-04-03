@@ -2,16 +2,18 @@ package command
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
-	"os"
-	"testing"
 )
 
+// \1 performs an operation
 func TestSendBTOExecuteAsync(t *testing.T) {
 	// Save original env vars to restore after test
 	originalExchange := os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE")
@@ -22,6 +24,7 @@ func TestSendBTOExecuteAsync(t *testing.T) {
 	os.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", "test-key")
 
 	// Restore env vars after test
+
 	defer func() {
 		os.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE", originalExchange)
 		os.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY", originalKey)

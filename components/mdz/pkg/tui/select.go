@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// \1 performs an operation
 func Select(message string, options []string) (string, error) {
 	model := initialSelectModel(message, options)
 	p := tea.NewProgram(model)
@@ -37,10 +38,12 @@ func initialSelectModel(message string, choices []string) selectModel {
 	}
 }
 
+// func (m selectModel) Init() tea.Cmd { performs an operation
 func (m selectModel) Init() tea.Cmd {
 	return nil
 }
 
+// func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { performs an operation
 func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -64,11 +67,13 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// func (m selectModel) View() string { performs an operation
 func (m selectModel) View() string {
 	s := m.message + "\n\n"
 
 	for i, choice := range m.choices {
 		cursor := " "
+
 		if m.cursor == i {
 			cursor = ">" // add a “>” cursor to the current option
 		}

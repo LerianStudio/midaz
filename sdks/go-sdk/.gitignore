@@ -1,0 +1,6 @@
+# Build artifacts
+/bin/
+/coverage.out
+
+# Environment files
+/.env

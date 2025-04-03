@@ -11,7 +11,9 @@ import (
 
 const (
 	Created = "created"
+
 	Deleted = "deleted"
+
 	Updated = "updated"
 )
 
@@ -34,6 +36,7 @@ var (
 	// getStyle    = color.New(color.FgGreen, color.Bold).SprintFunc()
 )
 
+// \1 represents an entity
 type Output interface {
 	Output() error
 }
@@ -72,36 +75,43 @@ func FormatAndPrint(f *factory.Factory, id, entity, method string) {
 	g.Output()
 }
 
+// \1 performs an operation
 func Printf(w io.Writer, msg string) {
 	g := GeneralOutput{Msg: msg, Out: w}
 	g.Output()
 }
 
+// \1 performs an operation
 func Errorf(w io.Writer, err error) error {
 	e := ErrorOutput{GeneralOutput: GeneralOutput{Out: w}, Err: err}
 
 	return e.Output()
 }
 
+// \1 represents an entity
 type GeneralOutput struct {
 	Msg string
 	Out io.Writer
 }
 
+// func (o *GeneralOutput) Output() { performs an operation
 func (o *GeneralOutput) Output() {
 	if _, err := fmt.Fprintf(o.Out, "%s\n", o.Msg); err != nil {
 		log.Printf("failed to write output: %v", err)
 	}
 }
 
+// \1 represents an entity
 type ErrorOutput struct {
 	GeneralOutput GeneralOutput
 	Err           error
 }
 
+// func (o *ErrorOutput) Output() error { performs an operation
 func (o *ErrorOutput) Output() error {
 	if o.Err != nil {
 		_, err := fmt.Fprintf(o.GeneralOutput.Out, "Error: %s\n", o.Err.Error())
+
 		if err != nil {
 			return err
 		}

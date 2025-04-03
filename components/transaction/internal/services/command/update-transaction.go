@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // UpdateTransaction update a transaction from the repository by given id.
@@ -19,6 +20,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction")
+
 	defer span.End()
 
 	logger.Infof("Trying to update transaction: %v", uti)
@@ -28,6 +30,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	transUpdated, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update transaction on repo by id", err)
 
@@ -41,6 +44,7 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), transactionID.String(), uti.Metadata)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 
@@ -58,6 +62,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status")
+
 	defer span.End()
 
 	logger.Infof("Trying to update transaction using status: : %v", description)
@@ -72,6 +77,7 @@ func (uc *UseCase) UpdateTransactionStatus(ctx context.Context, organizationID, 
 	}
 
 	_, err := uc.TransactionRepo.Update(ctx, organizationID, ledgerID, transactionID, trans)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update status transaction on repo by id", err)
 

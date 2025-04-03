@@ -2,14 +2,16 @@ package command
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestCreateOrCheckIdempotencyKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

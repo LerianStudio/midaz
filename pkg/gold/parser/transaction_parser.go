@@ -15,6 +15,7 @@ var _ = fmt.Printf
 var _ = strconv.Itoa
 var _ = sync.Once{}
 
+// \1 represents an entity
 type TransactionParser struct {
 	*antlr.BaseParser
 }
@@ -32,6 +33,7 @@ var TransactionParserStaticData struct {
 
 func transactionParserInit() {
 	staticData := &TransactionParserStaticData
+
 	staticData.LiteralNames = []string{
 		"", "'('", "'transaction'", "'transaction-template'", "')'", "'chart-of-accounts-group-name'",
 		"'code'", "'false'", "'true'", "'pending'", "'description'", "'chart-of-accounts'",
@@ -39,18 +41,22 @@ func transactionParserInit() {
 		"'from'", "'source'", "'to'", "'distribute'", "'send'", "'V1'", "",
 		"", "", "':remaining'",
 	}
+
 	staticData.SymbolicNames = []string{
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 		"", "", "", "", "", "", "", "VERSION", "INT", "STRING", "UUID", "REMAINING",
 		"VARIABLE", "ACCOUNT", "WS",
 	}
+
 	staticData.RuleNames = []string{
 		"transaction", "chartOfAccountsGroupName", "code", "trueOrFalse", "pending",
 		"description", "chartOfAccounts", "metadata", "pair", "key", "value",
 		"valueOrVariable", "sendTypes", "account", "rate", "from", "source",
 		"to", "distribute", "send",
 	}
+
 	staticData.PredictionContextCache = antlr.NewPredictionContextCache()
+
 	staticData.serializedATN = []int32{
 		4, 1, 31, 206, 2, 0, 7, 0, 2, 1, 7, 1, 2, 2, 7, 2, 2, 3, 7, 3, 2, 4, 7,
 		4, 2, 5, 7, 5, 2, 6, 7, 6, 2, 7, 7, 7, 2, 8, 7, 8, 2, 9, 7, 9, 2, 10, 7,
@@ -140,10 +146,13 @@ func transactionParserInit() {
 		176, 179, 186, 191,
 	}
 	deserializer := antlr.NewATNDeserializer(nil)
+
 	staticData.atn = deserializer.Deserialize(staticData.serializedATN)
 	atn := staticData.atn
+
 	staticData.decisionToDFA = make([]*antlr.DFA, len(atn.DecisionToState))
 	decisionToDFA := staticData.decisionToDFA
+
 	for index, state := range atn.DecisionToState {
 		decisionToDFA[index] = antlr.NewDFA(state, index)
 	}
@@ -162,12 +171,18 @@ func TransactionParserInit() {
 func NewTransactionParser(input antlr.TokenStream) *TransactionParser {
 	TransactionParserInit()
 	this := new(TransactionParser)
+
 	this.BaseParser = antlr.NewBaseParser(input)
 	staticData := &TransactionParserStaticData
+
 	this.Interpreter = antlr.NewParserATNSimulator(this, staticData.atn, staticData.decisionToDFA, staticData.PredictionContextCache)
+
 	this.RuleNames = staticData.RuleNames
+
 	this.LiteralNames = staticData.LiteralNames
+
 	this.SymbolicNames = staticData.SymbolicNames
+
 	this.GrammarFileName = "Transaction.g4"
 
 	return this
@@ -175,62 +190,112 @@ func NewTransactionParser(input antlr.TokenStream) *TransactionParser {
 
 // TransactionParser tokens.
 const (
-	TransactionParserEOF       = antlr.TokenEOF
-	TransactionParserT__0      = 1
-	TransactionParserT__1      = 2
-	TransactionParserT__2      = 3
-	TransactionParserT__3      = 4
-	TransactionParserT__4      = 5
-	TransactionParserT__5      = 6
-	TransactionParserT__6      = 7
-	TransactionParserT__7      = 8
-	TransactionParserT__8      = 9
-	TransactionParserT__9      = 10
-	TransactionParserT__10     = 11
-	TransactionParserT__11     = 12
-	TransactionParserT__12     = 13
-	TransactionParserT__13     = 14
-	TransactionParserT__14     = 15
-	TransactionParserT__15     = 16
-	TransactionParserT__16     = 17
-	TransactionParserT__17     = 18
-	TransactionParserT__18     = 19
-	TransactionParserT__19     = 20
-	TransactionParserT__20     = 21
-	TransactionParserT__21     = 22
-	TransactionParserT__22     = 23
-	TransactionParserVERSION   = 24
-	TransactionParserINT       = 25
-	TransactionParserSTRING    = 26
-	TransactionParserUUID      = 27
+	TransactionParserEOF = antlr.TokenEOF
+
+	TransactionParserT__0 = 1
+
+	TransactionParserT__1 = 2
+
+	TransactionParserT__2 = 3
+
+	TransactionParserT__3 = 4
+
+	TransactionParserT__4 = 5
+
+	TransactionParserT__5 = 6
+
+	TransactionParserT__6 = 7
+
+	TransactionParserT__7 = 8
+
+	TransactionParserT__8 = 9
+
+	TransactionParserT__9 = 10
+
+	TransactionParserT__10 = 11
+
+	TransactionParserT__11 = 12
+
+	TransactionParserT__12 = 13
+
+	TransactionParserT__13 = 14
+
+	TransactionParserT__14 = 15
+
+	TransactionParserT__15 = 16
+
+	TransactionParserT__16 = 17
+
+	TransactionParserT__17 = 18
+
+	TransactionParserT__18 = 19
+
+	TransactionParserT__19 = 20
+
+	TransactionParserT__20 = 21
+
+	TransactionParserT__21 = 22
+
+	TransactionParserT__22 = 23
+
+	TransactionParserVERSION = 24
+
+	TransactionParserINT = 25
+
+	TransactionParserSTRING = 26
+
+	TransactionParserUUID = 27
+
 	TransactionParserREMAINING = 28
-	TransactionParserVARIABLE  = 29
-	TransactionParserACCOUNT   = 30
-	TransactionParserWS        = 31
+
+	TransactionParserVARIABLE = 29
+
+	TransactionParserACCOUNT = 30
+
+	TransactionParserWS = 31
 )
 
 // TransactionParser rules.
 const (
-	TransactionParserRULE_transaction              = 0
+	TransactionParserRULE_transaction = 0
+
 	TransactionParserRULE_chartOfAccountsGroupName = 1
-	TransactionParserRULE_code                     = 2
-	TransactionParserRULE_trueOrFalse              = 3
-	TransactionParserRULE_pending                  = 4
-	TransactionParserRULE_description              = 5
-	TransactionParserRULE_chartOfAccounts          = 6
-	TransactionParserRULE_metadata                 = 7
-	TransactionParserRULE_pair                     = 8
-	TransactionParserRULE_key                      = 9
-	TransactionParserRULE_value                    = 10
-	TransactionParserRULE_valueOrVariable          = 11
-	TransactionParserRULE_sendTypes                = 12
-	TransactionParserRULE_account                  = 13
-	TransactionParserRULE_rate                     = 14
-	TransactionParserRULE_from                     = 15
-	TransactionParserRULE_source                   = 16
-	TransactionParserRULE_to                       = 17
-	TransactionParserRULE_distribute               = 18
-	TransactionParserRULE_send                     = 19
+
+	TransactionParserRULE_code = 2
+
+	TransactionParserRULE_trueOrFalse = 3
+
+	TransactionParserRULE_pending = 4
+
+	TransactionParserRULE_description = 5
+
+	TransactionParserRULE_chartOfAccounts = 6
+
+	TransactionParserRULE_metadata = 7
+
+	TransactionParserRULE_pair = 8
+
+	TransactionParserRULE_key = 9
+
+	TransactionParserRULE_value = 10
+
+	TransactionParserRULE_valueOrVariable = 11
+
+	TransactionParserRULE_sendTypes = 12
+
+	TransactionParserRULE_account = 13
+
+	TransactionParserRULE_rate = 14
+
+	TransactionParserRULE_from = 15
+
+	TransactionParserRULE_source = 16
+
+	TransactionParserRULE_to = 17
+
+	TransactionParserRULE_distribute = 18
+
+	TransactionParserRULE_send = 19
 )
 
 // ITransactionContext is an interface to support dynamic dispatch.
@@ -253,25 +318,32 @@ type ITransactionContext interface {
 	IsTransactionContext()
 }
 
+// \1 represents an entity
 type TransactionContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyTransactionContext() *TransactionContext {
 	var p = new(TransactionContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_transaction
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyTransactionContext(p *TransactionContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_transaction
 }
 
+// func (*TransactionContext) IsTransactionContext() {} performs an operation
 func (*TransactionContext) IsTransactionContext() {}
 
+// \1 performs an operation
 func NewTransactionContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *TransactionContext {
 	var p = new(TransactionContext)
 
@@ -283,16 +355,21 @@ func NewTransactionContext(parser antlr.Parser, parent antlr.ParserRuleContext, 
 	return p
 }
 
+// func (s *TransactionContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *TransactionContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *TransactionContext) VERSION() antlr.TerminalNode { performs an operation
 func (s *TransactionContext) VERSION() antlr.TerminalNode {
 	return s.GetToken(TransactionParserVERSION, 0)
 }
 
+// func (s *TransactionContext) ChartOfAccountsGroupName() IChartOfAccountsGroupNameContext { performs an operation
 func (s *TransactionContext) ChartOfAccountsGroupName() IChartOfAccountsGroupNameContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IChartOfAccountsGroupNameContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -305,10 +382,13 @@ func (s *TransactionContext) ChartOfAccountsGroupName() IChartOfAccountsGroupNam
 	return t.(IChartOfAccountsGroupNameContext)
 }
 
+// func (s *TransactionContext) Send() ISendContext { performs an operation
 func (s *TransactionContext) Send() ISendContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(ISendContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -321,10 +401,13 @@ func (s *TransactionContext) Send() ISendContext {
 	return t.(ISendContext)
 }
 
+// func (s *TransactionContext) Description() IDescriptionContext { performs an operation
 func (s *TransactionContext) Description() IDescriptionContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IDescriptionContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -337,10 +420,13 @@ func (s *TransactionContext) Description() IDescriptionContext {
 	return t.(IDescriptionContext)
 }
 
+// func (s *TransactionContext) Code() ICodeContext { performs an operation
 func (s *TransactionContext) Code() ICodeContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(ICodeContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -353,10 +439,13 @@ func (s *TransactionContext) Code() ICodeContext {
 	return t.(ICodeContext)
 }
 
+// func (s *TransactionContext) Pending() IPendingContext { performs an operation
 func (s *TransactionContext) Pending() IPendingContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IPendingContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -369,10 +458,13 @@ func (s *TransactionContext) Pending() IPendingContext {
 	return t.(IPendingContext)
 }
 
+// func (s *TransactionContext) Metadata() IMetadataContext { performs an operation
 func (s *TransactionContext) Metadata() IMetadataContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IMetadataContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -385,26 +477,31 @@ func (s *TransactionContext) Metadata() IMetadataContext {
 	return t.(IMetadataContext)
 }
 
+// func (s *TransactionContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *TransactionContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *TransactionContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *TransactionContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *TransactionContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *TransactionContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterTransaction(s)
 	}
 }
 
+// func (s *TransactionContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *TransactionContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitTransaction(s)
 	}
 }
 
+// func (s *TransactionContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *TransactionContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -415,6 +512,7 @@ func (s *TransactionContext) Accept(visitor antlr.ParseTreeVisitor) interface{} 
 	}
 }
 
+// func (p *TransactionParser) Transaction() (localctx ITransactionContext) { performs an operation
 func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	localctx = NewTransactionContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 0, TransactionParserRULE_transaction)
@@ -424,13 +522,16 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	{
 		p.SetState(40)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(41)
+
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserT__1 || _la == TransactionParserT__2) {
@@ -439,14 +540,17 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
 		}
+
 	}
 	{
 		p.SetState(42)
 		p.Match(TransactionParserVERSION)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(43)
@@ -464,6 +568,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(48)
 	p.GetErrorHandler().Sync(p)
 
@@ -476,6 +581,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(51)
 	p.GetErrorHandler().Sync(p)
 
@@ -488,6 +594,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(54)
 	p.GetErrorHandler().Sync(p)
 
@@ -500,6 +607,7 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	{
 		p.SetState(56)
 		p.Send()
@@ -507,13 +615,16 @@ func (p *TransactionParser) Transaction() (localctx ITransactionContext) {
 	{
 		p.SetState(57)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -540,25 +651,32 @@ type IChartOfAccountsGroupNameContext interface {
 	IsChartOfAccountsGroupNameContext()
 }
 
+// \1 represents an entity
 type ChartOfAccountsGroupNameContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyChartOfAccountsGroupNameContext() *ChartOfAccountsGroupNameContext {
 	var p = new(ChartOfAccountsGroupNameContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_chartOfAccountsGroupName
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyChartOfAccountsGroupNameContext(p *ChartOfAccountsGroupNameContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_chartOfAccountsGroupName
 }
 
+// func (*ChartOfAccountsGroupNameContext) IsChartOfAccountsGroupNameContext() {} performs an operation
 func (*ChartOfAccountsGroupNameContext) IsChartOfAccountsGroupNameContext() {}
 
+// \1 performs an operation
 func NewChartOfAccountsGroupNameContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ChartOfAccountsGroupNameContext {
 	var p = new(ChartOfAccountsGroupNameContext)
 
@@ -570,32 +688,39 @@ func NewChartOfAccountsGroupNameContext(parser antlr.Parser, parent antlr.Parser
 	return p
 }
 
+// func (s *ChartOfAccountsGroupNameContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *ChartOfAccountsGroupNameContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *ChartOfAccountsGroupNameContext) UUID() antlr.TerminalNode { performs an operation
 func (s *ChartOfAccountsGroupNameContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *ChartOfAccountsGroupNameContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ChartOfAccountsGroupNameContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ChartOfAccountsGroupNameContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *ChartOfAccountsGroupNameContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *ChartOfAccountsGroupNameContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ChartOfAccountsGroupNameContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterChartOfAccountsGroupName(s)
 	}
 }
 
+// func (s *ChartOfAccountsGroupNameContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ChartOfAccountsGroupNameContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitChartOfAccountsGroupName(s)
 	}
 }
 
+// func (s *ChartOfAccountsGroupNameContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ChartOfAccountsGroupNameContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -606,6 +731,7 @@ func (s *ChartOfAccountsGroupNameContext) Accept(visitor antlr.ParseTreeVisitor)
 	}
 }
 
+// func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccountsGroupNameContext) { performs an operation
 func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccountsGroupNameContext) {
 	localctx = NewChartOfAccountsGroupNameContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 2, TransactionParserRULE_chartOfAccountsGroupName)
@@ -613,37 +739,46 @@ func (p *TransactionParser) ChartOfAccountsGroupName() (localctx IChartOfAccount
 	{
 		p.SetState(59)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(60)
 		p.Match(TransactionParserT__4)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(61)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(62)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -670,25 +805,32 @@ type ICodeContext interface {
 	IsCodeContext()
 }
 
+// \1 represents an entity
 type CodeContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyCodeContext() *CodeContext {
 	var p = new(CodeContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_code
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyCodeContext(p *CodeContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_code
 }
 
+// func (*CodeContext) IsCodeContext() {} performs an operation
 func (*CodeContext) IsCodeContext() {}
 
+// \1 performs an operation
 func NewCodeContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *CodeContext {
 	var p = new(CodeContext)
 
@@ -700,32 +842,39 @@ func NewCodeContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokin
 	return p
 }
 
+// func (s *CodeContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *CodeContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *CodeContext) UUID() antlr.TerminalNode { performs an operation
 func (s *CodeContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *CodeContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *CodeContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *CodeContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *CodeContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *CodeContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *CodeContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterCode(s)
 	}
 }
 
+// func (s *CodeContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *CodeContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitCode(s)
 	}
 }
 
+// func (s *CodeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *CodeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -736,6 +885,7 @@ func (s *CodeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Code() (localctx ICodeContext) { performs an operation
 func (p *TransactionParser) Code() (localctx ICodeContext) {
 	localctx = NewCodeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 4, TransactionParserRULE_code)
@@ -743,37 +893,46 @@ func (p *TransactionParser) Code() (localctx ICodeContext) {
 	{
 		p.SetState(64)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(65)
 		p.Match(TransactionParserT__5)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(66)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(67)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -796,25 +955,32 @@ type ITrueOrFalseContext interface {
 	IsTrueOrFalseContext()
 }
 
+// \1 represents an entity
 type TrueOrFalseContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyTrueOrFalseContext() *TrueOrFalseContext {
 	var p = new(TrueOrFalseContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_trueOrFalse
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyTrueOrFalseContext(p *TrueOrFalseContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_trueOrFalse
 }
 
+// func (*TrueOrFalseContext) IsTrueOrFalseContext() {} performs an operation
 func (*TrueOrFalseContext) IsTrueOrFalseContext() {}
 
+// \1 performs an operation
 func NewTrueOrFalseContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *TrueOrFalseContext {
 	var p = new(TrueOrFalseContext)
 
@@ -826,27 +992,34 @@ func NewTrueOrFalseContext(parser antlr.Parser, parent antlr.ParserRuleContext, 
 	return p
 }
 
+// func (s *TrueOrFalseContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *TrueOrFalseContext) GetParser() antlr.Parser { return s.parser }
+
+// func (s *TrueOrFalseContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *TrueOrFalseContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *TrueOrFalseContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *TrueOrFalseContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *TrueOrFalseContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *TrueOrFalseContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterTrueOrFalse(s)
 	}
 }
 
+// func (s *TrueOrFalseContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *TrueOrFalseContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitTrueOrFalse(s)
 	}
 }
 
+// func (s *TrueOrFalseContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *TrueOrFalseContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -857,6 +1030,7 @@ func (s *TrueOrFalseContext) Accept(visitor antlr.ParseTreeVisitor) interface{} 
 	}
 }
 
+// func (p *TransactionParser) TrueOrFalse() (localctx ITrueOrFalseContext) { performs an operation
 func (p *TransactionParser) TrueOrFalse() (localctx ITrueOrFalseContext) {
 	localctx = NewTrueOrFalseContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 6, TransactionParserRULE_trueOrFalse)
@@ -865,6 +1039,7 @@ func (p *TransactionParser) TrueOrFalse() (localctx ITrueOrFalseContext) {
 	p.EnterOuterAlt(localctx, 1)
 	{
 		p.SetState(69)
+
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserT__6 || _la == TransactionParserT__7) {
@@ -873,9 +1048,11 @@ func (p *TransactionParser) TrueOrFalse() (localctx ITrueOrFalseContext) {
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -902,25 +1079,32 @@ type IPendingContext interface {
 	IsPendingContext()
 }
 
+// \1 represents an entity
 type PendingContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyPendingContext() *PendingContext {
 	var p = new(PendingContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_pending
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyPendingContext(p *PendingContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_pending
 }
 
+// func (*PendingContext) IsPendingContext() {} performs an operation
 func (*PendingContext) IsPendingContext() {}
 
+// \1 performs an operation
 func NewPendingContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *PendingContext {
 	var p = new(PendingContext)
 
@@ -932,12 +1116,16 @@ func NewPendingContext(parser antlr.Parser, parent antlr.ParserRuleContext, invo
 	return p
 }
 
+// func (s *PendingContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *PendingContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *PendingContext) TrueOrFalse() ITrueOrFalseContext { performs an operation
 func (s *PendingContext) TrueOrFalse() ITrueOrFalseContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(ITrueOrFalseContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -950,26 +1138,31 @@ func (s *PendingContext) TrueOrFalse() ITrueOrFalseContext {
 	return t.(ITrueOrFalseContext)
 }
 
+// func (s *PendingContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *PendingContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *PendingContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *PendingContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *PendingContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *PendingContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterPending(s)
 	}
 }
 
+// func (s *PendingContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *PendingContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitPending(s)
 	}
 }
 
+// func (s *PendingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *PendingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -980,6 +1173,7 @@ func (s *PendingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Pending() (localctx IPendingContext) { performs an operation
 func (p *TransactionParser) Pending() (localctx IPendingContext) {
 	localctx = NewPendingContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 8, TransactionParserRULE_pending)
@@ -987,18 +1181,22 @@ func (p *TransactionParser) Pending() (localctx IPendingContext) {
 	{
 		p.SetState(71)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(72)
 		p.Match(TransactionParserT__8)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(73)
@@ -1007,13 +1205,16 @@ func (p *TransactionParser) Pending() (localctx IPendingContext) {
 	{
 		p.SetState(74)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1040,25 +1241,32 @@ type IDescriptionContext interface {
 	IsDescriptionContext()
 }
 
+// \1 represents an entity
 type DescriptionContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyDescriptionContext() *DescriptionContext {
 	var p = new(DescriptionContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_description
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyDescriptionContext(p *DescriptionContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_description
 }
 
+// func (*DescriptionContext) IsDescriptionContext() {} performs an operation
 func (*DescriptionContext) IsDescriptionContext() {}
 
+// \1 performs an operation
 func NewDescriptionContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *DescriptionContext {
 	var p = new(DescriptionContext)
 
@@ -1070,32 +1278,39 @@ func NewDescriptionContext(parser antlr.Parser, parent antlr.ParserRuleContext, 
 	return p
 }
 
+// func (s *DescriptionContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *DescriptionContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *DescriptionContext) STRING() antlr.TerminalNode { performs an operation
 func (s *DescriptionContext) STRING() antlr.TerminalNode {
 	return s.GetToken(TransactionParserSTRING, 0)
 }
 
+// func (s *DescriptionContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *DescriptionContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *DescriptionContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *DescriptionContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *DescriptionContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *DescriptionContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterDescription(s)
 	}
 }
 
+// func (s *DescriptionContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *DescriptionContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitDescription(s)
 	}
 }
 
+// func (s *DescriptionContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *DescriptionContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1106,6 +1321,7 @@ func (s *DescriptionContext) Accept(visitor antlr.ParseTreeVisitor) interface{} 
 	}
 }
 
+// func (p *TransactionParser) Description() (localctx IDescriptionContext) { performs an operation
 func (p *TransactionParser) Description() (localctx IDescriptionContext) {
 	localctx = NewDescriptionContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 10, TransactionParserRULE_description)
@@ -1113,37 +1329,46 @@ func (p *TransactionParser) Description() (localctx IDescriptionContext) {
 	{
 		p.SetState(76)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(77)
 		p.Match(TransactionParserT__9)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(78)
 		p.Match(TransactionParserSTRING)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(79)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1170,25 +1395,32 @@ type IChartOfAccountsContext interface {
 	IsChartOfAccountsContext()
 }
 
+// \1 represents an entity
 type ChartOfAccountsContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyChartOfAccountsContext() *ChartOfAccountsContext {
 	var p = new(ChartOfAccountsContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_chartOfAccounts
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyChartOfAccountsContext(p *ChartOfAccountsContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_chartOfAccounts
 }
 
+// func (*ChartOfAccountsContext) IsChartOfAccountsContext() {} performs an operation
 func (*ChartOfAccountsContext) IsChartOfAccountsContext() {}
 
+// \1 performs an operation
 func NewChartOfAccountsContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ChartOfAccountsContext {
 	var p = new(ChartOfAccountsContext)
 
@@ -1200,32 +1432,39 @@ func NewChartOfAccountsContext(parser antlr.Parser, parent antlr.ParserRuleConte
 	return p
 }
 
+// func (s *ChartOfAccountsContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *ChartOfAccountsContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *ChartOfAccountsContext) UUID() antlr.TerminalNode { performs an operation
 func (s *ChartOfAccountsContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *ChartOfAccountsContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ChartOfAccountsContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ChartOfAccountsContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *ChartOfAccountsContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *ChartOfAccountsContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ChartOfAccountsContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterChartOfAccounts(s)
 	}
 }
 
+// func (s *ChartOfAccountsContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ChartOfAccountsContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitChartOfAccounts(s)
 	}
 }
 
+// func (s *ChartOfAccountsContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ChartOfAccountsContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1236,6 +1475,7 @@ func (s *ChartOfAccountsContext) Accept(visitor antlr.ParseTreeVisitor) interfac
 	}
 }
 
+// func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext) { performs an operation
 func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext) {
 	localctx = NewChartOfAccountsContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 12, TransactionParserRULE_chartOfAccounts)
@@ -1243,37 +1483,46 @@ func (p *TransactionParser) ChartOfAccounts() (localctx IChartOfAccountsContext)
 	{
 		p.SetState(81)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(82)
 		p.Match(TransactionParserT__10)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(83)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(84)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1301,25 +1550,32 @@ type IMetadataContext interface {
 	IsMetadataContext()
 }
 
+// \1 represents an entity
 type MetadataContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyMetadataContext() *MetadataContext {
 	var p = new(MetadataContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_metadata
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyMetadataContext(p *MetadataContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_metadata
 }
 
+// func (*MetadataContext) IsMetadataContext() {} performs an operation
 func (*MetadataContext) IsMetadataContext() {}
 
+// \1 performs an operation
 func NewMetadataContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *MetadataContext {
 	var p = new(MetadataContext)
 
@@ -1331,11 +1587,14 @@ func NewMetadataContext(parser antlr.Parser, parent antlr.ParserRuleContext, inv
 	return p
 }
 
+// func (s *MetadataContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *MetadataContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *MetadataContext) AllPair() []IPairContext { performs an operation
 func (s *MetadataContext) AllPair() []IPairContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IPairContext); ok {
 			len++
@@ -1344,6 +1603,7 @@ func (s *MetadataContext) AllPair() []IPairContext {
 
 	tst := make([]IPairContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IPairContext); ok {
 			tst[i] = t.(IPairContext)
@@ -1354,11 +1614,14 @@ func (s *MetadataContext) AllPair() []IPairContext {
 	return tst
 }
 
+// func (s *MetadataContext) Pair(i int) IPairContext { performs an operation
 func (s *MetadataContext) Pair(i int) IPairContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IPairContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -1374,26 +1637,31 @@ func (s *MetadataContext) Pair(i int) IPairContext {
 	return t.(IPairContext)
 }
 
+// func (s *MetadataContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *MetadataContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *MetadataContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *MetadataContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *MetadataContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *MetadataContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterMetadata(s)
 	}
 }
 
+// func (s *MetadataContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *MetadataContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitMetadata(s)
 	}
 }
 
+// func (s *MetadataContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *MetadataContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1404,6 +1672,7 @@ func (s *MetadataContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Metadata() (localctx IMetadataContext) { performs an operation
 func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 	localctx = NewMetadataContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 14, TransactionParserRULE_metadata)
@@ -1413,24 +1682,30 @@ func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 	{
 		p.SetState(86)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(87)
 		p.Match(TransactionParserT__11)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	p.SetState(89)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	for ok := true; ok; ok = _la == TransactionParserT__0 {
@@ -1441,21 +1716,26 @@ func (p *TransactionParser) Metadata() (localctx IMetadataContext) {
 
 		p.SetState(91)
 		p.GetErrorHandler().Sync(p)
+
 		if p.HasError() {
 			goto errorExit
 		}
+
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
 		p.SetState(93)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1483,25 +1763,32 @@ type IPairContext interface {
 	IsPairContext()
 }
 
+// \1 represents an entity
 type PairContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyPairContext() *PairContext {
 	var p = new(PairContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_pair
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyPairContext(p *PairContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_pair
 }
 
+// func (*PairContext) IsPairContext() {} performs an operation
 func (*PairContext) IsPairContext() {}
 
+// \1 performs an operation
 func NewPairContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *PairContext {
 	var p = new(PairContext)
 
@@ -1513,12 +1800,16 @@ func NewPairContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokin
 	return p
 }
 
+// func (s *PairContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *PairContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *PairContext) Key() IKeyContext { performs an operation
 func (s *PairContext) Key() IKeyContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IKeyContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -1531,10 +1822,13 @@ func (s *PairContext) Key() IKeyContext {
 	return t.(IKeyContext)
 }
 
+// func (s *PairContext) Value() IValueContext { performs an operation
 func (s *PairContext) Value() IValueContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IValueContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -1547,26 +1841,31 @@ func (s *PairContext) Value() IValueContext {
 	return t.(IValueContext)
 }
 
+// func (s *PairContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *PairContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *PairContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *PairContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *PairContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *PairContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterPair(s)
 	}
 }
 
+// func (s *PairContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *PairContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitPair(s)
 	}
 }
 
+// func (s *PairContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *PairContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1577,6 +1876,7 @@ func (s *PairContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Pair() (localctx IPairContext) { performs an operation
 func (p *TransactionParser) Pair() (localctx IPairContext) {
 	localctx = NewPairContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 16, TransactionParserRULE_pair)
@@ -1584,10 +1884,12 @@ func (p *TransactionParser) Pair() (localctx IPairContext) {
 	{
 		p.SetState(95)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(96)
@@ -1600,13 +1902,16 @@ func (p *TransactionParser) Pair() (localctx IPairContext) {
 	{
 		p.SetState(98)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1634,25 +1939,32 @@ type IKeyContext interface {
 	IsKeyContext()
 }
 
+// \1 represents an entity
 type KeyContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyKeyContext() *KeyContext {
 	var p = new(KeyContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_key
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyKeyContext(p *KeyContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_key
 }
 
+// func (*KeyContext) IsKeyContext() {} performs an operation
 func (*KeyContext) IsKeyContext() {}
 
+// \1 performs an operation
 func NewKeyContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *KeyContext {
 	var p = new(KeyContext)
 
@@ -1664,36 +1976,44 @@ func NewKeyContext(parser antlr.Parser, parent antlr.ParserRuleContext, invoking
 	return p
 }
 
+// func (s *KeyContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *KeyContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *KeyContext) UUID() antlr.TerminalNode { performs an operation
 func (s *KeyContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *KeyContext) INT() antlr.TerminalNode { performs an operation
 func (s *KeyContext) INT() antlr.TerminalNode {
 	return s.GetToken(TransactionParserINT, 0)
 }
 
+// func (s *KeyContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *KeyContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *KeyContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *KeyContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *KeyContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *KeyContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterKey(s)
 	}
 }
 
+// func (s *KeyContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *KeyContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitKey(s)
 	}
 }
 
+// func (s *KeyContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *KeyContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1704,6 +2024,7 @@ func (s *KeyContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Key() (localctx IKeyContext) { performs an operation
 func (p *TransactionParser) Key() (localctx IKeyContext) {
 	localctx = NewKeyContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 18, TransactionParserRULE_key)
@@ -1712,6 +2033,7 @@ func (p *TransactionParser) Key() (localctx IKeyContext) {
 	p.EnterOuterAlt(localctx, 1)
 	{
 		p.SetState(100)
+
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserINT || _la == TransactionParserUUID) {
@@ -1720,9 +2042,11 @@ func (p *TransactionParser) Key() (localctx IKeyContext) {
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1750,25 +2074,32 @@ type IValueContext interface {
 	IsValueContext()
 }
 
+// \1 represents an entity
 type ValueContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyValueContext() *ValueContext {
 	var p = new(ValueContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_value
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyValueContext(p *ValueContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_value
 }
 
+// func (*ValueContext) IsValueContext() {} performs an operation
 func (*ValueContext) IsValueContext() {}
 
+// \1 performs an operation
 func NewValueContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ValueContext {
 	var p = new(ValueContext)
 
@@ -1780,36 +2111,44 @@ func NewValueContext(parser antlr.Parser, parent antlr.ParserRuleContext, invoki
 	return p
 }
 
+// func (s *ValueContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *ValueContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *ValueContext) UUID() antlr.TerminalNode { performs an operation
 func (s *ValueContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *ValueContext) INT() antlr.TerminalNode { performs an operation
 func (s *ValueContext) INT() antlr.TerminalNode {
 	return s.GetToken(TransactionParserINT, 0)
 }
 
+// func (s *ValueContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ValueContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ValueContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *ValueContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *ValueContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ValueContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterValue(s)
 	}
 }
 
+// func (s *ValueContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ValueContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitValue(s)
 	}
 }
 
+// func (s *ValueContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ValueContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1820,6 +2159,7 @@ func (s *ValueContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Value() (localctx IValueContext) { performs an operation
 func (p *TransactionParser) Value() (localctx IValueContext) {
 	localctx = NewValueContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 20, TransactionParserRULE_value)
@@ -1828,6 +2168,7 @@ func (p *TransactionParser) Value() (localctx IValueContext) {
 	p.EnterOuterAlt(localctx, 1)
 	{
 		p.SetState(102)
+
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserINT || _la == TransactionParserUUID) {
@@ -1836,9 +2177,11 @@ func (p *TransactionParser) Value() (localctx IValueContext) {
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1866,25 +2209,32 @@ type IValueOrVariableContext interface {
 	IsValueOrVariableContext()
 }
 
+// \1 represents an entity
 type ValueOrVariableContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyValueOrVariableContext() *ValueOrVariableContext {
 	var p = new(ValueOrVariableContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_valueOrVariable
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyValueOrVariableContext(p *ValueOrVariableContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_valueOrVariable
 }
 
+// func (*ValueOrVariableContext) IsValueOrVariableContext() {} performs an operation
 func (*ValueOrVariableContext) IsValueOrVariableContext() {}
 
+// \1 performs an operation
 func NewValueOrVariableContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ValueOrVariableContext {
 	var p = new(ValueOrVariableContext)
 
@@ -1896,36 +2246,44 @@ func NewValueOrVariableContext(parser antlr.Parser, parent antlr.ParserRuleConte
 	return p
 }
 
+// func (s *ValueOrVariableContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *ValueOrVariableContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *ValueOrVariableContext) INT() antlr.TerminalNode { performs an operation
 func (s *ValueOrVariableContext) INT() antlr.TerminalNode {
 	return s.GetToken(TransactionParserINT, 0)
 }
 
+// func (s *ValueOrVariableContext) VARIABLE() antlr.TerminalNode { performs an operation
 func (s *ValueOrVariableContext) VARIABLE() antlr.TerminalNode {
 	return s.GetToken(TransactionParserVARIABLE, 0)
 }
 
+// func (s *ValueOrVariableContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ValueOrVariableContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ValueOrVariableContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *ValueOrVariableContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *ValueOrVariableContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ValueOrVariableContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterValueOrVariable(s)
 	}
 }
 
+// func (s *ValueOrVariableContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ValueOrVariableContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitValueOrVariable(s)
 	}
 }
 
+// func (s *ValueOrVariableContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ValueOrVariableContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -1936,6 +2294,7 @@ func (s *ValueOrVariableContext) Accept(visitor antlr.ParseTreeVisitor) interfac
 	}
 }
 
+// func (p *TransactionParser) ValueOrVariable() (localctx IValueOrVariableContext) { performs an operation
 func (p *TransactionParser) ValueOrVariable() (localctx IValueOrVariableContext) {
 	localctx = NewValueOrVariableContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 22, TransactionParserRULE_valueOrVariable)
@@ -1944,6 +2303,7 @@ func (p *TransactionParser) ValueOrVariable() (localctx IValueOrVariableContext)
 	p.EnterOuterAlt(localctx, 1)
 	{
 		p.SetState(104)
+
 		_la = p.GetTokenStream().LA(1)
 
 		if !(_la == TransactionParserINT || _la == TransactionParserVARIABLE) {
@@ -1952,9 +2312,11 @@ func (p *TransactionParser) ValueOrVariable() (localctx IValueOrVariableContext)
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -1977,25 +2339,32 @@ type ISendTypesContext interface {
 	IsSendTypesContext()
 }
 
+// \1 represents an entity
 type SendTypesContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptySendTypesContext() *SendTypesContext {
 	var p = new(SendTypesContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_sendTypes
 	return p
 }
 
+// \1 performs an operation
 func InitEmptySendTypesContext(p *SendTypesContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_sendTypes
 }
 
+// func (*SendTypesContext) IsSendTypesContext() {} performs an operation
 func (*SendTypesContext) IsSendTypesContext() {}
 
+// \1 performs an operation
 func NewSendTypesContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SendTypesContext {
 	var p = new(SendTypesContext)
 
@@ -2007,42 +2376,53 @@ func NewSendTypesContext(parser antlr.Parser, parent antlr.ParserRuleContext, in
 	return p
 }
 
+// func (s *SendTypesContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *SendTypesContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *SendTypesContext) CopyAll(ctx *SendTypesContext) { performs an operation
 func (s *SendTypesContext) CopyAll(ctx *SendTypesContext) {
 	s.CopyFrom(&ctx.BaseParserRuleContext)
 }
 
+// func (s *SendTypesContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *SendTypesContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *SendTypesContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *SendTypesContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// \1 represents an entity
 type ShareIntContext struct {
 	SendTypesContext
 }
 
+// \1 performs an operation
 func NewShareIntContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ShareIntContext {
 	var p = new(ShareIntContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
+
 	p.parser = parser
 	p.CopyAll(ctx.(*SendTypesContext))
 
 	return p
 }
 
+// func (s *ShareIntContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ShareIntContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ShareIntContext) ValueOrVariable() IValueOrVariableContext { performs an operation
 func (s *ShareIntContext) ValueOrVariable() IValueOrVariableContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2055,18 +2435,21 @@ func (s *ShareIntContext) ValueOrVariable() IValueOrVariableContext {
 	return t.(IValueOrVariableContext)
 }
 
+// func (s *ShareIntContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ShareIntContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterShareInt(s)
 	}
 }
 
+// func (s *ShareIntContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ShareIntContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitShareInt(s)
 	}
 }
 
+// func (s *ShareIntContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ShareIntContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2077,31 +2460,38 @@ func (s *ShareIntContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// \1 represents an entity
 type AmountContext struct {
 	SendTypesContext
 }
 
+// \1 performs an operation
 func NewAmountContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *AmountContext {
 	var p = new(AmountContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
+
 	p.parser = parser
 	p.CopyAll(ctx.(*SendTypesContext))
 
 	return p
 }
 
+// func (s *AmountContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *AmountContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *AmountContext) UUID() antlr.TerminalNode { performs an operation
 func (s *AmountContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *AmountContext) AllValueOrVariable() []IValueOrVariableContext { performs an operation
 func (s *AmountContext) AllValueOrVariable() []IValueOrVariableContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
 			len++
@@ -2110,6 +2500,7 @@ func (s *AmountContext) AllValueOrVariable() []IValueOrVariableContext {
 
 	tst := make([]IValueOrVariableContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IValueOrVariableContext); ok {
 			tst[i] = t.(IValueOrVariableContext)
@@ -2120,11 +2511,14 @@ func (s *AmountContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
+// func (s *AmountContext) ValueOrVariable(i int) IValueOrVariableContext { performs an operation
 func (s *AmountContext) ValueOrVariable(i int) IValueOrVariableContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -2140,18 +2534,21 @@ func (s *AmountContext) ValueOrVariable(i int) IValueOrVariableContext {
 	return t.(IValueOrVariableContext)
 }
 
+// func (s *AmountContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *AmountContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterAmount(s)
 	}
 }
 
+// func (s *AmountContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *AmountContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitAmount(s)
 	}
 }
 
+// func (s *AmountContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *AmountContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2162,27 +2559,33 @@ func (s *AmountContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// \1 represents an entity
 type ShareIntOfIntContext struct {
 	SendTypesContext
 }
 
+// \1 performs an operation
 func NewShareIntOfIntContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *ShareIntOfIntContext {
 	var p = new(ShareIntOfIntContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
+
 	p.parser = parser
 	p.CopyAll(ctx.(*SendTypesContext))
 
 	return p
 }
 
+// func (s *ShareIntOfIntContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ShareIntOfIntContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ShareIntOfIntContext) AllValueOrVariable() []IValueOrVariableContext { performs an operation
 func (s *ShareIntOfIntContext) AllValueOrVariable() []IValueOrVariableContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
 			len++
@@ -2191,6 +2594,7 @@ func (s *ShareIntOfIntContext) AllValueOrVariable() []IValueOrVariableContext {
 
 	tst := make([]IValueOrVariableContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IValueOrVariableContext); ok {
 			tst[i] = t.(IValueOrVariableContext)
@@ -2201,11 +2605,14 @@ func (s *ShareIntOfIntContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
+// func (s *ShareIntOfIntContext) ValueOrVariable(i int) IValueOrVariableContext { performs an operation
 func (s *ShareIntOfIntContext) ValueOrVariable(i int) IValueOrVariableContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -2221,18 +2628,21 @@ func (s *ShareIntOfIntContext) ValueOrVariable(i int) IValueOrVariableContext {
 	return t.(IValueOrVariableContext)
 }
 
+// func (s *ShareIntOfIntContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ShareIntOfIntContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterShareIntOfInt(s)
 	}
 }
 
+// func (s *ShareIntOfIntContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ShareIntOfIntContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitShareIntOfInt(s)
 	}
 }
 
+// func (s *ShareIntOfIntContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ShareIntOfIntContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2243,40 +2653,48 @@ func (s *ShareIntOfIntContext) Accept(visitor antlr.ParseTreeVisitor) interface{
 	}
 }
 
+// \1 represents an entity
 type RemainingContext struct {
 	SendTypesContext
 }
 
+// \1 performs an operation
 func NewRemainingContext(parser antlr.Parser, ctx antlr.ParserRuleContext) *RemainingContext {
 	var p = new(RemainingContext)
 
 	InitEmptySendTypesContext(&p.SendTypesContext)
+
 	p.parser = parser
 	p.CopyAll(ctx.(*SendTypesContext))
 
 	return p
 }
 
+// func (s *RemainingContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *RemainingContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *RemainingContext) REMAINING() antlr.TerminalNode { performs an operation
 func (s *RemainingContext) REMAINING() antlr.TerminalNode {
 	return s.GetToken(TransactionParserREMAINING, 0)
 }
 
+// func (s *RemainingContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *RemainingContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterRemaining(s)
 	}
 }
 
+// func (s *RemainingContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *RemainingContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitRemaining(s)
 	}
 }
 
+// func (s *RemainingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *RemainingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2287,11 +2705,13 @@ func (s *RemainingContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) { performs an operation
 func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 	localctx = NewSendTypesContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 24, TransactionParserRULE_sendTypes)
 	p.SetState(120)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
@@ -2303,18 +2723,22 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		{
 			p.SetState(106)
 			p.Match(TransactionParserT__12)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 		{
 			p.SetState(107)
 			p.Match(TransactionParserUUID)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 		{
 			p.SetState(108)
@@ -2323,10 +2747,12 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		{
 			p.SetState(109)
 			p.Match(TransactionParserT__13)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 		{
 			p.SetState(110)
@@ -2339,10 +2765,12 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		{
 			p.SetState(112)
 			p.Match(TransactionParserT__14)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 		{
 			p.SetState(113)
@@ -2351,10 +2779,12 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		{
 			p.SetState(114)
 			p.Match(TransactionParserT__15)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 		{
 			p.SetState(115)
@@ -2367,10 +2797,12 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		{
 			p.SetState(117)
 			p.Match(TransactionParserT__14)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 		{
 			p.SetState(118)
@@ -2383,10 +2815,12 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 		{
 			p.SetState(119)
 			p.Match(TransactionParserREMAINING)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 
 	case antlr.ATNInvalidAltNumber:
@@ -2394,6 +2828,7 @@ func (p *TransactionParser) SendTypes() (localctx ISendTypesContext) {
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -2422,25 +2857,32 @@ type IAccountContext interface {
 	IsAccountContext()
 }
 
+// \1 represents an entity
 type AccountContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyAccountContext() *AccountContext {
 	var p = new(AccountContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_account
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyAccountContext(p *AccountContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_account
 }
 
+// func (*AccountContext) IsAccountContext() {} performs an operation
 func (*AccountContext) IsAccountContext() {}
 
+// \1 performs an operation
 func NewAccountContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *AccountContext {
 	var p = new(AccountContext)
 
@@ -2452,40 +2894,49 @@ func NewAccountContext(parser antlr.Parser, parent antlr.ParserRuleContext, invo
 	return p
 }
 
+// func (s *AccountContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *AccountContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *AccountContext) VARIABLE() antlr.TerminalNode { performs an operation
 func (s *AccountContext) VARIABLE() antlr.TerminalNode {
 	return s.GetToken(TransactionParserVARIABLE, 0)
 }
 
+// func (s *AccountContext) ACCOUNT() antlr.TerminalNode { performs an operation
 func (s *AccountContext) ACCOUNT() antlr.TerminalNode {
 	return s.GetToken(TransactionParserACCOUNT, 0)
 }
 
+// func (s *AccountContext) UUID() antlr.TerminalNode { performs an operation
 func (s *AccountContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *AccountContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *AccountContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *AccountContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *AccountContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *AccountContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *AccountContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterAccount(s)
 	}
 }
 
+// func (s *AccountContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *AccountContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitAccount(s)
 	}
 }
 
+// func (s *AccountContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *AccountContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2496,6 +2947,7 @@ func (s *AccountContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Account() (localctx IAccountContext) { performs an operation
 func (p *TransactionParser) Account() (localctx IAccountContext) {
 	localctx = NewAccountContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 26, TransactionParserRULE_account)
@@ -2504,6 +2956,7 @@ func (p *TransactionParser) Account() (localctx IAccountContext) {
 	p.EnterOuterAlt(localctx, 1)
 	{
 		p.SetState(122)
+
 		_la = p.GetTokenStream().LA(1)
 
 		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&1744830464) != 0) {
@@ -2512,9 +2965,11 @@ func (p *TransactionParser) Account() (localctx IAccountContext) {
 			p.GetErrorHandler().ReportMatch(p)
 			p.Consume()
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -2544,25 +2999,32 @@ type IRateContext interface {
 	IsRateContext()
 }
 
+// \1 represents an entity
 type RateContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyRateContext() *RateContext {
 	var p = new(RateContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_rate
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyRateContext(p *RateContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_rate
 }
 
+// func (*RateContext) IsRateContext() {} performs an operation
 func (*RateContext) IsRateContext() {}
 
+// \1 performs an operation
 func NewRateContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *RateContext {
 	var p = new(RateContext)
 
@@ -2574,19 +3036,24 @@ func NewRateContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokin
 	return p
 }
 
+// func (s *RateContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *RateContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *RateContext) AllUUID() []antlr.TerminalNode { performs an operation
 func (s *RateContext) AllUUID() []antlr.TerminalNode {
 	return s.GetTokens(TransactionParserUUID)
 }
 
+// func (s *RateContext) UUID(i int) antlr.TerminalNode { performs an operation
 func (s *RateContext) UUID(i int) antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, i)
 }
 
+// func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext { performs an operation
 func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
 			len++
@@ -2595,6 +3062,7 @@ func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext {
 
 	tst := make([]IValueOrVariableContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IValueOrVariableContext); ok {
 			tst[i] = t.(IValueOrVariableContext)
@@ -2605,11 +3073,14 @@ func (s *RateContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
+// func (s *RateContext) ValueOrVariable(i int) IValueOrVariableContext { performs an operation
 func (s *RateContext) ValueOrVariable(i int) IValueOrVariableContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -2625,26 +3096,31 @@ func (s *RateContext) ValueOrVariable(i int) IValueOrVariableContext {
 	return t.(IValueOrVariableContext)
 }
 
+// func (s *RateContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *RateContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *RateContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *RateContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *RateContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *RateContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterRate(s)
 	}
 }
 
+// func (s *RateContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *RateContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitRate(s)
 	}
 }
 
+// func (s *RateContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *RateContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2655,6 +3131,7 @@ func (s *RateContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Rate() (localctx IRateContext) { performs an operation
 func (p *TransactionParser) Rate() (localctx IRateContext) {
 	localctx = NewRateContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 28, TransactionParserRULE_rate)
@@ -2662,50 +3139,62 @@ func (p *TransactionParser) Rate() (localctx IRateContext) {
 	{
 		p.SetState(124)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(125)
 		p.Match(TransactionParserT__16)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(126)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(127)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(128)
 		p.Match(TransactionParserT__17)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(129)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(130)
@@ -2714,10 +3203,12 @@ func (p *TransactionParser) Rate() (localctx IRateContext) {
 	{
 		p.SetState(131)
 		p.Match(TransactionParserT__13)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(132)
@@ -2726,13 +3217,16 @@ func (p *TransactionParser) Rate() (localctx IRateContext) {
 	{
 		p.SetState(133)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -2764,25 +3258,32 @@ type IFromContext interface {
 	IsFromContext()
 }
 
+// \1 represents an entity
 type FromContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyFromContext() *FromContext {
 	var p = new(FromContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_from
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyFromContext(p *FromContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_from
 }
 
+// func (*FromContext) IsFromContext() {} performs an operation
 func (*FromContext) IsFromContext() {}
 
+// \1 performs an operation
 func NewFromContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *FromContext {
 	var p = new(FromContext)
 
@@ -2794,12 +3295,16 @@ func NewFromContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokin
 	return p
 }
 
+// func (s *FromContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *FromContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *FromContext) Account() IAccountContext { performs an operation
 func (s *FromContext) Account() IAccountContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IAccountContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2812,10 +3317,13 @@ func (s *FromContext) Account() IAccountContext {
 	return t.(IAccountContext)
 }
 
+// func (s *FromContext) SendTypes() ISendTypesContext { performs an operation
 func (s *FromContext) SendTypes() ISendTypesContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(ISendTypesContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2828,10 +3336,13 @@ func (s *FromContext) SendTypes() ISendTypesContext {
 	return t.(ISendTypesContext)
 }
 
+// func (s *FromContext) Rate() IRateContext { performs an operation
 func (s *FromContext) Rate() IRateContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IRateContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2844,10 +3355,13 @@ func (s *FromContext) Rate() IRateContext {
 	return t.(IRateContext)
 }
 
+// func (s *FromContext) Description() IDescriptionContext { performs an operation
 func (s *FromContext) Description() IDescriptionContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IDescriptionContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2860,10 +3374,13 @@ func (s *FromContext) Description() IDescriptionContext {
 	return t.(IDescriptionContext)
 }
 
+// func (s *FromContext) ChartOfAccounts() IChartOfAccountsContext { performs an operation
 func (s *FromContext) ChartOfAccounts() IChartOfAccountsContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IChartOfAccountsContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2876,10 +3393,13 @@ func (s *FromContext) ChartOfAccounts() IChartOfAccountsContext {
 	return t.(IChartOfAccountsContext)
 }
 
+// func (s *FromContext) Metadata() IMetadataContext { performs an operation
 func (s *FromContext) Metadata() IMetadataContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IMetadataContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -2892,26 +3412,31 @@ func (s *FromContext) Metadata() IMetadataContext {
 	return t.(IMetadataContext)
 }
 
+// func (s *FromContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *FromContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *FromContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *FromContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *FromContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *FromContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterFrom(s)
 	}
 }
 
+// func (s *FromContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *FromContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitFrom(s)
 	}
 }
 
+// func (s *FromContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *FromContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -2922,6 +3447,7 @@ func (s *FromContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) From() (localctx IFromContext) { performs an operation
 func (p *TransactionParser) From() (localctx IFromContext) {
 	localctx = NewFromContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 30, TransactionParserRULE_from)
@@ -2931,18 +3457,22 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 	{
 		p.SetState(135)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(136)
 		p.Match(TransactionParserT__18)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(137)
@@ -2964,6 +3494,7 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(143)
 	p.GetErrorHandler().Sync(p)
 
@@ -2976,6 +3507,7 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(146)
 	p.GetErrorHandler().Sync(p)
 
@@ -2988,11 +3520,14 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(149)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	if _la == TransactionParserT__0 {
@@ -3002,16 +3537,20 @@ func (p *TransactionParser) From() (localctx IFromContext) {
 		}
 
 	}
+
 	{
 		p.SetState(151)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -3040,25 +3579,32 @@ type ISourceContext interface {
 	IsSourceContext()
 }
 
+// \1 represents an entity
 type SourceContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptySourceContext() *SourceContext {
 	var p = new(SourceContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_source
 	return p
 }
 
+// \1 performs an operation
 func InitEmptySourceContext(p *SourceContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_source
 }
 
+// func (*SourceContext) IsSourceContext() {} performs an operation
 func (*SourceContext) IsSourceContext() {}
 
+// \1 performs an operation
 func NewSourceContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SourceContext {
 	var p = new(SourceContext)
 
@@ -3070,15 +3616,19 @@ func NewSourceContext(parser antlr.Parser, parent antlr.ParserRuleContext, invok
 	return p
 }
 
+// func (s *SourceContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *SourceContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *SourceContext) REMAINING() antlr.TerminalNode { performs an operation
 func (s *SourceContext) REMAINING() antlr.TerminalNode {
 	return s.GetToken(TransactionParserREMAINING, 0)
 }
 
+// func (s *SourceContext) AllFrom() []IFromContext { performs an operation
 func (s *SourceContext) AllFrom() []IFromContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IFromContext); ok {
 			len++
@@ -3087,6 +3637,7 @@ func (s *SourceContext) AllFrom() []IFromContext {
 
 	tst := make([]IFromContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IFromContext); ok {
 			tst[i] = t.(IFromContext)
@@ -3097,11 +3648,14 @@ func (s *SourceContext) AllFrom() []IFromContext {
 	return tst
 }
 
+// func (s *SourceContext) From(i int) IFromContext { performs an operation
 func (s *SourceContext) From(i int) IFromContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IFromContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -3117,26 +3671,31 @@ func (s *SourceContext) From(i int) IFromContext {
 	return t.(IFromContext)
 }
 
+// func (s *SourceContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *SourceContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *SourceContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *SourceContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *SourceContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *SourceContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterSource(s)
 	}
 }
 
+// func (s *SourceContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *SourceContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitSource(s)
 	}
 }
 
+// func (s *SourceContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *SourceContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -3147,6 +3706,7 @@ func (s *SourceContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Source() (localctx ISourceContext) { performs an operation
 func (p *TransactionParser) Source() (localctx ISourceContext) {
 	localctx = NewSourceContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 32, TransactionParserRULE_source)
@@ -3156,42 +3716,52 @@ func (p *TransactionParser) Source() (localctx ISourceContext) {
 	{
 		p.SetState(153)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(154)
 		p.Match(TransactionParserT__19)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	p.SetState(156)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	if _la == TransactionParserREMAINING {
 		{
 			p.SetState(155)
 			p.Match(TransactionParserREMAINING)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 
 	}
 	p.SetState(159)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	for ok := true; ok; ok = _la == TransactionParserT__0 {
@@ -3202,21 +3772,26 @@ func (p *TransactionParser) Source() (localctx ISourceContext) {
 
 		p.SetState(161)
 		p.GetErrorHandler().Sync(p)
+
 		if p.HasError() {
 			goto errorExit
 		}
+
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
 		p.SetState(163)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -3248,25 +3823,32 @@ type IToContext interface {
 	IsToContext()
 }
 
+// \1 represents an entity
 type ToContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyToContext() *ToContext {
 	var p = new(ToContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_to
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyToContext(p *ToContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_to
 }
 
+// func (*ToContext) IsToContext() {} performs an operation
 func (*ToContext) IsToContext() {}
 
+// \1 performs an operation
 func NewToContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *ToContext {
 	var p = new(ToContext)
 
@@ -3278,12 +3860,16 @@ func NewToContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingS
 	return p
 }
 
+// func (s *ToContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *ToContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *ToContext) Account() IAccountContext { performs an operation
 func (s *ToContext) Account() IAccountContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IAccountContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3296,10 +3882,13 @@ func (s *ToContext) Account() IAccountContext {
 	return t.(IAccountContext)
 }
 
+// func (s *ToContext) SendTypes() ISendTypesContext { performs an operation
 func (s *ToContext) SendTypes() ISendTypesContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(ISendTypesContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3312,10 +3901,13 @@ func (s *ToContext) SendTypes() ISendTypesContext {
 	return t.(ISendTypesContext)
 }
 
+// func (s *ToContext) Rate() IRateContext { performs an operation
 func (s *ToContext) Rate() IRateContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IRateContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3328,10 +3920,13 @@ func (s *ToContext) Rate() IRateContext {
 	return t.(IRateContext)
 }
 
+// func (s *ToContext) Description() IDescriptionContext { performs an operation
 func (s *ToContext) Description() IDescriptionContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IDescriptionContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3344,10 +3939,13 @@ func (s *ToContext) Description() IDescriptionContext {
 	return t.(IDescriptionContext)
 }
 
+// func (s *ToContext) ChartOfAccounts() IChartOfAccountsContext { performs an operation
 func (s *ToContext) ChartOfAccounts() IChartOfAccountsContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IChartOfAccountsContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3360,10 +3958,13 @@ func (s *ToContext) ChartOfAccounts() IChartOfAccountsContext {
 	return t.(IChartOfAccountsContext)
 }
 
+// func (s *ToContext) Metadata() IMetadataContext { performs an operation
 func (s *ToContext) Metadata() IMetadataContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IMetadataContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3376,26 +3977,31 @@ func (s *ToContext) Metadata() IMetadataContext {
 	return t.(IMetadataContext)
 }
 
+// func (s *ToContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *ToContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *ToContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *ToContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *ToContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ToContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterTo(s)
 	}
 }
 
+// func (s *ToContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *ToContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitTo(s)
 	}
 }
 
+// func (s *ToContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *ToContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -3406,6 +4012,7 @@ func (s *ToContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) To() (localctx IToContext) { performs an operation
 func (p *TransactionParser) To() (localctx IToContext) {
 	localctx = NewToContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 34, TransactionParserRULE_to)
@@ -3415,18 +4022,22 @@ func (p *TransactionParser) To() (localctx IToContext) {
 	{
 		p.SetState(165)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(166)
 		p.Match(TransactionParserT__20)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(167)
@@ -3448,6 +4059,7 @@ func (p *TransactionParser) To() (localctx IToContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(173)
 	p.GetErrorHandler().Sync(p)
 
@@ -3460,6 +4072,7 @@ func (p *TransactionParser) To() (localctx IToContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(176)
 	p.GetErrorHandler().Sync(p)
 
@@ -3472,11 +4085,14 @@ func (p *TransactionParser) To() (localctx IToContext) {
 	} else if p.HasError() { // JIM
 		goto errorExit
 	}
+
 	p.SetState(179)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	if _la == TransactionParserT__0 {
@@ -3486,16 +4102,20 @@ func (p *TransactionParser) To() (localctx IToContext) {
 		}
 
 	}
+
 	{
 		p.SetState(181)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -3524,25 +4144,32 @@ type IDistributeContext interface {
 	IsDistributeContext()
 }
 
+// \1 represents an entity
 type DistributeContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptyDistributeContext() *DistributeContext {
 	var p = new(DistributeContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_distribute
 	return p
 }
 
+// \1 performs an operation
 func InitEmptyDistributeContext(p *DistributeContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_distribute
 }
 
+// func (*DistributeContext) IsDistributeContext() {} performs an operation
 func (*DistributeContext) IsDistributeContext() {}
 
+// \1 performs an operation
 func NewDistributeContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *DistributeContext {
 	var p = new(DistributeContext)
 
@@ -3554,15 +4181,19 @@ func NewDistributeContext(parser antlr.Parser, parent antlr.ParserRuleContext, i
 	return p
 }
 
+// func (s *DistributeContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *DistributeContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *DistributeContext) REMAINING() antlr.TerminalNode { performs an operation
 func (s *DistributeContext) REMAINING() antlr.TerminalNode {
 	return s.GetToken(TransactionParserREMAINING, 0)
 }
 
+// func (s *DistributeContext) AllTo() []IToContext { performs an operation
 func (s *DistributeContext) AllTo() []IToContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IToContext); ok {
 			len++
@@ -3571,6 +4202,7 @@ func (s *DistributeContext) AllTo() []IToContext {
 
 	tst := make([]IToContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IToContext); ok {
 			tst[i] = t.(IToContext)
@@ -3581,11 +4213,14 @@ func (s *DistributeContext) AllTo() []IToContext {
 	return tst
 }
 
+// func (s *DistributeContext) To(i int) IToContext { performs an operation
 func (s *DistributeContext) To(i int) IToContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IToContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -3601,26 +4236,31 @@ func (s *DistributeContext) To(i int) IToContext {
 	return t.(IToContext)
 }
 
+// func (s *DistributeContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *DistributeContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *DistributeContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *DistributeContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *DistributeContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *DistributeContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterDistribute(s)
 	}
 }
 
+// func (s *DistributeContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *DistributeContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitDistribute(s)
 	}
 }
 
+// func (s *DistributeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *DistributeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -3631,6 +4271,7 @@ func (s *DistributeContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Distribute() (localctx IDistributeContext) { performs an operation
 func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 	localctx = NewDistributeContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 36, TransactionParserRULE_distribute)
@@ -3640,42 +4281,52 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 	{
 		p.SetState(183)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(184)
 		p.Match(TransactionParserT__21)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	p.SetState(186)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	if _la == TransactionParserREMAINING {
 		{
 			p.SetState(185)
 			p.Match(TransactionParserREMAINING)
+
 			if p.HasError() {
 				// Recognition error - abort rule
 				goto errorExit
 			}
+
 		}
 
 	}
 	p.SetState(189)
 	p.GetErrorHandler().Sync(p)
+
 	if p.HasError() {
 		goto errorExit
 	}
+
 	_la = p.GetTokenStream().LA(1)
 
 	for ok := true; ok; ok = _la == TransactionParserT__0 {
@@ -3686,21 +4337,26 @@ func (p *TransactionParser) Distribute() (localctx IDistributeContext) {
 
 		p.SetState(191)
 		p.GetErrorHandler().Sync(p)
+
 		if p.HasError() {
 			goto errorExit
 		}
+
 		_la = p.GetTokenStream().LA(1)
 	}
 	{
 		p.SetState(193)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)
@@ -3731,25 +4387,32 @@ type ISendContext interface {
 	IsSendContext()
 }
 
+// \1 represents an entity
 type SendContext struct {
 	antlr.BaseParserRuleContext
 	parser antlr.Parser
 }
 
+// \1 performs an operation
 func NewEmptySendContext() *SendContext {
 	var p = new(SendContext)
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_send
 	return p
 }
 
+// \1 performs an operation
 func InitEmptySendContext(p *SendContext) {
 	antlr.InitBaseParserRuleContext(&p.BaseParserRuleContext, nil, -1)
+
 	p.RuleIndex = TransactionParserRULE_send
 }
 
+// func (*SendContext) IsSendContext() {} performs an operation
 func (*SendContext) IsSendContext() {}
 
+// \1 performs an operation
 func NewSendContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokingState int) *SendContext {
 	var p = new(SendContext)
 
@@ -3761,15 +4424,19 @@ func NewSendContext(parser antlr.Parser, parent antlr.ParserRuleContext, invokin
 	return p
 }
 
+// func (s *SendContext) GetParser() antlr.Parser { return s.parser } performs an operation
 func (s *SendContext) GetParser() antlr.Parser { return s.parser }
 
+// func (s *SendContext) UUID() antlr.TerminalNode { performs an operation
 func (s *SendContext) UUID() antlr.TerminalNode {
 	return s.GetToken(TransactionParserUUID, 0)
 }
 
+// func (s *SendContext) AllValueOrVariable() []IValueOrVariableContext { performs an operation
 func (s *SendContext) AllValueOrVariable() []IValueOrVariableContext {
 	children := s.GetChildren()
 	len := 0
+
 	for _, ctx := range children {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
 			len++
@@ -3778,6 +4445,7 @@ func (s *SendContext) AllValueOrVariable() []IValueOrVariableContext {
 
 	tst := make([]IValueOrVariableContext, len)
 	i := 0
+
 	for _, ctx := range children {
 		if t, ok := ctx.(IValueOrVariableContext); ok {
 			tst[i] = t.(IValueOrVariableContext)
@@ -3788,11 +4456,14 @@ func (s *SendContext) AllValueOrVariable() []IValueOrVariableContext {
 	return tst
 }
 
+// func (s *SendContext) ValueOrVariable(i int) IValueOrVariableContext { performs an operation
 func (s *SendContext) ValueOrVariable(i int) IValueOrVariableContext {
 	var t antlr.RuleContext
 	j := 0
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IValueOrVariableContext); ok {
+
 			if j == i {
 				t = ctx.(antlr.RuleContext)
 				break
@@ -3808,10 +4479,13 @@ func (s *SendContext) ValueOrVariable(i int) IValueOrVariableContext {
 	return t.(IValueOrVariableContext)
 }
 
+// func (s *SendContext) Source() ISourceContext { performs an operation
 func (s *SendContext) Source() ISourceContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(ISourceContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3824,10 +4498,13 @@ func (s *SendContext) Source() ISourceContext {
 	return t.(ISourceContext)
 }
 
+// func (s *SendContext) Distribute() IDistributeContext { performs an operation
 func (s *SendContext) Distribute() IDistributeContext {
 	var t antlr.RuleContext
+
 	for _, ctx := range s.GetChildren() {
 		if _, ok := ctx.(IDistributeContext); ok {
+
 			t = ctx.(antlr.RuleContext)
 			break
 		}
@@ -3840,26 +4517,31 @@ func (s *SendContext) Distribute() IDistributeContext {
 	return t.(IDistributeContext)
 }
 
+// func (s *SendContext) GetRuleContext() antlr.RuleContext { performs an operation
 func (s *SendContext) GetRuleContext() antlr.RuleContext {
 	return s
 }
 
+// func (s *SendContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string { performs an operation
 func (s *SendContext) ToStringTree(ruleNames []string, recog antlr.Recognizer) string {
 	return antlr.TreesStringTree(s, ruleNames, recog)
 }
 
+// func (s *SendContext) EnterRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *SendContext) EnterRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.EnterSend(s)
 	}
 }
 
+// func (s *SendContext) ExitRule(listener antlr.ParseTreeListener) { performs an operation
 func (s *SendContext) ExitRule(listener antlr.ParseTreeListener) {
 	if listenerT, ok := listener.(TransactionListener); ok {
 		listenerT.ExitSend(s)
 	}
 }
 
+// func (s *SendContext) Accept(visitor antlr.ParseTreeVisitor) interface{} { performs an operation
 func (s *SendContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	switch t := visitor.(type) {
 	case TransactionVisitor:
@@ -3870,6 +4552,7 @@ func (s *SendContext) Accept(visitor antlr.ParseTreeVisitor) interface{} {
 	}
 }
 
+// func (p *TransactionParser) Send() (localctx ISendContext) { performs an operation
 func (p *TransactionParser) Send() (localctx ISendContext) {
 	localctx = NewSendContext(p, p.GetParserRuleContext(), p.GetState())
 	p.EnterRule(localctx, 38, TransactionParserRULE_send)
@@ -3877,26 +4560,32 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 	{
 		p.SetState(195)
 		p.Match(TransactionParserT__0)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(196)
 		p.Match(TransactionParserT__22)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(197)
 		p.Match(TransactionParserUUID)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(198)
@@ -3905,10 +4594,12 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 	{
 		p.SetState(199)
 		p.Match(TransactionParserT__13)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 	{
 		p.SetState(200)
@@ -3925,13 +4616,16 @@ func (p *TransactionParser) Send() (localctx ISendContext) {
 	{
 		p.SetState(203)
 		p.Match(TransactionParserT__3)
+
 		if p.HasError() {
 			// Recognition error - abort rule
 			goto errorExit
 		}
+
 	}
 
 errorExit:
+
 	if p.HasError() {
 		v := p.GetError()
 		localctx.SetException(v)

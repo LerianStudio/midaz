@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -12,7 +14,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllTransactions fetch all Transactions from the repository
@@ -21,11 +22,13 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions")
+
 	defer span.End()
 
 	logger.Infof("Retrieving transactions")
 
 	trans, cur, err := uc.TransactionRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get transactions on repo", err)
 
@@ -40,6 +43,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	if trans != nil {
 		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), filter)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb transaction", err)
 
@@ -69,16 +73,19 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 	return trans, cur, nil
 }
 
+// func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) { performs an operation
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_get_operations")
+
 	defer span.End()
 
 	logger.Infof("Retrieving Operations")
 
 	operations, _, err := uc.GetAllOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), filter)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operations", err)
 

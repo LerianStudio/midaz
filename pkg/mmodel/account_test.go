@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestAccount_ToProto(t *testing.T) {
 	tm := time.Now()
 
@@ -68,6 +69,7 @@ func TestAccount_ToProto(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAccount_IDtoUUID(t *testing.T) {
 	tests := []struct {
 		name    string

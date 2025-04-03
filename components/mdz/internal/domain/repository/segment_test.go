@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestSegmentInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestSegmentInterface(t *testing.T) {
 	var _ repository.Segment = mockSegment
 }
 
+// \1 performs an operation
 func TestSegment_Create(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -49,6 +51,7 @@ func TestSegment_Create(t *testing.T) {
 					OrganizationID: "org123",
 					LedgerID:       "ledger123",
 				}
+
 				mockSegment.EXPECT().
 					Create("org123", "ledger123", gomock.Any()).
 					Return(expectedSegment, nil)
@@ -96,6 +99,7 @@ func TestSegment_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestSegment_Get(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -137,6 +141,7 @@ func TestSegment_Get(t *testing.T) {
 					Page:  1,
 					Limit: 10,
 				}
+
 				mockSegment.EXPECT().
 					Get("org123", "ledger123", 10, 1, "asc", "2025-01-01", "2025-03-30").
 					Return(expectedSegments, nil)
@@ -200,6 +205,7 @@ func TestSegment_Get(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestSegment_GetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -227,6 +233,7 @@ func TestSegment_GetByID(t *testing.T) {
 					OrganizationID: "org123",
 					LedgerID:       "ledger123",
 				}
+
 				mockSegment.EXPECT().
 					GetByID("org123", "ledger123", "segment123").
 					Return(expectedSegment, nil)
@@ -272,6 +279,7 @@ func TestSegment_GetByID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestSegment_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -303,6 +311,7 @@ func TestSegment_Update(t *testing.T) {
 					OrganizationID: "org123",
 					LedgerID:       "ledger123",
 				}
+
 				mockSegment.EXPECT().
 					Update("org123", "ledger123", "segment123", gomock.Any()).
 					Return(expectedSegment, nil)
@@ -351,6 +360,7 @@ func TestSegment_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestSegment_Delete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

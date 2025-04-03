@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestBalance_IDtoUUID(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -39,6 +40,7 @@ func TestBalance_IDtoUUID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestConvertBalancesToLibBalances(t *testing.T) {
 	now := time.Now()
 	deletedAt := now.Add(-1 * time.Hour)
@@ -191,6 +193,7 @@ func TestConvertBalancesToLibBalances(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestBalance_ConvertToLibBalance(t *testing.T) {
 	now := time.Now()
 	deletedAt := now.Add(-1 * time.Hour)

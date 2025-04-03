@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
@@ -17,17 +18,20 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_balances")
+
 	defer span.End()
 
 	balances := make([]*mmodel.Balance, 0)
 
 	balancesRedis, aliases := uc.ValidateIfBalanceExistsOnRedis(ctx, organizationID, ledgerID, validate.Aliases)
+
 	if len(balancesRedis) > 0 {
 		balances = append(balances, balancesRedis...)
 	}
 
 	if len(aliases) > 0 {
 		balancesByAliases, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, aliases)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get account by alias on balance database", err)
 
@@ -41,6 +45,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 
 	if len(balances) > 1 {
 		newBalances, err := uc.GetAccountAndLock(ctx, organizationID, ledgerID, validate, balances)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get balances and update on redis", err)
 
@@ -63,6 +68,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_if_balance_exists_on_redis")
+
 	defer span.End()
 
 	logger.Infof("Checking if balances exists on redis")
@@ -75,6 +81,7 @@ func (uc *UseCase) ValidateIfBalanceExistsOnRedis(ctx context.Context, organizat
 		internalKey := libCommons.LockInternalKey(organizationID, ledgerID, alias)
 
 		value, _ := uc.RedisRepo.Get(ctx, internalKey)
+
 		if value != "" {
 			b := mmodel.BalanceRedis{}
 
@@ -115,6 +122,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.get_account_and_lock")
+
 	defer span.End()
 
 	newBalances := make([]*mmodel.Balance, 0)
@@ -125,12 +133,14 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		operation := constant.CREDIT
 
 		amount := libTransaction.Amount{}
+
 		if from, exists := validate.From[balance.Alias]; exists {
 			amount = libTransaction.Amount{
 				Asset: from.Asset,
 				Value: from.Value,
 				Scale: from.Scale,
 			}
+
 			operation = constant.DEBIT
 		}
 
@@ -141,6 +151,7 @@ func (uc *UseCase) GetAccountAndLock(ctx context.Context, organizationID, ledger
 		logger.Infof("Getting internal key: %s", internalKey)
 
 		b, err := uc.RedisRepo.LockBalanceRedis(ctx, internalKey, *balance, amount, operation)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to lock balance", err)
 

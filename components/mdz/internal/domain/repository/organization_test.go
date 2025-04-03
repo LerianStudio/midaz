@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestOrganizationInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestOrganizationInterface(t *testing.T) {
 	var _ repository.Organization = mockOrganization
 }
 
+// \1 performs an operation
 func TestOrganization_Create(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -45,6 +47,7 @@ func TestOrganization_Create(t *testing.T) {
 					LegalName:     "Lerian Studio",
 					LegalDocument: "00000000000000",
 				}
+
 				mockOrganization.EXPECT().
 					Create(gomock.Any()).
 					Return(expectedOrg, nil)
@@ -90,6 +93,7 @@ func TestOrganization_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganization_Get(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -126,6 +130,7 @@ func TestOrganization_Get(t *testing.T) {
 					Page:  1,
 					Limit: 10,
 				}
+
 				mockOrganization.EXPECT().
 					Get(10, 1, "asc", "2025-01-01", "2025-03-30").
 					Return(expectedOrgs, nil)
@@ -184,6 +189,7 @@ func TestOrganization_Get(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganization_GetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -206,6 +212,7 @@ func TestOrganization_GetByID(t *testing.T) {
 					LegalName:     "Lerian Studio",
 					LegalDocument: "00000000000000",
 				}
+
 				mockOrganization.EXPECT().
 					GetByID("org123").
 					Return(expectedOrg, nil)
@@ -248,6 +255,7 @@ func TestOrganization_GetByID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganization_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -274,6 +282,7 @@ func TestOrganization_Update(t *testing.T) {
 					LegalName:     "Updated Lerian Studio",
 					LegalDocument: "00000000000000",
 				}
+
 				mockOrganization.EXPECT().
 					Update("org123", gomock.Any()).
 					Return(expectedOrg, nil)
@@ -319,6 +328,7 @@ func TestOrganization_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestOrganization_Delete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

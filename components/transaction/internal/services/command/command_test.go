@@ -1,6 +1,8 @@
 package command
 
 import (
+	"testing"
+
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
@@ -10,9 +12,9 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestNewUseCase(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

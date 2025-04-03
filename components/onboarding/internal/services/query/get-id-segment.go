@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetSegmentByID get a Segment from the repository by given id.
@@ -19,11 +20,13 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_segment_by_id")
+
 	defer span.End()
 
 	logger.Infof("Retrieving segment for id: %s", id.String())
 
 	segment, err := uc.SegmentRepo.Find(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get segment on repo by id", err)
 
@@ -38,6 +41,7 @@ func (uc *UseCase) GetSegmentByID(ctx context.Context, organizationID, ledgerID,
 
 	if segment != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), id.String())
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb segment", err)
 

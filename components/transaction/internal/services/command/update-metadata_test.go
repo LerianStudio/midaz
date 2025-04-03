@@ -3,12 +3,14 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestUpdateMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -78,6 +80,7 @@ func TestUpdateMetadata(t *testing.T) {
 							"key2": "new_value2",
 							"key3": "value3",
 						}
+
 						assert.Equal(t, expectedMerged, updatedMetadata)
 						return nil
 					}).

@@ -3,6 +3,9 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
@@ -11,10 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestCreateAsset(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

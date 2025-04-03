@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_asset_Create(t *testing.T) {
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 	ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
@@ -63,6 +64,7 @@ func Test_asset_Create(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -103,6 +105,7 @@ func Test_asset_Create(t *testing.T) {
 	assert.Equal(t, 1, info["POST "+uri])
 }
 
+// \1 performs an operation
 func Test_asset_Get(t *testing.T) {
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
@@ -159,6 +162,7 @@ func Test_asset_Get(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -194,6 +198,7 @@ func Test_asset_Get(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_asset_GetByID(t *testing.T) {
 	assetID := "01930365-4d46-7a09-a503-b932714f85af"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
@@ -224,6 +229,7 @@ func Test_asset_GetByID(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
@@ -261,6 +267,7 @@ func Test_asset_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_asset_Update(t *testing.T) {
 	assetID := "01930365-4d46-7a09-a503-b932714f85af"
 	ledgerID := "01930218-bfb7-74fe-ba00-e52a17e9fb4e"
@@ -300,6 +307,7 @@ func Test_asset_Update(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -336,6 +344,7 @@ func Test_asset_Update(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
+// \1 performs an operation
 func Test_asset_Delete(t *testing.T) {
 	assetID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
@@ -344,6 +353,7 @@ func Test_asset_Delete(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",

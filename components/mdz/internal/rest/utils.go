@@ -23,6 +23,7 @@ func formatAPIError(jsonData []byte) error {
 	var apiError APIError
 
 	err := json.Unmarshal(jsonData, &apiError)
+
 	if err != nil {
 		return errors.New("failed to parse error JSON")
 	}
@@ -34,6 +35,7 @@ func formatAPIError(jsonData []byte) error {
 	// Check for fields in “Fields” before adding
 	if len(apiError.Fields) > 0 {
 		formattedError += "\n\nFields:"
+
 		for field, desc := range apiError.Fields {
 			formattedError += fmt.Sprintf("\n- %s: %s", field, desc)
 		}
@@ -49,9 +51,11 @@ func checkResponse(resp *http.Response, statusCode int) error {
 		}
 
 		bodyBytes, err := io.ReadAll(resp.Body)
+
 		if err != nil {
 			return errors.New("failed to read response body: " + err.Error())
 		}
+
 		defer resp.Body.Close()
 
 		return formatAPIError(bodyBytes)
@@ -63,6 +67,7 @@ func checkResponse(resp *http.Response, statusCode int) error {
 // BuildPaginatedURL builds a URL with pagination parameters and common filters
 func BuildPaginatedURL(baseURL string, limit, page int, sortOrder, startDate, endDate string) (string, error) {
 	reqURL, err := url.Parse(baseURL)
+
 	if err != nil {
 		return "", errors.New("parsing base URL: " + err.Error())
 	}

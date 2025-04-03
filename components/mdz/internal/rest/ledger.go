@@ -15,8 +15,10 @@ type ledger struct {
 	Factory *factory.Factory
 }
 
+// func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*mmodel.Ledger, error) { performs an operation
 func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*mmodel.Ledger, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -24,6 +26,7 @@ func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*m
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers", r.Factory.Env.URLAPILedger, organizationID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -32,6 +35,7 @@ func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*m
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -43,6 +47,7 @@ func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*m
 	}
 
 	var ledResp mmodel.Ledger
+
 	if err := json.NewDecoder(resp.Body).Decode(&ledResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -50,16 +55,19 @@ func (r *ledger) Create(organizationID string, inp mmodel.CreateLedgerInput) (*m
 	return &ledResp, nil
 }
 
+// func (r *ledger) Get(organizationID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Ledgers, error) { performs an operation
 func (r *ledger) Get(organizationID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Ledgers, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers",
 		r.Factory.Env.URLAPILedger, organizationID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+
 	if err != nil {
 		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -68,9 +76,11 @@ func (r *ledger) Get(organizationID string, limit, page int, sortOrder, startDat
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -78,6 +88,7 @@ func (r *ledger) Get(organizationID string, limit, page int, sortOrder, startDat
 	}
 
 	var ledsResp mmodel.Ledgers
+
 	if err := json.NewDecoder(resp.Body).Decode(&ledsResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -85,11 +96,13 @@ func (r *ledger) Get(organizationID string, limit, page int, sortOrder, startDat
 	return &ledsResp, nil
 }
 
+// func (r *ledger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error) { performs an operation
 func (r *ledger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -98,9 +111,11 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -108,6 +123,7 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error
 	}
 
 	var ledItemResp mmodel.Ledger
+
 	if err := json.NewDecoder(resp.Body).Decode(&ledItemResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -115,8 +131,10 @@ func (r *ledger) GetByID(organizationID, ledgerID string) (*mmodel.Ledger, error
 	return &ledItemResp, nil
 }
 
+// func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) { performs an operation
 func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedgerInput) (*mmodel.Ledger, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -125,6 +143,7 @@ func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedger
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -133,6 +152,7 @@ func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedger
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -144,6 +164,7 @@ func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedger
 	}
 
 	var ledResp mmodel.Ledger
+
 	if err := json.NewDecoder(resp.Body).Decode(&ledResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -151,11 +172,13 @@ func (r *ledger) Update(organizationID, ledgerID string, inp mmodel.UpdateLedger
 	return &ledResp, nil
 }
 
+// func (r *ledger) Delete(organizationID, ledgerID string) error { performs an operation
 func (r *ledger) Delete(organizationID, ledgerID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+
 	if err != nil {
 		return errors.New("creating request: " + err.Error())
 	}
@@ -164,6 +187,7 @@ func (r *ledger) Delete(organizationID, ledgerID string) error {
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return errors.New("making GET request: " + err.Error())
 	}
@@ -177,6 +201,7 @@ func (r *ledger) Delete(organizationID, ledgerID string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewLedger(f *factory.Factory) *ledger {
 	return &ledger{f}
 }

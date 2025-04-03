@@ -2,11 +2,12 @@ package query
 
 import (
 	"context"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetParentByTransactionID gets data in the repository.
@@ -15,11 +16,13 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_parent_by_transaction_id")
+
 	defer span.End()
 
 	logger.Infof("Trying to get transaction")
 
 	tran, err := uc.TransactionRepo.FindByParentID(ctx, organizationID, ledgerID, parentID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get parent transaction on repo by id", err)
 
@@ -30,6 +33,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 
 	if tran != nil {
 		metadata, err := uc.MetadataRepo.FindByEntity(ctx, reflect.TypeOf(transaction.Transaction{}).Name(), tran.ID)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb account", err)
 

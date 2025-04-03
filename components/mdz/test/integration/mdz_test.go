@@ -14,6 +14,7 @@ import (
 	"gotest.tools/golden"
 )
 
+// \1 performs an operation
 func TestMDZ(t *testing.T) {
 	var stdout string
 

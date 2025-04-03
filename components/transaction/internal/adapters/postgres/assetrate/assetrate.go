@@ -1,8 +1,9 @@
 package assetrate
 
 import (
-	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"time"
+
+	libCommons "github.com/LerianStudio/lib-commons/commons"
 )
 
 // AssetRatePostgreSQLModel represents the entity AssetRatePostgreSQLModel into SQL context in Database
@@ -27,14 +28,16 @@ type AssetRatePostgreSQLModel struct {
 // swagger:model CreateAssetRateInput
 // @Description CreateAssetRateInput is the input payload to create an asset rate.
 type CreateAssetRateInput struct {
-	From       string         `json:"from" validate:"required" example:"USD"`
-	To         string         `json:"to" validate:"required" example:"BRL"`
-	Rate       int            `json:"rate" validate:"required" example:"100"`
-	Scale      int            `json:"scale,omitempty" validate:"gte=0" example:"2"`
-	Source     *string        `json:"source,omitempty" example:"External System"`
-	TTL        *int           `json:"ttl,omitempty" example:"3600"`
-	ExternalID *string        `json:"externalId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Metadata   map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	From string `json:"from" validate:"required" example:"USD"`
+	To   string `json:"to" validate:"required" example:"BRL"`
+	Rate int    `json:"rate" validate:"required" example:"100"`
+
+	Scale      int     `json:"scale,omitempty" validate:"gte=0" example:"2"`
+	Source     *string `json:"source,omitempty" example:"External System"`
+	TTL        *int    `json:"ttl,omitempty" example:"3600"`
+	ExternalID *string `json:"externalId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
+
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name CreateAssetRateInput
 
 // AssetRate is a struct designed to encapsulate response payload data.

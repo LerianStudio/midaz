@@ -21,17 +21,23 @@ type AssetHandler struct {
 
 // CreateAsset is a method that creates asset information.
 //
-//	@Summary		Create an Asset
-//	@Description	Create an Asset with the input payload
+//	@Summary		Create a new asset
+//	@Description	Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.
 //	@Tags			Assets
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset Input"
-//	@Success		200				{object}	mmodel.Asset
+//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
+//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
+//	@Param			asset			body		mmodel.CreateAssetInput	true	"Asset details including name, code, type, status, and optional metadata"
+//	@Success		201				{object}	mmodel.Asset			"Successfully created asset"
+//	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error			"Organization or ledger not found"
+//	@Failure		409				{object}	mmodel.Error			"Conflict: Asset with the same name or code already exists"
+//	@Failure		500				{object}	mmodel.Error			"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [post]
 func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -40,6 +46,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_asset")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -52,6 +59,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	logger.Infof("Request to create a Asset with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -59,6 +67,7 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 	}
 
 	asset, err := handler.Command.CreateAsset(ctx, organizationID, ledgerID, payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create Asset on command", err)
 
@@ -74,21 +83,26 @@ func (handler *AssetHandler) CreateAsset(a any, c *fiber.Ctx) error {
 
 // GetAllAssets is a method that retrieves all Assets.
 //
-//	@Summary		Get all Assets
-//	@Description	Get all Assets with the input metadata or without metadata
+//	@Summary		List all assets
+//	@Description	Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			metadata		query		string	false	"Metadata"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			page			query		int		false	"Page"			default(1)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string	false	"JSON string to filter assets by metadata fields"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
+//	@Param			start_date		query		string	false	"Filter assets created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter assets created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Asset,page=int,limit=int}	"Successfully retrieved assets list"
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets [get]
 func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -97,6 +111,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_assets")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -106,6 +121,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	logger.Infof("Initiating create of Asset with ledger ID: %s", ledgerID.String())
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
@@ -126,6 +142,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 		logger.Infof("Initiating retrieval of all Assets by metadata")
 
 		assets, err := handler.Query.GetAllMetadataAssets(ctx, organizationID, ledgerID, *headerParams)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
 
@@ -146,6 +163,7 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 	headerParams.Metadata = &bson.M{}
 
 	assets, err := handler.Query.GetAllAssets(ctx, organizationID, ledgerID, *headerParams)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Assets on query", err)
 
@@ -163,16 +181,20 @@ func (handler *AssetHandler) GetAllAssets(c *fiber.Ctx) error {
 
 // GetAssetByID is a method that retrieves Asset information by a given id.
 //
-//	@Summary		Get an Asset by ID
-//	@Description	Get an Asset with the input ID
+//	@Summary		Retrieve a specific asset
+//	@Description	Returns detailed information about an asset identified by its UUID within the specified ledger
 //	@Tags			Assets
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			id				path		string	true	"Asset ID"
-//	@Success		200				{object}	mmodel.Asset
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			id				path		string	true	"Asset ID in UUID format"
+//	@Success		200				{object}	mmodel.Asset	"Successfully retrieved asset"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [get]
 func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -181,6 +203,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_asset_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -190,6 +213,7 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating retrieval of Asset with Ledger ID: %s and Asset ID: %s", ledgerID.String(), id.String())
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Asset on query", err)
 
@@ -205,18 +229,24 @@ func (handler *AssetHandler) GetAssetByID(c *fiber.Ctx) error {
 
 // UpdateAsset is a method that updates Asset information.
 //
-//	@Summary		Update an Asset
-//	@Description	Update an Asset with the input payload
+//	@Summary		Update an asset
+//	@Description	Updates an existing asset's properties such as name, status, and metadata within the specified ledger
 //	@Tags			Assets
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string					true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string					false	"Request ID"
-//	@Param			organization_id	path		string					true	"Organization ID"
-//	@Param			ledger_id		path		string					true	"Ledger ID"
-//	@Param			id				path		string					true	"Asset ID"
-//	@Param			asset			body		mmodel.UpdateAssetInput	true	"Asset Input"
-//	@Success		200				{object}	mmodel.Asset
+//	@Param			Authorization	header		string					true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string					false	"Request ID for tracing"
+//	@Param			organization_id	path		string					true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string					true	"Ledger ID in UUID format"
+//	@Param			id				path		string					true	"Asset ID in UUID format"
+//	@Param			asset			body		mmodel.UpdateAssetInput	true	"Asset properties to update including name, status, and optional metadata"
+//	@Success		200				{object}	mmodel.Asset			"Successfully updated asset"
+//	@Failure		400				{object}	mmodel.Error			"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error			"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error			"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error			"Asset, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error			"Conflict: Asset with the same name already exists"
+//	@Failure		500				{object}	mmodel.Error			"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [patch]
 func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -225,6 +255,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_asset")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -237,6 +268,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	logger.Infof("Request to update an Asset with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -253,6 +285,7 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 	}
 
 	asset, err := handler.Query.GetAssetByID(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get update Asset on query", err)
 
@@ -268,15 +301,20 @@ func (handler *AssetHandler) UpdateAsset(a any, c *fiber.Ctx) error {
 
 // DeleteAssetByID is a method that removes Asset information by a given ids.
 //
-//	@Summary		Delete an Asset by ID
-//	@Description	Delete an Asset with the input ID
+//	@Summary		Delete an asset
+//	@Description	Permanently removes an asset from the specified ledger. This operation cannot be undone.
 //	@Tags			Assets
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header	string	false	"Request ID"
-//	@Param			organization_id	path	string	true	"Organization ID"
-//	@Param			ledger_id		path	string	true	"Ledger ID"
-//	@Param			id				path	string	true	"Asset ID"
-//	@Success		204
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Param			id				path	string	true	"Asset ID in UUID format"
+//	@Success		204				{object}	nil	"Asset successfully deleted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Asset, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: Asset cannot be deleted due to existing dependencies"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id} [delete]
 func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -285,6 +323,7 @@ func (handler *AssetHandler) DeleteAssetByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_asset_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)

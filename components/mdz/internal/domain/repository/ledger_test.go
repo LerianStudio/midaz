@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestLedgerInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestLedgerInterface(t *testing.T) {
 	var _ repository.Ledger = mockLedger
 }
 
+// \1 performs an operation
 func TestLedger_Create(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -46,6 +48,7 @@ func TestLedger_Create(t *testing.T) {
 					Name:           "Test Ledger",
 					OrganizationID: "org123",
 				}
+
 				mockLedger.EXPECT().
 					Create("org123", gomock.Any()).
 					Return(expectedLedger, nil)
@@ -91,6 +94,7 @@ func TestLedger_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestLedger_Get(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -129,6 +133,7 @@ func TestLedger_Get(t *testing.T) {
 					Page:  1,
 					Limit: 10,
 				}
+
 				mockLedger.EXPECT().
 					Get("org123", 10, 1, "asc", "2025-01-01", "2025-03-30").
 					Return(expectedLedgers, nil)
@@ -189,6 +194,7 @@ func TestLedger_Get(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestLedger_GetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -213,6 +219,7 @@ func TestLedger_GetByID(t *testing.T) {
 					Name:           "Test Ledger",
 					OrganizationID: "org123",
 				}
+
 				mockLedger.EXPECT().
 					GetByID("org123", "ledger123").
 					Return(expectedLedger, nil)
@@ -256,6 +263,7 @@ func TestLedger_GetByID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestLedger_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -284,6 +292,7 @@ func TestLedger_Update(t *testing.T) {
 					Name:           "Updated Ledger",
 					OrganizationID: "org123",
 				}
+
 				mockLedger.EXPECT().
 					Update("org123", "ledger123", gomock.Any()).
 					Return(expectedLedger, nil)
@@ -330,6 +339,7 @@ func TestLedger_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestLedger_Delete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

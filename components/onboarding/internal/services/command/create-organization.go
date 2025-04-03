@@ -2,11 +2,12 @@ package command
 
 import (
 	"context"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"reflect"
-	"time"
 )
 
 // CreateOrganization creates a new organization persists data in the repository.
@@ -15,11 +16,13 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_organization")
+
 	defer span.End()
 
 	logger.Infof("Trying to create organization: %v", coi)
 
 	var status mmodel.Status
+
 	if coi.Status.IsEmpty() || libCommons.IsNilOrEmpty(&coi.Status.Code) {
 		status = mmodel.Status{
 			Code: "ACTIVE",
@@ -56,6 +59,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	}
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "organization_repository_input", organization)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert organization repository input to JSON string", err)
 
@@ -63,6 +67,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	}
 
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create organization on repository", err)
 
@@ -72,6 +77,7 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 	}
 
 	metadata, err := uc.CreateMetadata(ctx, reflect.TypeOf(mmodel.Organization{}).Name(), org.ID, coi.Metadata)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create organization metadata", err)
 

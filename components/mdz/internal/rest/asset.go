@@ -15,8 +15,10 @@ type asset struct {
 	Factory *factory.Factory
 }
 
+// func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetInput) (*mmodel.Asset, error) { performs an operation
 func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetInput) (*mmodel.Asset, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -25,6 +27,7 @@ func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetIn
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -33,6 +36,7 @@ func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetIn
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -44,6 +48,7 @@ func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetIn
 	}
 
 	var assetRest mmodel.Asset
+
 	if err := json.NewDecoder(resp.Body).Decode(&assetRest); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -51,16 +56,19 @@ func (r *asset) Create(organizationID, ledgerID string, inp mmodel.CreateAssetIn
 	return &assetRest, nil
 }
 
+// func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Assets, error) { performs an operation
 func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Assets, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+
 	if err != nil {
 		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -69,9 +77,11 @@ func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder,
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -79,6 +89,7 @@ func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder,
 	}
 
 	var assetResp mmodel.Assets
+
 	if err := json.NewDecoder(resp.Body).Decode(&assetResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -86,11 +97,13 @@ func (r *asset) Get(organizationID, ledgerID string, limit, page int, sortOrder,
 	return &assetResp, nil
 }
 
+// func (r *asset) GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset, error) { performs an operation
 func (r *asset) GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -99,9 +112,11 @@ func (r *asset) GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -109,6 +124,7 @@ func (r *asset) GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset
 	}
 
 	var assItemResp mmodel.Asset
+
 	if err := json.NewDecoder(resp.Body).Decode(&assItemResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -116,10 +132,12 @@ func (r *asset) GetByID(organizationID, ledgerID, assetID string) (*mmodel.Asset
 	return &assItemResp, nil
 }
 
+// func (r *asset) Update( performs an operation
 func (r *asset) Update(
 	organizationID, ledgerID, assetID string, inp mmodel.UpdateAssetInput,
 ) (*mmodel.Asset, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -128,6 +146,7 @@ func (r *asset) Update(
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -136,9 +155,11 @@ func (r *asset) Update(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making PATCH request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -146,6 +167,7 @@ func (r *asset) Update(
 	}
 
 	var assetResp mmodel.Asset
+
 	if err := json.NewDecoder(resp.Body).Decode(&assetResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -153,11 +175,13 @@ func (r *asset) Update(
 	return &assetResp, nil
 }
 
+// func (r *asset) Delete(organizationID, ledgerID, assetID string) error { performs an operation
 func (r *asset) Delete(organizationID, ledgerID, assetID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/assets/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, assetID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+
 	if err != nil {
 		return errors.New("creating request: " + err.Error())
 	}
@@ -166,6 +190,7 @@ func (r *asset) Delete(organizationID, ledgerID, assetID string) error {
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return errors.New("making GET request: " + err.Error())
 	}
@@ -179,6 +204,7 @@ func (r *asset) Delete(organizationID, ledgerID, assetID string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewAsset(f *factory.Factory) *asset {
 	return &asset{f}
 }

@@ -1,5 +1,6 @@
 package model
 
+// \1 represents an entity
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	IDToken      string `json:"id_token"`

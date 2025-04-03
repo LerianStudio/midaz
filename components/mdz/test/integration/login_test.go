@@ -14,11 +14,14 @@ import (
 	"gotest.tools/golden"
 )
 
+// \1 performs an operation
 func TestMDZLogin(t *testing.T) {
 	cmd := exec.Command("mdz", "login", "--username", "user_john", "--password", "Lerian@123")
 
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
+
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -28,16 +31,22 @@ func TestMDZLogin(t *testing.T) {
 	golden.AssertBytes(t, []byte(stdout.String()), "out_login_flags.golden")
 }
 
+// \1 performs an operation
 func TestMDZLoginIt(t *testing.T) {
 	console, err := expect.NewConsole(expect.WithStdout(os.Stdout))
+
 	if err != nil {
 		t.Fatalf("Error creating console: %v", err)
 	}
+
 	defer console.Close()
 
 	cmd := exec.Command("mdz", "login")
+
 	cmd.Stdin = console.Tty()
+
 	cmd.Stdout = console.Tty()
+
 	cmd.Stderr = console.Tty()
 
 	errChan := make(chan error, 1)

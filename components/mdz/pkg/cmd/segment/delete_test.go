@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_newCmdSegmentDelete(t *testing.T) {
 	t.Run("with flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)

@@ -28,6 +28,7 @@ const interactionDelay = 500 * time.Millisecond
 // down send down arrow
 func down(t *testing.T, console *expect.Console) {
 	_, err := console.Send("\x1b[B")
+
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -38,6 +39,7 @@ func down(t *testing.T, console *expect.Console) {
 // enter Send Enter key
 func enter(t *testing.T, console *expect.Console) {
 	_, err := console.Send("\r")
+
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -48,6 +50,7 @@ func enter(t *testing.T, console *expect.Console) {
 // sendInput Send a value and then Enter
 func sendInput(t *testing.T, console *expect.Console, input string) {
 	_, err := console.Send(input + "\r")
+
 	if err != nil {
 		t.Fatal(err.Error())
 	}
@@ -58,7 +61,9 @@ func sendInput(t *testing.T, console *expect.Console, input string) {
 // cmdRun run command and check error
 func cmdRun(t *testing.T, cmd *exec.Cmd) (string, string) {
 	var stdout, stderr bytes.Buffer
+
 	cmd.Stdout = &stdout
+
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
@@ -75,6 +80,7 @@ func cmdRun(t *testing.T, cmd *exec.Cmd) (string, string) {
 func getIDListOutput(t *testing.T, stdout string) string {
 	re := regexp.MustCompile(`[0-9a-fA-F-]{36}`)
 	id := re.FindString(stdout)
+
 	if id == "" {
 		t.Fatal("No ID found in output")
 	}

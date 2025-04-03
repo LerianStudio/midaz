@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -13,8 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/jackc/pgx/v5/pgconn"
-	"reflect"
-	"time"
 )
 
 // CreateBalanceTransactionOperationsAsync func that is responsible to create all transactions at the same async.
@@ -28,6 +29,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		logger.Infof("Unmarshal account ID: %v", item.ID.String())
 
 		err := json.Unmarshal(item.Value, &t)
+
 		if err != nil {
 			logger.Errorf("failed to unmarshal response: %v", err.Error())
 
@@ -36,11 +38,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.create_balance_transaction_operations.update_balances")
+
 	defer spanUpdateBalances.End()
 
 	logger.Infof("Trying to update balances")
 
 	err := uc.UpdateBalances(ctxProcessBalances, data.OrganizationID, data.LedgerID, *t.Validate, t.Balances)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdateBalances, "Failed to update balances", err)
 		logger.Errorf("Failed to update balances: %v", err.Error())
@@ -49,11 +53,13 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
+
 	defer spanCreateTransaction.End()
 
 	logger.Infof("Trying to create new transaction")
 
 	tran := t.Transaction
+
 	tran.Body = *t.ParseDSL
 
 	description := constant.APPROVED
@@ -69,6 +75,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		libOpentelemetry.HandleSpanError(&spanCreateTransaction, "Failed to create transaction on repo", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			logger.Infof("Transaction already exists: %v", tran.ID)
 		} else {
@@ -87,6 +94,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	}
 
 	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
+
 	defer spanCreateOperation.End()
 
 	logger.Infof("Trying to create new operations")
@@ -97,6 +105,7 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 			libOpentelemetry.HandleSpanError(&spanCreateOperation, "Failed to create operation", err)
 
 			var pgErr *pgconn.PgError
+
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 				logger.Infof("Operation already exists: %v", oper.ID)
 				continue
@@ -146,10 +155,12 @@ func (uc *UseCase) CreateMetadataAsync(ctx context.Context, logger libLog.Logger
 	return nil
 }
 
+// func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) { performs an operation
 func (uc *UseCase) CreateBTOAsync(ctx context.Context, data mmodel.Queue) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	err := uc.CreateBalanceTransactionOperationsAsync(ctx, data)
+
 	if err != nil {
 		logger.Errorf("Failed to create balance transaction operations: %v", err)
 	}

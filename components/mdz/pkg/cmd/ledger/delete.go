@@ -22,6 +22,7 @@ type factoryLedgerDelete struct {
 func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.organizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -31,6 +32,7 @@ func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.ledgerID) < 1 {
 		id, err := tui.Input("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -39,6 +41,7 @@ func (f *factoryLedgerDelete) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	err := f.repoLedger.Delete(f.organizationID, f.ledgerID)
+
 	if err != nil {
 		return err
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_segment_Create(t *testing.T) {
 	segmentID := "0193271b-877f-7c98-a5a6-43b664d68982"
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
@@ -54,6 +55,7 @@ func Test_segment_Create(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -89,6 +91,7 @@ func Test_segment_Create(t *testing.T) {
 	assert.Equal(t, 1, info["POST "+uri])
 }
 
+// \1 performs an operation
 func Test_segment_Get(t *testing.T) {
 	organizationID := "01931b04-964a-7caa-a422-c29a95387c00"
 	ledgerID := "01931b04-c2d1-7a41-83ac-c5d6d8a3c22c"
@@ -136,6 +139,7 @@ func Test_segment_Get(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -172,6 +176,7 @@ func Test_segment_Get(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_segment_GetByID(t *testing.T) {
 	segmentID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
@@ -195,6 +200,7 @@ func Test_segment_GetByID(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
@@ -230,6 +236,7 @@ func Test_segment_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_segment_Update(t *testing.T) {
 	segmentID := "01932727-1b5a-7540-98c0-6521ffe78ce6"
 	ledgerID := "01932715-9f93-7432-90c3-4352bcfe464d"
@@ -265,6 +272,7 @@ func Test_segment_Update(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -299,6 +307,7 @@ func Test_segment_Update(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
+// \1 performs an operation
 func Test_segment_Delete(t *testing.T) {
 	segmentID := "01930219-2c25-7a37-a5b9-610d44ae0a27"
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
@@ -307,6 +316,7 @@ func Test_segment_Delete(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",

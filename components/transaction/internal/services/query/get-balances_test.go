@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
@@ -11,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestGetBalances(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -254,6 +256,7 @@ func TestGetBalances(t *testing.T) {
 	})
 }
 
+// \1 performs an operation
 func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -320,6 +323,7 @@ func TestValidateIfBalanceExistsOnRedis(t *testing.T) {
 	})
 }
 
+// \1 performs an operation
 func TestGetAccountAndLock(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

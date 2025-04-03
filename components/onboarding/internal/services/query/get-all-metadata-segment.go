@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllMetadataSegments fetch all Segments from the repository
@@ -20,11 +21,13 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_segments")
+
 	defer span.End()
 
 	logger.Infof("Retrieving segments")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Segment{}).Name(), filter)
+
 	if err != nil || metadata == nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo by query params", err)
 
@@ -40,6 +43,7 @@ func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, l
 	}
 
 	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get segments on repo by query params", err)
 

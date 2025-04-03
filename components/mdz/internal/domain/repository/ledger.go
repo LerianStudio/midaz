@@ -4,6 +4,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
+// \1 represents an entity
 type Ledger interface {
 	Create(organizationID string, inp mmodel.CreateLedgerInput) (*mmodel.Ledger, error)
 	Get(organizationID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Ledgers, error)

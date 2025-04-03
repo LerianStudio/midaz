@@ -3,12 +3,13 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services/command"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"os"
 )
 
 // MultiQueueConsumer represents a multi-queue consumer.
@@ -42,6 +43,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_create_queue")
+
 	defer span.End()
 
 	logger.Info("Processing message from transaction_balance_queue")
@@ -49,6 +51,7 @@ func (mq *MultiQueueConsumer) handlerBalanceCreateQueue(ctx context.Context, bod
 	var message mmodel.Queue
 
 	err := json.Unmarshal(body, &message)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 
@@ -77,6 +80,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "consumer.handler_balance_update")
+
 	defer span.End()
 
 	logger.Info("Processing message from balance_retry_queue_fifo")
@@ -84,6 +88,7 @@ func (mq *MultiQueueConsumer) handlerBTOQueue(ctx context.Context, body []byte) 
 	var message mmodel.Queue
 
 	err := json.Unmarshal(body, &message)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Error unmarshalling message JSON", err)
 

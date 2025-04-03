@@ -35,6 +35,7 @@ func (l *factoryLogin) browserLogin() {
 		l.factory.Env.URLAPIAuth, clientID, url.QueryEscape(redirectURI), state)
 
 	err := l.openBrowser(authURL)
+
 	if err != nil {
 		l.browser.Err = err
 		output.Printf(l.factory.IOStreams.Err, err.Error())
@@ -106,6 +107,7 @@ func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, err := l.auth.ExchangeToken(code)
+
 	if err != nil {
 		l.browser.Err = err
 
@@ -124,10 +126,14 @@ func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	htmlResponse := `
 		<!DOCTYPE html>
+
 		<html lang="en">
 		<head>
+
 			<meta charset="UTF-8">
+
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 			<link rel="icon" type="image/png" sizes="32x32" href="https://avatars.githubusercontent.com/u/148895005?v=4">
 			<title>Midaz</title>
 			<style>
@@ -167,12 +173,18 @@ func (l *factoryLogin) callbackHandler(w http.ResponseWriter, r *http.Request) {
 			</style>
 		</head>
 		<body>
+
 			<div class="container">
+
 				<img src="https://avatars.githubusercontent.com/u/148895005?v=4" alt="Logo" class="logo">
+
 				<div class="text">Authenticated, you can now close this page and return to your terminal</div>
 			</div>
+
 			<div class="footer">
+
 				<p>Made with <span style="color: #e25555;">&#x2764;</span> by <a href="https://github.com/maxwelbm" style="color: #000; text-decoration: none;">maxwelbm</a></p>
+
 				<p>&copy; 2024 <a href="https://github.com/LerianStudio/midaz", >Midaz</a>. Licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank" style="color: #000;">Apache-2.0 License</a>. All rights reserved.</p>
 			</div>
 		</body>

@@ -12,10 +12,12 @@ import (
 	"github.com/LerianStudio/midaz/components/mdz/pkg/factory"
 )
 
+// \1 represents an entity
 type Auth struct {
 	Factory *factory.Factory
 }
 
+// func (r *Auth) AuthenticateWithCredentials( performs an operation
 func (r *Auth) AuthenticateWithCredentials(
 	username, password string) (*model.TokenResponse, error) {
 	data := url.Values{}
@@ -27,12 +29,15 @@ func (r *Auth) AuthenticateWithCredentials(
 
 	resp, err := http.PostForm(
 		r.Factory.Env.URLAPIAuth+"/api/login/oauth/access_token", data)
+
 	if err != nil {
 		return nil, errors.New("error request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
+
 	if err != nil {
 		return nil, errors.New("error when reading the answer: " + err.Error())
 	}
@@ -50,6 +55,7 @@ func (r *Auth) AuthenticateWithCredentials(
 	return &tokenResponse, nil
 }
 
+// func (r *Auth) ExchangeToken(code string) (*model.TokenResponse, error) { performs an operation
 func (r *Auth) ExchangeToken(code string) (*model.TokenResponse, error) {
 	redirectURI := "http://localhost:9000/callback"
 
@@ -62,12 +68,15 @@ func (r *Auth) ExchangeToken(code string) (*model.TokenResponse, error) {
 
 	resp, err := http.PostForm(
 		r.Factory.Env.URLAPIAuth+"/api/login/oauth/access_token", data)
+
 	if err != nil {
 		return nil, errors.New("request error: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
+
 	if err != nil {
 		return nil, errors.New("request error: " + err.Error())
 	}
@@ -81,6 +90,7 @@ func (r *Auth) ExchangeToken(code string) (*model.TokenResponse, error) {
 	return &tokenResponse, nil
 }
 
+// \1 performs an operation
 func NewAuth(f *factory.Factory) *Auth {
 	return &Auth{f}
 }

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// \1 performs an operation
 func Password(message string) (string, error) {
 	return runPasswordInput(initialPasswordInputModel(message))
 }
@@ -15,6 +16,7 @@ func runPasswordInput(m tea.Model) (string, error) {
 	p := tea.NewProgram(m)
 
 	finalModel, err := p.Run()
+
 	if err != nil {
 		return "", fmt.Errorf("error starting program: %w", err)
 	}
@@ -34,20 +36,27 @@ type passwordModel struct {
 
 func initialPasswordInputModel(message string) passwordModel {
 	ti := textinput.New()
+
 	ti.Placeholder = "..."
 	ti.Focus()
+
 	ti.EchoMode = textinput.EchoPassword
+
 	ti.EchoCharacter = '*'
+
 	ti.CharLimit = 50
+
 	ti.Width = 20
 
 	return passwordModel{textInput: ti, message: message}
 }
 
+// func (m passwordModel) Init() tea.Cmd { performs an operation
 func (m passwordModel) Init() tea.Cmd {
 	return textinput.Blink
 }
 
+// func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { performs an operation
 func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -67,6 +76,7 @@ func (m passwordModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// func (m passwordModel) View() string { performs an operation
 func (m passwordModel) View() string {
 	return fmt.Sprintf("%s %s\n", m.message, m.textInput.View())
 }

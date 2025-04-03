@@ -4,8 +4,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // MetadataMongoDBModel represents the metadata into mongodb context
@@ -39,6 +40,7 @@ func (mj JSON) Value() (driver.Value, error) {
 // Scan unmarshall value data
 func (mj *JSON) Scan(value any) error {
 	b, ok := value.([]byte)
+
 	if !ok {
 		return errors.New("type assertion to []byte failed")
 	}
@@ -61,10 +63,15 @@ func (mmm *MetadataMongoDBModel) ToEntity() *Metadata {
 // FromEntity converts an entity.Metadata to MetadataMongoDBModel
 func (mmm *MetadataMongoDBModel) FromEntity(md *Metadata) error {
 	mmm.ID = md.ID
+
 	mmm.EntityID = md.EntityID
+
 	mmm.EntityName = md.EntityName
+
 	mmm.Data = md.Data
+
 	mmm.CreatedAt = md.CreatedAt
+
 	mmm.UpdatedAt = md.UpdatedAt
 
 	return nil

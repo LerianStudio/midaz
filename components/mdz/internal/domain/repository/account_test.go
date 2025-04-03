@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestAccountInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestAccountInterface(t *testing.T) {
 	var _ repository.Account = mockAccount
 }
 
+// \1 performs an operation
 func TestAccount_Create(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -51,6 +53,7 @@ func TestAccount_Create(t *testing.T) {
 					AssetCode: "USD",
 					Type:      "checking",
 				}
+
 				mockAccount.EXPECT().
 					Create("org123", "ledger123", gomock.Any()).
 					Return(expectedAccount, nil)
@@ -100,6 +103,7 @@ func TestAccount_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAccount_Get(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -141,6 +145,7 @@ func TestAccount_Get(t *testing.T) {
 					Page:  1,
 					Limit: 10,
 				}
+
 				mockAccount.EXPECT().
 					Get("org123", "ledger123", 10, 1, "asc", "2025-01-01", "2025-03-30").
 					Return(expectedAccounts, nil)
@@ -204,6 +209,7 @@ func TestAccount_Get(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAccount_GetByID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -231,6 +237,7 @@ func TestAccount_GetByID(t *testing.T) {
 					AssetCode: "USD",
 					Type:      "checking",
 				}
+
 				mockAccount.EXPECT().
 					GetByID("org123", "ledger123", "acc123").
 					Return(expectedAccount, nil)
@@ -276,6 +283,7 @@ func TestAccount_GetByID(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAccount_Update(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -307,6 +315,7 @@ func TestAccount_Update(t *testing.T) {
 					AssetCode: "USD",
 					Type:      "checking",
 				}
+
 				mockAccount.EXPECT().
 					Update("org123", "ledger123", "acc123", gomock.Any()).
 					Return(expectedAccount, nil)
@@ -355,6 +364,7 @@ func TestAccount_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAccount_Delete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

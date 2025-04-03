@@ -19,6 +19,7 @@ func (f *factoryAsset) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdAssetDelete(newInjectFacDelete(f.factory)))
 }
 
+// \1 performs an operation
 func NewCmdAsset(f *factory.Factory) *cobra.Command {
 	fAsset := factoryAsset{
 		factory: f,

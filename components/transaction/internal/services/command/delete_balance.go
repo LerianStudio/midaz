@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/pkg"
@@ -15,11 +16,13 @@ func (uc *UseCase) DeleteBalance(ctx context.Context, organizationID, ledgerID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "exec.delete_balance")
+
 	defer span.End()
 
 	logger.Infof("Trying to delete balance")
 
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get balance on repo by id", err)
 		logger.Errorf("Error getting balance: %v", err)

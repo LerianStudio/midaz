@@ -2,9 +2,10 @@ package account
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"time"
 )
 
 // AccountPostgreSQLModel represents the entity Account into SQL context in Database
@@ -55,6 +56,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		acc.DeletedAt = &deletedAtCopy
 	}
 
@@ -64,6 +66,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 // FromEntity converts a request entity Account to AccountPostgreSQLModel
 func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 	ID := libCommons.GenerateUUIDv7().String()
+
 	if account.ID != "" {
 		ID = account.ID
 	}
@@ -91,6 +94,7 @@ func (t *AccountPostgreSQLModel) FromEntity(account *mmodel.Account) {
 
 	if account.DeletedAt != nil {
 		deletedAtCopy := *account.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

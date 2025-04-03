@@ -19,6 +19,7 @@ func (f *factoryLedger) setCmds(cmd *cobra.Command) {
 	cmd.AddCommand(newCmdLedgerDelete(newInjectFacDelete(f.factory)))
 }
 
+// \1 performs an operation
 func NewCmdLedger(f *factory.Factory) *cobra.Command {
 	fOrg := factoryLedger{
 		factory: f,

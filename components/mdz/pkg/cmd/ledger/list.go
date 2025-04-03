@@ -30,6 +30,7 @@ type factoryLedgerList struct {
 func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := tui.Input("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -50,12 +51,14 @@ func (f *factoryLedgerList) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	leds, err := f.repoLedger.Get(f.OrganizationID, f.Limit, f.Page, f.SortOrder, f.StartDate, f.EndDate)
+
 	if err != nil {
 		return err
 	}
 
 	if f.JSON {
 		b, err := json.Marshal(leds)
+
 		if err != nil {
 			return err
 		}

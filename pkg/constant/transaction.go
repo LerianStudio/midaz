@@ -1,10 +1,15 @@
 package constant
 
 const (
-	CREATED  = "CREATED"
+	CREATED = "CREATED"
+
 	APPROVED = "APPROVED"
-	PENDING  = "PENDING"
-	SENT     = "SENT"
+
+	PENDING = "PENDING"
+
+	SENT = "SENT"
+
 	CANCELED = "CANCELED"
+
 	DECLINED = "DECLINED"
 )

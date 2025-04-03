@@ -38,6 +38,7 @@ func (f *factoryPortfolioCreate) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -47,6 +48,7 @@ func (f *factoryPortfolioCreate) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -56,6 +58,7 @@ func (f *factoryPortfolioCreate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &portfolio)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -63,12 +66,14 @@ func (f *factoryPortfolioCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.createRequestFromFlags(&portfolio)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoPortfolio.Create(f.OrganizationID, f.LedgerID, portfolio)
+
 	if err != nil {
 		return err
 	}
@@ -98,6 +103,7 @@ func (f *factoryPortfolioCreate) createRequestFromFlags(portfolio *mmodel.Create
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

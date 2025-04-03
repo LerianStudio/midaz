@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_account_Create(t *testing.T) {
 	organizationID := "01933f94-67b1-794c-bb13-6b75aed7591a"
 	ledgerID := "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61"
@@ -62,6 +63,7 @@ func Test_account_Create(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -101,6 +103,7 @@ func Test_account_Create(t *testing.T) {
 	assert.Equal(t, 1, info["POST "+uri])
 }
 
+// \1 performs an operation
 func Test_account_Get(t *testing.T) {
 	organizationID := "01933f94-67b1-794c-bb13-6b75aed7591a"
 	ledgerID := "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61"
@@ -158,6 +161,7 @@ func Test_account_Get(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -193,6 +197,7 @@ func Test_account_Get(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_account_GetByID(t *testing.T) {
 	organizationID := "01933f94-67b1-794c-bb13-6b75aed7591a"
 	ledgerID := "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61"
@@ -224,6 +229,7 @@ func Test_account_GetByID(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
@@ -261,6 +267,7 @@ func Test_account_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET "+uri])
 }
 
+// \1 performs an operation
 func Test_account_Update(t *testing.T) {
 	organizationID := "01933f94-67b1-794c-bb13-6b75aed7591a"
 	ledgerID := "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61"
@@ -303,6 +310,7 @@ func Test_account_Update(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -341,6 +349,7 @@ func Test_account_Update(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH "+uri])
 }
 
+// \1 performs an operation
 func Test_account_Delete(t *testing.T) {
 	organizationID := "01933f94-67b1-794c-bb13-6b75aed7591a"
 	ledgerID := "01933f94-8a8f-7a1e-b4ab-98f35a5f8d61"
@@ -350,6 +359,7 @@ func Test_account_Delete(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",

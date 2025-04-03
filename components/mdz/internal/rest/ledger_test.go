@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func Test_ledger_Create(t *testing.T) {
 	ledgerID := "0192e251-328d-7390-99f5-5c54980115ed"
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
@@ -52,6 +53,7 @@ func Test_ledger_Create(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -85,6 +87,7 @@ func Test_ledger_Create(t *testing.T) {
 	assert.Equal(t, 1, info["POST http://127.0.0.1:3000/v1/organizations/0192e250-ed9d-7e5c-a614-9b294151b572/ledgers"])
 }
 
+// \1 performs an operation
 func Test_ledger_List(t *testing.T) {
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
 
@@ -163,6 +166,7 @@ func Test_ledger_List(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -194,9 +198,11 @@ func Test_ledger_List(t *testing.T) {
 	assert.Equal(t, expectedResult.Page, page)
 
 	info := httpmock.GetCallCountInfo()
+
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192e250-ed9d-7e5c-a614-9b294151b572/ledgers?limit=5&page=1"])
 }
 
+// \1 performs an operation
 func Test_ledger_GetByID(t *testing.T) {
 	ledgerID := "0192e362-b270-7158-a647-7a59e4e26a27"
 	organizationID := "0192e250-ed9d-7e5c-a614-9b294151b572"
@@ -223,6 +229,7 @@ func Test_ledger_GetByID(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",
@@ -257,6 +264,7 @@ func Test_ledger_GetByID(t *testing.T) {
 	assert.Equal(t, 1, info["GET http://127.0.0.1:3000/v1/organizations/0192e250-ed9d-7e5c-a614-9b294151b572/ledgers/0192e362-b270-7158-a647-7a59e4e26a27"])
 }
 
+// \1 performs an operation
 func Test_ledger_Update(t *testing.T) {
 	metadata := map[string]any{
 		"bitcoin": "3CoFW67ZxypArpMGEwedb5KLL",
@@ -287,6 +295,7 @@ func Test_ledger_Update(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	URIAPILedger := "http://127.0.0.1:3000"
@@ -321,6 +330,7 @@ func Test_ledger_Update(t *testing.T) {
 	assert.Equal(t, 1, info["PATCH http://127.0.0.1:3000/v1/organizations/0192fc1d-f34d-78c9-9654-83e497349241/ledgers/0192fc1e-14bf-7894-b167-6e4a878b3a95"])
 }
 
+// \1 performs an operation
 func Test_ledger_Delete(t *testing.T) {
 	ledgerID := "0192fc1e-14bf-7894-b167-6e4a878b3a95"
 	organizationID := "0192fc1d-f34d-78c9-9654-83e497349241"
@@ -328,6 +338,7 @@ func Test_ledger_Delete(t *testing.T) {
 
 	client := &http.Client{}
 	httpmock.ActivateNonDefault(client)
+
 	defer httpmock.DeactivateAndReset()
 
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s",

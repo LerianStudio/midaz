@@ -34,6 +34,7 @@ or containerized PostgreSQL database.
 // Compile-time interface check
 var (
 	_ Repository = (*mockRepository)(nil)
+
 	_ Repository = (*TransactionPostgreSQLRepository)(nil)
 )
 
@@ -45,6 +46,7 @@ type mockRepository struct {
 	err       error
 }
 
+// func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) { performs an operation
 func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (*Transaction, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -71,6 +73,7 @@ func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (
 		transaction.UpdatedAt,
 		nil, // DeletedAt
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +81,7 @@ func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (
 	// Query to get the inserted transaction
 	row := r.db.QueryRowContext(
 		ctx,
+
 		"SELECT id, parent_transaction_id, description, template, status, status_description, amount, amount_scale, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at FROM transaction WHERE id = $1",
 		transaction.ID,
 	)
@@ -103,6 +107,7 @@ func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (
 		&result.UpdatedAt,
 		&deletedAt,
 	)
+
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +115,7 @@ func (r *mockRepository) Create(ctx context.Context, transaction *Transaction) (
 	return &result, nil
 }
 
+// func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) { performs an operation
 func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error) {
 	if r.err != nil {
 		return nil, libHTTP.CursorPagination{}, r.err
@@ -118,14 +124,17 @@ func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID u
 	// Execute the query to get all transactions
 	rows, err := r.db.QueryContext(
 		ctx,
+
 		"SELECT id, parent_transaction_id, description, template, status, status_description, amount, amount_scale, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at FROM transaction WHERE organization_id = $1 AND ledger_id = $2 ORDER BY created_at DESC LIMIT $3",
 		organizationID,
 		ledgerID,
 		filter.Limit,
 	)
+
 	if err != nil {
 		return nil, libHTTP.CursorPagination{}, err
 	}
+
 	defer rows.Close()
 
 	var transactions []*Transaction
@@ -151,6 +160,7 @@ func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID u
 			&transaction.UpdatedAt,
 			&deletedAt,
 		)
+
 		if err != nil {
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -171,6 +181,7 @@ func (r *mockRepository) FindAll(ctx context.Context, organizationID, ledgerID u
 	return transactions, pagination, nil
 }
 
+// func (r *mockRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) { performs an operation
 func (r *mockRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -179,6 +190,7 @@ func (r *mockRepository) Find(ctx context.Context, organizationID, ledgerID, id 
 	// Query to get the transaction
 	row := r.db.QueryRowContext(
 		ctx,
+
 		"SELECT id, parent_transaction_id, description, template, status, status_description, amount, amount_scale, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at FROM transaction WHERE id = $1 AND organization_id = $2 AND ledger_id = $3",
 		id,
 		organizationID,
@@ -206,6 +218,7 @@ func (r *mockRepository) Find(ctx context.Context, organizationID, ledgerID, id 
 		&transaction.UpdatedAt,
 		&deletedAt,
 	)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("transaction not found")
@@ -216,6 +229,7 @@ func (r *mockRepository) Find(ctx context.Context, organizationID, ledgerID, id 
 	return &transaction, nil
 }
 
+// func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) { performs an operation
 func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -224,6 +238,7 @@ func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, led
 	// Query to get the transaction by parent ID
 	row := r.db.QueryRowContext(
 		ctx,
+
 		"SELECT id, parent_transaction_id, description, template, status, status_description, amount, amount_scale, asset_code, chart_of_accounts_group_name, ledger_id, organization_id, body, created_at, updated_at, deleted_at FROM transaction WHERE parent_transaction_id = $1 AND organization_id = $2 AND ledger_id = $3",
 		parentID,
 		organizationID,
@@ -251,6 +266,7 @@ func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, led
 		&transaction.UpdatedAt,
 		&deletedAt,
 	)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("transaction not found")
@@ -261,10 +277,12 @@ func (r *mockRepository) FindByParentID(ctx context.Context, organizationID, led
 	return &transaction, nil
 }
 
+// func (r *mockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) { performs an operation
 func (r *mockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error) {
 	return nil, errors.New("not implemented")
 }
 
+// func (r *mockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) { performs an operation
 func (r *mockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
 	if r.err != nil {
 		return nil, r.err
@@ -273,7 +291,9 @@ func (r *mockRepository) Update(ctx context.Context, organizationID, ledgerID, i
 	// Execute the query to update the transaction
 	result, err := r.db.ExecContext(
 		ctx,
+
 		`UPDATE transaction SET description = $1, status = $2, status_description = $3, updated_at = $4 
+
          WHERE organization_id = $5 AND ledger_id = $6 AND id = $7 AND deleted_at IS NULL`,
 		transaction.Description,
 		transaction.Status.Code,
@@ -283,11 +303,13 @@ func (r *mockRepository) Update(ctx context.Context, organizationID, ledgerID, i
 		ledgerID,
 		id,
 	)
+
 	if err != nil {
 		return nil, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		return nil, err
 	}
@@ -303,6 +325,7 @@ func (r *mockRepository) Update(ctx context.Context, organizationID, ledgerID, i
 	return transaction, nil
 }
 
+// func (r *mockRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error { performs an operation
 func (r *mockRepository) Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error {
 	if r.err != nil {
 		return r.err
@@ -311,16 +334,19 @@ func (r *mockRepository) Delete(ctx context.Context, organizationID, ledgerID, i
 	// Execute the query to delete the transaction
 	result, err := r.db.ExecContext(
 		ctx,
+
 		"DELETE FROM transaction WHERE id = $1 AND organization_id = $2 AND ledger_id = $3",
 		id,
 		organizationID,
 		ledgerID,
 	)
+
 	if err != nil {
 		return err
 	}
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		return err
 	}
@@ -353,6 +379,7 @@ func setupErrorDB() *mockRepository {
 	}
 }
 
+// \1 performs an operation
 func TestTransactionRepository_Create(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -468,6 +495,7 @@ func TestTransactionRepository_Create(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestTransactionRepository_FindAll(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -596,6 +624,7 @@ func TestTransactionRepository_FindAll(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestTransactionRepository_Update(t *testing.T) {
 	// Test cases
 	tests := []struct {
@@ -720,6 +749,7 @@ func TestTransactionRepository_Update(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestTransactionRepository_Delete(t *testing.T) {
 	// Test cases
 	tests := []struct {

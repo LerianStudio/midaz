@@ -5,6 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -16,10 +21,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to transaction template entities.
@@ -48,6 +49,7 @@ func NewTransactionPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Tra
 	}
 
 	_, err := c.connection.GetDB()
+
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -60,9 +62,11 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_transaction")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -99,6 +103,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
@@ -108,6 +113,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -130,9 +136,11 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_transactions")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -166,6 +174,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	findAll, orderDirection = libHTTP.ApplyCursorPagination(findAll, decodedCursor, orderDirection, filter.Limit)
 
 	query, args, err := findAll.ToSql()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -175,11 +184,13 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
@@ -233,6 +244,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 	transactions = libHTTP.PaginateRecords(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions, filter.Limit, orderDirection)
 
 	cur := libHTTP.CursorPagination{}
+
 	if len(transactions) > 0 {
 		cur, err = libHTTP.CalculateCursor(isFirstPage, hasPagination, decodedCursor.PointsNext, transactions[0].ID, transactions[len(transactions)-1].ID)
 		if err != nil {
@@ -250,9 +262,11 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_transactions_by_ids")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -265,11 +279,13 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM transaction WHERE organization_id = $1 AND ledger_id = $2 AND id = ANY($3) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, pq.Array(ids))
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
@@ -326,9 +342,11 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -388,9 +406,11 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -450,9 +470,11 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -468,11 +490,13 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	if transaction.Description != "" {
 		updates = append(updates, "description = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Description)
 	}
 
 	if !transaction.Status.IsEmpty() {
 		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Status)
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
@@ -486,8 +510,11 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE transaction SET ` + strings.Join(updates, ", ") +
+
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
@@ -501,6 +528,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
@@ -510,6 +538,7 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -532,9 +561,11 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_transaction")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -545,6 +576,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 
 	result, err := db.ExecContext(ctx, `UPDATE transaction SET deleted_at = now() WHERE organization_id = $1 AND ledger_id = $2 AND id = $3 AND deleted_at IS NULL`,
 		organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
@@ -554,6 +586,7 @@ func (r *TransactionPostgreSQLRepository) Delete(ctx context.Context, organizati
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 

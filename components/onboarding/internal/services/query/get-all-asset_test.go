@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,9 +13,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestGetAllAssets(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -123,6 +125,7 @@ func TestGetAllAssets(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, len(tt.expectedAssets), len(result))
+
 				for i, asset := range result {
 					assert.Equal(t, tt.expectedAssets[i].ID, asset.ID)
 					assert.Equal(t, tt.expectedAssets[i].Metadata, asset.Metadata)

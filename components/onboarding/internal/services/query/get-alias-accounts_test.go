@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestListAccountsByAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -89,6 +91,7 @@ func TestListAccountsByAlias(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, len(tt.expectedAccounts), len(result))
+
 				for i, account := range result {
 					assert.Equal(t, tt.expectedAccounts[i].Alias, account.Alias)
 				}

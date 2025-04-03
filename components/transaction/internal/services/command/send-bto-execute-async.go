@@ -3,13 +3,14 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"os"
 )
 
 // SendBTOExecuteAsync func that send balances, transaction and operations to a queue to execute async.
@@ -18,6 +19,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxSendBTOQueue, spanSendBTOQueue := tracer.Start(ctx, "command.send_bto_execute_async")
+
 	defer spanSendBTOQueue.End()
 
 	queueData := make([]mmodel.QueueData, 0)
@@ -30,6 +32,7 @@ func (uc *UseCase) SendBTOExecuteAsync(ctx context.Context, organizationID, ledg
 	}
 
 	marshal, err := json.Marshal(value)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanSendBTOQueue, "Failed to marshal transaction to JSON string", err)
 

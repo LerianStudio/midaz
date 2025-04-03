@@ -3,6 +3,9 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
@@ -10,8 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
 // GetAllAssetRatesByAssetCode is responsible to test GetAllAssetRatesByAssetCode

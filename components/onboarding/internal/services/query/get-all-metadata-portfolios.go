@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -11,7 +13,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // GetAllMetadataPortfolios fetch all Portfolios from the repository
@@ -20,11 +21,13 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_portfolios")
+
 	defer span.End()
 
 	logger.Infof("Retrieving portfolios")
 
 	metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(mmodel.Portfolio{}).Name(), filter)
+
 	if err != nil || metadata == nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on repo", err)
 
@@ -40,6 +43,7 @@ func (uc *UseCase) GetAllMetadataPortfolios(ctx context.Context, organizationID,
 	}
 
 	portfolios, err := uc.PortfolioRepo.ListByIDs(ctx, organizationID, ledgerID, uuids)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get portfolios on repo", err)
 

@@ -23,6 +23,7 @@ type factoryPortfolioDelete struct {
 func (f *factoryPortfolioDelete) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -32,6 +33,7 @@ func (f *factoryPortfolioDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -41,6 +43,7 @@ func (f *factoryPortfolioDelete) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
+
 		if err != nil {
 			return err
 		}
@@ -57,6 +60,7 @@ func (f *factoryPortfolioDelete) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	err := f.repoPortfolio.Delete(f.OrganizationID, f.LedgerID, f.PortfolioID)
+
 	if err != nil {
 		return err
 	}

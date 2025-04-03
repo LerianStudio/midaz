@@ -36,6 +36,11 @@ type OperationHandler struct {
 //	@Param			sort_order		query		string	false	"Sort Order"		enum(asc,desc)
 //	@Param			cursor			query		string	false	"Cursor"
 //	@Success		200				{object}	libPostgres.Pagination{items=[]operation.Operation, next_cursor=string, prev_cursor=string,limit=int}
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations [get]
 func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -44,6 +49,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_operations_by_account")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -51,6 +57,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	accountID := c.Locals("account_id").(uuid.UUID)
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
@@ -79,6 +86,7 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 	}
 
 	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Operations by account", err)
 
@@ -108,6 +116,10 @@ func (handler *OperationHandler) GetAllOperationsByAccount(c *fiber.Ctx) error {
 //	@Param			account_id		path		string	true	"Account ID"
 //	@Param			operation_id	path		string	true	"Operation ID"
 //	@Success		200				{object}	operation.Operation
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Operation not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations/{operation_id} [get]
 func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -116,6 +128,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_operation_by_account")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -126,6 +139,7 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 	logger.Infof("Initiating retrieval of Operation by account")
 
 	op, err := handler.Query.GetOperationByAccount(ctx, organizationID, ledgerID, accountID, operationID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation by account", err)
 
@@ -154,6 +168,11 @@ func (handler *OperationHandler) GetOperationByAccount(c *fiber.Ctx) error {
 //	@Param			operation_id	path		string							true	"Operation ID"
 //	@Param			operation		body		operation.UpdateOperationInput	true	"Operation Input"
 //	@Success		200				{object}	operation.Operation
+//	@Failure		400				{object}	mmodel.Error	"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Operation not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/operations/{operation_id} [patch]
 func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -162,6 +181,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_operation")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -175,6 +195,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	logger.Infof("Request to update an Operation with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -191,6 +212,7 @@ func (handler *OperationHandler) UpdateOperation(p any, c *fiber.Ctx) error {
 	}
 
 	op, err := handler.Query.GetOperationByID(ctx, organizationID, ledgerID, transactionID, operationID)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Operation on query", err)
 

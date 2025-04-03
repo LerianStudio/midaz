@@ -2,10 +2,11 @@ package redis
 
 import (
 	"context"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
-	"time"
 )
 
 // RedisRepository provides an interface for redis.
@@ -26,6 +27,7 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	r := &RedisConsumerRepository{
 		conn: rc,
 	}
+
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
 		panic("Failed to connect on redis")
 	}
@@ -33,14 +35,17 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	return r
 }
 
+// func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error { performs an operation
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
+
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
@@ -54,6 +59,7 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	logger.Infof("value of ttl: %v", ttl)
 
 	statusCMD := rds.Set(ctx, key, value, ttl)
+
 	if statusCMD.Err() != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set on redis", statusCMD.Err())
 
@@ -63,10 +69,12 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
+// func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error { performs an operation
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) error {
 	return nil
 }
 
+// func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error { performs an operation
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }

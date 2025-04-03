@@ -17,6 +17,7 @@ import (
 	"gotest.tools/golden"
 )
 
+// \1 performs an operation
 func Test_newCmdPortfolioList(t *testing.T) {
 	t.Run("with flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)

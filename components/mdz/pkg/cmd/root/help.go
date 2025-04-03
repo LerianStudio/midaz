@@ -74,6 +74,7 @@ func (f *factoryRoot) buildHelpEntries(command *cobra.Command, baseCommands, sub
 	var helpEntries []helpEntry
 
 	longText := command.Long
+
 	if longText == "" {
 		longText = command.Short
 	}
@@ -113,6 +114,7 @@ func (f *factoryRoot) buildHelpEntries(command *cobra.Command, baseCommands, sub
 	}
 
 	flagUsages := command.LocalFlags().FlagUsages()
+
 	if flagUsages != "" {
 		if isRootCmd(command) {
 			helpEntries = append(helpEntries, helpEntry{
@@ -128,6 +130,7 @@ func (f *factoryRoot) buildHelpEntries(command *cobra.Command, baseCommands, sub
 	}
 
 	inheritedFlagUsages := command.InheritedFlags().FlagUsages()
+
 	if inheritedFlagUsages != "" {
 		helpEntries = append(helpEntries, helpEntry{
 			Title: color.New(color.Bold).Sprint("GLOBAL OPTIONS"),
@@ -212,6 +215,7 @@ func dedent(s string) string {
 		}
 
 		indent := len(l) - len(strings.TrimLeft(l, " "))
+
 		if minIndent == -1 || indent < minIndent {
 			minIndent = indent
 		}
@@ -222,6 +226,7 @@ func dedent(s string) string {
 	}
 
 	var buf bytes.Buffer
+
 	for _, l := range lines {
 		fmt.Fprintln(&buf, strings.TrimPrefix(l, strings.Repeat(" ", minIndent)))
 	}

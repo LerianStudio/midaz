@@ -44,6 +44,7 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &org)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -51,12 +52,14 @@ func (f *factoryOrganizationCreate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.createRequestFromFlags(&org)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoOrganization.Create(org)
+
 	if err != nil {
 		return err
 	}
@@ -70,6 +73,7 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 	org.Address = mmodel.Address{}
 
 	var err error
+
 	org.LegalName, err = utils.AssignStringField(f.LegalName, "legal-name", f.tuiInput)
 
 	if err != nil {
@@ -83,6 +87,7 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 	}
 
 	doingBusinessAsPtr, err := utils.AssignStringField(f.DoingBusinessAs, "doing-business-as", f.tuiInput)
+
 	if err != nil {
 		return err
 	}
@@ -113,6 +118,7 @@ func (f *factoryOrganizationCreate) createRequestFromFlags(org *mmodel.CreateOrg
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

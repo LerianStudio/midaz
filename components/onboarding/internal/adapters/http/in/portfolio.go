@@ -21,17 +21,23 @@ type PortfolioHandler struct {
 
 // CreatePortfolio is a method that creates portfolio information.
 //
-//	@Summary		Create a Portfolio
-//	@Description	Create a Portfolio with the input payload
+//	@Summary		Create a new portfolio
+//	@Description	Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.
 //	@Tags			Portfolios
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			portfolio		body		mmodel.CreatePortfolioInput	true	"Portfolio Payload"
-//	@Success		200				{object}	mmodel.Portfolio
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			portfolio		body		mmodel.CreatePortfolioInput	true	"Portfolio details including name, optional entity ID, status, and metadata"
+//	@Success		201				{object}	mmodel.Portfolio			"Successfully created portfolio"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Organization or ledger not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: Portfolio with the same name already exists"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [post]
 func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -40,6 +46,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.create_portfolio")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -52,6 +59,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	logger.Infof("Request to create a Portfolio with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -59,6 +67,7 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 	}
 
 	portfolio, err := handler.Command.CreatePortfolio(ctx, organizationID, ledgerID, payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to create Portfolio on command", err)
 
@@ -72,21 +81,26 @@ func (handler *PortfolioHandler) CreatePortfolio(i any, c *fiber.Ctx) error {
 
 // GetAllPortfolios is a method that retrieves all Portfolios.
 //
-//	@Summary		Get all Portfolios
-//	@Description	Get all Portfolios with the input metadata or without metadata
+//	@Summary		List all portfolios
+//	@Description	Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Portfolios
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			metadata		query		string	false	"Metadata query"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			page			query		int		false	"Page"			default(1)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string	false	"JSON string to filter portfolios by metadata fields"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
+//	@Param			start_date		query		string	false	"Filter portfolios created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter portfolios created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Portfolio,page=int,limit=int}	"Successfully retrieved portfolios list"
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios [get]
 func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -95,6 +109,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_all_portfolios")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -102,6 +117,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	logger.Infof("Get Portfolios with Organization: %s and Ledger ID: %s", organizationID.String(), ledgerID.String())
 
 	headerParams, err := http.ValidateParameters(c.Queries())
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate query parameters", err)
 
@@ -122,6 +138,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 		logger.Infof("Initiating retrieval of all Portfolios by metadata")
 
 		portfolios, err := handler.Query.GetAllMetadataPortfolios(ctx, organizationID, ledgerID, *headerParams)
+
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Portfolios on query", err)
 
@@ -142,6 +159,7 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 	headerParams.Metadata = &bson.M{}
 
 	portfolios, err := handler.Query.GetAllPortfolio(ctx, organizationID, ledgerID, *headerParams)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve all Portfolios on query", err)
 
@@ -159,16 +177,20 @@ func (handler *PortfolioHandler) GetAllPortfolios(c *fiber.Ctx) error {
 
 // GetPortfolioByID is a method that retrieves Portfolio information by a given id.
 //
-//	@Summary		Get a Portfolio by ID
-//	@Description	Get a Portfolio with the input ID
+//	@Summary		Retrieve a specific portfolio
+//	@Description	Returns detailed information about a portfolio identified by its UUID within the specified ledger
 //	@Tags			Portfolios
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			id				path		string	true	"Portfolio ID"
-//	@Success		200				{object}	mmodel.Portfolio
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			id				path		string	true	"Portfolio ID in UUID format"
+//	@Success		200				{object}	mmodel.Portfolio	"Successfully retrieved portfolio"
+//	@Failure		401				{object}	mmodel.Error		"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error		"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error		"Portfolio, ledger, or organization not found"
+//	@Failure		500				{object}	mmodel.Error		"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [get]
 func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -177,6 +199,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.get_portfolio_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -186,6 +209,7 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 	logger.Infof("Initiating retrieval of Portfolio with Organization: %s Ledger ID: %s and Portfolio ID: %s", organizationID.String(), ledgerID.String(), id.String())
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Portfolio on query", err)
 
@@ -201,18 +225,24 @@ func (handler *PortfolioHandler) GetPortfolioByID(c *fiber.Ctx) error {
 
 // UpdatePortfolio is a method that updates Portfolio information.
 //
-//	@Summary		Update a Portfolio
-//	@Description	Update a Portfolio with the input payload
+//	@Summary		Update a portfolio
+//	@Description	Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger
 //	@Tags			Portfolios
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			id				path		string						true	"Portfolio ID"
-//	@Param			portfolio		body		mmodel.UpdatePortfolioInput	true	"Portfolio Payload"
-//	@Success		200				{object}	mmodel.Portfolio
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			id				path		string						true	"Portfolio ID in UUID format"
+//	@Param			portfolio		body		mmodel.UpdatePortfolioInput	true	"Portfolio properties to update including name, entity ID, status, and optional metadata"
+//	@Success		200				{object}	mmodel.Portfolio			"Successfully updated portfolio"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Portfolio, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: Portfolio with the same name already exists"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [patch]
 func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -221,6 +251,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.update_portfolio")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)
@@ -233,6 +264,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	logger.Infof("Request to update an Portfolio with details: %#v", payload)
 
 	err := libOpentelemetry.SetSpanAttributesFromStruct(&span, "payload", payload)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to convert payload to JSON string", err)
 
@@ -249,6 +281,7 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 	}
 
 	portfolio, err := handler.Query.GetPortfolioByID(ctx, organizationID, ledgerID, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to retrieve Portfolio on query", err)
 
@@ -264,15 +297,20 @@ func (handler *PortfolioHandler) UpdatePortfolio(i any, c *fiber.Ctx) error {
 
 // DeletePortfolioByID is a method that removes Portfolio information by a given ids.
 //
-//	@Summary		Delete a Portfolio by ID
-//	@Description	Delete a Portfolio with the input ID
+//	@Summary		Delete a portfolio
+//	@Description	Permanently removes a portfolio from the specified ledger. This operation cannot be undone.
 //	@Tags			Portfolios
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header	string	false	"Request ID"
-//	@Param			organization_id	path	string	true	"Organization ID"
-//	@Param			ledger_id		path	string	true	"Ledger ID"
-//	@Param			id				path	string	true	"Portfolio ID"
-//	@Success		204
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Param			id				path	string	true	"Portfolio ID in UUID format"
+//	@Success		204				{object}	nil	"Portfolio successfully deleted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Portfolio, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: Portfolio cannot be deleted due to existing dependencies"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id} [delete]
 func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -281,6 +319,7 @@ func (handler *PortfolioHandler) DeletePortfolioByID(c *fiber.Ctx) error {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "handler.delete_portfolio_by_id")
+
 	defer span.End()
 
 	organizationID := c.Locals("organization_id").(uuid.UUID)

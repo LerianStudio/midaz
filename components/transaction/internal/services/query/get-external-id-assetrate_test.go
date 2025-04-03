@@ -3,6 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
@@ -10,11 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestGetAssetRateByID(t *testing.T) {
 	id := libCommons.GenerateUUIDv7()
 	orgID := libCommons.GenerateUUIDv7()
@@ -72,6 +74,7 @@ func TestGetAssetRateByIDError(t *testing.T) {
 	assert.Nil(t, res)
 }
 
+// \1 performs an operation
 func TestGetAssetRateByExternalID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -30,6 +30,7 @@ type MockOutputMockRecorder struct {
 // NewMockOutput creates a new mock instance.
 func NewMockOutput(ctrl *gomock.Controller) *MockOutput {
 	mock := &MockOutput{ctrl: ctrl}
+
 	mock.recorder = &MockOutputMockRecorder{mock}
 	return mock
 }

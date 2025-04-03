@@ -2,14 +2,16 @@ package command
 
 import (
 	"context"
+	"os"
+	"testing"
+
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
-	"os"
-	"testing"
 )
 
+// \1 performs an operation
 func TestSendLogTransactionAuditQueue(t *testing.T) {
 	// Save original env vars to restore after test
 	originalExchange := os.Getenv("RABBITMQ_TRANSACTION_AUDIT_EXCHANGE")
@@ -22,6 +24,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 	os.Setenv("AUDIT_LOG_ENABLED", "true")
 
 	// Restore env vars after test
+
 	defer func() {
 		os.Setenv("RABBITMQ_TRANSACTION_AUDIT_EXCHANGE", originalExchange)
 		os.Setenv("RABBITMQ_TRANSACTION_AUDIT_KEY", originalKey)
@@ -89,6 +92,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 		os.Setenv("RABBITMQ_AUDIT_KEY", "test-key")
 		os.Setenv("AUDIT_LOG_ENABLED", "true")
 		// Ensure we clean up after the test
+
 		defer func() {
 			os.Unsetenv("RABBITMQ_AUDIT_EXCHANGE")
 			os.Unsetenv("RABBITMQ_AUDIT_KEY")
@@ -129,6 +133,7 @@ func TestSendLogTransactionAuditQueue(t *testing.T) {
 		os.Setenv("RABBITMQ_AUDIT_EXCHANGE", "test-exchange")
 		os.Setenv("RABBITMQ_AUDIT_KEY", "test-key")
 		// Ensure we clean up after the test
+
 		defer func() {
 			os.Unsetenv("RABBITMQ_AUDIT_EXCHANGE")
 			os.Unsetenv("RABBITMQ_AUDIT_KEY")

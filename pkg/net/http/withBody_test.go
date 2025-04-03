@@ -2,24 +2,28 @@ package http
 
 import (
 	"encoding/json"
-	"github.com/LerianStudio/midaz/pkg"
-	"github.com/gofiber/fiber/v2"
-	"github.com/stretchr/testify/require"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/LerianStudio/midaz/pkg"
+	"github.com/gofiber/fiber/v2"
+	"github.com/stretchr/testify/require"
 )
 
+// \1 represents an entity
 type SimpleStruct struct {
 	Name string
 	Age  int
 }
 
+// \1 represents an entity
 type ComplexStruct struct {
 	Enable bool
 	Simple SimpleStruct
 }
 
+// \1 performs an operation
 func TestNewOfTypeWithSimpleStruct(t *testing.T) {
 	s := newOfType(new(SimpleStruct))
 
@@ -34,6 +38,7 @@ func TestNewOfTypeWithSimpleStruct(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestNewOfTypeWithComplexStruct(t *testing.T) {
 	s := newOfType(new(ComplexStruct))
 
@@ -48,6 +53,7 @@ func TestNewOfTypeWithComplexStruct(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestFilterRequiredFields(t *testing.T) {
 	myMap := pkg.FieldValidations{
 		"legalDocument":        "legalDocument is a required field",
@@ -67,6 +73,7 @@ func TestFilterRequiredFields(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestFilterRequiredFieldWithNoFields(t *testing.T) {
 	myMap := pkg.FieldValidations{
 		"parentOrganizationId": "parentOrganizationId must be a valid UUID",
@@ -80,6 +87,7 @@ func TestFilterRequiredFieldWithNoFields(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestParseUUIDPathParameters_ValidUUID(t *testing.T) {
 	app := fiber.New()
 
@@ -94,6 +102,7 @@ func TestParseUUIDPathParameters_ValidUUID(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
+// \1 performs an operation
 func TestParseUUIDPathParameters_MultipleValidUUID(t *testing.T) {
 	app := fiber.New()
 
@@ -111,6 +120,7 @@ func TestParseUUIDPathParameters_MultipleValidUUID(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
 }
 
+// \1 performs an operation
 func TestParseUUIDPathParameters_InvalidUUID(t *testing.T) {
 	app := fiber.New()
 
@@ -125,6 +135,7 @@ func TestParseUUIDPathParameters_InvalidUUID(t *testing.T) {
 	require.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
+// \1 performs an operation
 func TestParseUUIDPathParameters_ValidAndInvalidUUID(t *testing.T) {
 	app := fiber.New()
 

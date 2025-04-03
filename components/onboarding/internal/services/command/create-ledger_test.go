@@ -3,16 +3,18 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestCreateLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -33,7 +35,6 @@ func TestCreateLedger(t *testing.T) {
 		expectedErr error
 		expectedRes *mmodel.Ledger
 	}{
-
 		{
 			name: "success - ledger created",
 			input: &mmodel.CreateLedgerInput{
@@ -121,6 +122,7 @@ func TestCreateLedger(t *testing.T) {
 			tt.mockSetup()
 
 			result, err := uc.CreateLedger(ctx, organizationID, tt.input)
+
 			if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())

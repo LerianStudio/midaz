@@ -2,6 +2,12 @@ package http
 
 import (
 	"bytes"
+	"io"
+	"mime/multipart"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
@@ -11,11 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"io"
-	"mime/multipart"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // QueryHeader entity from query parameter from get apis
@@ -51,16 +52,21 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 		startDate    time.Time
 		endDate      time.Time
 		cursor       string
-		limit        = 10
-		page         = 1
-		sortOrder    = "desc"
-		useMetadata  = false
+
+		limit = 10
+
+		page = 1
+
+		sortOrder = "desc"
+
+		useMetadata = false
 	)
 
 	for key, value := range params {
 		switch {
 		case strings.Contains(key, "metadata."):
 			metadata = &bson.M{key: value}
+
 			useMetadata = true
 		case strings.Contains(key, "limit"):
 			limit, _ = strconv.Atoi(value)
@@ -82,6 +88,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 	}
 
 	err := validateDates(&startDate, &endDate)
+
 	if err != nil {
 		return nil, err
 	}
@@ -93,6 +100,7 @@ func ValidateParameters(params map[string]string) (*QueryHeader, error) {
 
 	if !libCommons.IsNilOrEmpty(&portfolioID) {
 		_, err := uuid.Parse(portfolioID)
+
 		if err != nil {
 			return nil, pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "portfolio_id")
 		}
@@ -137,6 +145,7 @@ func validateDates(startDate, endDate *time.Time) error {
 
 	if startDate.IsZero() && endDate.IsZero() {
 		*startDate = defaultStartDate
+
 		*endDate = defaultEndDate
 	}
 
@@ -162,6 +171,7 @@ func validatePagination(cursor, sortOrder string, limit int) error {
 
 	if !libCommons.IsNilOrEmpty(&cursor) {
 		_, err := libHTTP.DecodeCursor(cursor)
+
 		if err != nil {
 			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, "", "cursor")
 		}
@@ -176,6 +186,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 	iTTL := c.Get(libConstants.IdempotencyTTL)
 
 	t, err := strconv.Atoi(iTTL)
+
 	if err != nil {
 		t = libRedis.RedisTTL
 	}
@@ -188,6 +199,7 @@ func GetIdempotencyKeyAndTTL(c *fiber.Ctx) (string, time.Duration) {
 // GetFileFromHeader method that get file from header and give a string fom this dsl gold file
 func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	fileHeader, err := ctx.FormFile(libConstants.DSL)
+
 	if err != nil {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "")
 	}
@@ -201,18 +213,21 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	}
 
 	file, err := fileHeader.Open()
+
 	if err != nil {
 		return "", err
 	}
 
 	defer func(file multipart.File) {
 		err := file.Close()
+
 		if err != nil {
 			panic(0)
 		}
 	}(file)
 
 	buf := new(bytes.Buffer)
+
 	if _, err := io.Copy(buf, file); err != nil {
 		return "", pkg.ValidateBusinessError(constant.ErrInvalidDSLFileFormat, "", fileHeader.Filename)
 	}
@@ -222,6 +237,7 @@ func GetFileFromHeader(ctx *fiber.Ctx) (string, error) {
 	return fileString, nil
 }
 
+// func (qh *QueryHeader) ToOffsetPagination() Pagination { performs an operation
 func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,
@@ -232,6 +248,7 @@ func (qh *QueryHeader) ToOffsetPagination() Pagination {
 	}
 }
 
+// func (qh *QueryHeader) ToCursorPagination() Pagination { performs an operation
 func (qh *QueryHeader) ToCursorPagination() Pagination {
 	return Pagination{
 		Limit:     qh.Limit,

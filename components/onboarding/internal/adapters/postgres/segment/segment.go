@@ -2,9 +2,10 @@ package segment
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"time"
 )
 
 // SegmentPostgreSQLModel represents the entity Segment into SQL context in Database
@@ -41,6 +42,7 @@ func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		segment.DeletedAt = &deletedAtCopy
 	}
 
@@ -62,6 +64,7 @@ func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
 
 	if segment.DeletedAt != nil {
 		deletedAtCopy := *segment.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

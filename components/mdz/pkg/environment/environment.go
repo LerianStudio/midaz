@@ -10,6 +10,7 @@ var (
 	Version      string
 )
 
+// \1 represents an entity
 type Env struct {
 	ClientID     string
 	ClientSecret string
@@ -18,6 +19,7 @@ type Env struct {
 	Version      string
 }
 
+// \1 performs an operation
 func New() *Env {
 	return &Env{
 		ClientID:     ClientID,

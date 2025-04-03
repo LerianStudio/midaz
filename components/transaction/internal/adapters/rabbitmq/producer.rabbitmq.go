@@ -3,6 +3,7 @@ package rabbitmq
 import (
 	"context"
 	"encoding/json"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -29,6 +30,7 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 	}
 
 	_, err := c.GetNewConnect()
+
 	if err != nil {
 		panic("Failed to connect rabbitmq")
 	}
@@ -36,6 +38,7 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 	return prmq
 }
 
+// func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) { performs an operation
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
@@ -43,9 +46,11 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	logger.Infof("Init sent message")
 
 	_, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message")
+
 	defer spanProducer.End()
 
 	message, err := json.Marshal(queueMessage)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
 
@@ -67,6 +72,7 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 			},
 			Body: message,
 		})
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanProducer, "Failed to marshal queue message struct", err)
 

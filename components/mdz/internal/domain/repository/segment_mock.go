@@ -31,6 +31,7 @@ type MockSegmentMockRecorder struct {
 // NewMockSegment creates a new mock instance.
 func NewMockSegment(ctrl *gomock.Controller) *MockSegment {
 	mock := &MockSegment{ctrl: ctrl}
+
 	mock.recorder = &MockSegmentMockRecorder{mock}
 	return mock
 }

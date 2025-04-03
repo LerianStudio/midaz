@@ -10,6 +10,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// \1 performs an operation
 func TestAuthInterface(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -20,6 +21,7 @@ func TestAuthInterface(t *testing.T) {
 	var _ repository.Auth = mockAuth
 }
 
+// \1 performs an operation
 func TestAuth_AuthenticateWithCredentials(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -47,6 +49,7 @@ func TestAuth_AuthenticateWithCredentials(t *testing.T) {
 					ExpiresIn:    3600,
 					Scope:        "openid profile email",
 				}
+
 				mockAuth.EXPECT().
 					AuthenticateWithCredentials("test@example.com", "password123").
 					Return(expectedToken, nil)
@@ -105,6 +108,7 @@ func TestAuth_AuthenticateWithCredentials(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestAuth_ExchangeToken(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -130,6 +134,7 @@ func TestAuth_ExchangeToken(t *testing.T) {
 					ExpiresIn:    3600,
 					Scope:        "openid profile email",
 				}
+
 				mockAuth.EXPECT().
 					ExchangeToken("authorization_code_123").
 					Return(expectedToken, nil)

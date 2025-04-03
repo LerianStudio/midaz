@@ -2,9 +2,10 @@ package ledger
 
 import (
 	"database/sql"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
-	"time"
 )
 
 // LedgerPostgreSQLModel represents the entity.Ledger into SQL context in Database
@@ -39,6 +40,7 @@ func (t *LedgerPostgreSQLModel) ToEntity() *mmodel.Ledger {
 
 	if !t.DeletedAt.Time.IsZero() {
 		deletedAtCopy := t.DeletedAt.Time
+
 		ledger.DeletedAt = &deletedAtCopy
 	}
 
@@ -59,6 +61,7 @@ func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 
 	if ledger.DeletedAt != nil {
 		deletedAtCopy := *ledger.DeletedAt
+
 		t.DeletedAt = sql.NullTime{Time: deletedAtCopy, Valid: true}
 	}
 }

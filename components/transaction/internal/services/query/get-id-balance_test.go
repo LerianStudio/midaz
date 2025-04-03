@@ -3,6 +3,10 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
@@ -10,11 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestGetBalanceByID(t *testing.T) {
 	ID := libCommons.GenerateUUIDv7()
 	organizationID := libCommons.GenerateUUIDv7()
@@ -41,6 +43,7 @@ func TestGetBalanceByID(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+// \1 performs an operation
 func TestGetBalanceIDError(t *testing.T) {
 	errMSG := "err to get balance on database"
 	ID := libCommons.GenerateUUIDv7()
@@ -63,6 +66,7 @@ func TestGetBalanceIDError(t *testing.T) {
 	assert.Nil(t, res)
 }
 
+// \1 performs an operation
 func TestGetBalanceByIDUseCase(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

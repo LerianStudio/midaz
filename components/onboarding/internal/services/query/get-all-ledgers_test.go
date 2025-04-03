@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/postgres/ledger"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -10,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestGetAllLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -121,6 +123,7 @@ func TestGetAllLedgers(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, len(tt.expectedLedgers), len(result))
+
 				for i, ledger := range result {
 					assert.Equal(t, tt.expectedLedgers[i].ID, ledger.ID)
 					assert.Equal(t, tt.expectedLedgers[i].Metadata, ledger.Metadata)

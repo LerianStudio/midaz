@@ -15,8 +15,10 @@ type portfolio struct {
 	Factory *factory.Factory
 }
 
+// func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) { performs an operation
 func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePortfolioInput) (*mmodel.Portfolio, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -25,6 +27,7 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -33,6 +36,7 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -44,6 +48,7 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 	}
 
 	var portfolioResp mmodel.Portfolio
+
 	if err := json.NewDecoder(resp.Body).Decode(&portfolioResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -51,16 +56,19 @@ func (r *portfolio) Create(organizationID, ledgerID string, inp mmodel.CreatePor
 	return &portfolioResp, nil
 }
 
+// func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Portfolios, error) { performs an operation
 func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Portfolios, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+
 	if err != nil {
 		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -69,9 +77,11 @@ func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOr
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -79,6 +89,7 @@ func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOr
 	}
 
 	var portfolioResp mmodel.Portfolios
+
 	if err := json.NewDecoder(resp.Body).Decode(&portfolioResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -86,11 +97,13 @@ func (r *portfolio) Get(organizationID, ledgerID string, limit, page int, sortOr
 	return &portfolioResp, nil
 }
 
+// func (r *portfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmodel.Portfolio, error) { performs an operation
 func (r *portfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmodel.Portfolio, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -99,9 +112,11 @@ func (r *portfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmod
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -109,6 +124,7 @@ func (r *portfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmod
 	}
 
 	var portfolioItemResp mmodel.Portfolio
+
 	if err := json.NewDecoder(resp.Body).Decode(&portfolioItemResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -116,10 +132,12 @@ func (r *portfolio) GetByID(organizationID, ledgerID, portfolioID string) (*mmod
 	return &portfolioItemResp, nil
 }
 
+// func (r *portfolio) Update( performs an operation
 func (r *portfolio) Update(
 	organizationID, ledgerID, portfolioID string, inp mmodel.UpdatePortfolioInput,
 ) (*mmodel.Portfolio, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -128,6 +146,7 @@ func (r *portfolio) Update(
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -136,9 +155,11 @@ func (r *portfolio) Update(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making PATCH request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -146,6 +167,7 @@ func (r *portfolio) Update(
 	}
 
 	var portfolioResp mmodel.Portfolio
+
 	if err := json.NewDecoder(resp.Body).Decode(&portfolioResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -153,11 +175,13 @@ func (r *portfolio) Update(
 	return &portfolioResp, nil
 }
 
+// func (r *portfolio) Delete(organizationID, ledgerID, portfolioID string) error { performs an operation
 func (r *portfolio) Delete(organizationID, ledgerID, portfolioID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/portfolios/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, portfolioID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+
 	if err != nil {
 		return errors.New("creating request: " + err.Error())
 	}
@@ -166,6 +190,7 @@ func (r *portfolio) Delete(organizationID, ledgerID, portfolioID string) error {
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return errors.New("making GET request: " + err.Error())
 	}
@@ -179,6 +204,7 @@ func (r *portfolio) Delete(organizationID, ledgerID, portfolioID string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewPortfolio(f *factory.Factory) *portfolio {
 	return &portfolio{f}
 }

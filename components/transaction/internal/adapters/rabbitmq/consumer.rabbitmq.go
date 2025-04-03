@@ -2,6 +2,7 @@ package rabbitmq
 
 import (
 	"context"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
@@ -49,6 +50,7 @@ func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers in
 	}
 
 	_, err := conn.GetNewConnect()
+
 	if err != nil {
 		panic("Failed to connect rabbitmq")
 	}
@@ -64,13 +66,14 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 // RunConsumers  init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
-		cr.Logger.Infof("Initializing consumer for queue: %s", queueName)
+		cr.Infof("Initializing consumer for queue: %s", queueName)
 
 		err := cr.conn.Channel.Qos(
 			cr.NumbersOfPrefetch,
 			0,
 			false,
 		)
+
 		if err != nil {
 			return err
 		}
@@ -84,6 +87,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 			false,
 			nil,
 		)
+
 		if err != nil {
 			return err
 		}
@@ -92,6 +96,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
 				for msg := range messages {
 					midazID, found := msg.Headers[libConstants.HeaderID]
+
 					if !found {
 						midazID = libCommons.GenerateUUIDv7().String()
 					}
@@ -106,8 +111,9 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 					)
 
 					err := handlerFunc(ctx, msg.Body)
+
 					if err != nil {
-						cr.Logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+						cr.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
 
 						_ = msg.Nack(false, true)
 

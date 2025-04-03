@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/services"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // DeleteAccountByID delete an account from the repository by ids.
@@ -19,11 +20,13 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.delete_account_by_id")
+
 	defer span.End()
 
 	logger.Infof("Remove account for id: %s", id.String())
 
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to find account by alias", err)
 		logger.Errorf("Error finding account by alias: %v", err)

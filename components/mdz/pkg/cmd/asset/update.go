@@ -36,6 +36,7 @@ type flagsUpdate struct {
 func (f *factoryAssetUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -45,6 +46,7 @@ func (f *factoryAssetUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -54,6 +56,7 @@ func (f *factoryAssetUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("asset-id") && len(f.AssetID) < 1 {
 		id, err := f.tuiInput("Enter your asset-id")
+
 		if err != nil {
 			return err
 		}
@@ -73,6 +76,7 @@ func (f *factoryAssetUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &asset)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -80,12 +84,14 @@ func (f *factoryAssetUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&asset)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoAsset.Update(f.OrganizationID, f.LedgerID, f.AssetID, asset)
+
 	if err != nil {
 		return err
 	}
@@ -95,8 +101,10 @@ func (f *factoryAssetUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// func (f *factoryAssetUpdate) UpdateRequestFromFlags(asset *mmodel.UpdateAssetInput) error { performs an operation
 func (f *factoryAssetUpdate) UpdateRequestFromFlags(asset *mmodel.UpdateAssetInput) error {
 	asset.Name = f.Name
+
 	asset.Status.Code = f.StatusCode
 
 	if len(f.StatusDescription) > 0 {
@@ -104,6 +112,7 @@ func (f *factoryAssetUpdate) UpdateRequestFromFlags(asset *mmodel.UpdateAssetInp
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

@@ -3,6 +3,10 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
 	"github.com/LerianStudio/midaz/components/onboarding/internal/adapters/mongodb"
@@ -18,11 +22,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
+// \1 performs an operation
 func TestCreatePortfolio(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -222,6 +224,7 @@ func TestCreatePortfolioError(t *testing.T) {
 	assert.Nil(t, res)
 }
 
+// \1 performs an operation
 func TestUseCase_CreatePortfolio(t *testing.T) {
 	type fields struct {
 		OrganizationRepo organization.Repository
@@ -249,6 +252,7 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 	}{
 		// TODO: Add test cases.
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			uc := &UseCase{
@@ -263,10 +267,12 @@ func TestUseCase_CreatePortfolio(t *testing.T) {
 				RedisRepo:        tt.fields.RedisRepo,
 			}
 			got, err := uc.CreatePortfolio(tt.args.ctx, tt.args.organizationID, tt.args.ledgerID, tt.args.cpi)
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("UseCase.CreatePortfolio() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("UseCase.CreatePortfolio() = %v, want %v", got, tt.want)
 			}

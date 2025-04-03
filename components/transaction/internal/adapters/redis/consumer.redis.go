@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libRedis "github.com/LerianStudio/lib-commons/commons/redis"
@@ -12,9 +16,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/redis/go-redis/v9"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // RedisRepository provides an interface for redis.
@@ -38,6 +39,7 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	r := &RedisConsumerRepository{
 		conn: rc,
 	}
+
 	if _, err := r.conn.GetClient(context.Background()); err != nil {
 		panic("Failed to connect on redis")
 	}
@@ -45,14 +47,17 @@ func NewConsumerRedis(rc *libRedis.RedisConnection) *RedisConsumerRepository {
 	return r
 }
 
+// func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error { performs an operation
 func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, ttl time.Duration) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set")
+
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
@@ -71,14 +76,17 @@ func (rr *RedisConsumerRepository) Set(ctx context.Context, key, value string, t
 	return nil
 }
 
+// func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) { performs an operation
 func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.set_nx")
+
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
@@ -88,6 +96,7 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	logger.Infof("value of ttl: %v", ttl*time.Second)
 
 	isLocked, err := rds.SetNX(ctx, key, value, ttl*time.Second).Result()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to set nx on redis", err)
 
@@ -97,14 +106,17 @@ func (rr *RedisConsumerRepository) SetNX(ctx context.Context, key, value string,
 	return isLocked, nil
 }
 
+// func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) { performs an operation
 func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string, error) {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.get")
+
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
@@ -112,6 +124,7 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	}
 
 	val, err := rds.Get(ctx, key).Result()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get on redis", err)
 
@@ -123,14 +136,17 @@ func (rr *RedisConsumerRepository) Get(ctx context.Context, key string) (string,
 	return val, nil
 }
 
+// func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error { performs an operation
 func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	logger := libCommons.NewLoggerFromContext(ctx)
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.del")
+
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to del redis", err)
 
@@ -138,6 +154,7 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	}
 
 	val, err := rds.Del(ctx, key).Result()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to del on redis", err)
 
@@ -149,13 +166,16 @@ func (rr *RedisConsumerRepository) Del(ctx context.Context, key string) error {
 	return nil
 }
 
+// func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 { performs an operation
 func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.incr")
+
 	defer span.End()
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
@@ -165,16 +185,19 @@ func (rr *RedisConsumerRepository) Incr(ctx context.Context, key string) int64 {
 	return rds.Incr(ctx, key).Val()
 }
 
+// func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error) { performs an operation
 func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key string, balance mmodel.Balance, amount libTransaction.Amount, operation string) (*mmodel.Balance, error) {
 	tracer := libCommons.NewTracerFromContext(ctx)
 	logger := libCommons.NewLoggerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "redis.Lock_balance")
+
 	defer span.End()
 
 	//nolint:dupword
 	script := redis.NewScript(`
 		local function Scale(v, s0, s1)
+
 		  local result = v *  math.pow(10, s1 - s0)
 		  if result >= 0 then
 		  	return math.floor(result)
@@ -184,48 +207,75 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 		end
 		
 		local function OperateBalances(amount, balance, operation)
+
 		  local scale = 0
+
 		  local total = 0
 		
 		  if operation == "DEBIT" then
 			  if balance.Scale < amount.Scale then
+
 				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
+
 				total = v0 - amount.Available
+
 				scale = amount.Scale
 			  else
+
 				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
+
 				total = balance.Available - v0
+
 				scale = balance.Scale
 			  end
 		  else
+
 			  if balance.Scale < amount.Scale then
+
 				local v0 = Scale(balance.Available, balance.Scale, amount.Scale)
+
 				total = v0 + amount.Available
+
 				scale = amount.Scale
 			  else
+
 				local v0 = Scale(amount.Available, amount.Scale, balance.Scale)
+
 				total = balance.Available + v0
+
 				scale = balance.Scale
 			  end
 		  end
 		
 		  return {
 			ID = balance.ID,
+
 			Available = total,
+
 			OnHold = balance.OnHold,
+
 			Scale = scale,
+
 			Version = balance.Version + 1,
+
 			AccountType = balance.AccountType,
+
             AllowSending = balance.AllowSending,
+
             AllowReceiving = balance.AllowReceiving,
+
 			AssetCode = balance.AssetCode,
+
             AccountID = balance.AccountID,
 		  }
 		end
 
 		local function main()
+
 			local ttl = 3600        
+
 			local key = KEYS[1]
+
 			local operation = ARGV[1]
 			
 			local amount = {
@@ -249,9 +299,11 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 
 			local currentValue = redis.call("GET", key)
 			if not currentValue then
+
 			  local balanceEncoded = cjson.encode(balance)
 			  redis.call("SET", key, balanceEncoded, "EX", ttl)
 			else
+
 			  balance = cjson.decode(currentValue)
 			end
 			
@@ -272,6 +324,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	`)
 
 	rds, err := rr.conn.GetClient(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get redis", err)
 
@@ -281,11 +334,13 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	}
 
 	allowSending := 0
+
 	if balance.AllowSending {
 		allowSending = 1
 	}
 
 	allowReceiving := 0
+
 	if balance.AllowReceiving {
 		allowReceiving = 1
 	}
@@ -308,6 +363,7 @@ func (rr *RedisConsumerRepository) LockBalanceRedis(ctx context.Context, key str
 	}
 
 	result, err := script.Run(ctx, rds, []string{key}, args).Result()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed run lua script on redis", err)
 

@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
@@ -10,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/google/uuid"
-	"reflect"
 )
 
 // UpdateOperation update an operation from the repository by given id.
@@ -19,6 +20,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_operation")
+
 	defer span.End()
 
 	logger.Infof("Trying to update operation: %v", uoi)
@@ -28,6 +30,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	}
 
 	operationUpdated, err := uc.OperationRepo.Update(ctx, organizationID, ledgerID, transactionID, operationID, op)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update operation on repo by id", err)
 
@@ -41,6 +44,7 @@ func (uc *UseCase) UpdateOperation(ctx context.Context, organizationID, ledgerID
 	}
 
 	metadataUpdated, err := uc.UpdateMetadata(ctx, reflect.TypeOf(operation.Operation{}).Name(), operationID.String(), uoi.Metadata)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to update metadata on repo by id", err)
 

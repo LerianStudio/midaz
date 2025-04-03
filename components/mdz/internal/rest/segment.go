@@ -15,8 +15,10 @@ type segment struct {
 	Factory *factory.Factory
 }
 
+// func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegmentInput) (*mmodel.Segment, error) { performs an operation
 func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegmentInput) (*mmodel.Segment, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -25,6 +27,7 @@ func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegme
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -33,6 +36,7 @@ func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegme
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -44,6 +48,7 @@ func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegme
 	}
 
 	var segmentResp mmodel.Segment
+
 	if err := json.NewDecoder(resp.Body).Decode(&segmentResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -51,16 +56,19 @@ func (r *segment) Create(organizationID, ledgerID string, inp mmodel.CreateSegme
 	return &segmentResp, nil
 }
 
+// func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Segments, error) { performs an operation
 func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrder, startDate, endDate string) (*mmodel.Segments, error) {
 	baseURL := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+
 	if err != nil {
 		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -69,9 +77,11 @@ func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrde
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -79,6 +89,7 @@ func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrde
 	}
 
 	var segmentsResp mmodel.Segments
+
 	if err := json.NewDecoder(resp.Body).Decode(&segmentsResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -86,11 +97,13 @@ func (r *segment) Get(organizationID, ledgerID string, limit, page int, sortOrde
 	return &segmentsResp, nil
 }
 
+// func (r *segment) GetByID(organizationID, ledgerID, segmentID string) (*mmodel.Segment, error) { performs an operation
 func (r *segment) GetByID(organizationID, ledgerID, segmentID string) (*mmodel.Segment, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, segmentID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -99,9 +112,11 @@ func (r *segment) GetByID(organizationID, ledgerID, segmentID string) (*mmodel.S
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -109,6 +124,7 @@ func (r *segment) GetByID(organizationID, ledgerID, segmentID string) (*mmodel.S
 	}
 
 	var segmentResp mmodel.Segment
+
 	if err := json.NewDecoder(resp.Body).Decode(&segmentResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -116,10 +132,12 @@ func (r *segment) GetByID(organizationID, ledgerID, segmentID string) (*mmodel.S
 	return &segmentResp, nil
 }
 
+// func (r *segment) Update( performs an operation
 func (r *segment) Update(
 	organizationID, ledgerID, segmentID string, inp mmodel.UpdateSegmentInput,
 ) (*mmodel.Segment, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -128,6 +146,7 @@ func (r *segment) Update(
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, segmentID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -136,9 +155,11 @@ func (r *segment) Update(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making PATCH request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -146,6 +167,7 @@ func (r *segment) Update(
 	}
 
 	var segmentResp mmodel.Segment
+
 	if err := json.NewDecoder(resp.Body).Decode(&segmentResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -153,11 +175,13 @@ func (r *segment) Update(
 	return &segmentResp, nil
 }
 
+// func (r *segment) Delete(organizationID, ledgerID, segmentID string) error { performs an operation
 func (r *segment) Delete(organizationID, ledgerID, segmentID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/segments/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, segmentID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+
 	if err != nil {
 		return errors.New("creating request: " + err.Error())
 	}
@@ -166,6 +190,7 @@ func (r *segment) Delete(organizationID, ledgerID, segmentID string) error {
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return errors.New("making Delete request: " + err.Error())
 	}
@@ -179,6 +204,7 @@ func (r *segment) Delete(organizationID, ledgerID, segmentID string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewSegment(f *factory.Factory) *segment {
 	return &segment{f}
 }

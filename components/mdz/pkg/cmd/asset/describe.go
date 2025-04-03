@@ -31,6 +31,7 @@ type factoryAssetDescribe struct {
 func (f *factoryAssetDescribe) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -40,6 +41,7 @@ func (f *factoryAssetDescribe) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -49,6 +51,7 @@ func (f *factoryAssetDescribe) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("asset-id") && len(f.AssetID) < 1 {
 		id, err := f.tuiInput("Enter your asset-id")
+
 		if err != nil {
 			return err
 		}
@@ -65,6 +68,7 @@ func (f *factoryAssetDescribe) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	asset, err := f.repoAsset.GetByID(f.OrganizationID, f.LedgerID, f.AssetID)
+
 	if err != nil {
 		return err
 	}
@@ -75,6 +79,7 @@ func (f *factoryAssetDescribe) runE(cmd *cobra.Command, _ []string) error {
 func (f *factoryAssetDescribe) outputAsset(cmd *cobra.Command, asset *mmodel.Asset) error {
 	if f.JSON || cmd.Flags().Changed("out") {
 		b, err := json.Marshal(asset)
+
 		if err != nil {
 			return err
 		}

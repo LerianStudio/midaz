@@ -12,6 +12,7 @@ import (
 	"gotest.tools/golden"
 )
 
+// \1 performs an operation
 func TestNewCmdConfigure(t *testing.T) {
 	vlClientSecret := "secret123"
 	vlClientID := "1234"

@@ -3,6 +3,9 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libMongo "github.com/LerianStudio/lib-commons/commons/mongo"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -12,8 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
@@ -38,6 +39,7 @@ func NewMetadataMongoDBRepository(mc *libMongo.MongoConnection) *MetadataMongoDB
 		connection: mc,
 		Database:   mc.Database,
 	}
+
 	if _, err := r.connection.GetDB(context.Background()); err != nil {
 		panic("Failed to connect mongodb")
 	}
@@ -50,9 +52,11 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.create_metadata")
+
 	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -73,6 +77,7 @@ func (mmr *MetadataMongoDBRepository) Create(ctx context.Context, collection str
 	ctx, spanInsert := tracer.Start(ctx, "mongodb.create_metadata.insert")
 
 	insertResult, err := coll.InsertOne(ctx, record)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanInsert, "Failed to insert metadata", err)
 
@@ -91,9 +96,11 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_list")
+
 	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -107,6 +114,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	ctx, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
 	cur, err := coll.Find(ctx, filter.Metadata, opts)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanFind, "Failed to find metadata", err)
 
@@ -119,6 +127,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	for cur.Next(ctx) {
 		var record MetadataMongoDBModel
+
 		if err := cur.Decode(&record); err != nil {
 			libOpentelemetry.HandleSpanError(&spanFind, "Failed to decode metadata", err)
 
@@ -141,6 +150,7 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	}
 
 	metadata := make([]*Metadata, 0, len(meta))
+
 	for i := range meta {
 		metadata = append(metadata, meta[i].ToEntity())
 	}
@@ -153,9 +163,11 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.find_by_entity")
+
 	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -188,9 +200,11 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.update_metadata")
+
 	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -207,6 +221,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	ctx, spanUpdate := tracer.Start(ctx, "mongodb.update_metadata.update_one")
 
 	updated, err := coll.UpdateOne(ctx, filter, update, opts)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanUpdate, "Failed to update metadata", err)
 
@@ -231,9 +246,11 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "mongodb.delete_metadata")
+
 	defer span.End()
 
 	db, err := mmr.connection.GetDB(ctx)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database", err)
 
@@ -249,6 +266,7 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	ctx, spanDelete := tracer.Start(ctx, "mongodb.delete_metadata.delete_one")
 
 	deleted, err := coll.DeleteOne(ctx, bson.D{{Key: "entity_id", Value: id}}, opts)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanDelete, "Failed to delete metadata", err)
 

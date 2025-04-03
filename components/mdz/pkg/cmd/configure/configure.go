@@ -29,12 +29,14 @@ type flagsConfigure struct {
 
 func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 	sett, err := f.read()
+
 	if err != nil {
 		return err
 	}
 
 	if !cmd.Flags().Changed("client-id") {
 		clientID, err := f.tuiInput("Enter your client-id")
+
 		if err != nil {
 			return err
 		}
@@ -48,6 +50,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("client-secret") {
 		clientSecret, err := f.tuiInput("Enter your client-secret")
+
 		if err != nil {
 			return err
 		}
@@ -61,6 +64,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("url-api-auth") {
 		urlAPIAuth, err := f.tuiInput("Enter your url-api-auth")
+
 		if err != nil {
 			return err
 		}
@@ -74,6 +78,7 @@ func (f *factoryConfigure) runE(cmd *cobra.Command, _ []string) error {
 
 	if !cmd.Flags().Changed("url-api-ledger") {
 		urlAPILedger, err := f.tuiInput("Enter your url-api-ledger")
+
 		if err != nil {
 			return err
 		}
@@ -118,6 +123,7 @@ func (f *factoryConfigure) setFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolP("help", "h", false, "Displays more information about the Mdz CLI")
 }
 
+// \1 performs an operation
 func NewInjectFacConfigure(f *factory.Factory) *factoryConfigure {
 	return &factoryConfigure{
 		factory:  f,
@@ -127,6 +133,7 @@ func NewInjectFacConfigure(f *factory.Factory) *factoryConfigure {
 	}
 }
 
+// \1 performs an operation
 func NewCmdConfigure(f *factoryConfigure) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "configure",

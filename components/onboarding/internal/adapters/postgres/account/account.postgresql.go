@@ -4,6 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
 	libPointers "github.com/LerianStudio/lib-commons/commons/pointers"
@@ -17,10 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 )
 
 // Repository provides an interface for operations related to account entities.
@@ -54,6 +55,7 @@ func NewAccountPostgreSQLRepository(pc *libPostgres.PostgresConnection) *Account
 	}
 
 	_, err := c.connection.GetDB()
+
 	if err != nil {
 		panic("Failed to connect database")
 	}
@@ -66,9 +68,11 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.create_account")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -109,10 +113,12 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 		record.UpdatedAt,
 		record.DeletedAt,
 	)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) {
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 		}
@@ -123,6 +129,7 @@ func (r *AccountPostgreSQLRepository) Create(ctx context.Context, acc *mmodel.Ac
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -145,9 +152,11 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_accounts")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -175,6 +184,7 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := findAll.ToSql()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to build query", err)
 
@@ -184,17 +194,20 @@ func (r *AccountPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 	ctx, spanQuery := tracer.Start(ctx, "postgres.find_all.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
+
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -235,9 +248,11 @@ func (r *AccountPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -298,9 +313,11 @@ func (r *AccountPostgreSQLRepository) FindWithDeleted(ctx context.Context, organ
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_with_deleted_account")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -361,9 +378,11 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_alias")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -424,9 +443,11 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_account_by_alias")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -437,11 +458,13 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND alias LIKE $3 AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, alias)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return false, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
@@ -462,9 +485,11 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -487,17 +512,20 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 	ctx, spanQuery := tracer.Start(ctx, "postgres.list_by_ids.query")
 
 	rows, err := db.QueryContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
+
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -538,9 +566,11 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -553,17 +583,20 @@ func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizat
 
 	rows, err := db.QueryContext(ctx, "SELECT * FROM account WHERE organization_id = $1 AND ledger_id = $2 AND portfolio_id = $3 AND alias = ANY($4) AND deleted_at IS NULL ORDER BY created_at DESC",
 		organizationID, ledgerID, portfolioID, pq.Array(alias))
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanQuery, "Failed to execute query", err)
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
+
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -604,9 +637,11 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_account")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -622,11 +657,13 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	if acc.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Name)
 	}
 
 	if !acc.Status.IsEmpty() {
 		updates = append(updates, "status = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Status)
 
 		updates = append(updates, "status_description = $"+strconv.Itoa(len(args)+1))
@@ -635,16 +672,19 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	if !libCommons.IsNilOrEmpty(acc.Alias) {
 		updates = append(updates, "alias = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.Alias)
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.SegmentID) {
 		updates = append(updates, "segment_id = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.SegmentID)
 	}
 
 	if !libCommons.IsNilOrEmpty(acc.PortfolioID) {
 		updates = append(updates, "portfolio_id = $"+strconv.Itoa(len(args)+1))
+
 		args = append(args, record.PortfolioID)
 	}
 
@@ -655,13 +695,17 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	args = append(args, record.UpdatedAt, organizationID, ledgerID, id)
 
 	query := `UPDATE account SET ` + strings.Join(updates, ", ") +
+
 		` WHERE organization_id = $` + strconv.Itoa(len(args)-2) +
+
 		` AND ledger_id = $` + strconv.Itoa(len(args)-1) +
+
 		` AND id = $` + strconv.Itoa(len(args)) +
 		` AND deleted_at IS NULL`
 
 	if portfolioID != nil && *portfolioID != uuid.Nil {
 		args = append(args, portfolioID)
+
 		query += ` AND portfolio_id = $` + strconv.Itoa(len(args))
 	}
 
@@ -675,10 +719,12 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	}
 
 	result, err := db.ExecContext(ctx, query, args...)
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&spanExec, "Failed to execute query", err)
 
 		var pgErr *pgconn.PgError
+
 		if errors.As(err, &pgErr) {
 			return nil, services.ValidatePGError(pgErr, reflect.TypeOf(mmodel.Account{}).Name())
 		}
@@ -689,6 +735,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 	spanExec.End()
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get rows affected", err)
 
@@ -711,9 +758,11 @@ func (r *AccountPostgreSQLRepository) Delete(ctx context.Context, organizationID
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.delete_account")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -747,9 +796,11 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -766,12 +817,14 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
+
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,
@@ -812,9 +865,11 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
+
 	defer span.End()
 
 	db, err := r.connection.GetDB()
+
 	if err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to get database connection", err)
 
@@ -831,12 +886,14 @@ func (r *AccountPostgreSQLRepository) ListAccountsByAlias(ctx context.Context, o
 
 		return nil, err
 	}
+
 	defer rows.Close()
 
 	spanQuery.End()
 
 	for rows.Next() {
 		var acc AccountPostgreSQLModel
+
 		if err := rows.Scan(
 			&acc.ID,
 			&acc.Name,

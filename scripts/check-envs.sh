@@ -1,15 +1,9 @@
 #!/bin/bash
 
-# Set colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[0;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-BOLD='\033[1m'
+# Script to check environment setup and configuration
 
-# Check if git hooks are installed
-echo "${CYAN}Checking if git hooks are installed...${NC}"
+# ===== Git Hooks Check =====
+echo "===== Git Hooks Check ====="
 HOOKS_INSTALLED=true
 
 # List of hooks to check
@@ -17,37 +11,37 @@ HOOKS=("pre-commit" "pre-push" "commit-msg" "pre-receive")
 
 for hook in "${HOOKS[@]}"; do
     if [ ! -f ".git/hooks/$hook" ]; then
-        echo "${RED}${BOLD}[MISSING]${NC} $hook hook is not installed"
+        echo "❌ $hook hook is missing"
         HOOKS_INSTALLED=false
     else
-        echo "${GREEN}${BOLD}[OK]${NC} $hook hook is installed"
+        echo "✅ $hook hook is installed"
     fi
 done
 
 # If hooks are not installed, suggest running setup-git-hooks
 if [ "$HOOKS_INSTALLED" = false ]; then
-    echo "${YELLOW}Run 'make setup-git-hooks' to install missing hooks${NC}"
-    echo ""
+    echo "➡️ Run 'make setup-git-hooks' to install missing hooks"
 fi
 
-# Check for exposed .env files in git
-echo "${CYAN}Checking for exposed .env files...${NC}"
+# ===== Git Security Check =====
+echo ""
+echo "===== Git Security Check ====="
 EXPOSED_ENV_FILES=$(git ls-files | grep "\.env$" | grep -v "\.env\.example$" | grep -v "\.env\.sample$")
 
 if [ -z "$EXPOSED_ENV_FILES" ]; then
-    echo "${GREEN}${BOLD}[OK]${NC} No .env files are exposed in git"
+    echo "✅ No .env files exposed in git"
 else
-    echo "${RED}${BOLD}[WARNING]${NC} The following .env files are tracked by git:"
+    echo "⚠️ The following .env files are tracked by git:"
     echo "$EXPOSED_ENV_FILES"
-    echo "${YELLOW}Consider adding these files to .gitignore and removing them from git${NC}"
-    echo "Run: git rm --cached <file> to untrack without deleting the file"
+    echo "➡️ Run: git rm --cached <file> to untrack without deleting"
 fi
 
-# Check for .env files in all components
+# ===== Environment Files Check =====
 echo ""
-echo "${CYAN}Checking for .env files in components...${NC}"
+echo "===== Environment Files Check ====="
 
-# Find all components
+# ----- Components -----
+echo "Components:"
 COMPONENTS=$(find ./components -maxdepth 1 -type d | grep -v "^./components$")
 MISSING_ENV_FILES=false
 
@@ -56,28 +50,89 @@ for component in $COMPONENTS; do
     
     # Check if .env exists
     if [ -f "$component/.env" ]; then
-        echo "${GREEN}${BOLD}[OK]${NC} $component_name has .env file"
+        echo "✅ $component_name"
     else
         # Check if .env.example exists
         if [ -f "$component/.env.example" ]; then
-            echo "${YELLOW}${BOLD}[MISSING]${NC} $component_name is missing .env file (but has .env.example)"
+            echo "❌ $component_name (template exists)"
             MISSING_ENV_FILES=true
         else
-            echo "${CYAN}${BOLD}[INFO]${NC} $component_name does not have .env or .env.example files"
+            echo "ℹ️ $component_name (no env files)"
         fi
     fi
 done
 
-# Check if set-env target exists in Makefile
-if grep -q "set-env:" Makefile; then
-    if [ "$MISSING_ENV_FILES" = true ]; then
-        echo "${YELLOW}Run 'make set-env' to create .env files from templates${NC}"
+# ----- Go SDK -----
+echo ""
+echo "Go SDK:"
+SDK_GO_DIR="./sdks/go"
+SDK_MISSING_ENV=false
+
+# Check if Go SDK directory exists
+if [ -d "$SDK_GO_DIR" ]; then
+    # Check if .env exists
+    if [ -f "$SDK_GO_DIR/.env" ]; then
+        echo "✅ Main SDK"
+    else
+        # Check if .env.example exists
+        if [ -f "$SDK_GO_DIR/.env.example" ]; then
+            echo "❌ Main SDK (template exists)"
+            SDK_MISSING_ENV=true
+        else
+            echo "ℹ️ Main SDK (no env files)"
+        fi
+    fi
+    
+    # Check for .env files in SDK examples
+    if [ -d "$SDK_GO_DIR/examples" ]; then
+        echo ""
+        echo "SDK Examples:"
+        
+        # Find all example directories
+        SDK_EXAMPLES=$(find "$SDK_GO_DIR/examples" -maxdepth 1 -type d | grep -v "^$SDK_GO_DIR/examples$")
+        
+        for example in $SDK_EXAMPLES; do
+            example_name=$(basename "$example")
+            
+            # Check if .env exists
+            if [ -f "$example/.env" ]; then
+                echo "✅ $example_name"
+            else
+                # Check if .env.example exists
+                if [ -f "$example/.env.example" ]; then
+                    echo "❌ $example_name (template exists)"
+                    SDK_MISSING_ENV=true
+                else
+                    # Only show info if the example might need env files (has Go files)
+                    if [ -n "$(find "$example" -name "*.go" -type f -print -quit)" ]; then
+                        echo "ℹ️ $example_name (no env files)"
+                    fi
+                fi
+            fi
+        done
     fi
 else
-    if [ "$MISSING_ENV_FILES" = true ]; then
-        echo "${YELLOW}Consider creating a 'set-env' target in your Makefile to automate .env file creation${NC}"
-    fi
+    echo "ℹ️ SDK directory not found"
+fi
+
+# ===== Action Recommendations =====
+echo ""
+echo "===== Action Recommendations ====="
+if [ "$MISSING_ENV_FILES" = true ]; then
+    echo "➡️ Run 'make set-env' to create component .env files from templates"
+fi
+
+if [ "$SDK_MISSING_ENV" = true ]; then
+    echo "➡️ Run 'make sdk-go-env-setup' to create SDK .env files from templates"
+fi
+
+if [ "$HOOKS_INSTALLED" = false ]; then
+    echo "➡️ Run 'make setup-git-hooks' to install git hooks"
+fi
+
+if [ -n "$EXPOSED_ENV_FILES" ]; then
+    echo "➡️ Remove .env files from git tracking to protect sensitive information"
 fi
 
 echo ""
-echo "${CYAN}Environment check completed.${NC}"
+echo "✅ Environment check completed"

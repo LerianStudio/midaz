@@ -3,13 +3,15 @@ package query
 import (
 	"context"
 	"errors"
+	"testing"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/transaction"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
 )
 
+// \1 performs an operation
 func TestGetParentByTransactionID(t *testing.T) {
 	ID := libCommons.GenerateUUIDv7()
 	organizationID := libCommons.GenerateUUIDv7()
@@ -37,6 +39,7 @@ func TestGetParentByTransactionID(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+// \1 performs an operation
 func TestGetParentByTransactionIDError(t *testing.T) {
 	errMSG := "err to create account on database"
 	ID := libCommons.GenerateUUIDv7()

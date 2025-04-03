@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
+// \1 performs an operation
 func Test_newCmdLedgerDescribe(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

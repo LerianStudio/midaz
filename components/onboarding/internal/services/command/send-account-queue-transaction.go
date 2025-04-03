@@ -3,10 +3,11 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"os"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
-	"os"
 )
 
 // SendAccountQueueTransaction sends an account-related transaction message to a RabbitMQ queue for further processing.
@@ -16,11 +17,13 @@ func (uc *UseCase) SendAccountQueueTransaction(ctx context.Context, organization
 	tracer := libCommons.NewTracerFromContext(ctx)
 
 	ctxLogTransaction, spanLogTransaction := tracer.Start(ctx, "command.send_account_queue_transaction")
+
 	defer spanLogTransaction.End()
 
 	queueData := make([]mmodel.QueueData, 0)
 
 	marshal, err := json.Marshal(account)
+
 	if err != nil {
 		logger.Fatalf("Failed to marshal account to JSON string: %s", err.Error())
 	}

@@ -36,6 +36,7 @@ type flagsUpdate struct {
 func (f *factoryPortfolioUpdate) ensureFlagInput(cmd *cobra.Command) error {
 	if !cmd.Flags().Changed("organization-id") && len(f.OrganizationID) < 1 {
 		id, err := f.tuiInput("Enter your organization-id")
+
 		if err != nil {
 			return err
 		}
@@ -45,6 +46,7 @@ func (f *factoryPortfolioUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("ledger-id") && len(f.LedgerID) < 1 {
 		id, err := f.tuiInput("Enter your ledger-id")
+
 		if err != nil {
 			return err
 		}
@@ -54,6 +56,7 @@ func (f *factoryPortfolioUpdate) ensureFlagInput(cmd *cobra.Command) error {
 
 	if !cmd.Flags().Changed("portfolio-id") && len(f.PortfolioID) < 1 {
 		id, err := f.tuiInput("Enter your portfolio-id")
+
 		if err != nil {
 			return err
 		}
@@ -73,6 +76,7 @@ func (f *factoryPortfolioUpdate) runE(cmd *cobra.Command, _ []string) error {
 
 	if cmd.Flags().Changed("json-file") {
 		err := utils.FlagFileUnmarshalJSON(f.JSONFile, &portfolio)
+
 		if err != nil {
 			return errors.New("failed to decode the given 'json' file. Verify if " +
 				"the file format is JSON or fix its content according to the JSON format " +
@@ -80,12 +84,14 @@ func (f *factoryPortfolioUpdate) runE(cmd *cobra.Command, _ []string) error {
 		}
 	} else {
 		err := f.UpdateRequestFromFlags(&portfolio)
+
 		if err != nil {
 			return err
 		}
 	}
 
 	resp, err := f.repoPortfolio.Update(f.OrganizationID, f.LedgerID, f.PortfolioID, portfolio)
+
 	if err != nil {
 		return err
 	}
@@ -95,8 +101,10 @@ func (f *factoryPortfolioUpdate) runE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// func (f *factoryPortfolioUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdatePortfolioInput) error { performs an operation
 func (f *factoryPortfolioUpdate) UpdateRequestFromFlags(portfolio *mmodel.UpdatePortfolioInput) error {
 	portfolio.Name = f.Name
+
 	portfolio.Status.Code = f.StatusCode
 
 	if len(f.StatusDescription) > 0 {
@@ -104,6 +112,7 @@ func (f *factoryPortfolioUpdate) UpdateRequestFromFlags(portfolio *mmodel.Update
 	}
 
 	var metadata map[string]any
+
 	if err := json.Unmarshal([]byte(f.Metadata), &metadata); err != nil {
 		return errors.New("Error parsing metadata: " + err.Error())
 	}

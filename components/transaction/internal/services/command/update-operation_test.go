@@ -3,12 +3,13 @@ package command
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"testing"
-	"time"
 )
 
 // TestUpdateOperationSuccess is responsible to test UpdateOperationSuccess with success

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// \1 performs an operation
 func TestAuthenticateWithCredentials(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -68,6 +69,7 @@ func TestAuthenticateWithCredentials(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			httpmock.Activate()
+
 			defer httpmock.DeactivateAndReset()
 
 			httpmock.RegisterResponder("POST", "https://mock-api.com/api/login/oauth/access_token",
@@ -108,6 +110,7 @@ func TestAuthenticateWithCredentials(t *testing.T) {
 	}
 }
 
+// \1 performs an operation
 func TestExchangeToken(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -144,6 +147,7 @@ func TestExchangeToken(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			httpmock.Activate()
+
 			defer httpmock.DeactivateAndReset()
 
 			httpmock.RegisterResponder("POST", "https://mock-api.com/api/login/oauth/access_token",

@@ -30,6 +30,7 @@ type MockConsumerRepositoryMockRecorder struct {
 // NewMockConsumerRepository creates a new mock instance.
 func NewMockConsumerRepository(ctrl *gomock.Controller) *MockConsumerRepository {
 	mock := &MockConsumerRepository{ctrl: ctrl}
+
 	mock.recorder = &MockConsumerRepositoryMockRecorder{mock}
 	return mock
 }

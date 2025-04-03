@@ -6,6 +6,7 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 )
 
+// \1 performs an operation
 func TestError_SyntaxError(t *testing.T) {
 	type fields struct {
 		DefaultErrorListener *antlr.DefaultErrorListener
@@ -31,6 +32,7 @@ func TestError_SyntaxError(t *testing.T) {
 			args:   args{},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tr := &Error{

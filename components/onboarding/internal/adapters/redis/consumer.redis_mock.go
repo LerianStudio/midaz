@@ -32,6 +32,7 @@ type MockRedisRepositoryMockRecorder struct {
 // NewMockRedisRepository creates a new mock instance.
 func NewMockRedisRepository(ctrl *gomock.Controller) *MockRedisRepository {
 	mock := &MockRedisRepository{ctrl: ctrl}
+
 	mock.recorder = &MockRedisRepositoryMockRecorder{mock}
 	return mock
 }

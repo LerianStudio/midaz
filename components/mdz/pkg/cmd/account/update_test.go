@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
+// \1 performs an operation
 func Test_newCmdLedgerUpdate(t *testing.T) {
 	t.Run("happy path informing all the necessary flags", func(t *testing.T) {
 		ctrl := gomock.NewController(t)

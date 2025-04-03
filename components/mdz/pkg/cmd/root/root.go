@@ -54,23 +54,24 @@ func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 	}
 
 	sett, err := setting.Read()
+
 	if err != nil {
 		return errors.New("Try the login command first 'mdz login -h' " + err.Error())
 	}
 
-	if len(sett.Env.ClientID) > 0 {
+	if len(sett.ClientID) > 0 {
 		f.factory.Env.ClientID = sett.ClientID
 	}
 
-	if len(sett.Env.ClientSecret) > 0 {
+	if len(sett.ClientSecret) > 0 {
 		f.factory.Env.ClientSecret = sett.ClientSecret
 	}
 
-	if len(sett.Env.URLAPIAuth) > 0 {
+	if len(sett.URLAPIAuth) > 0 {
 		f.factory.Env.URLAPIAuth = sett.URLAPIAuth
 	}
 
-	if len(sett.Env.URLAPILedger) > 0 {
+	if len(sett.URLAPILedger) > 0 {
 		f.factory.Env.URLAPILedger = sett.URLAPILedger
 	}
 
@@ -81,6 +82,7 @@ func (f *factoryRoot) persistentPreRunE(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewCmdRoot(f *factory.Factory) *cobra.Command {
 	fRoot := factoryRoot{
 		factory: f,

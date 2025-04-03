@@ -2,6 +2,7 @@ package repository
 
 import "github.com/LerianStudio/midaz/pkg/mmodel"
 
+// \1 represents an entity
 type Asset interface {
 	Create(organizationID, ledgerID string, inp mmodel.CreateAssetInput) (*mmodel.Asset, error)
 	Get(organizationID, ledgerID string, limit, page int, SortOrder, StartDate, EndDate string) (*mmodel.Assets, error)

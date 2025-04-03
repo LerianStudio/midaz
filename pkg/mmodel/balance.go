@@ -1,9 +1,10 @@
 package mmodel
 
 import (
+	"time"
+
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/google/uuid"
-	"time"
 )
 
 // Balance is a struct designed to encapsulate response payload data.
@@ -30,6 +31,7 @@ type Balance struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
+// \1 represents an entity
 type UpdateBalance struct {
 	AllowSending   *bool `json:"allowSending" example:"true"`
 	AllowReceiving *bool `json:"allowReceiving" example:"true"`
@@ -50,6 +52,7 @@ type Balances struct {
 	Limit int       `json:"limit" example:"10"`
 } // @name Balances
 
+// \1 represents an entity
 type BalanceRedis struct {
 	ID             string `json:"id"`
 	AccountID      string `json:"accountId"`
@@ -66,6 +69,7 @@ type BalanceRedis struct {
 // ConvertBalancesToLibBalances is a func that convert []*Balance to []*libTransaction.Balance
 func ConvertBalancesToLibBalances(balances []*Balance) []*libTransaction.Balance {
 	result := make([]*libTransaction.Balance, 0)
+
 	for _, balance := range balances {
 		result = append(result, &libTransaction.Balance{
 			ID:             balance.ID,

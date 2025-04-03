@@ -277,7 +277,24 @@ generate-docs:
 	@docker run --rm -v ./:/onboarding --user $(shell id -u):$(shell id -g) openapitools/openapi-generator-cli:v5.1.1 generate -i ./onboarding/api/swagger.json -g openapi-yaml -o ./onboarding/api
 	@mv ./api/openapi/openapi.yaml ./api/openapi.yaml
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
+	@if [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
+		echo "$(YELLOW)Installing npm dependencies for validation...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && npm install > /dev/null; \
+	fi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: validate-api-docs
+validate-api-docs: generate-docs
+	$(call title1,"Validating API documentation")
+	@if [ -f "scripts/validate-api-docs.js" ] && [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
+		echo "$(YELLOW)Validating API documentation structure...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/onboarding/scripts/validate-api-docs.js; \
+		echo "$(YELLOW)Validating API implementations...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/onboarding/scripts/validate-api-implementations.js; \
+		echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation validation completed$(GREEN) ✔️$(NC)"; \
+	else \
+		echo "$(YELLOW)Validation scripts not found. Skipping validation.$(NC)"; \
+	fi
 
 #-------------------------------------------------------
 # Developer Helper Commands

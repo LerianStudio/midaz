@@ -15,11 +15,13 @@ type account struct {
 	Factory *factory.Factory
 }
 
+// func (r *account) Create( performs an operation
 func (r *account) Create(
 	organizationID, ledgerID string,
 	inp mmodel.CreateAccountInput,
 ) (*mmodel.Account, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -30,6 +32,7 @@ func (r *account) Create(
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	req, err := http.NewRequest(http.MethodPost, uri, body)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -38,6 +41,7 @@ func (r *account) Create(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
@@ -49,6 +53,7 @@ func (r *account) Create(
 	}
 
 	var accountRest mmodel.Account
+
 	if err := json.NewDecoder(resp.Body).Decode(&accountRest); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -56,6 +61,7 @@ func (r *account) Create(
 	return &accountRest, nil
 }
 
+// func (r *account) Get( performs an operation
 func (r *account) Get(
 	organizationID, ledgerID string,
 	limit, page int,
@@ -65,11 +71,13 @@ func (r *account) Get(
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID)
 
 	reqURL, err := BuildPaginatedURL(baseURL, limit, page, sortOrder, startDate, endDate)
+
 	if err != nil {
 		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -78,9 +86,11 @@ func (r *account) Get(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making POST request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -88,6 +98,7 @@ func (r *account) Get(
 	}
 
 	var accountsResp mmodel.Accounts
+
 	if err := json.NewDecoder(resp.Body).Decode(&accountsResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -95,12 +106,14 @@ func (r *account) Get(
 	return &accountsResp, nil
 }
 
+// func (r *account) GetByID( performs an operation
 func (r *account) GetByID(
 	organizationID, ledgerID, accountID string) (*mmodel.Account, error) {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -109,9 +122,11 @@ func (r *account) GetByID(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making GET request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -119,6 +134,7 @@ func (r *account) GetByID(
 	}
 
 	var accountResp mmodel.Account
+
 	if err := json.NewDecoder(resp.Body).Decode(&accountResp); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -126,11 +142,13 @@ func (r *account) GetByID(
 	return &accountResp, nil
 }
 
+// func (r *account) Update( performs an operation
 func (r *account) Update(
 	organizationID, ledgerID, accountID string,
 	inp mmodel.UpdateAccountInput,
 ) (*mmodel.Account, error) {
 	jsonData, err := json.Marshal(inp)
+
 	if err != nil {
 		return nil, fmt.Errorf("marshalling JSON: %v", err)
 	}
@@ -139,6 +157,7 @@ func (r *account) Update(
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
 
 	req, err := http.NewRequest(http.MethodPatch, uri, bytes.NewBuffer(jsonData))
+
 	if err != nil {
 		return nil, errors.New("creating request: " + err.Error())
 	}
@@ -147,9 +166,11 @@ func (r *account) Update(
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return nil, errors.New("making PATCH request: " + err.Error())
 	}
+
 	defer resp.Body.Close()
 
 	if err := checkResponse(resp, http.StatusOK); err != nil {
@@ -157,6 +178,7 @@ func (r *account) Update(
 	}
 
 	var respStr mmodel.Account
+
 	if err := json.NewDecoder(resp.Body).Decode(&respStr); err != nil {
 		return nil, errors.New("decoding response JSON:" + err.Error())
 	}
@@ -164,11 +186,13 @@ func (r *account) Update(
 	return &respStr, nil
 }
 
+// func (r *account) Delete(organizationID, ledgerID, accountID string) error { performs an operation
 func (r *account) Delete(organizationID, ledgerID, accountID string) error {
 	uri := fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s",
 		r.Factory.Env.URLAPILedger, organizationID, ledgerID, accountID)
 
 	req, err := http.NewRequest(http.MethodDelete, uri, nil)
+
 	if err != nil {
 		return errors.New("creating request: " + err.Error())
 	}
@@ -177,6 +201,7 @@ func (r *account) Delete(organizationID, ledgerID, accountID string) error {
 	req.Header.Set("Authorization", "Bearer "+r.Factory.Token)
 
 	resp, err := r.Factory.HTTPClient.Do(req)
+
 	if err != nil {
 		return errors.New("making GET request: " + err.Error())
 	}
@@ -190,6 +215,7 @@ func (r *account) Delete(organizationID, ledgerID, accountID string) error {
 	return nil
 }
 
+// \1 performs an operation
 func NewAccount(f *factory.Factory) *account {
 	return &account{f}
 }

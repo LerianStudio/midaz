@@ -31,6 +31,7 @@ type MockPortfolioMockRecorder struct {
 // NewMockPortfolio creates a new mock instance.
 func NewMockPortfolio(ctrl *gomock.Controller) *MockPortfolio {
 	mock := &MockPortfolio{ctrl: ctrl}
+
 	mock.recorder = &MockPortfolioMockRecorder{mock}
 	return mock
 }

@@ -44,6 +44,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 		}
 
 		t, err := l.auth.AuthenticateWithCredentials(l.username, l.password)
+
 		if err != nil {
 			return err
 		}
@@ -54,6 +55,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 			"Choose a login method:",
 			[]string{"Log in via browser", "Log in via terminal"},
 		)
+
 		if err != nil {
 			return err
 		}
@@ -65,6 +67,7 @@ func (l *factoryLogin) runE(cmd *cobra.Command, _ []string) error {
 	}
 
 	sett, err := setting.Read()
+
 	if err != nil {
 		return err
 	}
@@ -107,6 +110,7 @@ func (l *factoryLogin) execMethodLogin(answer string) error {
 	return errors.New("invalid login method")
 }
 
+// \1 performs an operation
 func NewCmdLogin(f *factory.Factory) *cobra.Command {
 	fVersion := factoryLogin{
 		factory:   f,
