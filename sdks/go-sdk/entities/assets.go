@@ -26,9 +26,80 @@ type AssetsService interface {
 	GetAsset(ctx context.Context, organizationID, ledgerID, id string) (*models.Asset, error)
 
 	// CreateAsset creates a new asset in the specified ledger.
-	// The organizationID and ledgerID parameters specify which organization and ledger to create the asset in.
-	// The input parameter contains the asset details such as code, name, and precision.
-	// Returns the created asset, or an error if the operation fails.
+	//
+	// Assets represent units of value that can be tracked and transferred within the Midaz
+	// ledger system. Each asset has a unique code and can be used in transactions.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the asset will be created. Must be a valid ledger ID.
+	//   - input: The asset details, including required fields:
+	//     - Name: The human-readable name of the asset (e.g., "US Dollar")
+	//     - Code: The unique asset code (e.g., "USD")
+	//     Optional fields include:
+	//     - Type: The asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the asset
+	//
+	// Returns:
+	//   - *models.Asset: The created asset if successful, containing the asset ID,
+	//     status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization or ledger ID)
+	//     - Conflict (asset code already exists)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic currency asset:
+	//
+	//	// Create a currency asset
+	//	asset, err := assetsService.CreateAsset(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    &models.CreateAssetInput{
+	//	        Name: "US Dollar",
+	//	        Code: "USD",
+	//	        Type: "CURRENCY",
+	//	    },
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the asset
+	//	fmt.Printf("Asset created: %s (code: %s)\n", asset.ID, asset.Code)
+	//
+	// Example - Creating an asset with metadata:
+	//
+	//	// Create a security asset with metadata
+	//	asset, err := assetsService.CreateAsset(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    models.NewCreateAssetInput("Apple Inc. Stock", "AAPL").
+	//	        WithType("SECURITY").
+	//	        WithStatus(models.StatusActive).
+	//	        WithMetadata(map[string]any{
+	//	            "exchange": "NASDAQ",
+	//	            "sector": "Technology",
+	//	            "currency": "USD",
+	//	            "isin": "US0378331005",
+	//	        }),
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the asset
+	//	fmt.Printf("Security asset created: %s\n", asset.ID)
 	CreateAsset(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)
 
 	// UpdateAsset updates an existing asset.
@@ -54,8 +125,45 @@ type assetsEntity struct {
 }
 
 // NewAssetsEntity creates a new assets entity.
-// It takes the HTTP client, auth token, and base URLs which are used to make HTTP requests to the Midaz API.
-// Returns an implementation of the AssetsService interface.
+//
+// Parameters:
+//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
+//     and transport options. If nil, a default client will be used.
+//   - authToken: The authentication token for API authorization. Must be a valid JWT token
+//     issued by the Midaz authentication service.
+//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
+//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
+//
+// Returns:
+//   - AssetsService: An implementation of the AssetsService interface that provides
+//     methods for creating, retrieving, updating, and managing assets.
+//
+// Example:
+//
+//	// Create an assets entity with default HTTP client
+//	assetsEntity := entities.NewAssetsEntity(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
+//	)
+//
+//	// Use the entity to create an asset
+//	asset, err := assetsEntity.CreateAsset(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    &models.CreateAssetInput{
+//	        Name: "US Dollar",
+//	        Code: "USD",
+//	        Type: "CURRENCY",
+//	    },
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create asset: %v", err)
+//	}
+//
+//	fmt.Printf("Asset created: %s\n", asset.ID)
 func NewAssetsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AssetsService {
 	return &assetsEntity{
 		httpClient: httpClient,
@@ -169,9 +277,80 @@ func (e *assetsEntity) GetAsset(
 }
 
 // CreateAsset creates a new asset in the specified ledger.
-// The organizationID and ledgerID parameters specify which organization and ledger to create the asset in.
-// The input parameter contains the asset details such as code, name, and precision.
-// Returns the created asset, or an error if the operation fails.
+//
+// Assets represent units of value that can be tracked and transferred within the Midaz
+// ledger system. Each asset has a unique code and can be used in transactions.
+//
+// Parameters:
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - ledgerID: The ID of the ledger where the asset will be created. Must be a valid ledger ID.
+//   - input: The asset details, including required fields:
+//   - Name: The human-readable name of the asset (e.g., "US Dollar")
+//   - Code: The unique asset code (e.g., "USD")
+//     Optional fields include:
+//   - Type: The asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+//   - Status: The initial status (defaults to ACTIVE if not specified)
+//   - Metadata: Additional custom information about the asset
+//
+// Returns:
+//   - *models.Asset: The created asset if successful, containing the asset ID,
+//     status, and other properties.
+//   - error: An error if the operation fails. Possible errors include:
+//   - Invalid input (missing required fields)
+//   - Authentication failure (invalid auth token)
+//   - Authorization failure (insufficient permissions)
+//   - Resource not found (invalid organization or ledger ID)
+//   - Conflict (asset code already exists)
+//   - Network or server errors
+//
+// Example - Creating a basic currency asset:
+//
+//	// Create a currency asset
+//	asset, err := assetsService.CreateAsset(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    &models.CreateAssetInput{
+//	        Name: "US Dollar",
+//	        Code: "USD",
+//	        Type: "CURRENCY",
+//	    },
+//	)
+//
+//	if err != nil {
+//	    // Handle error
+//	    return err
+//	}
+//
+//	// Use the asset
+//	fmt.Printf("Asset created: %s (code: %s)\n", asset.ID, asset.Code)
+//
+// Example - Creating an asset with metadata:
+//
+//	// Create a security asset with metadata
+//	asset, err := assetsService.CreateAsset(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    models.NewCreateAssetInput("Apple Inc. Stock", "AAPL").
+//	        WithType("SECURITY").
+//	        WithStatus(models.StatusActive).
+//	        WithMetadata(map[string]any{
+//	            "exchange": "NASDAQ",
+//	            "sector": "Technology",
+//	            "currency": "USD",
+//	            "isin": "US0378331005",
+//	        }),
+//	)
+//
+//	if err != nil {
+//	    // Handle error
+//	    return err
+//	}
+//
+//	// Use the asset
+//	fmt.Printf("Security asset created: %s\n", asset.ID)
 func (e *assetsEntity) CreateAsset(
 	ctx context.Context,
 	organizationID, ledgerID string,

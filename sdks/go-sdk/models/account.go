@@ -12,50 +12,125 @@ import (
 // Accounts are the fundamental entities for tracking assets and their movements
 // within the ledger system. Each account belongs to a specific organization and ledger,
 // and is associated with a particular asset type.
+//
+// Account Types:
+//   - ASSET: Represents resources owned by the entity (e.g., cash, inventory, receivables)
+//   - LIABILITY: Represents obligations owed by the entity (e.g., loans, payables)
+//   - EQUITY: Represents the residual interest in the assets after deducting liabilities
+//   - REVENUE: Represents increases in economic benefits during the accounting period
+//   - EXPENSE: Represents decreases in economic benefits during the accounting period
+//
+// Account Statuses:
+//   - ACTIVE: The account is in use and can participate in transactions
+//   - INACTIVE: The account is temporarily not in use but can be reactivated
+//   - CLOSED: The account is permanently closed and cannot be used in new transactions
+//   - PENDING: The account is awaiting approval or activation
+//
+// Example Usage:
+//
+//	// Create a new customer asset account
+//	customerAccount := models.NewAccount(
+//	    "acc-123",
+//	    "John Doe",
+//	    "USD",
+//	    "org-456",
+//	    "ledger-789",
+//	    "ASSET",
+//	    models.StatusActive,
+//	).WithAlias("customer:john.doe").
+//	  WithMetadata(map[string]any{
+//	    "customer_id": "cust-123",
+//	    "email": "john.doe@example.com",
+//	    "account_manager": "manager-456",
+//	  })
+//
+//	// Create a revenue account
+//	revenueAccount := models.NewAccount(
+//	    "acc-456",
+//	    "Subscription Revenue",
+//	    "USD",
+//	    "org-456",
+//	    "ledger-789",
+//	    "REVENUE",
+//	    models.StatusActive,
+//	).WithAlias("revenue:subscriptions")
+//
+// Portfolio and Segment Organization:
+// Accounts can be organized into portfolios and segments for better categorization
+// and reporting. Portfolios represent high-level groupings (e.g., "Investments"),
+// while segments provide finer-grained classification within portfolios
+// (e.g., "US Equities", "International Bonds").
 type Account struct {
 	// ID is the unique identifier for the account
+	// This is a system-generated UUID that uniquely identifies the account
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
 	// Name is the human-readable name of the account
+	// This should be descriptive and meaningful to users, with a maximum
+	// length of 256 characters.
 	Name string `json:"name"`
 
 	// ParentAccountID is the ID of the parent account, if this is a sub-account
+	// This enables hierarchical account structures, where accounts can be
+	// nested under parent accounts for better organization.
 	ParentAccountID *string `json:"parentAccountId,omitempty"`
 
 	// EntityID is an optional external identifier for the account owner
+	// This can be used to link the account to an external system or entity,
+	// such as a customer ID in a CRM system.
 	EntityID *string `json:"entityId,omitempty"`
 
 	// AssetCode identifies the type of asset held in this account
+	// Examples include currency codes like "USD", "EUR", or custom asset
+	// codes for commodities, cryptocurrencies, or other assets.
 	AssetCode string `json:"assetCode"`
 
 	// OrganizationID is the ID of the organization that owns this account
+	// All accounts must belong to an organization, which provides the
+	// top-level ownership and access control.
 	OrganizationID string `json:"organizationId"`
 
 	// LedgerID is the ID of the ledger that contains this account
+	// Accounts are always created within a specific ledger, which defines
+	// the accounting boundaries and rules.
 	LedgerID string `json:"ledgerId"`
 
 	// PortfolioID is the optional ID of the portfolio this account belongs to
+	// Portfolios allow for grouping related accounts together for reporting
+	// and management purposes.
 	PortfolioID *string `json:"portfolioId,omitempty"`
 
 	// SegmentID is the optional ID of the segment this account belongs to
+	// Segments provide finer-grained classification within portfolios,
+	// enabling more detailed reporting and analysis.
 	SegmentID *string `json:"segmentId,omitempty"`
 
 	// Status represents the current status of the account (e.g., "ACTIVE", "CLOSED")
+	// The status determines whether the account can participate in transactions.
 	Status Status `json:"status"`
 
 	// Alias is an optional human-friendly identifier for the account
+	// Aliases can be used in place of IDs in many API calls, making it easier
+	// to reference accounts with meaningful names like "customer:john.doe".
 	Alias *string `json:"alias,omitempty"`
 
 	// Type defines the account type (e.g., "ASSET", "LIABILITY", "EQUITY")
+	// The type determines the account's behavior in accounting operations
+	// and its position in financial statements.
 	Type string `json:"type"`
 
-	// Metadata contains additional custom data associated with the account
+	// Metadata stores additional custom information about the account
+	// This can include any arbitrary key-value pairs for application-specific
+	// data that doesn't fit into the standard account fields.
 	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// CreatedAt is the timestamp when the account was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
 	// UpdatedAt is the timestamp when the account was last updated
+	// This is automatically updated by the system whenever the account is modified.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the account was deleted, if applicable

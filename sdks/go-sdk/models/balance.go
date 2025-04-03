@@ -11,53 +11,115 @@ import (
 // A balance tracks the available and on-hold amounts for a specific account and asset.
 // Balances are used to determine the current state of funds in an account and
 // to enforce constraints on transactions.
+//
+// Balance Components:
+//   - Available: The amount that can be freely used in transactions
+//   - OnHold: The amount that is reserved but not yet settled (e.g., pending transactions)
+//   - Total: The sum of Available and OnHold amounts
+//
+// Balance Permissions:
+//   - AllowSending: Controls whether funds can be sent from the account
+//   - AllowReceiving: Controls whether funds can be received into the account
+//
+// Common Use Cases:
+//   - Account balance reporting and monitoring
+//   - Transaction validation (sufficient funds checks)
+//   - Funds reservation for pending operations
+//   - Balance reconciliation and auditing
+//
+// Example Usage:
+//
+//	// Checking if an account has sufficient funds for a transaction
+//	func hasSufficientFunds(balance *models.Balance, amount int64) bool {
+//	    // Check if the account allows sending funds
+//	    if !balance.AllowSending {
+//	        return false
+//	    }
+//
+//	    // Check if the available balance is sufficient
+//	    return balance.Available >= amount
+//	}
+//
+//	// Calculate total balance (available + on-hold)
+//	func getTotalBalance(balance *models.Balance) int64 {
+//	    return balance.Available + balance.OnHold
+//	}
+//
+//	// Format balance for display with proper scale
+//	func formatBalance(balance *models.Balance) string {
+//	    divisor := math.Pow10(int(balance.Scale))
+//	    available := float64(balance.Available) / divisor
+//	    onHold := float64(balance.OnHold) / divisor
+//	    return fmt.Sprintf("Available: %.2f %s, On Hold: %.2f %s",
+//	        available, balance.AssetCode, onHold, balance.AssetCode)
+//	}
 type Balance struct {
 	// ID is the unique identifier for the balance
+	// This is a system-generated UUID that uniquely identifies the balance
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
 	// OrganizationID is the ID of the organization that owns this balance
+	// All balances must belong to an organization, which provides the
+	// top-level ownership and access control.
 	OrganizationID string `json:"organizationId"`
 
 	// LedgerID is the ID of the ledger that contains this balance
+	// Balances are always associated with a specific ledger, which defines
+	// the accounting boundaries and rules.
 	LedgerID string `json:"ledgerId"`
 
 	// AccountID is the ID of the account this balance belongs to
+	// Each balance is associated with a specific account within the ledger.
 	AccountID string `json:"accountId"`
 
 	// Alias is a human-friendly identifier for the account
+	// This provides a more readable reference to the account than the ID.
 	Alias string `json:"alias"`
 
 	// AssetCode identifies the type of asset for this balance
+	// Examples include currency codes like "USD", "EUR", or custom asset
+	// codes for other types of assets.
 	AssetCode string `json:"assetCode"`
 
 	// Available is the amount available for use in the account
+	// This represents funds that can be freely used in transactions.
 	// The actual value is Available/Scale (e.g., 1000/100 = 10.00)
 	Available int64 `json:"available"`
 
 	// OnHold is the amount that is reserved but not yet settled
+	// This represents funds that are temporarily reserved for pending operations.
 	// The actual value is OnHold/Scale (e.g., 500/100 = 5.00)
 	OnHold int64 `json:"onHold"`
 
 	// Scale is the divisor to convert the integer amounts to decimal values
-	// For example, a scale of 100 means the values are stored as cents
+	// For example, a scale of 100 means the values are stored as cents,
+	// and a scale of 1000 means the values are stored with three decimal places.
 	Scale int64 `json:"scale"`
 
 	// Version is the optimistic concurrency control version number
+	// This is used to prevent conflicts when multiple processes attempt
+	// to update the same balance simultaneously.
 	Version int64 `json:"version"`
 
 	// AccountType defines the type of the account (e.g., "ASSET", "LIABILITY")
+	// This indicates the accounting classification of the account.
 	AccountType string `json:"accountType"`
 
 	// AllowSending indicates whether the account can send funds
+	// If false, the account cannot be used as a source in transactions.
 	AllowSending bool `json:"allowSending"`
 
 	// AllowReceiving indicates whether the account can receive funds
+	// If false, the account cannot be used as a destination in transactions.
 	AllowReceiving bool `json:"allowReceiving"`
 
 	// CreatedAt is the timestamp when the balance was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
 	// UpdatedAt is the timestamp when the balance was last updated
+	// This is automatically updated by the system whenever the balance changes.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the balance was deleted, if applicable

@@ -1,0 +1,522 @@
+package entities // import "github.com/LerianStudio/midaz/sdks/go-sdk/entities"
+
+Package entities provides direct access to Midaz API services.
+
+Package entities provides access to the Midaz API resources and operations.
+It implements service interfaces for interacting with accounts, assets, ledgers,
+transactions, and other Midaz platform resources.
+
+CONSTANTS
+
+const (
+	// ServiceOnboarding identifies the onboarding service API.
+	// This service handles organization, ledger, account, asset, and portfolio management.
+	ServiceOnboarding = "onboarding"
+
+	// ServiceTransaction identifies the transaction service API.
+	// This service handles transaction creation, retrieval, and management,
+	// as well as operations and balances.
+	ServiceTransaction = "transaction"
+)
+    Service types for API endpoints. These constants define the different
+    service types used to identify which API endpoint to use when making
+    requests to the Midaz platform.
+
+
+TYPES
+
+type AccountsService interface {
+	// ListAccounts retrieves a paginated list of accounts for a ledger with optional filters.
+	// The organizationID and ledgerID parameters specify which organization and ledger to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the accounts and pagination information, or an error if the operation fails.
+	ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error)
+
+	// GetAccount retrieves a specific account by its ID.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The id parameter is the unique identifier of the account to retrieve.
+	// Returns the account if found, or an error if the operation fails or the account doesn't exist.
+	GetAccount(ctx context.Context, organizationID, ledgerID, id string) (*models.Account, error)
+
+	// GetAccountByAlias retrieves a specific account by its alias.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The alias parameter is the unique alias of the account to retrieve.
+	// Returns the account if found, or an error if the operation fails or the account doesn't exist.
+	GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)
+
+	// CreateAccount creates a new account in the specified ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to create the account in.
+	// The input parameter contains the account details such as name, asset code, and type.
+	// Returns the created account, or an error if the operation fails.
+	CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
+
+	// UpdateAccount updates an existing account.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The id parameter is the unique identifier of the account to update.
+	// The input parameter contains the account details to update, such as name or status.
+	// Returns the updated account, or an error if the operation fails.
+	UpdateAccount(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error)
+
+	// DeleteAccount deletes an account.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The id parameter is the unique identifier of the account to delete.
+	// Returns an error if the operation fails.
+	DeleteAccount(ctx context.Context, organizationID, ledgerID, id string) error
+
+	// GetBalance retrieves the balance for a specific account.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The accountID parameter is the unique identifier of the account to get the balance for.
+	// Returns the balance information, or an error if the operation fails.
+	GetBalance(ctx context.Context, organizationID, ledgerID, accountID string) (*models.Balance, error)
+}
+    AccountsService defines the interface for account-related operations.
+    It provides methods to create, read, update, and delete accounts, as well as
+    manage account balances.
+
+func NewAccountsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AccountsService
+    NewAccountsEntity creates a new accounts entity. It takes the HTTP client,
+    auth token, and base URLs which are used to make HTTP requests to the Midaz
+    API. Returns an implementation of the AccountsService interface.
+
+type AssetRatesService interface {
+	// GetAssetRate retrieves the exchange rate between two assets.
+	// The organizationID and ledgerID parameters specify which organization and ledger the assets belong to.
+	// The sourceAssetCode and destinationAssetCode parameters specify the assets for which to get the exchange rate.
+	// Returns the asset rate if found, or an error if the operation fails or the rate doesn't exist.
+	GetAssetRate(ctx context.Context, organizationID, ledgerID, sourceAssetCode, destinationAssetCode string) (*models.AssetRate, error)
+
+	// CreateOrUpdateAssetRate creates a new asset rate or updates an existing one.
+	// The organizationID and ledgerID parameters specify which organization and ledger to create/update the asset rate in.
+	// The input parameter contains the asset rate details such as source asset, destination asset, and rate.
+	// Returns the created or updated asset rate, or an error if the operation fails.
+	CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID string, input *models.UpdateAssetRateInput) (*models.AssetRate, error)
+}
+    AssetRatesService defines the interface for asset rate-related operations.
+    It provides methods to manage exchange rates between different assets.
+
+func NewAssetRatesEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AssetRatesService
+    NewAssetRatesEntity creates a new asset rates entity. It takes the HTTP
+    client, auth token, and base URLs which are used to make HTTP requests to
+    the Midaz API. Returns an implementation of the AssetRatesService interface.
+
+type AssetsService interface {
+	// ListAssets retrieves a paginated list of assets for a ledger with optional filters.
+	// The organizationID and ledgerID parameters specify which organization and ledger to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the assets and pagination information, or an error if the operation fails.
+	ListAssets(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error)
+
+	// GetAsset retrieves a specific asset by its ID.
+	// The organizationID and ledgerID parameters specify which organization and ledger the asset belongs to.
+	// The id parameter is the unique identifier of the asset to retrieve.
+	// Returns the asset if found, or an error if the operation fails or the asset doesn't exist.
+	GetAsset(ctx context.Context, organizationID, ledgerID, id string) (*models.Asset, error)
+
+	// CreateAsset creates a new asset in the specified ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to create the asset in.
+	// The input parameter contains the asset details such as code, name, and precision.
+	// Returns the created asset, or an error if the operation fails.
+	CreateAsset(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)
+
+	// UpdateAsset updates an existing asset.
+	// The organizationID and ledgerID parameters specify which organization and ledger the asset belongs to.
+	// The id parameter is the unique identifier of the asset to update.
+	// The input parameter contains the asset details to update, such as name or status.
+	// Returns the updated asset, or an error if the operation fails.
+	UpdateAsset(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error)
+
+	// DeleteAsset deletes an asset.
+	// The organizationID and ledgerID parameters specify which organization and ledger the asset belongs to.
+	// The id parameter is the unique identifier of the asset to delete.
+	// Returns an error if the operation fails.
+	DeleteAsset(ctx context.Context, organizationID, ledgerID, id string) error
+}
+    AssetsService defines the interface for asset-related operations.
+    It provides methods to create, read, update, and delete assets.
+
+func NewAssetsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AssetsService
+    NewAssetsEntity creates a new assets entity. It takes the HTTP client, auth
+    token, and base URLs which are used to make HTTP requests to the Midaz API.
+    Returns an implementation of the AssetsService interface.
+
+type BalancesService interface {
+	// ListBalances retrieves a paginated list of all balances for a ledger.
+	// The orgID and ledgerID parameters specify which organization and ledger to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the balances and pagination information, or an error if the operation fails.
+	ListBalances(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+
+	// ListAccountBalances retrieves a paginated list of all balances for a specific account.
+	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the account balances and pagination information, or an error if the operation fails.
+	ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+
+	// GetBalance retrieves a specific balance by its ID.
+	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to retrieve.
+	// Returns the balance if found, or an error if the operation fails or the balance doesn't exist.
+	GetBalance(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error)
+
+	// UpdateBalance updates an existing balance.
+	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to update.
+	// The input parameter contains the balance details to update, such as amount or metadata.
+	// Returns the updated balance, or an error if the operation fails.
+	UpdateBalance(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error)
+
+	// DeleteBalance deletes a balance.
+	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to delete.
+	// Returns an error if the operation fails.
+	DeleteBalance(ctx context.Context, orgID, ledgerID, balanceID string) error
+}
+    BalancesService defines the interface for balance-related operations.
+    It provides methods to list, retrieve, update, and delete balances for both
+    ledgers and specific accounts.
+
+func NewBalancesEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) BalancesService
+    NewBalancesEntity creates a new balances entity. It takes the HTTP client,
+    auth token, and base URLs which are used to make HTTP requests to the Midaz
+    API. Returns an implementation of the BalancesService interface.
+
+type Entity struct {
+
+	// Service interfaces for different resource types
+	Accounts      AccountsService
+	Assets        AssetsService
+	AssetRates    AssetRatesService
+	Balances      BalancesService
+	Ledgers       LedgersService
+	Operations    OperationsService
+	Organizations OrganizationsService
+	Portfolios    PortfoliosService
+	Segments      SegmentsService
+	Transactions  TransactionsService
+	// Has unexported fields.
+}
+    Entity provides a centralized access point to all entity types in the
+    Midaz SDK. It acts as a factory for creating specific entity interfaces for
+    different resource types and operations.
+
+func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, options ...Option) (*Entity, error)
+    NewEntity creates a new Entity instance with the provided client
+    configuration. This constructor initializes an Entity that provides access
+    to all entity types in the Midaz SDK.
+
+    Parameters:
+      - client: The HTTP client to use for API requests
+      - authToken: The authentication token for API requests
+      - baseURLs: Map of base URLs for different API endpoints
+      - options: Optional configuration options
+
+    Returns:
+      - *Entity: A pointer to the newly created Entity, ready to interact with
+        the Midaz API
+      - error: An error if the client initialization fails
+
+type LedgersService interface {
+	// ListLedgers retrieves a paginated list of ledgers for an organization with optional filters.
+	// The organizationID parameter specifies which organization to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the ledgers and pagination information, or an error if the operation fails.
+	ListLedgers(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)
+
+	// GetLedger retrieves a specific ledger by its ID.
+	// The organizationID parameter specifies which organization the ledger belongs to.
+	// The id parameter is the unique identifier of the ledger to retrieve.
+	// Returns the ledger if found, or an error if the operation fails or the ledger doesn't exist.
+	GetLedger(ctx context.Context, organizationID, id string) (*models.Ledger, error)
+
+	// CreateLedger creates a new ledger in the specified organization.
+	// The organizationID parameter specifies which organization to create the ledger in.
+	// The input parameter contains the ledger details such as name and description.
+	// Returns the created ledger, or an error if the operation fails.
+	CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)
+
+	// UpdateLedger updates an existing ledger.
+	// The organizationID parameter specifies which organization the ledger belongs to.
+	// The id parameter is the unique identifier of the ledger to update.
+	// The input parameter contains the ledger details to update, such as name, description, or status.
+	// Returns the updated ledger, or an error if the operation fails.
+	UpdateLedger(ctx context.Context, organizationID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error)
+
+	// DeleteLedger deletes a ledger.
+	// The organizationID parameter specifies which organization the ledger belongs to.
+	// The id parameter is the unique identifier of the ledger to delete.
+	// Returns an error if the operation fails.
+	DeleteLedger(ctx context.Context, organizationID, id string) error
+}
+    LedgersService defines the interface for ledger-related operations.
+    It provides methods to create, read, update, and delete ledgers within an
+    organization.
+
+func NewLedgersEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) LedgersService
+    NewLedgersEntity creates a new ledgers entity. It takes the HTTP client,
+    auth token, and base URLs which are used to make HTTP requests to the Midaz
+    API. Returns an implementation of the LedgersService interface.
+
+type OperationsService interface {
+	// ListOperations retrieves a paginated list of operations for an account with optional filters.
+	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the operations and pagination information, or an error if the operation fails.
+	ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error)
+
+	// GetOperation retrieves a specific operation by its ID.
+	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account the operation belongs to.
+	// The operationID parameter is the unique identifier of the operation to retrieve.
+	// Returns the operation if found, or an error if the operation fails or the operation doesn't exist.
+	GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string) (*models.Operation, error)
+
+	// UpdateOperation updates an existing operation.
+	// The orgID, ledgerID, and transactionID parameters specify which organization, ledger, and transaction the operation belongs to.
+	// The operationID parameter is the unique identifier of the operation to update.
+	// The input parameter contains the operation details to update.
+	// Returns the updated operation, or an error if the operation fails.
+	UpdateOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error)
+}
+    OperationsService defines the interface for operation-related operations.
+    It provides methods to list, retrieve, and update operations associated with
+    accounts and transactions.
+
+func NewOperationsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) OperationsService
+    NewOperationsEntity creates a new operations entity. It takes the HTTP
+    client, auth token, and base URLs which are used to make HTTP requests to
+    the Midaz API. Returns an implementation of the OperationsService interface.
+
+type Option func(*Entity) error
+    Option is a function that configures an Entity.
+
+func WithDebug(debug bool) Option
+    WithDebug returns an Option that enables or disables debug mode for the
+    Entity.
+
+func WithUserAgent(userAgent string) Option
+    WithUserAgent returns an Option that sets the user agent for the Entity.
+
+type OrganizationsService interface {
+	// ListOrganizations retrieves a paginated list of organizations with optional filters.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the organizations and pagination information, or an error if the operation fails.
+	ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error)
+
+	// GetOrganization retrieves a specific organization by its ID.
+	// The id parameter is the unique identifier of the organization to retrieve.
+	// Returns the organization if found, or an error if the operation fails or the organization doesn't exist.
+	GetOrganization(ctx context.Context, id string) (*models.Organization, error)
+
+	// CreateOrganization creates a new organization.
+	// The input parameter contains the organization details such as name and description.
+	// Returns the created organization, or an error if the operation fails.
+	CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
+
+	// UpdateOrganization updates an existing organization.
+	// The id parameter is the unique identifier of the organization to update.
+	// The input parameter contains the organization details to update, such as name, description, or status.
+	// Returns the updated organization, or an error if the operation fails.
+	UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error)
+
+	// DeleteOrganization deletes an organization.
+	// The id parameter is the unique identifier of the organization to delete.
+	// Returns an error if the operation fails.
+	DeleteOrganization(ctx context.Context, id string) error
+}
+    OrganizationsService defines the interface for organization-related
+    operations. It provides methods to create, read, update, and delete
+    organizations in the Midaz platform.
+
+func NewOrganizationsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) OrganizationsService
+    NewOrganizationsEntity creates a new organizations entity. It takes the
+    HTTP client, auth token, and base URLs which are used to make HTTP requests
+    to the Midaz API. Returns an implementation of the OrganizationsService
+    interface.
+
+type PortfoliosService interface {
+	// ListPortfolios retrieves a paginated list of portfolios for a ledger with optional filters.
+	// The organizationID and ledgerID parameters specify which organization and ledger to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the portfolios and pagination information, or an error if the operation fails.
+	ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error)
+
+	// GetPortfolio retrieves a specific portfolio by its ID.
+	// The organizationID and ledgerID parameters specify which organization and ledger the portfolio belongs to.
+	// The id parameter is the unique identifier of the portfolio to retrieve.
+	// Returns the portfolio if found, or an error if the operation fails or the portfolio doesn't exist.
+	GetPortfolio(ctx context.Context, organizationID, ledgerID, id string) (*models.Portfolio, error)
+
+	// CreatePortfolio creates a new portfolio in the specified ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to create the portfolio in.
+	// The input parameter contains the portfolio details such as name and description.
+	// Returns the created portfolio, or an error if the operation fails.
+	CreatePortfolio(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error)
+
+	// UpdatePortfolio updates an existing portfolio.
+	// The organizationID and ledgerID parameters specify which organization and ledger the portfolio belongs to.
+	// The id parameter is the unique identifier of the portfolio to update.
+	// The input parameter contains the portfolio details to update, such as name, description, or status.
+	// Returns the updated portfolio, or an error if the operation fails.
+	UpdatePortfolio(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error)
+
+	// DeletePortfolio deletes a portfolio.
+	// The organizationID and ledgerID parameters specify which organization and ledger the portfolio belongs to.
+	// The id parameter is the unique identifier of the portfolio to delete.
+	// Returns an error if the operation fails.
+	DeletePortfolio(ctx context.Context, organizationID, ledgerID, id string) error
+}
+    PortfoliosService defines the interface for portfolio-related operations.
+    It provides methods to create, read, update, and delete portfolios within a
+    ledger and organization.
+
+func NewPortfoliosEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) PortfoliosService
+    NewPortfoliosEntity creates a new portfolios entity. It takes the HTTP
+    client, auth token, and base URLs which are used to make HTTP requests to
+    the Midaz API. Returns an implementation of the PortfoliosService interface.
+
+type SegmentsService interface {
+	// ListSegments retrieves a paginated list of segments for a portfolio with optional filters.
+	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the segments and pagination information, or an error if the operation fails.
+	ListSegments(ctx context.Context, organizationID, ledgerID, portfolioID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error)
+
+	// GetSegment retrieves a specific segment by its ID.
+	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio the segment belongs to.
+	// The id parameter is the unique identifier of the segment to retrieve.
+	// Returns the segment if found, or an error if the operation fails or the segment doesn't exist.
+	GetSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string) (*models.Segment, error)
+
+	// CreateSegment creates a new segment in the specified portfolio.
+	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio to create the segment in.
+	// The input parameter contains the segment details such as name and description.
+	// Returns the created segment, or an error if the operation fails.
+	CreateSegment(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.CreateSegmentInput) (*models.Segment, error)
+
+	// UpdateSegment updates an existing segment.
+	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio the segment belongs to.
+	// The id parameter is the unique identifier of the segment to update.
+	// The input parameter contains the segment details to update, such as name, description, or status.
+	// Returns the updated segment, or an error if the operation fails.
+	UpdateSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string, input *models.UpdateSegmentInput) (*models.Segment, error)
+
+	// DeleteSegment deletes a segment.
+	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio the segment belongs to.
+	// The id parameter is the unique identifier of the segment to delete.
+	// Returns an error if the operation fails.
+	DeleteSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string) error
+}
+    SegmentsService defines the interface for segment-related operations.
+    It provides methods to create, read, update, and delete segments within a
+    portfolio, ledger, and organization.
+
+func NewSegmentsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) SegmentsService
+    NewSegmentsEntity creates a new segments entity. It takes the HTTP client,
+    auth token, and base URLs which are used to make HTTP requests to the Midaz
+    API. Returns an implementation of the SegmentsService interface.
+
+type TransactionsService interface {
+	// CreateTransaction creates a new transaction using the standard format.
+	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	// The input parameter contains the transaction details such as entries, metadata, and external ID.
+	// Returns the created transaction, or an error if the operation fails.
+	CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+
+	// CreateTransactionWithDSL creates a new transaction using the DSL format.
+	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	// The input parameter contains the transaction DSL script and optional metadata.
+	// Returns the created transaction, or an error if the operation fails.
+	CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error)
+
+	// CreateTransactionWithDSLFile creates a new transaction using a DSL file.
+	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	// The dslContent parameter contains the raw DSL file content as bytes.
+	// Returns the created transaction, or an error if the operation fails.
+	CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error)
+
+	// GetTransaction retrieves a specific transaction by its ID.
+	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The transactionID parameter is the unique identifier of the transaction to retrieve.
+	// Returns the transaction if found, or an error if the operation fails or the transaction doesn't exist.
+	GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+
+	// ListTransactions retrieves a paginated list of transactions for a ledger with optional filters.
+	// The orgID and ledgerID parameters specify which organization and ledger to query.
+	// The opts parameter can be used to specify pagination, sorting, and filtering options.
+	// Returns a ListResponse containing the transactions and pagination information, or an error if the operation fails.
+	ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)
+
+	// UpdateTransaction updates an existing transaction.
+	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The transactionID parameter is the unique identifier of the transaction to update.
+	// The input parameter contains the transaction details to update, which can be of various types.
+	// Returns the updated transaction, or an error if the operation fails.
+	UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error)
+
+	// CommitTransaction commits a transaction, making it final and immutable.
+	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The transactionID parameter is the unique identifier of the transaction to commit.
+	// Returns the committed transaction, or an error if the operation fails.
+	CommitTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+
+	// CommitTransactionWithExternalID commits a transaction using an external ID instead of the internal transaction ID.
+	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The externalID parameter is the external identifier of the transaction to commit.
+	// Returns the committed transaction, or an error if the operation fails.
+	CommitTransactionWithExternalID(ctx context.Context, orgID, ledgerID, externalID string) (*models.Transaction, error)
+}
+    TransactionsService defines the interface for transaction-related
+    operations. It provides methods to create, read, update, and commit
+    transactions within a ledger and organization.
+
+func NewTransactionsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) TransactionsService
+    NewTransactionsEntity creates a new transactions entity.
+
+    Parameters:
+      - httpClient: The HTTP client used for API requests. Can be configured
+        with custom timeouts and transport options. If nil, a default client
+        will be used.
+      - authToken: The authentication token for API authorization. Must be a
+        valid JWT token issued by the Midaz authentication service.
+      - baseURLs: Map of service names to base URLs. Must include a
+        "transaction" key with the URL of the transaction service (e.g.,
+        "https://api.midaz.io/v1").
+
+    Returns:
+      - TransactionsService: An implementation of the TransactionsService
+        interface that provides methods for creating, retrieving, and managing
+        transactions.
+
+    Example:
+
+        // Create a transactions entity with default HTTP client
+        txEntity := entities.NewTransactionsEntity(
+            &http.Client{Timeout: 30 * time.Second},
+            "your-auth-token",
+            map[string]string{"transaction": "https://api.midaz.io/v1"},
+        )
+
+        // Use the entity to create a transaction
+        tx, err := txEntity.CreateTransaction(
+            context.Background(),
+            "org-123",
+            "ledger-456",
+            &models.CreateTransactionInput{
+                Description: "Payment for invoice #123",
+                Entries: []models.Entry{
+                    {
+                        AccountAlias: "customer:john.doe",
+                        Direction:    models.DirectionCredit,
+                        Amount:       models.Amount{Value: 10000, Scale: 2},
+                        AssetCode:    "USD",
+                    },
+                },
+                Metadata: map[string]interface{}{
+                    "invoice_id": "inv-123",
+                    "customer_id": "cust-456",
+                },
+            },
+        )
+
+        if err != nil {
+            log.Fatalf("Failed to create transaction: %v", err)
+        }
+
+        fmt.Printf("Transaction created: %s\n", tx.ID)
+

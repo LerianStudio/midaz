@@ -14,6 +14,16 @@ import (
 // httpClient encapsulates the HTTP functionality used by entities.
 // It provides methods for sending HTTP requests, handling responses,
 // and managing common headers and error handling.
+//
+// The httpClient handles:
+// - Setting common headers (Authorization, Content-Type, User-Agent)
+// - Sending requests to the Midaz API
+// - Decoding JSON responses into Go structs
+// - Error handling and mapping API errors to SDK errors
+// - Debug logging of requests and responses when enabled
+//
+// This is an internal implementation used by the entity services and
+// is not intended to be used directly by SDK consumers.
 type httpClient struct {
 	client    *http.Client
 	authToken string
@@ -22,6 +32,42 @@ type httpClient struct {
 }
 
 // newHTTPClient creates a new HTTP client with the provided configuration.
+//
+// Parameters:
+//   - client: The underlying HTTP client to use for making requests. If nil,
+//     a default client will be used. This client can be configured with custom
+//     timeouts, transport options, and other settings.
+//   - authToken: The authentication token for API authorization. This token
+//     will be included in the Authorization header of all requests.
+//   - userAgent: The user agent string to include in request headers. This
+//     helps identify the SDK version making the requests.
+//   - debug: Whether to enable debug logging of requests and responses.
+//     When true, request and response details will be logged for debugging.
+//
+// Returns:
+//   - *httpClient: A configured HTTP client ready to make requests to the Midaz API.
+//
+// Internal usage example:
+//
+//	// Create a new HTTP client with debug enabled
+//	client := newHTTPClient(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    "midaz-go-sdk/1.0",
+//	    true,
+//	)
+//
+//	// Create a request
+//	req, err := http.NewRequest("GET", "https://api.midaz.io/v1/organizations", nil)
+//	if err != nil {
+//	    return err
+//	}
+//
+//	// Send the request and decode the response
+//	var organizations []models.Organization
+//	if err := client.sendRequest(req, &organizations); err != nil {
+//	    return err
+//	}
 func newHTTPClient(client *http.Client, authToken string, userAgent string, debug bool) *httpClient {
 	return &httpClient{
 		client:    client,

@@ -53,41 +53,74 @@ type Option func(*models.TransactionDSLInput)
 // when querying the transaction. It can also be used for searching and filtering
 // transactions in reporting operations.
 //
-// Common use cases for metadata include:
-//   - Storing external reference IDs (invoice numbers, order IDs)
-//   - Adding business context (department, cost center, project)
-//   - Including customer information (customer ID, email)
-//   - Tracking source information (channel, device, location)
-//   - Adding operational details (batch number, processing flags)
-//
 // Parameters:
-//   - metadata: A map of key-value pairs to store as transaction metadata
+//   - metadata: A map of key-value pairs to store as transaction metadata.
+//     Keys should be strings, and values can be of any JSON-serializable type.
+//     Nested objects and arrays are supported. There is no strict limit on metadata
+//     size, but keeping it reasonably small (under 10KB) is recommended for
+//     performance reasons.
 //
 // Returns:
-//   - An Option function that can be passed to transaction creation methods
+//   - Option: A function that can be passed to transaction creation methods
+//     to add the specified metadata to the transaction.
 //
 // Example - Basic metadata:
 //
-//	transactions.WithMetadata(map[string]any{
-//	    "invoice_id": "INV-123",
-//	    "customer_ref": "CUST-456",
-//	    "channel": "web",
-//	    "payment_method": "credit_card",
-//	})
+//	// Add simple metadata to a transaction
+//	tx, err := abstraction.CreateDeposit(
+//	    ctx, orgID, ledgerID, accountID, amount, scale, assetCode, description,
+//	    abstractions.WithMetadata(map[string]any{
+//	        "invoice_id": "INV-123",
+//	        "customer_ref": "CUST-456",
+//	        "channel": "web",
+//	    }),
+//	)
 //
-// Example - Nested metadata structures:
+// Example - Nested metadata:
 //
-//	transactions.WithMetadata(map[string]any{
-//	    "order": map[string]any{
-//	        "id": "ORD-789",
-//	        "items": 3,
-//	        "shipping": "express",
-//	    },
-//	    "customer": map[string]any{
-//	        "id": "CUST-456",
-//	        "tier": "premium",
-//	    },
-//	})
+//	// Add nested metadata structures
+//	tx, err := abstraction.CreateDeposit(
+//	    ctx, orgID, ledgerID, accountID, amount, scale, assetCode, description,
+//	    abstractions.WithMetadata(map[string]any{
+//	        "order": map[string]any{
+//	            "id": "ORD-789",
+//	            "items": 3,
+//	            "shipping": "express",
+//	        },
+//	        "customer": map[string]any{
+//	            "id": "CUST-456",
+//	            "tier": "premium",
+//	        },
+//	    }),
+//	)
+//
+// Example - Combining metadata with other options:
+//
+//	// Combine metadata with other transaction options
+//	tx, err := abstraction.CreateTransfer(
+//	    ctx, orgID, ledgerID, sourceAccount, targetAccount, amount, scale, assetCode, description,
+//	    abstractions.WithMetadata(map[string]any{
+//	        "purpose": "monthly-allocation",
+//	        "department": "finance",
+//	    }),
+//	    abstractions.WithIdempotencyKey("transfer-2023-04-01-123"),
+//	    abstractions.WithPending(true),
+//	    abstractions.WithNotes("Requires approval for amounts over $1,000"),
+//	)
+//
+// Example - Using metadata for categorization and reporting:
+//
+//	// Add metadata for categorization and reporting
+//	tx, err := abstraction.CreateWithdrawal(
+//	    ctx, orgID, ledgerID, accountID, amount, scale, assetCode, description,
+//	    abstractions.WithMetadata(map[string]any{
+//	        "category": "operating-expense",
+//	        "subcategory": "rent",
+//	        "fiscal_year": 2023,
+//	        "fiscal_quarter": 2,
+//	        "tags": []string{"recurring", "facility", "monthly"},
+//	    }),
+//	)
 func WithMetadata(metadata map[string]any) Option {
 	return func(input *models.TransactionDSLInput) {
 		input.Metadata = metadata

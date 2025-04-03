@@ -1,0 +1,3177 @@
+package models // import "github.com/LerianStudio/midaz/sdks/go-sdk/models"
+
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
+
+This package provides models that either: 1. Directly align with backend types
+from pkg/mmodel where possible 2. Implement SDK-specific types only where
+necessary
+
+The goal is to maintain a simple, direct approach without unnecessary
+abstraction layers while ensuring the SDK interfaces cleanly with the backend
+API.
+
+Key Model Types:
+
+Account: Represents an account in the Midaz system, which is a fundamental
+entity for tracking assets and balances. Accounts belong to organizations and
+ledgers.
+
+Asset: Represents a type of value that can be tracked and transferred within the
+Midaz system, such as currencies, securities, or other financial instruments.
+
+Balance: Represents the current state of an account's holdings for a specific
+asset, including total, available, and on-hold amounts.
+
+Ledger: Represents a collection of accounts and transactions within an
+organization, providing a complete record of financial activities.
+
+Organization: Represents a business entity that owns ledgers, accounts,
+and other resources within the Midaz system.
+
+Portfolio: Represents a collection of accounts that belong to a specific entity
+within an organization and ledger, used for grouping and management.
+
+Segment: Represents a categorization unit for more granular organization of
+accounts or other entities within a ledger.
+
+Transaction: Represents a financial event that affects one or more accounts
+through a series of operations (debits and credits).
+
+Operation: Represents an individual accounting entry within a transaction,
+typically a debit or credit to a specific account.
+
+Queue: Represents a transaction queue for temporarily storing transaction data
+before processing, allowing for batched or asynchronous handling.
+
+Each model type includes constructors, conversion methods between SDK and
+backend models, and utility methods for setting optional fields. Input
+structures for creating and updating resources are also provided.
+
+Package models defines the data models used by the Midaz SDK.
+
+CONSTANTS
+
+const (
+	// TransactionStatusPending represents a transaction that is not yet completed
+	TransactionStatusPending = "pending"
+
+	// TransactionStatusCompleted represents a successfully completed transaction
+	TransactionStatusCompleted = "completed"
+
+	// TransactionStatusFailed represents a transaction that failed to process
+	TransactionStatusFailed = "failed"
+
+	// TransactionStatusCancelled represents a transaction that was cancelled
+	TransactionStatusCancelled = "cancelled"
+)
+    Transaction status constants
+
+
+TYPES
+
+type Account struct {
+	// ID is the unique identifier for the account
+	ID string `json:"id"`
+
+	// Name is the human-readable name of the account
+	Name string `json:"name"`
+
+	// ParentAccountID is the ID of the parent account, if this is a sub-account
+	ParentAccountID *string `json:"parentAccountId,omitempty"`
+
+	// EntityID is an optional external identifier for the account owner
+	EntityID *string `json:"entityId,omitempty"`
+
+	// AssetCode identifies the type of asset held in this account
+	AssetCode string `json:"assetCode"`
+
+	// OrganizationID is the ID of the organization that owns this account
+	OrganizationID string `json:"organizationId"`
+
+	// LedgerID is the ID of the ledger that contains this account
+	LedgerID string `json:"ledgerId"`
+
+	// PortfolioID is the optional ID of the portfolio this account belongs to
+	PortfolioID *string `json:"portfolioId,omitempty"`
+
+	// SegmentID is the optional ID of the segment this account belongs to
+	SegmentID *string `json:"segmentId,omitempty"`
+
+	// Status represents the current status of the account (e.g., "ACTIVE", "CLOSED")
+	Status Status `json:"status"`
+
+	// Alias is an optional human-friendly identifier for the account
+	Alias *string `json:"alias,omitempty"`
+
+	// Type defines the account type (e.g., "ASSET", "LIABILITY", "EQUITY")
+	Type string `json:"type"`
+
+	// Metadata contains additional custom data associated with the account
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// CreatedAt is the timestamp when the account was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the account was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the account was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+}
+    Account represents an account in the Midaz Ledger. Accounts are the
+    fundamental entities for tracking assets and their movements within the
+    ledger system. Each account belongs to a specific organization and ledger,
+    and is associated with a particular asset type.
+
+func FromMmodelAccount(account mmodel.Account) Account
+    FromMmodelAccount converts an mmodel Account to an SDK Account. This
+    function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - account: The mmodel.Account to convert
+
+    Returns:
+      - A models.Account instance with the same values
+
+func NewAccount(id, name, assetCode, organizationID, ledgerID, accountType string, status Status) *Account
+    NewAccount creates a new Account with required fields. This constructor
+    ensures that all mandatory fields are provided when creating an account.
+
+    Parameters:
+      - id: Unique identifier for the account
+      - name: Human-readable name for the account
+      - assetCode: Code identifying the type of asset for this account
+      - organizationID: ID of the organization that owns this account
+      - ledgerID: ID of the ledger that contains this account
+      - accountType: Type of the account (e.g., "ASSET", "LIABILITY", "EQUITY")
+      - status: Current status of the account
+
+    Returns:
+      - A pointer to the newly created Account
+
+func (a *Account) GetAlias() string
+    GetAlias safely returns the account alias or empty string if nil. This
+    method prevents nil pointer exceptions when accessing the alias.
+
+    Returns:
+      - The account alias if set, or an empty string if not set
+
+func (a *Account) GetIdentifier() string
+    GetIdentifier returns the best identifier for an account: - Returns the
+    alias if available - Falls back to ID if alias is not set
+
+    This helps prevent nil pointer exceptions and provides a consistent way to
+    reference accounts across the application.
+
+    Returns:
+      - The account alias if set, or the account ID if alias is not set
+
+func (a Account) ToMmodelAccount() mmodel.Account
+    ToMmodelAccount converts an SDK Account to an mmodel Account. This method is
+    used internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Account instance with the same values
+
+func (a *Account) WithAlias(alias string) *Account
+    WithAlias sets the account alias. An alias provides a human-friendly
+    identifier for the account.
+
+    Parameters:
+      - alias: The alias to set for the account
+
+    Returns:
+      - A pointer to the modified Account for method chaining
+
+func (a *Account) WithEntityID(entityID string) *Account
+    WithEntityID sets the entity ID. The entity ID can be used to associate the
+    account with an external entity.
+
+    Parameters:
+      - entityID: The external entity identifier
+
+    Returns:
+      - A pointer to the modified Account for method chaining
+
+func (a *Account) WithMetadata(metadata map[string]any) *Account
+    WithMetadata adds metadata to the account. Metadata can store additional
+    custom information about the account.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified Account for method chaining
+
+func (a *Account) WithParentAccountID(parentAccountID string) *Account
+    WithParentAccountID sets the parent account ID. This is used when creating a
+    sub-account that belongs to a parent account.
+
+    Parameters:
+      - parentAccountID: The ID of the parent account
+
+    Returns:
+      - A pointer to the modified Account for method chaining
+
+func (a *Account) WithPortfolioID(portfolioID string) *Account
+    WithPortfolioID sets the portfolio ID. This associates the account with a
+    specific portfolio.
+
+    Parameters:
+      - portfolioID: The ID of the portfolio
+
+    Returns:
+      - A pointer to the modified Account for method chaining
+
+func (a *Account) WithSegmentID(segmentID string) *Account
+    WithSegmentID sets the segment ID. This associates the account with a
+    specific segment within a portfolio.
+
+    Parameters:
+      - segmentID: The ID of the segment
+
+    Returns:
+      - A pointer to the modified Account for method chaining
+
+type AccountFilter struct {
+	// Status is a list of status codes to filter by
+	Status []string `json:"status,omitempty"`
+}
+    AccountFilter for filtering accounts in listings. This structure defines the
+    criteria for filtering accounts when listing them.
+
+type Accounts struct {
+	// Items is the collection of accounts in the current page
+	Items []Account `json:"items"`
+
+	// Page is the current page number
+	Page int `json:"page"`
+
+	// Limit is the maximum number of items per page
+	Limit int `json:"limit"`
+}
+    Accounts represents a list of accounts. This structure is used for paginated
+    responses when listing accounts.
+
+func FromMmodelAccounts(accounts mmodel.Accounts) Accounts
+    FromMmodelAccounts converts an mmodel Accounts to an SDK Accounts. This
+    function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - accounts: The mmodel.Accounts to convert
+
+    Returns:
+      - A models.Accounts instance with the same values
+
+type Address struct {
+	// Line1 is the primary address line (e.g., street number and name)
+	Line1 string `json:"line1"`
+
+	// Line2 is an optional secondary address line (e.g., apartment or suite number)
+	Line2 *string `json:"line2,omitempty"`
+
+	// ZipCode is the postal or ZIP code
+	ZipCode string `json:"zipCode"`
+
+	// City is the city or locality name
+	City string `json:"city"`
+
+	// State is the state, province, or region
+	State string `json:"state"`
+
+	// Country is the country, typically using ISO country codes
+	Country string `json:"country"`
+}
+    Address represents a physical address. This structure is used across various
+    models where address information is required, such as for organizations or
+    account holders.
+
+func FromMmodelAddress(modelAddress mmodel.Address) Address
+    FromMmodelAddress converts an mmodel Address to an SDK Address (internal
+    use only). This function is used for internal SDK operations when processing
+    responses from the backend.
+
+    Parameters:
+      - modelAddress: The mmodel.Address to convert
+
+    Returns:
+      - A models.Address instance with the same values as the input
+        mmodel.Address
+
+func NewAddress(line1, zipCode, city, state, country string) Address
+    NewAddress creates a new Address with the given parameters. This is a
+    convenience constructor for creating Address objects with required fields.
+
+    Parameters:
+      - line1: The primary address line
+      - zipCode: The postal or ZIP code
+      - city: The city or locality name
+      - state: The state, province, or region
+      - country: The country code
+
+    Returns:
+      - A new Address instance with the specified fields
+
+func (a Address) ToMmodelAddress() mmodel.Address
+    ToMmodelAddress converts an SDK Address to an mmodel Address (internal use
+    only). This method is used for internal SDK operations when interfacing with
+    the backend.
+
+    Returns:
+      - An mmodel.Address instance with the same values as this Address
+
+func (a Address) WithLine2(line2 string) Address
+    WithLine2 adds the optional Line2 field to the address. This is a
+    fluent-style method that returns the modified Address.
+
+    Parameters:
+      - line2: The secondary address line to add
+
+    Returns:
+      - The modified Address instance with the added Line2
+
+type Amount struct {
+	// Value is the numeric value of the amount
+	Value int64 `json:"value"`
+
+	// Scale represents the decimal precision (e.g., 2 for cents)
+	Scale int `json:"scale"`
+
+	// AssetCode identifies the currency or asset type
+	AssetCode string `json:"assetCode"`
+}
+    Amount represents a monetary amount in the Midaz Ledger. It includes the
+    value, scale for precision, and the asset code.
+
+type Asset struct {
+	// ID is the unique identifier for the asset
+	ID string `json:"id"`
+
+	// Name is the human-readable name of the asset
+	Name string `json:"name"`
+
+	// Type defines the asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	Type string `json:"type"`
+
+	// Code is a unique identifier for the asset type (e.g., "USD", "BTC", "AAPL")
+	Code string `json:"code"`
+
+	// Status represents the current status of the asset (e.g., "ACTIVE", "INACTIVE")
+	Status Status `json:"status"`
+
+	// LedgerID is the ID of the ledger that contains this asset
+	LedgerID string `json:"ledgerId"`
+
+	// OrganizationID is the ID of the organization that owns this asset
+	OrganizationID string `json:"organizationId"`
+
+	// CreatedAt is the timestamp when the asset was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the asset was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the asset was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+
+	// Metadata contains additional custom data associated with the asset
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    Asset represents an asset in the Midaz Ledger. Assets are the fundamental
+    units of value that can be tracked and transferred within the ledger system.
+    Each asset has a unique code and belongs to a specific organization and
+    ledger.
+
+func FromMmodelAsset(asset mmodel.Asset) Asset
+    FromMmodelAsset converts an mmodel Asset to an SDK Asset. This function is
+    used internally to convert between backend and SDK models.
+
+    Parameters:
+      - asset: The mmodel.Asset to convert
+
+    Returns:
+      - A models.Asset instance with the same values
+
+func NewAsset(id, name, code, organizationID, ledgerID string, status Status) *Asset
+    NewAsset creates a new Asset with required fields. This constructor ensures
+    that all mandatory fields are provided when creating an asset.
+
+    Parameters:
+      - id: Unique identifier for the asset
+      - name: Human-readable name for the asset
+      - code: Unique code identifying the asset type
+      - organizationID: ID of the organization that owns this asset
+      - ledgerID: ID of the ledger that contains this asset
+      - status: Current status of the asset
+
+    Returns:
+      - A pointer to the newly created Asset
+
+func (a *Asset) ToMmodelAsset() mmodel.Asset
+    ToMmodelAsset converts an SDK Asset to an mmodel Asset. This method is used
+    internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Asset instance with the same values
+
+func (a *Asset) WithMetadata(metadata map[string]any) *Asset
+    WithMetadata adds metadata to the asset. Metadata can store additional
+    custom information about the asset.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified Asset for method chaining
+
+func (a *Asset) WithType(assetType string) *Asset
+    WithType adds a type to the asset. The asset type categorizes the asset
+    (e.g., "CURRENCY", "SECURITY", "COMMODITY").
+
+    Parameters:
+      - assetType: The type to set for the asset
+
+    Returns:
+      - A pointer to the modified Asset for method chaining
+
+type AssetFilter struct {
+	// Status is a list of status codes to filter by
+	Status []string `json:"status,omitempty"`
+}
+    AssetFilter for filtering assets in listings. This structure defines the
+    criteria for filtering assets when listing them.
+
+type AssetRate struct {
+	// ID is the unique identifier for the asset rate
+	ID string `json:"id"`
+
+	// FromAsset is the source asset code
+	FromAsset string `json:"fromAsset"`
+
+	// ToAsset is the target asset code
+	ToAsset string `json:"toAsset"`
+
+	// Rate is the exchange rate value (FromAsset to ToAsset)
+	Rate float64 `json:"rate"`
+
+	// CreatedAt is the timestamp when the rate was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the rate was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// EffectiveAt is the timestamp when the rate becomes effective
+	EffectiveAt time.Time `json:"effectiveAt"`
+
+	// ExpirationAt is the timestamp when the rate expires
+	ExpirationAt time.Time `json:"expirationAt"`
+}
+    AssetRate represents an asset exchange rate in the Midaz Ledger. Asset rates
+    define the conversion ratio between two different assets and are used for
+    currency conversion and other asset exchange operations.
+
+func NewAssetRate(id, fromAsset, toAsset string, rate float64, effectiveAt, expirationAt time.Time) *AssetRate
+    NewAssetRate creates a new AssetRate with required fields. This constructor
+    ensures that all mandatory fields are provided when creating an asset rate.
+
+    Parameters:
+      - id: Unique identifier for the asset rate
+      - fromAsset: Source asset code
+      - toAsset: Target asset code
+      - rate: Exchange rate value
+      - effectiveAt: Timestamp when the rate becomes effective
+      - expirationAt: Timestamp when the rate expires
+
+    Returns:
+      - A pointer to the newly created AssetRate
+
+type Assets struct {
+	// Items is the collection of assets in the current page
+	Items []Asset `json:"items"`
+
+	// Page is the current page number
+	Page int `json:"page"`
+
+	// Limit is the maximum number of items per page
+	Limit int `json:"limit"`
+}
+    Assets represents a list of assets with pagination information. This
+    structure is used for paginated responses when listing assets.
+
+func FromMmodelAssets(assets mmodel.Assets) Assets
+    FromMmodelAssets converts an mmodel Assets to an SDK Assets. This function
+    is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - assets: The mmodel.Assets to convert
+
+    Returns:
+      - A models.Assets instance with the same values
+
+type Balance struct {
+	// ID is the unique identifier for the balance
+	ID string `json:"id"`
+
+	// OrganizationID is the ID of the organization that owns this balance
+	OrganizationID string `json:"organizationId"`
+
+	// LedgerID is the ID of the ledger that contains this balance
+	LedgerID string `json:"ledgerId"`
+
+	// AccountID is the ID of the account this balance belongs to
+	AccountID string `json:"accountId"`
+
+	// Alias is a human-friendly identifier for the account
+	Alias string `json:"alias"`
+
+	// AssetCode identifies the type of asset for this balance
+	AssetCode string `json:"assetCode"`
+
+	// Available is the amount available for use in the account
+	// The actual value is Available/Scale (e.g., 1000/100 = 10.00)
+	Available int64 `json:"available"`
+
+	// OnHold is the amount that is reserved but not yet settled
+	// The actual value is OnHold/Scale (e.g., 500/100 = 5.00)
+	OnHold int64 `json:"onHold"`
+
+	// Scale is the divisor to convert the integer amounts to decimal values
+	// For example, a scale of 100 means the values are stored as cents
+	Scale int64 `json:"scale"`
+
+	// Version is the optimistic concurrency control version number
+	Version int64 `json:"version"`
+
+	// AccountType defines the type of the account (e.g., "ASSET", "LIABILITY")
+	AccountType string `json:"accountType"`
+
+	// AllowSending indicates whether the account can send funds
+	AllowSending bool `json:"allowSending"`
+
+	// AllowReceiving indicates whether the account can receive funds
+	AllowReceiving bool `json:"allowReceiving"`
+
+	// CreatedAt is the timestamp when the balance was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the balance was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the balance was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+
+	// Metadata contains additional custom data associated with the balance
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    Balance represents an account balance in the Midaz system. A balance
+    tracks the available and on-hold amounts for a specific account and asset.
+    Balances are used to determine the current state of funds in an account and
+    to enforce constraints on transactions.
+
+func FromMmodelBalance(balance mmodel.Balance) Balance
+    FromMmodelBalance converts a backend Balance to an SDK Balance. This
+    function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - balance: The mmodel.Balance to convert
+
+    Returns:
+      - A models.Balance instance with the same values
+
+func (b *Balance) ToMmodelBalance() mmodel.Balance
+    ToMmodelBalance converts an SDK Balance to a backend Balance. This method is
+    used internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Balance instance with the same values
+
+type Balances struct {
+	// Items is the collection of balances in the current page
+	Items []Balance `json:"items"`
+
+	// Page is the current page number
+	Page int `json:"page"`
+
+	// Limit is the maximum number of items per page
+	Limit int `json:"limit"`
+}
+    Balances represents a collection of balances with pagination. This structure
+    is used for paginated responses when listing balances.
+
+func FromMmodelBalances(balances mmodel.Balances) Balances
+    FromMmodelBalances converts a backend Balances to an SDK Balances. This
+    function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - balances: The mmodel.Balances to convert
+
+    Returns:
+      - A models.Balances instance with the same values
+
+type BaseResponse struct {
+	// RequestID is a unique identifier for the API request
+	// This can be used for troubleshooting and support
+	RequestID string `json:"requestId,omitempty"`
+}
+    BaseResponse represents the common fields in all API responses. This
+    structure is embedded in response models to provide standard fields that are
+    present in all API responses.
+
+type CreateAccountInput struct {
+	// Name is the human-readable name of the account.
+	// Max length: 256 characters.
+	Name string `json:"name"`
+
+	// ParentAccountID is the ID of the parent account, if this is a sub-account.
+	// Must be a valid UUID if provided.
+	ParentAccountID *string `json:"parentAccountId,omitempty"`
+
+	// EntityID is an optional external identifier for the account owner.
+	// Max length: 256 characters.
+	EntityID *string `json:"entityId,omitempty"`
+
+	// AssetCode identifies the type of asset held in this account.
+	// Required. Max length: 100 characters.
+	AssetCode string `json:"assetCode"`
+
+	// PortfolioID is the optional ID of the portfolio this account belongs to.
+	// Must be a valid UUID if provided.
+	PortfolioID *string `json:"portfolioId,omitempty"`
+
+	// SegmentID is the optional ID of the segment this account belongs to.
+	// Must be a valid UUID if provided.
+	SegmentID *string `json:"segmentId,omitempty"`
+
+	// Status represents the current status of the account (e.g., "ACTIVE", "CLOSED").
+	Status Status `json:"status"`
+
+	// Alias is an optional human-friendly identifier for the account.
+	// Max length: 100 characters.
+	Alias *string `json:"alias,omitempty"`
+
+	// Type defines the account type (e.g., "ASSET", "LIABILITY", "EQUITY").
+	// Required.
+	Type string `json:"type"`
+
+	// Metadata contains additional custom data associated with the account.
+	// Keys max length: 100 characters, Values max length: 2000 characters.
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    CreateAccountInput is the input for creating an account. This structure
+    contains all the fields that can be specified when creating a new account.
+
+func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
+    NewCreateAccountInput creates a new CreateAccountInput with required fields.
+    This constructor ensures that all mandatory fields are provided when
+    creating an account input.
+
+    Parameters:
+      - name: Human-readable name for the account
+      - assetCode: Code identifying the type of asset for this account
+      - accountType: Type of the account (e.g., "ASSET", "LIABILITY", "EQUITY")
+
+    Returns:
+      - A pointer to the newly created CreateAccountInput with default active
+        status
+
+func (input CreateAccountInput) ToMmodelCreateAccountInput() mmodel.CreateAccountInput
+    ToMmodelCreateAccountInput converts an SDK CreateAccountInput to an mmodel
+    CreateAccountInput. This method is used internally to convert between SDK
+    and backend models.
+
+    Returns:
+      - An mmodel.CreateAccountInput instance with the same values
+
+func (input *CreateAccountInput) Validate() error
+    Validate checks if the CreateAccountInput meets the validation requirements.
+    It returns an error if any of the validation checks fail.
+
+func (input *CreateAccountInput) WithAlias(alias string) *CreateAccountInput
+    WithAlias sets the account alias. An alias provides a human-friendly
+    identifier for the account.
+
+    Parameters:
+      - alias: The alias to set for the account
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+func (input *CreateAccountInput) WithEntityID(entityID string) *CreateAccountInput
+    WithEntityID sets the entity ID. The entity ID can be used to associate the
+    account with an external entity.
+
+    Parameters:
+      - entityID: The external entity identifier
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+func (input *CreateAccountInput) WithMetadata(metadata map[string]any) *CreateAccountInput
+    WithMetadata sets the metadata. Metadata can store additional custom
+    information about the account.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+func (input *CreateAccountInput) WithParentAccountID(parentAccountID string) *CreateAccountInput
+    WithParentAccountID sets the parent account ID. This is used when creating a
+    sub-account that belongs to a parent account.
+
+    Parameters:
+      - parentAccountID: The ID of the parent account
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+func (input *CreateAccountInput) WithPortfolioID(portfolioID string) *CreateAccountInput
+    WithPortfolioID sets the portfolio ID. This associates the account with a
+    specific portfolio.
+
+    Parameters:
+      - portfolioID: The ID of the portfolio
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+func (input *CreateAccountInput) WithSegmentID(segmentID string) *CreateAccountInput
+    WithSegmentID sets the segment ID. This associates the account with a
+    specific segment within a portfolio.
+
+    Parameters:
+      - segmentID: The ID of the segment
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+func (input *CreateAccountInput) WithStatus(status Status) *CreateAccountInput
+    WithStatus sets a custom status. This overrides the default "ACTIVE" status
+    set by the constructor.
+
+    Parameters:
+      - status: The status to set for the account
+
+    Returns:
+      - A pointer to the modified CreateAccountInput for method chaining
+
+type CreateAssetInput struct {
+	// Name is the human-readable name for the asset
+	Name string `json:"name"`
+
+	// Type defines the asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	Type string `json:"type,omitempty"`
+
+	// Code is a unique identifier for the asset type (e.g., "USD", "BTC", "AAPL")
+	Code string `json:"code"`
+
+	// Status represents the initial status of the asset
+	Status Status `json:"status,omitempty"`
+
+	// Metadata contains additional custom data for the asset
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    CreateAssetInput is the input for creating an asset. This structure contains
+    all the fields that can be specified when creating a new asset.
+
+func NewCreateAssetInput(name, code string) *CreateAssetInput
+    NewCreateAssetInput creates a new CreateAssetInput with required fields.
+    This constructor ensures that all mandatory fields are provided when
+    creating an asset input.
+
+    Parameters:
+      - name: Human-readable name for the asset
+      - code: Unique code identifying the asset type
+
+    Returns:
+      - A pointer to the newly created CreateAssetInput
+
+func (c *CreateAssetInput) ToMmodelCreateAssetInput() mmodel.CreateAssetInput
+    ToMmodelCreateAssetInput converts an SDK CreateAssetInput to an mmodel
+    CreateAssetInput. This method is used internally to convert between SDK and
+    backend models.
+
+    Returns:
+      - An mmodel.CreateAssetInput instance with the same values
+
+func (input *CreateAssetInput) Validate() error
+    Validate validates the CreateAssetInput and returns an error if it's
+    invalid. This method checks that all required fields are present and meet
+    the validation constraints defined by the backend.
+
+    Returns:
+      - error: An error if the input is invalid, nil otherwise
+
+func (c *CreateAssetInput) WithMetadata(metadata map[string]any) *CreateAssetInput
+    WithMetadata adds metadata to the create asset input. Metadata can store
+    additional custom information about the asset.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified CreateAssetInput for method chaining
+
+func (c *CreateAssetInput) WithStatus(status Status) *CreateAssetInput
+    WithStatus adds a status to the create asset input. This sets the initial
+    status of the asset.
+
+    Parameters:
+      - status: The status to set for the asset
+
+    Returns:
+      - A pointer to the modified CreateAssetInput for method chaining
+
+func (c *CreateAssetInput) WithType(assetType string) *CreateAssetInput
+    WithType adds a type to the create asset input. The asset type categorizes
+    the asset (e.g., "CURRENCY", "SECURITY", "COMMODITY").
+
+    Parameters:
+      - assetType: The type to set for the asset
+
+    Returns:
+      - A pointer to the modified CreateAssetInput for method chaining
+
+type CreateLedgerInput struct {
+	// Name is the human-readable name for the ledger (required, max length: 256 characters)
+	Name string `json:"name"`
+
+	// Status represents the initial status of the ledger (defaults to ACTIVE if not specified)
+	Status Status `json:"status"`
+
+	// Metadata contains additional custom data for the ledger
+	// Keys max length: 100 characters, Values max length: 2000 characters
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    CreateLedgerInput is the input for creating a ledger. This structure
+    contains all the fields that can be specified when creating a new ledger.
+
+func NewCreateLedgerInput(name string) *CreateLedgerInput
+    NewCreateLedgerInput creates a new CreateLedgerInput with required fields.
+    This constructor ensures that all mandatory fields are provided when
+    creating a ledger input.
+
+    Parameters:
+      - name: Human-readable name for the ledger (required, max length:
+        256 characters)
+
+    Returns:
+      - A pointer to the newly created CreateLedgerInput with default active
+        status
+
+    Example - Basic usage:
+
+        // Create a simple ledger input with just the required name
+        input := models.NewCreateLedgerInput("Main Ledger")
+
+        // Validate the input
+        if err := input.Validate(); err != nil {
+            log.Fatalf("Invalid ledger input: %v", err)
+        }
+
+    Example - With all options:
+
+        // Create a ledger with custom status and metadata
+        input := models.NewCreateLedgerInput("Finance Ledger")
+            .WithStatus(models.NewStatus("PENDING"))
+            .WithMetadata(map[string]any{
+                "department": "Finance",
+                "fiscalYear": 2025,
+                "currency": "USD",
+            })
+
+        // Validate the input
+        if err := input.Validate(); err != nil {
+            log.Fatalf("Invalid ledger input: %v", err)
+        }
+
+func (input CreateLedgerInput) ToMmodelCreateLedgerInput() mmodel.CreateLedgerInput
+    ToMmodelCreateLedgerInput converts an SDK CreateLedgerInput to an mmodel
+    CreateLedgerInput. This method is used internally to convert between SDK and
+    backend models.
+
+    Returns:
+      - An mmodel.CreateLedgerInput instance with the same values
+
+func (input *CreateLedgerInput) Validate() error
+    Validate validates the CreateLedgerInput and returns an error if it's
+    invalid. This method checks that all required fields are present and that
+    all fields meet the validation constraints defined by the backend.
+
+    Returns:
+      - error: An error if the input is invalid, nil otherwise
+
+func (input *CreateLedgerInput) WithMetadata(metadata map[string]any) *CreateLedgerInput
+    WithMetadata adds metadata to the ledger input. Metadata can store
+    additional custom information about the ledger.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified CreateLedgerInput for method chaining
+
+func (input *CreateLedgerInput) WithStatus(status Status) *CreateLedgerInput
+    WithStatus sets a custom status on the ledger input. This overrides the
+    default "ACTIVE" status set by the constructor.
+
+    Parameters:
+      - status: The status to set for the ledger
+
+    Returns:
+      - A pointer to the modified CreateLedgerInput for method chaining
+
+type CreateOperationInput struct {
+	// Type indicates whether this is a debit or credit operation
+	// Must be either "debit" or "credit"
+	Type string `json:"type"`
+
+	// AccountID is the identifier of the account to be affected
+	// This must be a valid account ID in the ledger
+	AccountID string `json:"accountId"`
+
+	// Amount is the numeric value of the operation
+	// This represents the value as a fixed-point integer
+	// The actual amount is calculated as Amount / 10^Scale
+	Amount int64 `json:"amount"`
+
+	// AssetCode identifies the currency or asset type for this operation
+	// Common examples include "USD", "EUR", "BTC", etc.
+	AssetCode string `json:"assetCode,omitempty"`
+
+	// Scale represents the decimal precision for the amount
+	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
+	Scale int `json:"scale,omitempty"`
+
+	// AccountAlias is an optional human-readable name for the account
+	// This can be used to reference accounts by their alias instead of ID
+	// Format is typically "<type>:<identifier>[:subtype]", e.g., "customer:john.doe"
+	AccountAlias *string `json:"accountAlias,omitempty"`
+}
+    CreateOperationInput is the input for creating an operation. This structure
+    contains all the fields needed to create a new operation as part of a
+    transaction.
+
+    CreateOperationInput is used within the CreateTransactionInput structure
+    to define the individual debit and credit operations that make up a
+    transaction. Each transaction must have at least one operation, and the sum
+    of all debits must equal the sum of all credits for each asset type.
+
+    The Type field must be either "debit" or "credit":
+      - Debit: Increases asset and expense accounts, decreases liability,
+        equity, and revenue accounts
+      - Credit: Decreases asset and expense accounts, increases liability,
+        equity, and revenue accounts
+
+    Example - Creating a debit operation:
+
+        // Debit a customer account (decrease balance)
+        debitOp := models.CreateOperationInput{
+            Type:         "debit",
+            AccountID:    "acc-123",                    // Account ID
+            AccountAlias: stringPtr("customer:john.doe"), // Optional alias
+            Amount:       10000,                        // $100.00
+            AssetCode:    "USD",
+            Scale:        2,
+        }
+
+    Example - Creating a credit operation:
+
+        // Credit a revenue account (increase balance)
+        creditOp := models.CreateOperationInput{
+            Type:         "credit",
+            AccountID:    "acc-456",                  // Account ID
+            AccountAlias: stringPtr("revenue:payments"), // Optional alias
+            Amount:       10000,                      // $100.00
+            AssetCode:    "USD",
+            Scale:        2,
+        }
+
+    Example - Using operations in a transaction:
+
+        // Create a balanced transaction with a debit and credit
+        tx := &models.CreateTransactionInput{
+            Description: "Payment for invoice #123",
+            AssetCode:   "USD",
+            Amount:      10000,
+            Scale:       2,
+            Operations: []models.CreateOperationInput{
+                // Debit customer account
+                {
+                    Type:         "debit",
+                    AccountID:    "acc-123",
+                    AccountAlias: stringPtr("customer:john.doe"),
+                    Amount:       10000,
+                    AssetCode:    "USD",
+                    Scale:        2,
+                },
+                // Credit revenue account
+                {
+                    Type:         "credit",
+                    AccountID:    "acc-456",
+                    AccountAlias: stringPtr("revenue:payments"),
+                    Amount:       10000,
+                    AssetCode:    "USD",
+                    Scale:        2,
+                },
+            },
+        }
+
+    Helper function for creating string pointers:
+
+        func stringPtr(s string) *string {
+            return &s
+        }
+
+func (input *CreateOperationInput) Validate() error
+    Validate checks that the CreateOperationInput meets all validation
+    requirements. It ensures that required fields are present and that
+    all fields meet their validation constraints as defined in the API
+    specification.
+
+    Returns:
+      - error: An error if validation fails, nil otherwise
+
+type CreateOrganizationInput struct {
+	// LegalName is the official registered name of the organization
+	LegalName string `json:"legalName"`
+
+	// LegalDocument is the official identification document (e.g., tax ID, registration number)
+	LegalDocument string `json:"legalDocument"`
+
+	// ParentOrganizationID is the reference to the parent organization, if this is a child organization
+	ParentOrganizationID *string `json:"parentOrganizationId,omitempty"`
+
+	// DoingBusinessAs is the trading or brand name of the organization, if different from legal name
+	DoingBusinessAs *string `json:"doingBusinessAs,omitempty"`
+
+	// Status represents the initial status of the organization
+	Status Status `json:"status"`
+
+	// Address is the physical address of the organization
+	Address Address `json:"address"`
+
+	// Metadata contains additional custom data for the organization
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    CreateOrganizationInput is the input for creating an organization. This
+    structure contains all the fields that can be specified when creating a new
+    organization.
+
+func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput
+    NewCreateOrganizationInput creates a new CreateOrganizationInput with
+    required fields. This constructor ensures that all mandatory fields are
+    provided when creating an organization input.
+
+    Parameters:
+      - legalName: Official registered name of the organization
+      - legalDocument: Official identification document (e.g., tax ID,
+        registration number)
+
+    Returns:
+      - A pointer to the newly created CreateOrganizationInput with default
+        active status
+
+func (input CreateOrganizationInput) ToMmodelCreateOrganizationInput() mmodel.CreateOrganizationInput
+    ToMmodelCreateOrganizationInput converts an SDK CreateOrganizationInput to
+    an mmodel CreateOrganizationInput. This method is used internally to convert
+    between SDK and backend models.
+
+    Returns:
+      - An mmodel.CreateOrganizationInput instance with the same values
+
+func (input *CreateOrganizationInput) WithAddress(address Address) *CreateOrganizationInput
+    WithAddress adds an address to the organization input. This sets the
+    physical address information for the organization.
+
+    Parameters:
+      - address: The physical address of the organization
+
+    Returns:
+      - A pointer to the modified CreateOrganizationInput for method chaining
+
+func (input *CreateOrganizationInput) WithDoingBusinessAs(doingBusinessAs string) *CreateOrganizationInput
+    WithDoingBusinessAs sets the doing business as name for the organization
+    input. This sets the trading or brand name of the organization, if different
+    from legal name.
+
+    Parameters:
+      - doingBusinessAs: The doing business as name of the organization
+
+    Returns:
+      - A pointer to the modified CreateOrganizationInput for method chaining
+
+func (input *CreateOrganizationInput) WithMetadata(metadata map[string]any) *CreateOrganizationInput
+    WithMetadata adds metadata to the organization input. Metadata can store
+    additional custom information about the organization.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified CreateOrganizationInput for method chaining
+
+func (input *CreateOrganizationInput) WithParentOrganizationID(parentOrganizationID string) *CreateOrganizationInput
+    WithParentOrganizationID sets the parent organization ID for the
+    organization input. This sets the reference to the parent organization,
+    if this is a child organization.
+
+    Parameters:
+      - parentOrganizationID: The ID of the parent organization
+
+    Returns:
+      - A pointer to the modified CreateOrganizationInput for method chaining
+
+func (input *CreateOrganizationInput) WithStatus(status Status) *CreateOrganizationInput
+    WithStatus sets a custom status on the organization input. This overrides
+    the default "ACTIVE" status set by the constructor.
+
+    Parameters:
+      - status: The status to set for the organization
+
+    Returns:
+      - A pointer to the modified CreateOrganizationInput for method chaining
+
+type CreatePortfolioInput struct {
+	// EntityID is the identifier of the entity that will own this portfolio.
+	// Max length: 256 characters.
+	EntityID string `json:"entityId"`
+
+	// Name is the human-readable name for the portfolio.
+	// Required. Max length: 256 characters.
+	Name string `json:"name"`
+
+	// Status represents the initial status of the portfolio.
+	Status Status `json:"status,omitempty"`
+
+	// Metadata contains additional custom data for the portfolio.
+	// Keys max length: 100 characters, Values max length: 2000 characters.
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    CreatePortfolioInput is the input for creating a portfolio. This structure
+    contains all the fields that can be specified when creating a new portfolio.
+
+func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
+    NewCreatePortfolioInput creates a new CreatePortfolioInput with required
+    fields. This constructor ensures that all mandatory fields are provided when
+    creating a portfolio input.
+
+    Parameters:
+      - entityID: Identifier of the entity that will own this portfolio
+      - name: Human-readable name for the portfolio
+
+    Returns:
+      - A pointer to the newly created CreatePortfolioInput
+
+func (c *CreatePortfolioInput) ToMmodelCreatePortfolioInput() mmodel.CreatePortfolioInput
+    ToMmodelCreatePortfolioInput converts an SDK CreatePortfolioInput to an
+    mmodel CreatePortfolioInput. This method is used internally to convert
+    between SDK and backend models.
+
+    Returns:
+      - An mmodel.CreatePortfolioInput instance with the same values
+
+func (input *CreatePortfolioInput) Validate() error
+    Validate checks if the CreatePortfolioInput meets the validation
+    requirements. It returns an error if any of the validation checks fail.
+
+func (c *CreatePortfolioInput) WithMetadata(metadata map[string]any) *CreatePortfolioInput
+    WithMetadata adds metadata to the create portfolio input. Metadata can store
+    additional custom information about the portfolio.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified CreatePortfolioInput for method chaining
+
+func (c *CreatePortfolioInput) WithStatus(status Status) *CreatePortfolioInput
+    WithStatus adds a status to the create portfolio input. This sets the
+    initial status of the portfolio.
+
+    Parameters:
+      - status: The status to set for the portfolio
+
+    Returns:
+      - A pointer to the modified CreatePortfolioInput for method chaining
+
+type CreateSegmentInput struct {
+	// Name is the human-readable name for the segment
+	Name string `json:"name"`
+
+	// Status represents the initial status of the segment
+	Status Status `json:"status,omitempty"`
+
+	// Metadata contains additional custom data for the segment
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    CreateSegmentInput is the input for creating a segment. This structure
+    contains all the fields that can be specified when creating a new segment.
+
+func NewCreateSegmentInput(name string) *CreateSegmentInput
+    NewCreateSegmentInput creates a new CreateSegmentInput with required fields.
+    This constructor ensures that all mandatory fields are provided when
+    creating a segment input.
+
+    Parameters:
+      - name: Human-readable name for the segment
+
+    Returns:
+      - A pointer to the newly created CreateSegmentInput
+
+func (c *CreateSegmentInput) ToMmodelCreateSegmentInput() mmodel.CreateSegmentInput
+    ToMmodelCreateSegmentInput converts an SDK CreateSegmentInput to an mmodel
+    CreateSegmentInput. This method is used internally to convert between SDK
+    and backend models.
+
+    Returns:
+      - An mmodel.CreateSegmentInput instance with the same values
+
+func (input *CreateSegmentInput) Validate() error
+    Validate checks that the CreateSegmentInput meets all validation
+    requirements. It ensures that required fields are present and that
+    all fields meet their validation constraints as defined in the API
+    specification.
+
+    Returns:
+      - error: An error if validation fails, nil otherwise
+
+func (c *CreateSegmentInput) WithMetadata(metadata map[string]any) *CreateSegmentInput
+    WithMetadata adds metadata to the create segment input. Metadata can store
+    additional custom information about the segment.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified CreateSegmentInput for method chaining
+
+func (c *CreateSegmentInput) WithStatus(status Status) *CreateSegmentInput
+    WithStatus adds a status to the create segment input. This sets the initial
+    status of the segment.
+
+    Parameters:
+      - status: The status to set for the segment
+
+    Returns:
+      - A pointer to the modified CreateSegmentInput for method chaining
+
+type CreateTransactionInput struct {
+	// Template is an optional identifier for the transaction template to use
+	// Templates can be used to create standardized transactions with predefined
+	// structures and validation rules
+	Template string `json:"template,omitempty"`
+
+	// Amount is the numeric value of the transaction
+	// This represents the total value of the transaction as a fixed-point integer
+	// The actual amount is calculated as Amount / 10^Scale
+	Amount int64 `json:"amount"`
+
+	// Scale represents the decimal precision for the amount
+	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
+	Scale int64 `json:"scale"`
+
+	// AssetCode identifies the currency or asset type for this transaction
+	// Common examples include "USD", "EUR", "BTC", etc.
+	AssetCode string `json:"assetCode"`
+
+	// Operations contains the individual debit and credit operations
+	// Each operation represents a single accounting entry (debit or credit)
+	// The sum of all operations for each asset must balance to zero
+	Operations []CreateOperationInput `json:"operations,omitempty"`
+
+	// Metadata contains additional custom data for the transaction
+	// This can be used to store application-specific information
+	// such as references to external systems, tags, or other contextual data
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// ChartOfAccountsGroupName specifies the chart of accounts group to use
+	// This is used when integrating with traditional accounting systems
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Description is a human-readable description of the transaction
+	// This should provide context about the purpose or nature of the transaction
+	Description string `json:"description,omitempty"`
+
+	// ExternalID is an optional identifier for linking to external systems
+	// This can be used to correlate transactions with records in other systems
+	// and to prevent duplicate transactions
+	ExternalID string `json:"externalId,omitempty"`
+
+	// Pending indicates whether the transaction should be created in a pending state
+	// Pending transactions require explicit commitment before they affect account balances
+	Pending bool `json:"pending,omitempty"`
+
+	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
+	// If a transaction with the same idempotency key already exists, that transaction
+	// will be returned instead of creating a new one
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
+}
+    CreateTransactionInput is the input for creating a transaction. This
+    structure contains all the fields needed to create a new transaction.
+
+    CreateTransactionInput is used with the
+    TransactionsService.CreateTransaction method to create new transactions
+    in the standard format (as opposed to the DSL format). It allows for
+    specifying the transaction details including operations, metadata, and other
+    properties.
+
+    When creating a transaction, the following rules apply:
+      - The transaction must be balanced (total debits must equal total credits
+        for each asset)
+      - Each operation must specify an account, type (debit or credit), amount,
+        and asset code
+      - The transaction can be created as pending (requiring explicit commitment
+        later)
+      - External IDs and idempotency keys can be used to prevent duplicate
+        transactions
+
+    Example - Creating a simple payment transaction:
+
+        // Create a payment transaction with two operations (debit and credit)
+        input := &models.CreateTransactionInput{
+            Description: "Payment for invoice #123",
+            AssetCode:   "USD",
+            Amount:      10000,
+            Scale:       2, // $100.00
+            Operations: []models.CreateOperationInput{
+                {
+                    // Debit the customer's account (decrease balance)
+                    Type:        "debit",
+                    AccountID:   "acc-123", // Customer account ID
+                    AccountAlias: stringPtr("customer:john.doe"), // Optional alias
+                    Amount:      10000,
+                    AssetCode:   "USD",
+                    Scale:       2,
+                },
+                {
+                    // Credit the revenue account (increase balance)
+                    Type:        "credit",
+                    AccountID:   "acc-456", // Revenue account ID
+                    AccountAlias: stringPtr("revenue:payments"), // Optional alias
+                    Amount:      10000,
+                    AssetCode:   "USD",
+                    Scale:       2,
+                },
+            },
+            Metadata: map[string]interface{}{
+                "invoice_id": "inv-123",
+                "customer_id": "cust-456",
+            },
+            ExternalID: "payment-inv123-20230401",
+        }
+
+    Example - Creating a pending transaction:
+
+        // Create a pending transaction that requires explicit commitment
+        input := &models.CreateTransactionInput{
+            Description: "Large transfer pending approval",
+            AssetCode:   "USD",
+            Amount:      100000,
+            Scale:       2, // $1,000.00
+            Operations: []models.CreateOperationInput{
+                // Debit operation
+                {
+                    Type:        "debit",
+                    AccountID:   "acc-789", // Source account ID
+                    Amount:      100000,
+                    AssetCode:   "USD",
+                    Scale:       2,
+                },
+                // Credit operation
+                {
+                    Type:        "credit",
+                    AccountID:   "acc-012", // Target account ID
+                    Amount:      100000,
+                    AssetCode:   "USD",
+                    Scale:       2,
+                },
+            },
+            Pending: true, // Create as pending, requiring explicit commitment
+            Metadata: map[string]interface{}{
+                "requires_approval": true,
+                "approval_level": "manager",
+            },
+        }
+
+        // Later, after approval:
+        // client.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
+
+    Helper function for creating string pointers:
+
+        func stringPtr(s string) *string {
+            return &s
+        }
+
+func (c *CreateTransactionInput) ToLibTransaction() *libTransaction.Transaction
+    ToLibTransaction converts a CreateTransactionInput to a lib-commons
+    Transaction.
+
+func (input *CreateTransactionInput) Validate() error
+    Validate checks that the CreateTransactionInput meets all validation
+    requirements.
+
+type DSLAmount struct {
+	// Value is the numeric value of the amount
+	Value int64 `json:"value"`
+
+	// Scale represents the decimal precision for the amount
+	Scale int64 `json:"scale"`
+
+	// Asset is the asset code for the amount
+	Asset string `json:"asset,omitempty"`
+}
+    DSLAmount represents an amount with a value, scale, and asset code for DSL
+    transactions. This is aligned with the lib-commons Amount structure.
+
+type DSLDistribute struct {
+	// Remaining is an optional remaining account
+	Remaining string `json:"remaining,omitempty"`
+
+	// To is a collection of destination accounts and amounts
+	To []DSLFromTo `json:"to"`
+}
+    DSLDistribute represents the distribution of a DSL transaction. This is
+    aligned with the lib-commons Distribute structure.
+
+type DSLFromTo struct {
+	// Account is the identifier of the account
+	Account string `json:"account"`
+
+	// Amount specifies the amount details if applicable
+	Amount *DSLAmount `json:"amount,omitempty"`
+
+	// Share is the sharing configuration
+	Share *Share `json:"share,omitempty"`
+
+	// Remaining is an optional remaining account
+	Remaining string `json:"remaining,omitempty"`
+
+	// Rate is the exchange rate configuration
+	Rate *Rate `json:"rate,omitempty"`
+
+	// Description is a human-readable description
+	Description string `json:"description,omitempty"`
+
+	// ChartOfAccounts is the chart of accounts code
+	ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
+
+	// Metadata contains additional custom data
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    DSLFromTo represents a source or destination in a DSL transaction. This is
+    aligned with the lib-commons FromTo structure.
+
+type DSLSend struct {
+	// Asset identifies the currency or asset type for this transaction
+	Asset string `json:"asset"`
+
+	// Value is the numeric value of the transaction
+	Value int64 `json:"value"`
+
+	// Scale represents the decimal precision for the amount
+	Scale int64 `json:"scale"`
+
+	// Source specifies where the funds come from
+	Source *DSLSource `json:"source,omitempty"`
+
+	// Distribute specifies where the funds go to
+	Distribute *DSLDistribute `json:"distribute,omitempty"`
+}
+    DSLSend represents the send operation in a DSL transaction. This is aligned
+    with the lib-commons Send structure.
+
+func (send *DSLSend) Validate() error
+    Validate checks that the DSLSend meets all validation requirements.
+
+type DSLSource struct {
+	// Remaining is an optional remaining account
+	Remaining string `json:"remaining,omitempty"`
+
+	// From is a collection of source accounts and amounts
+	From []DSLFromTo `json:"from"`
+}
+    DSLSource represents the source of a DSL transaction. This is aligned with
+    the lib-commons Source structure.
+
+type Destination struct {
+	// ID is the unique identifier for the destination account
+	ID string `json:"id"`
+
+	// Alias is an optional human-readable name for the destination account
+	Alias *string `json:"alias,omitempty"`
+
+	// Source indicates if this destination is also a source
+	Source bool `json:"source"`
+}
+    Destination represents the destination of an operation. This identifies
+    where funds or assets are going to in a transaction.
+
+type ErrorResponse struct {
+	// Error is the error message
+	Error string `json:"error"`
+
+	// Code is the error code for programmatic handling
+	Code string `json:"code,omitempty"`
+
+	// Details contains additional information about the error
+	Details map[string]any `json:"details,omitempty"`
+}
+    ErrorResponse represents an error response from the API. This structure is
+    used to parse and represent error responses returned by the Midaz API.
+
+type Ledger struct {
+	// ID is the unique identifier for the ledger
+	ID string `json:"id"`
+
+	// Name is the human-readable name of the ledger (max length: 256 characters)
+	Name string `json:"name"`
+
+	// OrganizationID is the ID of the organization that owns this ledger
+	OrganizationID string `json:"organizationId"`
+
+	// Status represents the current status of the ledger (e.g., "ACTIVE", "INACTIVE")
+	Status Status `json:"status"`
+
+	// Metadata contains additional custom data associated with the ledger
+	// Keys max length: 100 characters, Values max length: 2000 characters
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// CreatedAt is the timestamp when the ledger was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the ledger was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the ledger was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+}
+    Ledger represents a ledger in the Midaz system. A ledger is a financial
+    record-keeping system that contains accounts and tracks all transactions
+    between those accounts. Each ledger belongs to a specific organization and
+    can have multiple accounts.
+
+func FromMmodelLedger(ledger mmodel.Ledger) Ledger
+    FromMmodelLedger converts an mmodel Ledger to an SDK Ledger. This function
+    is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - ledger: The mmodel.Ledger to convert
+
+    Returns:
+      - A models.Ledger instance with the same values
+
+func NewLedger(id, name, organizationID string, status Status) *Ledger
+    NewLedger creates a new Ledger with required fields. This constructor
+    ensures that all mandatory fields are provided when creating a ledger.
+
+    Parameters:
+      - id: Unique identifier for the ledger
+      - name: Human-readable name for the ledger
+      - organizationID: ID of the organization that owns this ledger
+      - status: Current status of the ledger
+
+    Returns:
+      - A pointer to the newly created Ledger
+
+func (l Ledger) ToMmodelLedger() mmodel.Ledger
+    ToMmodelLedger converts an SDK Ledger to an mmodel Ledger. This method is
+    used internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Ledger instance with the same values
+
+func (l *Ledger) WithMetadata(metadata map[string]any) *Ledger
+    WithMetadata adds metadata to the ledger. Metadata can store additional
+    custom information about the ledger.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified Ledger for method chaining
+
+type LedgerFilter struct {
+	// Status is a list of status codes to filter by
+	Status []string `json:"status,omitempty"`
+}
+    LedgerFilter for filtering ledgers in listings. This structure defines the
+    criteria for filtering ledgers when listing them.
+
+type Ledgers struct {
+	// Items is the collection of ledgers in the current page
+	Items []Ledger `json:"items"`
+
+	// Page is the current page number
+	Page int `json:"page"`
+
+	// Limit is the maximum number of items per page
+	Limit int `json:"limit"`
+}
+    Ledgers represents a list of ledgers with pagination information. This
+    structure is used for paginated responses when listing ledgers.
+
+func FromMmodelLedgers(ledgers mmodel.Ledgers) Ledgers
+    FromMmodelLedgers converts an mmodel Ledgers to an SDK Ledgers. This
+    function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - ledgers: The mmodel.Ledgers to convert
+
+    Returns:
+      - A models.Ledgers instance with the same values
+
+type ListAccountInput struct {
+	// Page is the page number to retrieve
+	Page int `json:"page,omitempty"`
+
+	// PerPage is the number of items per page
+	PerPage int `json:"perPage,omitempty"`
+
+	// Filter contains the filtering criteria
+	Filter AccountFilter `json:"filter,omitempty"`
+}
+    ListAccountInput for configuring account listing requests. This structure
+    defines the parameters for listing accounts.
+
+type ListAccountResponse struct {
+	// Items is the collection of accounts in the current page
+	Items []Account `json:"items"`
+
+	// Total is the total number of accounts matching the criteria
+	Total int `json:"total"`
+
+	// CurrentPage is the current page number
+	CurrentPage int `json:"currentPage"`
+
+	// PageSize is the number of items per page
+	PageSize int `json:"pageSize"`
+
+	// TotalPages is the total number of pages
+	TotalPages int `json:"totalPages"`
+}
+    ListAccountResponse for account listing responses. This structure represents
+    the response from a list accounts request.
+
+type ListAssetInput struct {
+	// Page is the page number to retrieve
+	Page int `json:"page,omitempty"`
+
+	// PerPage is the number of items per page
+	PerPage int `json:"perPage,omitempty"`
+
+	// Filter contains the filtering criteria
+	Filter AssetFilter `json:"filter,omitempty"`
+}
+    ListAssetInput for configuring asset listing requests. This structure
+    defines the parameters for listing assets.
+
+type ListAssetResponse struct {
+	// Items is the collection of assets in the current page
+	Items []Asset `json:"items"`
+
+	// Total is the total number of assets matching the criteria
+	Total int `json:"total"`
+
+	// CurrentPage is the current page number
+	CurrentPage int `json:"currentPage"`
+
+	// PageSize is the number of items per page
+	PageSize int `json:"pageSize"`
+
+	// TotalPages is the total number of pages
+	TotalPages int `json:"totalPages"`
+}
+    ListAssetResponse for asset listing responses. This structure represents the
+    response from a list assets request.
+
+type ListLedgerInput struct {
+	// Page is the page number to retrieve
+	Page int `json:"page,omitempty"`
+
+	// PerPage is the number of items per page
+	PerPage int `json:"perPage,omitempty"`
+
+	// Filter contains the filtering criteria
+	Filter LedgerFilter `json:"filter,omitempty"`
+}
+    ListLedgerInput for configuring ledger listing requests. This structure
+    defines the parameters for listing ledgers.
+
+type ListLedgerResponse struct {
+	// Items is the collection of ledgers in the current page
+	Items []Ledger `json:"items"`
+
+	// Total is the total number of ledgers matching the criteria
+	Total int `json:"total"`
+
+	// CurrentPage is the current page number
+	CurrentPage int `json:"currentPage"`
+
+	// PageSize is the number of items per page
+	PageSize int `json:"pageSize"`
+
+	// TotalPages is the total number of pages
+	TotalPages int `json:"totalPages"`
+}
+    ListLedgerResponse for ledger listing responses. This structure represents
+    the response from a list ledgers request.
+
+type ListOptions struct {
+	// Limit is the maximum number of items to return per page
+	Limit int `json:"limit,omitempty"`
+
+	// Offset is the starting position for pagination
+	Offset int `json:"offset,omitempty"`
+
+	// Filters are additional filters to apply to the query
+	// The map keys are filter names and values are the filter criteria
+	Filters map[string]string `json:"filters,omitempty"`
+
+	// OrderBy specifies the field to order results by
+	OrderBy string `json:"orderBy,omitempty"`
+
+	// OrderDirection is the order direction ("asc" for ascending or "desc" for descending)
+	OrderDirection string `json:"orderDirection,omitempty"`
+
+	// Page is the page number to return (when using page-based pagination)
+	// This is kept for backward compatibility
+	Page int `json:"page,omitempty"`
+
+	// Cursor is the cursor for pagination (when using cursor-based pagination)
+	// This is kept for backward compatibility
+	Cursor string `json:"cursor,omitempty"`
+
+	// StartDate and EndDate for filtering by date range
+	// These should be in ISO 8601 format (YYYY-MM-DD)
+	StartDate string `json:"startDate,omitempty"`
+	EndDate   string `json:"endDate,omitempty"`
+
+	// AdditionalParams contains additional parameters that are specific to certain endpoints
+	// These parameters are not serialized to JSON but are used when making API requests
+	AdditionalParams map[string]string `json:"-"`
+}
+    ListOptions represents the common options for list operations. This
+    structure is used to specify filtering, pagination, and sorting parameters
+    when retrieving lists of resources from the Midaz API.
+
+func (o *ListOptions) ToQueryParams() map[string]string
+    ToQueryParams converts ListOptions to a map of query parameters. This method
+    transforms the ListOptions structure into a format suitable for use as URL
+    query parameters in API requests.
+
+    Returns:
+      - A map of string key-value pairs representing the query parameters
+
+type ListOrganizationInput struct {
+	// Page is the page number to retrieve
+	Page int `json:"page,omitempty"`
+
+	// PerPage is the number of items per page
+	PerPage int `json:"perPage,omitempty"`
+
+	// Filter contains the filtering criteria
+	Filter OrganizationFilter `json:"filter,omitempty"`
+}
+    ListOrganizationInput for configuring organization listing requests.
+    This structure defines the parameters for listing organizations.
+
+type ListOrganizationResponse struct {
+	// Items is the collection of organizations in the current page
+	Items []Organization `json:"items"`
+
+	// Total is the total number of organizations matching the criteria
+	Total int `json:"total"`
+
+	// CurrentPage is the current page number
+	CurrentPage int `json:"currentPage"`
+
+	// PageSize is the number of items per page
+	PageSize int `json:"pageSize"`
+
+	// TotalPages is the total number of pages
+	TotalPages int `json:"totalPages"`
+}
+    ListOrganizationResponse for organization listing responses. This structure
+    represents the response from a list organizations request.
+
+type ListResponse[T any] struct {
+	// Embedding BaseResponse to include common response fields
+	BaseResponse
+
+	// Items is the collection of resources returned by the list operation
+	Items []T `json:"items"`
+
+	// Pagination contains information about the pagination state
+	Pagination Pagination `json:"pagination,omitempty"`
+}
+    ListResponse is a generic response for list operations. It contains a
+    collection of items along with pagination information.
+
+type Metadata map[string]any
+    Metadata is a map of key-value pairs that can be attached to resources.
+    It allows for storing arbitrary data with resources in a flexible way.
+
+type ObjectWithMetadata struct {
+	// Metadata is a map of key-value pairs associated with the object
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    ObjectWithMetadata is an object that has metadata. This interface is
+    implemented by resources that support attaching arbitrary metadata.
+
+func (o *ObjectWithMetadata) HasMetadata() bool
+    HasMetadata returns true if the object has metadata. This method checks if
+    the Metadata field is non-nil and non-empty.
+
+    Returns:
+      - true if the object has metadata, false otherwise
+
+type Operation struct {
+	// ID is the unique identifier for the operation
+	// This is a system-generated UUID that uniquely identifies the operation
+	ID string `json:"id,omitempty"`
+
+	// Type indicates whether this is a debit or credit operation
+	// Valid values are "debit" and "credit"
+	Type string `json:"type"`
+
+	// AccountID is the unique identifier of the account affected by this operation
+	// This is the system-generated ID of the account
+	AccountID string `json:"accountId,omitempty"`
+
+	// Amount is the numeric value of the operation
+	// This represents the value as a fixed-point integer
+	// The actual amount is calculated as Amount / 10^Scale
+	Amount int64 `json:"amount"`
+
+	// Source contains information about the source account if this is a transfer
+	// This is only used for certain transaction types
+	Source *Source `json:"source,omitempty"`
+
+	// Destination contains information about the destination account if this is a transfer
+	// This is only used for certain transaction types
+	Destination *Destination `json:"destination,omitempty"`
+
+	// AssetCode identifies the currency or asset type for this operation
+	// Common examples include "USD", "EUR", "BTC", etc.
+	AssetCode string `json:"assetCode"`
+
+	// Scale represents the decimal precision for the amount
+	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
+	Scale int `json:"scale"`
+
+	// AccountAlias is an optional human-readable name for the account
+	// This can be used to reference accounts by their alias instead of ID
+	// Format is typically "<type>:<identifier>[:subtype]", e.g., "customer:john.doe"
+	AccountAlias *string `json:"accountAlias"`
+}
+    Operation represents an operation in a transaction. Operations are the
+    individual accounting entries that make up a transaction, typically
+    representing debits and credits to accounts.
+
+    In double-entry accounting, each transaction consists of at least two
+    operations: one or more debits and one or more credits. The sum of all
+    debits must equal the sum of all credits for the transaction to be balanced.
+
+    Operations have the following characteristics:
+      - Type: Either "debit" or "credit"
+      - Account: The account affected by the operation
+      - Amount: The value of the operation
+      - Asset: The currency or asset type involved
+
+    Example usage:
+
+        // Accessing operation details
+        fmt.Printf("Operation Type: %s\n", operation.Type)
+        fmt.Printf("Account: %s\n", operation.AccountID)
+        if operation.AccountAlias != nil {
+            fmt.Printf("Account Alias: %s\n", *operation.AccountAlias)
+        }
+        fmt.Printf("Amount: %d (scale: %d)\n", operation.Amount, operation.Scale)
+        fmt.Printf("Asset: %s\n", operation.AssetCode)
+
+func FromMmodelOperation(operation any) Operation
+    FromMmodelOperation converts an mmodel Operation (if it exists) to an SDK
+    Operation. This function is used internally to convert between backend and
+    SDK models.
+
+    Parameters:
+      - operation: The mmodel operation to convert, as a generic interface
+
+    Returns:
+      - An Operation instance with values extracted from the input
+
+type OperationType string
+    OperationType represents the type of an operation. This is typically either
+    a debit or credit in double-entry accounting.
+
+const (
+	// OperationTypeDebit represents a debit operation.
+	// In accounting, a debit typically increases asset and expense accounts,
+	// and decreases liability, equity, and revenue accounts.
+	OperationTypeDebit OperationType = "DEBIT"
+
+	// OperationTypeCredit represents a credit operation.
+	// In accounting, a credit typically increases liability, equity, and revenue accounts,
+	// and decreases asset and expense accounts.
+	OperationTypeCredit OperationType = "CREDIT"
+)
+type Organization struct {
+	// ID is the unique identifier for the organization
+	ID string `json:"id"`
+
+	// LegalName is the official registered name of the organization
+	LegalName string `json:"legalName"`
+
+	// LegalDocument is the official identification document (e.g., tax ID, registration number)
+	LegalDocument string `json:"legalDocument"`
+
+	// ParentOrganizationID is the reference to the parent organization, if this is a child organization
+	ParentOrganizationID *string `json:"parentOrganizationId,omitempty"`
+
+	// DoingBusinessAs is the trading or brand name of the organization, if different from legal name
+	DoingBusinessAs *string `json:"doingBusinessAs,omitempty"`
+
+	// Status represents the current status of the organization (e.g., "ACTIVE", "SUSPENDED")
+	Status Status `json:"status"`
+
+	// Address is the physical address of the organization
+	Address Address `json:"address"`
+
+	// Metadata contains additional custom data associated with the organization
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// CreatedAt is the timestamp when the organization was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the organization was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the organization was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+}
+    Organization represents an organization in the Midaz Ledger. Organizations
+    are the top-level entities in the Midaz system that own ledgers, accounts,
+    and other resources. Each organization has a legal identity and can manage
+    multiple ledgers.
+
+func FromMmodelOrganization(org mmodel.Organization) Organization
+    FromMmodelOrganization converts an mmodel Organization to an SDK
+    Organization. This function is used internally to convert between backend
+    and SDK models.
+
+    Parameters:
+      - org: The mmodel.Organization to convert
+
+    Returns:
+      - A models.Organization instance with the same values
+
+func NewOrganization(id, legalName, legalDocument string, status Status) *Organization
+    NewOrganization creates a new Organization with required fields. This
+    constructor ensures that all mandatory fields are provided when creating an
+    organization.
+
+    Parameters:
+      - id: Unique identifier for the organization
+      - legalName: Official registered name of the organization
+      - legalDocument: Official identification document (e.g., tax ID,
+        registration number)
+      - status: Current status of the organization
+
+    Returns:
+      - A pointer to the newly created Organization
+
+func (o Organization) ToMmodelOrganization() mmodel.Organization
+    ToMmodelOrganization converts an SDK Organization to an mmodel Organization.
+    This method is used internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Organization instance with the same values
+
+func (o *Organization) WithAddress(address Address) *Organization
+    WithAddress adds an address to the organization. This sets the physical
+    address information for the organization.
+
+    Parameters:
+      - address: The physical address of the organization
+
+    Returns:
+      - A pointer to the modified Organization for method chaining
+
+func (o *Organization) WithDoingBusinessAs(doingBusinessAs string) *Organization
+    WithDoingBusinessAs sets the doing business as name for the organization.
+    This sets the trading or brand name of the organization, if different from
+    legal name.
+
+    Parameters:
+      - doingBusinessAs: The doing business as name of the organization
+
+    Returns:
+      - A pointer to the modified Organization for method chaining
+
+func (o *Organization) WithMetadata(metadata map[string]any) *Organization
+    WithMetadata adds metadata to the organization. Metadata can store
+    additional custom information about the organization.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified Organization for method chaining
+
+func (o *Organization) WithParentOrganizationID(parentOrganizationID string) *Organization
+    WithParentOrganizationID sets the parent organization ID for the
+    organization. This sets the reference to the parent organization, if this is
+    a child organization.
+
+    Parameters:
+      - parentOrganizationID: The ID of the parent organization
+
+    Returns:
+      - A pointer to the modified Organization for method chaining
+
+type OrganizationFilter struct {
+	// Status is a list of status codes to filter by
+	Status []string `json:"status,omitempty"`
+}
+    OrganizationFilter for filtering organizations in listings. This structure
+    defines the criteria for filtering organizations when listing them.
+
+type Organizations struct {
+	// Items is the collection of organizations in the current page
+	Items []Organization `json:"items"`
+
+	// Page is the current page number
+	Page int `json:"page"`
+
+	// Limit is the maximum number of items per page
+	Limit int `json:"limit"`
+}
+    Organizations represents a list of organizations with pagination
+    information. This structure is used for paginated responses when listing
+    organizations.
+
+func FromMmodelOrganizations(orgs mmodel.Organizations) Organizations
+    FromMmodelOrganizations converts an mmodel Organizations to an SDK
+    Organizations. This function is used internally to convert between backend
+    and SDK models.
+
+    Parameters:
+      - orgs: The mmodel.Organizations to convert
+
+    Returns:
+      - A models.Organizations instance with the same values
+
+type Pagination struct {
+	// Limit is the number of items per page
+	Limit int `json:"limit"`
+
+	// Offset is the starting position for the current page
+	Offset int `json:"offset"`
+
+	// Total is the total number of items available across all pages
+	Total int `json:"total"`
+
+	// PrevCursor is the cursor for the previous page (for cursor-based pagination)
+	PrevCursor string `json:"prevCursor,omitempty"`
+
+	// NextCursor is the cursor for the next page (for cursor-based pagination)
+	NextCursor string `json:"nextCursor,omitempty"`
+}
+    Pagination represents pagination information for list operations. This
+    structure is used in list responses to provide context about the pagination
+    state and to help with navigating through paginated results.
+
+type Portfolio struct {
+	// ID is the unique identifier for the portfolio
+	ID string `json:"id"`
+
+	// Name is the human-readable name of the portfolio
+	Name string `json:"name"`
+
+	// EntityID is the identifier of the entity that owns this portfolio
+	EntityID string `json:"entityId"`
+
+	// LedgerID is the ID of the ledger that contains this portfolio
+	LedgerID string `json:"ledgerId"`
+
+	// OrganizationID is the ID of the organization that owns this portfolio
+	OrganizationID string `json:"organizationId"`
+
+	// Status represents the current status of the portfolio (e.g., "ACTIVE", "INACTIVE")
+	Status Status `json:"status"`
+
+	// CreatedAt is the timestamp when the portfolio was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the portfolio was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the portfolio was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+
+	// Metadata contains additional custom data associated with the portfolio
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    Portfolio represents a portfolio in the Midaz system. A portfolio is
+    a collection of accounts that belong to a specific entity within an
+    organization and ledger. Portfolios help organize accounts for better
+    management and reporting.
+
+func FromMmodelPortfolio(portfolio mmodel.Portfolio) Portfolio
+    FromMmodelPortfolio converts an mmodel Portfolio to an SDK Portfolio.
+    This function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - portfolio: The mmodel.Portfolio to convert
+
+    Returns:
+      - A models.Portfolio instance with the same values
+
+func NewPortfolio(id, name, entityID, ledgerID, organizationID string, status Status) *Portfolio
+    NewPortfolio creates a new Portfolio with required fields. This constructor
+    ensures that all mandatory fields are provided when creating a portfolio.
+
+    Parameters:
+      - id: Unique identifier for the portfolio
+      - name: Human-readable name for the portfolio
+      - entityID: Identifier of the entity that owns this portfolio
+      - ledgerID: ID of the ledger that contains this portfolio
+      - organizationID: ID of the organization that owns this portfolio
+      - status: Current status of the portfolio
+
+    Returns:
+      - A pointer to the newly created Portfolio
+
+func (p *Portfolio) ToMmodelPortfolio() mmodel.Portfolio
+    ToMmodelPortfolio converts an SDK Portfolio to an mmodel Portfolio. This
+    method is used internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Portfolio instance with the same values
+
+func (p *Portfolio) WithMetadata(metadata map[string]any) *Portfolio
+    WithMetadata adds metadata to the portfolio. Metadata can store additional
+    custom information about the portfolio.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified Portfolio for method chaining
+
+type Portfolios struct {
+	// Items is the collection of portfolios in the current page
+	Items []Portfolio `json:"items"`
+
+	// Page is the current page number
+	Page int `json:"page"`
+
+	// Limit is the maximum number of items per page
+	Limit int `json:"limit"`
+}
+    Portfolios represents a collection of portfolios with pagination
+    information. This structure is used for paginated responses when listing
+    portfolios.
+
+func FromMmodelPortfolios(portfolios mmodel.Portfolios) Portfolios
+    FromMmodelPortfolios converts an mmodel Portfolios to an SDK Portfolios.
+    This function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - portfolios: The mmodel.Portfolios to convert
+
+    Returns:
+      - A models.Portfolios instance with the same values
+
+type Queue struct {
+	// OrganizationID is the unique identifier of the organization that owns this queue
+	OrganizationID uuid.UUID `json:"organizationId"`
+
+	// LedgerID is the identifier of the ledger associated with this queue
+	LedgerID uuid.UUID `json:"ledgerId"`
+
+	// AuditID is the identifier for audit tracking purposes
+	AuditID uuid.UUID `json:"auditId"`
+
+	// AccountID is the identifier of the account associated with this queue
+	AccountID uuid.UUID `json:"accountId"`
+
+	// QueueData contains the collection of data items in this queue
+	QueueData []QueueData `json:"queueData"`
+}
+    Queue represents a transaction queue in the Midaz system. Queues are used to
+    temporarily store transaction data before processing, allowing for batched
+    or asynchronous transaction handling.
+
+func FromMmodelQueue(queue mmodel.Queue) Queue
+    FromMmodelQueue converts an mmodel Queue to an SDK Queue. This function is
+    used internally to convert between backend and SDK models.
+
+    Parameters:
+      - queue: The mmodel.Queue to convert
+
+    Returns:
+      - A models.Queue instance with the same values
+
+func NewQueue(orgID, ledgerID, auditID, accountID uuid.UUID) *Queue
+    NewQueue creates a new Queue with required fields. This constructor ensures
+    that all mandatory fields are provided when creating a queue.
+
+    Parameters:
+      - orgID: Unique identifier for the organization
+      - ledgerID: Identifier of the ledger associated with this queue
+      - auditID: Identifier for audit tracking purposes
+      - accountID: Identifier of the account associated with this queue
+
+    Returns:
+      - A pointer to the newly created Queue
+
+func (q *Queue) AddQueueData(id uuid.UUID, value json.RawMessage) *Queue
+    AddQueueData adds a new data item to the queue. This method appends a new
+    data item with the provided ID and value.
+
+    Parameters:
+      - id: Unique identifier for the new queue data item
+      - value: The data to store, as raw JSON
+
+    Returns:
+      - A pointer to the modified Queue for method chaining
+
+func (q *Queue) ToMmodelQueue() mmodel.Queue
+    ToMmodelQueue converts an SDK Queue to an mmodel Queue. This method is used
+    internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Queue instance with the same values
+
+type QueueData struct {
+	// ID is the unique identifier for this queue data item
+	ID uuid.UUID `json:"id"`
+
+	// Value contains the actual data as raw JSON
+	Value json.RawMessage `json:"value"`
+}
+    QueueData represents a single data item in a queue. Each item has a unique
+    identifier and contains arbitrary JSON data.
+
+type Rate struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Value      int64  `json:"value"`
+	Scale      int64  `json:"scale"`
+	ExternalID string `json:"externalId"`
+}
+    Rate represents an exchange rate configuration.
+
+type Segment struct {
+	// ID is the unique identifier for the segment
+	ID string `json:"id"`
+
+	// Name is the human-readable name of the segment
+	Name string `json:"name"`
+
+	// LedgerID is the identifier of the ledger that contains this segment
+	LedgerID string `json:"ledgerId"`
+
+	// OrganizationID is the identifier of the organization that owns this segment
+	OrganizationID string `json:"organizationId"`
+
+	// Status represents the current status of the segment (e.g., "ACTIVE", "INACTIVE")
+	Status Status `json:"status"`
+
+	// CreatedAt is the timestamp when the segment was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the segment was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the segment was deleted, if applicable
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+
+	// Metadata contains additional custom data associated with the segment
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    Segment represents a segment in the Midaz system for more granular
+    organization. Segments allow for further categorization and grouping of
+    accounts or other entities within a ledger, enabling more detailed reporting
+    and management.
+
+func FromMmodelSegment(segment mmodel.Segment) Segment
+    FromMmodelSegment converts an mmodel Segment to an SDK Segment. This
+    function is used internally to convert between backend and SDK models.
+
+    Parameters:
+      - segment: The mmodel.Segment to convert
+
+    Returns:
+      - A models.Segment instance with the same values
+
+func NewSegment(id, name, ledgerID, organizationID string, status Status) *Segment
+    NewSegment creates a new Segment with required fields. This constructor
+    ensures that all mandatory fields are provided when creating a segment.
+
+    Parameters:
+      - id: Unique identifier for the segment
+      - name: Human-readable name for the segment
+      - ledgerID: Identifier of the ledger that contains this segment
+      - organizationID: Identifier of the organization that owns this segment
+      - status: Current status of the segment
+
+    Returns:
+      - A pointer to the newly created Segment
+
+func (s *Segment) ToMmodelSegment() mmodel.Segment
+    ToMmodelSegment converts an SDK Segment to an mmodel Segment. This method is
+    used internally to convert between SDK and backend models.
+
+    Returns:
+      - An mmodel.Segment instance with the same values
+
+func (s *Segment) WithMetadata(metadata map[string]any) *Segment
+    WithMetadata adds metadata to the segment. Metadata can store additional
+    custom information about the segment.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as metadata
+
+    Returns:
+      - A pointer to the modified Segment for method chaining
+
+type Share struct {
+	Percentage             int64 `json:"percentage"`
+	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
+}
+    Share represents the sharing configuration for a transaction.
+
+type Source struct {
+	// ID is the unique identifier for the source account
+	ID string `json:"id"`
+
+	// Alias is an optional human-readable name for the source account
+	Alias *string `json:"alias,omitempty"`
+
+	// Destination indicates if this source is also a destination
+	Destination bool `json:"destination"`
+}
+    Source represents the source of an operation. This identifies where funds or
+    assets are coming from in a transaction.
+
+type Status struct {
+	// Code is the status code identifier (e.g., "active", "pending", "closed")
+	Code string `json:"code"`
+
+	// Description provides optional additional context about the status
+	Description *string `json:"description,omitempty"`
+}
+    Status represents the status of an entity in the Midaz system. It contains a
+    status code and an optional description providing additional context. Status
+    is used across various models to indicate the current state of resources.
+
+func FromMmodelStatus(modelStatus mmodel.Status) Status
+    FromMmodelStatus converts an mmodel Status to an SDK Status (internal use
+    only). This function is used for internal SDK operations when processing
+    responses from the backend.
+
+    Parameters:
+      - modelStatus: The mmodel.Status to convert
+
+    Returns:
+      - A models.Status instance with the same values as the input mmodel.Status
+
+func NewStatus(code string) Status
+    NewStatus creates a new Status with the given code. This is a convenience
+    constructor for creating Status objects.
+
+    Parameters:
+      - code: The status code to set (e.g., "active", "pending", "closed")
+
+    Returns:
+      - A new Status instance with the specified code
+
+func (s Status) IsEmpty() bool
+    IsEmpty returns true if the status is empty. A status is considered empty if
+    it has no code and no description.
+
+    Returns:
+      - true if the status is empty, false otherwise
+
+func (s Status) ToMmodelStatus() mmodel.Status
+    ToMmodelStatus converts an SDK Status to an mmodel Status (internal use
+    only). This method is used for internal SDK operations when interfacing with
+    the backend.
+
+    Returns:
+      - An mmodel.Status instance with the same values as this Status
+
+func (s Status) WithDescription(description string) Status
+    WithDescription adds a description to the status. This is a fluent-style
+    method that returns the modified Status.
+
+    Parameters:
+      - description: The description text to add to the status
+
+    Returns:
+      - The modified Status instance with the added description
+
+type Timestamps struct {
+	// CreatedAt is the timestamp when the resource was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the resource was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the resource was deleted (if applicable)
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+}
+    Timestamps represents common timestamp fields for resources. This
+    structure is embedded in many models to provide standard creation, update,
+    and deletion timestamps.
+
+type Transaction struct {
+	// ID is the unique identifier for the transaction
+	// This is a system-generated UUID that uniquely identifies the transaction
+	ID string `json:"id"`
+
+	// Template is an optional identifier for the transaction template used
+	// Templates can be used to create standardized transactions with predefined
+	// structures and validation rules
+	Template string `json:"template,omitempty"`
+
+	// Amount is the numeric value of the transaction
+	// This represents the total value of the transaction as a fixed-point integer
+	// The actual amount is calculated as Amount / 10^Scale
+	Amount int64 `json:"amount"`
+
+	// Scale represents the decimal precision for the amount
+	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
+	Scale int64 `json:"scale"`
+
+	// AssetCode identifies the currency or asset type for this transaction
+	// Common examples include "USD", "EUR", "BTC", etc.
+	AssetCode string `json:"assetCode"`
+
+	// Status indicates the current processing status of the transaction
+	// See the Status enum for possible values (PENDING, COMPLETED, FAILED, CANCELED)
+	Status Status `json:"status"`
+
+	// LedgerID identifies the ledger this transaction belongs to
+	// A ledger is a collection of accounts and transactions within an organization
+	LedgerID string `json:"ledgerId"`
+
+	// OrganizationID identifies the organization this transaction belongs to
+	// An organization is the top-level entity that owns ledgers and accounts
+	OrganizationID string `json:"organizationId"`
+
+	// Operations contains the individual debit and credit operations
+	// Each operation represents a single accounting entry (debit or credit)
+	// The sum of all operations for each asset must balance to zero
+	Operations []Operation `json:"operations,omitempty"`
+
+	// Metadata contains additional custom data for the transaction
+	// This can be used to store application-specific information
+	// such as references to external systems, tags, or other contextual data
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// CreatedAt is the timestamp when the transaction was created
+	CreatedAt time.Time `json:"createdAt"`
+
+	// UpdatedAt is the timestamp when the transaction was last updated
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// DeletedAt is the timestamp when the transaction was deleted, if applicable
+	// This field is only set if the transaction has been soft-deleted
+	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+
+	// ExternalID is an optional identifier for linking to external systems
+	// This can be used to correlate transactions with records in other systems
+	ExternalID string `json:"externalId,omitempty"`
+
+	// Description is a human-readable description of the transaction
+	// This should provide context about the purpose or nature of the transaction
+	Description string `json:"description,omitempty"`
+
+	// Has unexported fields.
+}
+    Transaction represents a transaction in the Midaz Ledger. A transaction
+    is a financial event that affects one or more accounts through a series of
+    operations (debits and credits).
+
+    Transactions are the core financial records in the Midaz system,
+    representing the movement of assets between accounts. Each transaction
+    consists of one or more operations (debits and credits) that must balance
+    (sum to zero) for each asset type.
+
+    Transactions can be in different states as indicated by their Status field:
+      - PENDING: The transaction is created but not yet committed
+      - COMPLETED: The transaction is committed and has affected account
+        balances
+      - FAILED: The transaction processing failed
+      - CANCELED: The transaction was canceled before being committed
+
+    Example usage:
+
+        // Accessing transaction details
+        fmt.Printf("Transaction ID: %s\n", transaction.ID)
+        fmt.Printf("Amount: %d (scale: %d)\n", transaction.Amount, transaction.Scale)
+        fmt.Printf("Asset: %s\n", transaction.AssetCode)
+        fmt.Printf("Status: %s\n", transaction.Status)
+        fmt.Printf("Created: %s\n", transaction.CreatedAt.Format(time.RFC3339))
+
+        // Iterating through operations
+        for i, op := range transaction.Operations {
+            fmt.Printf("Operation %d: %s %s %d (scale: %d) on account %s\n",
+                i+1, op.Type, op.AssetCode, op.Amount.Value, op.Amount.Scale, op.AccountID)
+        }
+
+        // Accessing metadata
+        if reference, ok := transaction.Metadata["reference"].(string); ok {
+            fmt.Printf("Reference: %s\n", reference)
+        }
+
+func (t *Transaction) FromLibTransaction(lib *libTransaction.Transaction) *Transaction
+    FromLibTransaction converts a lib-commons Transaction to an SDK Transaction.
+    This function is used internally to convert between backend and SDK models.
+
+func (t *Transaction) ToLibTransaction() *libTransaction.Transaction
+    ToLibTransaction converts an SDK Transaction to a lib-commons Transaction.
+    This method is used internally to convert between SDK and backend models.
+
+type TransactionDSLInput struct {
+	// ChartOfAccountsGroupName specifies the chart of accounts group to use
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Description provides a human-readable description of the transaction
+	Description string `json:"description,omitempty"`
+
+	// Send contains the sending configuration
+	Send *DSLSend `json:"send,omitempty"`
+
+	// Metadata contains additional custom data for the transaction
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Code is a custom transaction code for categorization
+	Code string `json:"code,omitempty"`
+
+	// Pending indicates whether the transaction requires explicit commitment
+	Pending bool `json:"pending,omitempty"`
+}
+    TransactionDSLInput represents the input for creating a transaction using
+    DSL. This is aligned with the lib-commons Transaction structure.
+
+func FromLibTransaction(t *libTransaction.Transaction) *TransactionDSLInput
+    FromLibTransaction converts a lib-commons Transaction to a
+    TransactionDSLInput.
+
+func (input *TransactionDSLInput) ToLibTransaction() *libTransaction.Transaction
+    ToLibTransaction converts a TransactionDSLInput to a lib-commons
+    Transaction.
+
+func (input *TransactionDSLInput) Validate() error
+    Validate checks that the TransactionDSLInput meets all validation
+    requirements.
+
+type UpdateAccountInput struct {
+	// Name is the human-readable name of the account.
+	// Max length: 256 characters.
+	Name string `json:"name"`
+
+	// SegmentID is the optional ID of the segment this account belongs to.
+	// Must be a valid UUID if provided.
+	SegmentID *string `json:"segmentId,omitempty"`
+
+	// PortfolioID is the optional ID of the portfolio this account belongs to.
+	// Must be a valid UUID if provided.
+	PortfolioID *string `json:"portfolioId,omitempty"`
+
+	// Status represents the current status of the account (e.g., "ACTIVE", "CLOSED").
+	Status Status `json:"status"`
+
+	// Metadata contains additional custom data associated with the account.
+	// Keys max length: 100 characters, Values max length: 2000 characters.
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    UpdateAccountInput is the input for updating an account. This structure
+    contains the fields that can be modified when updating an existing account.
+
+func NewUpdateAccountInput() *UpdateAccountInput
+    NewUpdateAccountInput creates a new UpdateAccountInput. This constructor
+    initializes an empty update input that can be customized using the With*
+    methods.
+
+    Returns:
+      - A pointer to the newly created UpdateAccountInput
+
+func (input UpdateAccountInput) ToMmodelUpdateAccountInput() mmodel.UpdateAccountInput
+    ToMmodelUpdateAccountInput converts an SDK UpdateAccountInput to an mmodel
+    UpdateAccountInput. This method is used internally to convert between SDK
+    and backend models.
+
+    Returns:
+      - An mmodel.UpdateAccountInput instance with the same values
+
+func (input *UpdateAccountInput) Validate() error
+    Validate checks if the UpdateAccountInput meets the validation requirements.
+    It returns an error if any of the validation checks fail.
+
+func (input *UpdateAccountInput) WithMetadata(metadata map[string]any) *UpdateAccountInput
+    WithMetadata sets the metadata. This updates the custom metadata associated
+    with the account.
+
+    Parameters:
+      - metadata: The new metadata map
+
+    Returns:
+      - A pointer to the modified UpdateAccountInput for method chaining
+
+func (input *UpdateAccountInput) WithName(name string) *UpdateAccountInput
+    WithName sets the name. This updates the human-readable name of the account.
+
+    Parameters:
+      - name: The new name for the account
+
+    Returns:
+      - A pointer to the modified UpdateAccountInput for method chaining
+
+func (input *UpdateAccountInput) WithPortfolioID(portfolioID string) *UpdateAccountInput
+    WithPortfolioID sets the portfolio ID. This updates the portfolio
+    association of the account.
+
+    Parameters:
+      - portfolioID: The new portfolio ID
+
+    Returns:
+      - A pointer to the modified UpdateAccountInput for method chaining
+
+func (input *UpdateAccountInput) WithSegmentID(segmentID string) *UpdateAccountInput
+    WithSegmentID sets the segment ID. This updates the segment association of
+    the account.
+
+    Parameters:
+      - segmentID: The new segment ID
+
+    Returns:
+      - A pointer to the modified UpdateAccountInput for method chaining
+
+func (input *UpdateAccountInput) WithStatus(status Status) *UpdateAccountInput
+    WithStatus sets the status. This updates the status of the account.
+
+    Parameters:
+      - status: The new status for the account
+
+    Returns:
+      - A pointer to the modified UpdateAccountInput for method chaining
+
+type UpdateAssetInput struct {
+	// Name is the updated human-readable name for the asset
+	Name string `json:"name,omitempty"`
+
+	// Status is the updated status of the asset
+	Status Status `json:"status,omitempty"`
+
+	// Metadata contains updated additional custom data
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    UpdateAssetInput is the input for updating an asset. This structure contains
+    the fields that can be modified when updating an existing asset.
+
+func NewUpdateAssetInput() *UpdateAssetInput
+    NewUpdateAssetInput creates a new empty UpdateAssetInput. This constructor
+    initializes an empty update input that can be customized using the With*
+    methods.
+
+    Returns:
+      - A pointer to the newly created UpdateAssetInput
+
+func (u *UpdateAssetInput) ToMmodelUpdateAssetInput() mmodel.UpdateAssetInput
+    ToMmodelUpdateAssetInput converts an SDK UpdateAssetInput to an mmodel
+    UpdateAssetInput. This method is used internally to convert between SDK and
+    backend models.
+
+    Returns:
+      - An mmodel.UpdateAssetInput instance with the same values
+
+func (input *UpdateAssetInput) Validate() error
+    Validate validates the UpdateAssetInput and returns an error if it's
+    invalid. This method checks that all fields meet the validation constraints
+    defined by the backend. For update operations, fields are optional but must
+    be valid if provided.
+
+    Returns:
+      - error: An error if the input is invalid, nil otherwise
+
+func (input *UpdateAssetInput) WithMetadata(metadata map[string]any) *UpdateAssetInput
+    WithMetadata sets the metadata in the update asset input. This updates the
+    custom metadata associated with the asset.
+
+    Parameters:
+      - metadata: The new metadata map
+
+    Returns:
+      - A pointer to the modified UpdateAssetInput for method chaining
+
+func (u *UpdateAssetInput) WithName(name string) *UpdateAssetInput
+    WithName sets the name in the update asset input. This updates the
+    human-readable name of the asset.
+
+    Parameters:
+      - name: The new name for the asset
+
+    Returns:
+      - A pointer to the modified UpdateAssetInput for method chaining
+
+func (u *UpdateAssetInput) WithStatus(status Status) *UpdateAssetInput
+    WithStatus sets the status in the update asset input. This updates the
+    status of the asset.
+
+    Parameters:
+      - status: The new status for the asset
+
+    Returns:
+      - A pointer to the modified UpdateAssetInput for method chaining
+
+type UpdateAssetRateInput struct {
+	// FromAsset is the updated source asset code
+	FromAsset string `json:"fromAsset"`
+
+	// ToAsset is the updated target asset code
+	ToAsset string `json:"toAsset"`
+
+	// Rate is the updated exchange rate value
+	Rate float64 `json:"rate"`
+
+	// EffectiveAt is the updated timestamp when the rate becomes effective
+	EffectiveAt time.Time `json:"effectiveAt"`
+
+	// ExpirationAt is the updated timestamp when the rate expires
+	ExpirationAt time.Time `json:"expirationAt"`
+}
+    UpdateAssetRateInput is the input for updating an asset rate. This structure
+    contains the fields that can be modified when updating an existing asset
+    rate.
+
+func NewUpdateAssetRateInput(fromAsset, toAsset string, rate float64, effectiveAt, expirationAt time.Time) *UpdateAssetRateInput
+    NewUpdateAssetRateInput creates a new UpdateAssetRateInput with required
+    fields. This constructor ensures that all mandatory fields are provided when
+    updating an asset rate.
+
+    Parameters:
+      - fromAsset: Source asset code
+      - toAsset: Target asset code
+      - rate: Exchange rate value
+      - effectiveAt: Timestamp when the rate becomes effective
+      - expirationAt: Timestamp when the rate expires
+
+    Returns:
+      - A pointer to the newly created UpdateAssetRateInput
+
+func (input *UpdateAssetRateInput) Validate() error
+    Validate checks that the UpdateAssetRateInput meets all validation
+    requirements. It ensures that required fields are present and that
+    all fields meet their validation constraints as defined in the API
+    specification.
+
+    Returns:
+      - error: An error if validation fails, nil otherwise
+
+type UpdateBalanceInput struct {
+	// AllowSending indicates whether to allow sending funds from the account
+	// If nil, the current value is preserved
+	AllowSending *bool `json:"allowSending,omitempty"`
+
+	// AllowReceiving indicates whether to allow receiving funds to the account
+	// If nil, the current value is preserved
+	AllowReceiving *bool `json:"allowReceiving,omitempty"`
+}
+    UpdateBalanceInput represents input for updating a balance. This structure
+    contains the fields that can be modified when updating an existing balance.
+
+func NewUpdateBalanceInput() *UpdateBalanceInput
+    NewUpdateBalanceInput creates a new empty UpdateBalanceInput. This
+    constructor initializes an empty update input that can be customized using
+    the With* methods.
+
+    Returns:
+      - A pointer to the newly created UpdateBalanceInput
+
+func (u *UpdateBalanceInput) ToMmodelUpdateBalance() mmodel.UpdateBalance
+    ToMmodelUpdateBalance converts an SDK UpdateBalanceInput to a backend
+    UpdateBalance. This method is used internally to convert between SDK and
+    backend models.
+
+    Returns:
+      - An mmodel.UpdateBalance instance with the same values
+
+func (input *UpdateBalanceInput) Validate() error
+    Validate checks that the UpdateBalanceInput meets all validation
+    requirements. For UpdateBalanceInput, we simply need to ensure that at least
+    one field is set.
+
+    Returns:
+      - error: An error if validation fails, nil otherwise
+
+func (u *UpdateBalanceInput) WithAllowReceiving(allowed bool) *UpdateBalanceInput
+    WithAllowReceiving sets whether receiving is allowed. This controls whether
+    funds can be received into the account.
+
+    Parameters:
+      - allowed: Whether to allow receiving funds
+
+    Returns:
+      - A pointer to the modified UpdateBalanceInput for method chaining
+
+func (u *UpdateBalanceInput) WithAllowSending(allowed bool) *UpdateBalanceInput
+    WithAllowSending sets whether sending is allowed. This controls whether
+    funds can be sent from the account.
+
+    Parameters:
+      - allowed: Whether to allow sending funds
+
+    Returns:
+      - A pointer to the modified UpdateBalanceInput for method chaining
+
+type UpdateLedgerInput struct {
+	// Name is the updated human-readable name for the ledger (max length: 256 characters)
+	Name string `json:"name"`
+
+	// Status is the updated status of the ledger
+	Status Status `json:"status"`
+
+	// Metadata contains updated additional custom data
+	// Keys max length: 100 characters, Values max length: 2000 characters
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    UpdateLedgerInput is the input for updating a ledger. This structure
+    contains the fields that can be modified when updating an existing ledger.
+
+func NewUpdateLedgerInput() *UpdateLedgerInput
+    NewUpdateLedgerInput creates a new UpdateLedgerInput. This constructor
+    initializes an empty update input that can be customized using the With*
+    methods.
+
+    Returns:
+      - A pointer to the newly created UpdateLedgerInput
+
+    Example - Update name only:
+
+        // Create an update to change just the ledger name
+        input := models.NewUpdateLedgerInput().WithName("Updated Ledger Name")
+
+        // Validate the input
+        if err := input.Validate(); err != nil {
+            log.Fatalf("Invalid update input: %v", err)
+        }
+
+    Example - Multiple field update:
+
+        // Update multiple fields at once
+        input := models.NewUpdateLedgerInput()
+            .WithName("Archive Ledger")
+            .WithStatus(models.NewStatus("INACTIVE"))
+            .WithMetadata(map[string]any{
+                "archivedDate": time.Now().Format(time.RFC3339),
+                "archivedBy": "user123",
+                "reason": "End of fiscal year",
+            })
+
+        // Validate the input
+        if err := input.Validate(); err != nil {
+            log.Fatalf("Invalid update input: %v", err)
+        }
+
+func (input UpdateLedgerInput) ToMmodelUpdateLedgerInput() mmodel.UpdateLedgerInput
+    ToMmodelUpdateLedgerInput converts an SDK UpdateLedgerInput to an mmodel
+    UpdateLedgerInput. This method is used internally to convert between SDK and
+    backend models.
+
+    Returns:
+      - An mmodel.UpdateLedgerInput instance with the same values
+
+func (input *UpdateLedgerInput) Validate() error
+    Validate validates the UpdateLedgerInput and returns an error if it's
+    invalid. This method checks that all fields meet the validation constraints
+    defined by the backend. For update operations, fields are optional but must
+    be valid if provided.
+
+    Returns:
+      - error: An error if the input is invalid, nil otherwise
+
+func (input *UpdateLedgerInput) WithMetadata(metadata map[string]any) *UpdateLedgerInput
+    WithMetadata sets the metadata on the update ledger input. This updates the
+    custom metadata associated with the ledger.
+
+    Parameters:
+      - metadata: The new metadata map
+
+    Returns:
+      - A pointer to the modified UpdateLedgerInput for method chaining
+
+func (input *UpdateLedgerInput) WithName(name string) *UpdateLedgerInput
+    WithName sets the name on the update ledger input. This updates the
+    human-readable name of the ledger.
+
+    Parameters:
+      - name: The new name for the ledger (max length: 256 characters)
+
+    Returns:
+      - A pointer to the modified UpdateLedgerInput for method chaining
+
+    Example:
+
+        input := models.NewUpdateLedgerInput().WithName("Quarterly Ledger Q1 2025")
+
+func (input *UpdateLedgerInput) WithStatus(status Status) *UpdateLedgerInput
+    WithStatus sets the status on the update ledger input. This updates the
+    status of the ledger.
+
+    Parameters:
+      - status: The new status for the ledger
+
+    Returns:
+      - A pointer to the modified UpdateLedgerInput for method chaining
+
+type UpdateOrganizationInput struct {
+	// LegalName is the updated official registered name of the organization
+	LegalName string `json:"legalName"`
+
+	// ParentOrganizationID is the reference to the parent organization, if this is a child organization
+	ParentOrganizationID *string `json:"parentOrganizationId,omitempty"`
+
+	// DoingBusinessAs is the updated trading or brand name of the organization
+	DoingBusinessAs string `json:"doingBusinessAs"`
+
+	// Address is the updated physical address of the organization
+	Address Address `json:"address"`
+
+	// Status represents the updated status of the organization
+	Status Status `json:"status"`
+
+	// Metadata contains updated custom data for the organization
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    UpdateOrganizationInput is the input for updating an organization.
+    This structure contains all the fields that can be specified when updating
+    an existing organization. Only fields that are set will be updated; omitted
+    fields will remain unchanged.
+
+func FromMmodelUpdateOrganizationInput(input mmodel.UpdateOrganizationInput) UpdateOrganizationInput
+    FromMmodelUpdateOrganizationInput converts an mmodel UpdateOrganizationInput
+    to an SDK UpdateOrganizationInput. This function is used internally to
+    convert between backend and SDK models.
+
+    Parameters:
+      - input: The mmodel.UpdateOrganizationInput to convert
+
+    Returns:
+      - A models.UpdateOrganizationInput instance with the same values
+
+func NewUpdateOrganizationInput() *UpdateOrganizationInput
+    NewUpdateOrganizationInput creates a new empty UpdateOrganizationInput.
+    This constructor creates an empty input that can be populated using the
+    With* methods.
+
+    Returns:
+      - A pointer to the newly created UpdateOrganizationInput
+
+func (input UpdateOrganizationInput) ToMmodelUpdateOrganizationInput() mmodel.UpdateOrganizationInput
+    ToMmodelUpdateOrganizationInput converts an SDK UpdateOrganizationInput to
+    an mmodel UpdateOrganizationInput. This method is used internally to convert
+    between SDK and backend models.
+
+    Returns:
+      - An mmodel.UpdateOrganizationInput instance with the same values
+
+func (input *UpdateOrganizationInput) WithAddress(address Address) *UpdateOrganizationInput
+    WithAddress sets the address on the organization update input.
+
+    Parameters:
+      - address: The updated physical address of the organization
+
+    Returns:
+      - A pointer to the modified UpdateOrganizationInput for method chaining
+
+func (input *UpdateOrganizationInput) WithDoingBusinessAs(doingBusinessAs string) *UpdateOrganizationInput
+    WithDoingBusinessAs sets the doing business as name on the organization
+    update input.
+
+    Parameters:
+      - doingBusinessAs: The updated trading or brand name of the organization
+
+    Returns:
+      - A pointer to the modified UpdateOrganizationInput for method chaining
+
+func (input *UpdateOrganizationInput) WithLegalName(legalName string) *UpdateOrganizationInput
+    WithLegalName sets the legal name on the organization update input.
+
+    Parameters:
+      - legalName: The updated official registered name of the organization
+
+    Returns:
+      - A pointer to the modified UpdateOrganizationInput for method chaining
+
+func (input *UpdateOrganizationInput) WithMetadata(metadata map[string]any) *UpdateOrganizationInput
+    WithMetadata sets the metadata on the organization update input.
+
+    Parameters:
+      - metadata: The updated custom data for the organization
+
+    Returns:
+      - A pointer to the modified UpdateOrganizationInput for method chaining
+
+func (input *UpdateOrganizationInput) WithParentOrganizationID(parentOrganizationID string) *UpdateOrganizationInput
+    WithParentOrganizationID sets the parent organization ID on the organization
+    update input.
+
+    Parameters:
+      - parentOrganizationID: The updated reference to the parent organization
+
+    Returns:
+      - A pointer to the modified UpdateOrganizationInput for method chaining
+
+func (input *UpdateOrganizationInput) WithStatus(status Status) *UpdateOrganizationInput
+    WithStatus sets the status on the organization update input.
+
+    Parameters:
+      - status: The updated status of the organization
+
+    Returns:
+      - A pointer to the modified UpdateOrganizationInput for method chaining
+
+type UpdatePortfolioInput struct {
+	// Name is the updated human-readable name for the portfolio.
+	// Max length: 256 characters.
+	Name string `json:"name,omitempty"`
+
+	// Status is the updated status of the portfolio.
+	Status Status `json:"status,omitempty"`
+
+	// Metadata contains updated additional custom data.
+	// Keys max length: 100 characters, Values max length: 2000 characters.
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    UpdatePortfolioInput is the input for updating a portfolio. This structure
+    contains the fields that can be modified when updating an existing
+    portfolio.
+
+func NewUpdatePortfolioInput() *UpdatePortfolioInput
+    NewUpdatePortfolioInput creates a new empty UpdatePortfolioInput. This
+    constructor initializes an empty update input that can be customized using
+    the With* methods.
+
+    Returns:
+      - A pointer to the newly created UpdatePortfolioInput
+
+func (u *UpdatePortfolioInput) ToMmodelUpdatePortfolioInput() mmodel.UpdatePortfolioInput
+    ToMmodelUpdatePortfolioInput converts an SDK UpdatePortfolioInput to an
+    mmodel UpdatePortfolioInput. This method is used internally to convert
+    between SDK and backend models.
+
+    Returns:
+      - An mmodel.UpdatePortfolioInput instance with the same values
+
+func (input *UpdatePortfolioInput) Validate() error
+    Validate checks if the UpdatePortfolioInput meets the validation
+    requirements. It returns an error if any of the validation checks fail.
+
+func (u *UpdatePortfolioInput) WithMetadata(metadata map[string]any) *UpdatePortfolioInput
+    WithMetadata sets the metadata in the update portfolio input. This updates
+    the custom metadata associated with the portfolio.
+
+    Parameters:
+      - metadata: The new metadata map
+
+    Returns:
+      - A pointer to the modified UpdatePortfolioInput for method chaining
+
+func (u *UpdatePortfolioInput) WithName(name string) *UpdatePortfolioInput
+    WithName sets the name in the update portfolio input. This updates the
+    human-readable name of the portfolio.
+
+    Parameters:
+      - name: The new name for the portfolio
+
+    Returns:
+      - A pointer to the modified UpdatePortfolioInput for method chaining
+
+func (u *UpdatePortfolioInput) WithStatus(status Status) *UpdatePortfolioInput
+    WithStatus sets the status in the update portfolio input. This updates the
+    status of the portfolio.
+
+    Parameters:
+      - status: The new status for the portfolio
+
+    Returns:
+      - A pointer to the modified UpdatePortfolioInput for method chaining
+
+type UpdateSegmentInput struct {
+	// Name is the updated human-readable name for the segment
+	Name string `json:"name,omitempty"`
+
+	// Status represents the updated status of the segment
+	Status Status `json:"status,omitempty"`
+
+	// Metadata contains updated or additional custom data for the segment
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+    UpdateSegmentInput is the input for updating a segment. This structure
+    contains the fields that can be modified when updating an existing segment.
+
+func NewUpdateSegmentInput() *UpdateSegmentInput
+    NewUpdateSegmentInput creates a new empty UpdateSegmentInput. This
+    constructor initializes an empty update input that can be customized using
+    the With* methods.
+
+    Returns:
+      - A pointer to the newly created UpdateSegmentInput
+
+func (u *UpdateSegmentInput) ToMmodelUpdateSegmentInput() mmodel.UpdateSegmentInput
+    ToMmodelUpdateSegmentInput converts an SDK UpdateSegmentInput to an mmodel
+    UpdateSegmentInput. This method is used internally to convert between SDK
+    and backend models.
+
+    Returns:
+      - An mmodel.UpdateSegmentInput instance with the same values
+
+func (input *UpdateSegmentInput) Validate() error
+    Validate checks that the UpdateSegmentInput meets all validation
+    requirements. It ensures that all fields meet their validation constraints
+    as defined in the API specification.
+
+    Returns:
+      - error: An error if validation fails, nil otherwise
+
+func (u *UpdateSegmentInput) WithMetadata(metadata map[string]any) *UpdateSegmentInput
+    WithMetadata sets the metadata in the update segment input. This updates the
+    custom metadata associated with the segment.
+
+    Parameters:
+      - metadata: The new metadata map
+
+    Returns:
+      - A pointer to the modified UpdateSegmentInput for method chaining
+
+func (u *UpdateSegmentInput) WithName(name string) *UpdateSegmentInput
+    WithName sets the name in the update segment input. This updates the
+    human-readable name of the segment.
+
+    Parameters:
+      - name: The new name for the segment
+
+    Returns:
+      - A pointer to the modified UpdateSegmentInput for method chaining
+
+func (u *UpdateSegmentInput) WithStatus(status Status) *UpdateSegmentInput
+    WithStatus sets the status in the update segment input. This updates the
+    status of the segment.
+
+    Parameters:
+      - status: The new status for the segment
+
+    Returns:
+      - A pointer to the modified UpdateSegmentInput for method chaining
+

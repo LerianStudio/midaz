@@ -10,35 +10,79 @@ import (
 // Transaction represents a transaction in the Midaz Ledger.
 // A transaction is a financial event that affects one or more accounts
 // through a series of operations (debits and credits).
+//
+// Transactions are the core financial records in the Midaz system, representing
+// the movement of assets between accounts. Each transaction consists of one or more
+// operations (debits and credits) that must balance (sum to zero) for each asset type.
+//
+// Transactions can be in different states as indicated by their Status field:
+//   - PENDING: The transaction is created but not yet committed
+//   - COMPLETED: The transaction is committed and has affected account balances
+//   - FAILED: The transaction processing failed
+//   - CANCELED: The transaction was canceled before being committed
+//
+// Example usage:
+//
+//	// Accessing transaction details
+//	fmt.Printf("Transaction ID: %s\n", transaction.ID)
+//	fmt.Printf("Amount: %d (scale: %d)\n", transaction.Amount, transaction.Scale)
+//	fmt.Printf("Asset: %s\n", transaction.AssetCode)
+//	fmt.Printf("Status: %s\n", transaction.Status)
+//	fmt.Printf("Created: %s\n", transaction.CreatedAt.Format(time.RFC3339))
+//
+//	// Iterating through operations
+//	for i, op := range transaction.Operations {
+//	    fmt.Printf("Operation %d: %s %s %d (scale: %d) on account %s\n",
+//	        i+1, op.Type, op.AssetCode, op.Amount.Value, op.Amount.Scale, op.AccountID)
+//	}
+//
+//	// Accessing metadata
+//	if reference, ok := transaction.Metadata["reference"].(string); ok {
+//	    fmt.Printf("Reference: %s\n", reference)
+//	}
 type Transaction struct {
 	// ID is the unique identifier for the transaction
+	// This is a system-generated UUID that uniquely identifies the transaction
 	ID string `json:"id"`
 
 	// Template is an optional identifier for the transaction template used
+	// Templates can be used to create standardized transactions with predefined
+	// structures and validation rules
 	Template string `json:"template,omitempty"`
 
 	// Amount is the numeric value of the transaction
+	// This represents the total value of the transaction as a fixed-point integer
+	// The actual amount is calculated as Amount / 10^Scale
 	Amount int64 `json:"amount"`
 
 	// Scale represents the decimal precision for the amount
+	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
 	Scale int64 `json:"scale"`
 
 	// AssetCode identifies the currency or asset type for this transaction
+	// Common examples include "USD", "EUR", "BTC", etc.
 	AssetCode string `json:"assetCode"`
 
 	// Status indicates the current processing status of the transaction
+	// See the Status enum for possible values (PENDING, COMPLETED, FAILED, CANCELED)
 	Status Status `json:"status"`
 
 	// LedgerID identifies the ledger this transaction belongs to
+	// A ledger is a collection of accounts and transactions within an organization
 	LedgerID string `json:"ledgerId"`
 
 	// OrganizationID identifies the organization this transaction belongs to
+	// An organization is the top-level entity that owns ledgers and accounts
 	OrganizationID string `json:"organizationId"`
 
 	// Operations contains the individual debit and credit operations
+	// Each operation represents a single accounting entry (debit or credit)
+	// The sum of all operations for each asset must balance to zero
 	Operations []Operation `json:"operations,omitempty"`
 
 	// Metadata contains additional custom data for the transaction
+	// This can be used to store application-specific information
+	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// CreatedAt is the timestamp when the transaction was created
@@ -48,7 +92,16 @@ type Transaction struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the transaction was deleted, if applicable
+	// This field is only set if the transaction has been soft-deleted
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+
+	// ExternalID is an optional identifier for linking to external systems
+	// This can be used to correlate transactions with records in other systems
+	ExternalID string `json:"externalId,omitempty"`
+
+	// Description is a human-readable description of the transaction
+	// This should provide context about the purpose or nature of the transaction
+	Description string `json:"description,omitempty"`
 
 	// Internal field to store the lib-commons transaction
 	libTransaction *libTransaction.Transaction
@@ -481,30 +534,144 @@ func FromLibTransaction(t *libTransaction.Transaction) *TransactionDSLInput {
 
 // CreateTransactionInput is the input for creating a transaction.
 // This structure contains all the fields needed to create a new transaction.
+//
+// CreateTransactionInput is used with the TransactionsService.CreateTransaction method
+// to create new transactions in the standard format (as opposed to the DSL format).
+// It allows for specifying the transaction details including operations, metadata,
+// and other properties.
+//
+// When creating a transaction, the following rules apply:
+//   - The transaction must be balanced (total debits must equal total credits for each asset)
+//   - Each operation must specify an account, type (debit or credit), amount, and asset code
+//   - The transaction can be created as pending (requiring explicit commitment later)
+//   - External IDs and idempotency keys can be used to prevent duplicate transactions
+//
+// Example - Creating a simple payment transaction:
+//
+//	// Create a payment transaction with two operations (debit and credit)
+//	input := &models.CreateTransactionInput{
+//	    Description: "Payment for invoice #123",
+//	    AssetCode:   "USD",
+//	    Amount:      10000,
+//	    Scale:       2, // $100.00
+//	    Operations: []models.CreateOperationInput{
+//	        {
+//	            // Debit the customer's account (decrease balance)
+//	            Type:        "debit",
+//	            AccountID:   "acc-123", // Customer account ID
+//	            AccountAlias: stringPtr("customer:john.doe"), // Optional alias
+//	            Amount:      10000,
+//	            AssetCode:   "USD",
+//	            Scale:       2,
+//	        },
+//	        {
+//	            // Credit the revenue account (increase balance)
+//	            Type:        "credit",
+//	            AccountID:   "acc-456", // Revenue account ID
+//	            AccountAlias: stringPtr("revenue:payments"), // Optional alias
+//	            Amount:      10000,
+//	            AssetCode:   "USD",
+//	            Scale:       2,
+//	        },
+//	    },
+//	    Metadata: map[string]interface{}{
+//	        "invoice_id": "inv-123",
+//	        "customer_id": "cust-456",
+//	    },
+//	    ExternalID: "payment-inv123-20230401",
+//	}
+//
+// Example - Creating a pending transaction:
+//
+//	// Create a pending transaction that requires explicit commitment
+//	input := &models.CreateTransactionInput{
+//	    Description: "Large transfer pending approval",
+//	    AssetCode:   "USD",
+//	    Amount:      100000,
+//	    Scale:       2, // $1,000.00
+//	    Operations: []models.CreateOperationInput{
+//	        // Debit operation
+//	        {
+//	            Type:        "debit",
+//	            AccountID:   "acc-789", // Source account ID
+//	            Amount:      100000,
+//	            AssetCode:   "USD",
+//	            Scale:       2,
+//	        },
+//	        // Credit operation
+//	        {
+//	            Type:        "credit",
+//	            AccountID:   "acc-012", // Target account ID
+//	            Amount:      100000,
+//	            AssetCode:   "USD",
+//	            Scale:       2,
+//	        },
+//	    },
+//	    Pending: true, // Create as pending, requiring explicit commitment
+//	    Metadata: map[string]interface{}{
+//	        "requires_approval": true,
+//	        "approval_level": "manager",
+//	    },
+//	}
+//
+//	// Later, after approval:
+//	// client.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
+//
+// Helper function for creating string pointers:
+//
+//	func stringPtr(s string) *string {
+//	    return &s
+//	}
 type CreateTransactionInput struct {
 	// Template is an optional identifier for the transaction template to use
+	// Templates can be used to create standardized transactions with predefined
+	// structures and validation rules
 	Template string `json:"template,omitempty"`
 
 	// Amount is the numeric value of the transaction
+	// This represents the total value of the transaction as a fixed-point integer
+	// The actual amount is calculated as Amount / 10^Scale
 	Amount int64 `json:"amount"`
 
 	// Scale represents the decimal precision for the amount
+	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
 	Scale int64 `json:"scale"`
 
 	// AssetCode identifies the currency or asset type for this transaction
+	// Common examples include "USD", "EUR", "BTC", etc.
 	AssetCode string `json:"assetCode"`
 
 	// Operations contains the individual debit and credit operations
+	// Each operation represents a single accounting entry (debit or credit)
+	// The sum of all operations for each asset must balance to zero
 	Operations []CreateOperationInput `json:"operations,omitempty"`
 
 	// Metadata contains additional custom data for the transaction
+	// This can be used to store application-specific information
+	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
+	// This is used when integrating with traditional accounting systems
 	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
 
-	// Description provides a human-readable description of the transaction
+	// Description is a human-readable description of the transaction
+	// This should provide context about the purpose or nature of the transaction
 	Description string `json:"description,omitempty"`
+
+	// ExternalID is an optional identifier for linking to external systems
+	// This can be used to correlate transactions with records in other systems
+	// and to prevent duplicate transactions
+	ExternalID string `json:"externalId,omitempty"`
+
+	// Pending indicates whether the transaction should be created in a pending state
+	// Pending transactions require explicit commitment before they affect account balances
+	Pending bool `json:"pending,omitempty"`
+
+	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
+	// If a transaction with the same idempotency key already exists, that transaction
+	// will be returned instead of creating a new one
+	IdempotencyKey string `json:"idempotencyKey,omitempty"`
 }
 
 // Validate checks that the CreateTransactionInput meets all validation requirements.

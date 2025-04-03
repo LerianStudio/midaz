@@ -27,9 +27,71 @@ type LedgersService interface {
 	GetLedger(ctx context.Context, organizationID, id string) (*models.Ledger, error)
 
 	// CreateLedger creates a new ledger in the specified organization.
-	// The organizationID parameter specifies which organization to create the ledger in.
-	// The input parameter contains the ledger details such as name and description.
-	// Returns the created ledger, or an error if the operation fails.
+	//
+	// Ledgers are the top-level financial record-keeping systems that contain accounts
+	// and track all transactions between those accounts. Each ledger belongs to a specific
+	// organization and can have multiple accounts.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization where the ledger will be created.
+	//     Must be a valid organization ID.
+	//   - input: The ledger details, including required fields:
+	//     - Name: The human-readable name of the ledger (max length: 256 characters)
+	//     Optional fields include:
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the ledger
+	//
+	// Returns:
+	//   - *models.Ledger: The created ledger if successful, containing the ledger ID,
+	//     name, status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields or invalid values)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic ledger:
+	//
+	//	// Create a simple ledger with just a name
+	//	ledger, err := ledgersService.CreateLedger(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    models.NewCreateLedgerInput("Main Ledger"),
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the ledger
+	//	fmt.Printf("Ledger created: %s (status: %s)\n", ledger.ID, ledger.Status.Code)
+	//
+	// Example - Creating a ledger with metadata:
+	//
+	//	// Create a ledger with custom status and metadata
+	//	ledger, err := ledgersService.CreateLedger(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    models.NewCreateLedgerInput("Finance Ledger").
+	//	        WithStatus(models.StatusActive).
+	//	        WithMetadata(map[string]any{
+	//	            "department": "Finance",
+	//	            "fiscalYear": 2025,
+	//	            "currency": "USD",
+	//	            "description": "Primary ledger for financial operations",
+	//	        }),
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the ledger
+	//	fmt.Printf("Finance ledger created: %s\n", ledger.ID)
 	CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)
 
 	// UpdateLedger updates an existing ledger.
@@ -55,8 +117,44 @@ type ledgersEntity struct {
 }
 
 // NewLedgersEntity creates a new ledgers entity.
-// It takes the HTTP client, auth token, and base URLs which are used to make HTTP requests to the Midaz API.
-// Returns an implementation of the LedgersService interface.
+//
+// Parameters:
+//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
+//     and transport options. If nil, a default client will be used.
+//   - authToken: The authentication token for API authorization. Must be a valid JWT token
+//     issued by the Midaz authentication service.
+//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
+//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
+//
+// Returns:
+//   - LedgersService: An implementation of the LedgersService interface that provides
+//     methods for creating, retrieving, updating, and managing ledgers.
+//
+// Example:
+//
+//	// Create a ledgers entity with default HTTP client
+//	ledgersEntity := entities.NewLedgersEntity(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
+//	)
+//
+//	// Use the entity to create a new ledger
+//	ledger, err := ledgersEntity.CreateLedger(
+//	    context.Background(),
+//	    "org-123",
+//	    models.NewCreateLedgerInput("Main Ledger").
+//	        WithMetadata(map[string]any{
+//	            "department": "Finance",
+//	            "fiscalYear": 2025,
+//	        }),
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create ledger: %v", err)
+//	}
+//
+//	fmt.Printf("Ledger created: %s\n", ledger.ID)
 func NewLedgersEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) LedgersService {
 	return &ledgersEntity{
 		httpClient: httpClient,
@@ -162,9 +260,71 @@ func (e *ledgersEntity) GetLedger(
 }
 
 // CreateLedger creates a new ledger in the specified organization.
-// The organizationID parameter specifies which organization to create the ledger in.
-// The input parameter contains the ledger details such as name and description.
-// Returns the created ledger, or an error if the operation fails.
+//
+// Ledgers are the top-level financial record-keeping systems that contain accounts
+// and track all transactions between those accounts. Each ledger belongs to a specific
+// organization and can have multiple accounts.
+//
+// Parameters:
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//   - organizationID: The ID of the organization where the ledger will be created.
+//     Must be a valid organization ID.
+//   - input: The ledger details, including required fields:
+//   - Name: The human-readable name of the ledger (max length: 256 characters)
+//     Optional fields include:
+//   - Status: The initial status (defaults to ACTIVE if not specified)
+//   - Metadata: Additional custom information about the ledger
+//
+// Returns:
+//   - *models.Ledger: The created ledger if successful, containing the ledger ID,
+//     name, status, and other properties.
+//   - error: An error if the operation fails. Possible errors include:
+//   - Invalid input (missing required fields or invalid values)
+//   - Authentication failure (invalid auth token)
+//   - Authorization failure (insufficient permissions)
+//   - Resource not found (invalid organization ID)
+//   - Network or server errors
+//
+// Example - Creating a basic ledger:
+//
+//	// Create a simple ledger with just a name
+//	ledger, err := ledgersService.CreateLedger(
+//	    context.Background(),
+//	    "org-123",
+//	    models.NewCreateLedgerInput("Main Ledger"),
+//	)
+//
+//	if err != nil {
+//	    // Handle error
+//	    return err
+//	}
+//
+//	// Use the ledger
+//	fmt.Printf("Ledger created: %s (status: %s)\n", ledger.ID, ledger.Status.Code)
+//
+// Example - Creating a ledger with metadata:
+//
+//	// Create a ledger with custom status and metadata
+//	ledger, err := ledgersService.CreateLedger(
+//	    context.Background(),
+//	    "org-123",
+//	    models.NewCreateLedgerInput("Finance Ledger").
+//	        WithStatus(models.StatusActive).
+//	        WithMetadata(map[string]any{
+//	            "department": "Finance",
+//	            "fiscalYear": 2025,
+//	            "currency": "USD",
+//	            "description": "Primary ledger for financial operations",
+//	        }),
+//	)
+//
+//	if err != nil {
+//	    // Handle error
+//	    return err
+//	}
+//
+//	// Use the ledger
+//	fmt.Printf("Finance ledger created: %s\n", ledger.ID)
 func (e *ledgersEntity) CreateLedger(
 	ctx context.Context,
 	organizationID string,

@@ -11,38 +11,105 @@ import (
 // Assets are the fundamental units of value that can be tracked and transferred
 // within the ledger system. Each asset has a unique code and belongs to a specific
 // organization and ledger.
+//
+// Asset Types:
+//   - CURRENCY: Represents fiat currencies like USD, EUR, JPY
+//   - SECURITY: Represents financial instruments like stocks, bonds, derivatives
+//   - COMMODITY: Represents physical goods like gold, oil, agricultural products
+//   - CRYPTOCURRENCY: Represents digital currencies like BTC, ETH
+//   - LOYALTY: Represents loyalty points or rewards
+//   - CUSTOM: Represents user-defined asset types
+//
+// Asset Statuses:
+//   - ACTIVE: The asset is in use and can participate in transactions
+//   - INACTIVE: The asset is temporarily not in use but can be reactivated
+//   - DEPRECATED: The asset is being phased out but still supports existing transactions
+//
+// Example Usage:
+//
+//	// Create a new currency asset
+//	usdAsset := models.NewAsset(
+//	    "asset-123",
+//	    "US Dollar",
+//	    "USD",
+//	    "org-456",
+//	    "ledger-789",
+//	    models.StatusActive,
+//	).WithType("CURRENCY").
+//	  WithMetadata(map[string]any{
+//	    "symbol": "$",
+//	    "iso_code": "USD",
+//	    "decimal_places": 2,
+//	  })
+//
+//	// Create a security asset
+//	stockAsset := models.NewAsset(
+//	    "asset-456",
+//	    "Apple Inc. Stock",
+//	    "AAPL",
+//	    "org-456",
+//	    "ledger-789",
+//	    models.StatusActive,
+//	).WithType("SECURITY").
+//	  WithMetadata(map[string]any{
+//	    "exchange": "NASDAQ",
+//	    "sector": "Technology",
+//	    "currency": "USD",
+//	    "isin": "US0378331005",
+//	  })
 type Asset struct {
 	// ID is the unique identifier for the asset
+	// This is a system-generated UUID that uniquely identifies the asset
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
 	// Name is the human-readable name of the asset
+	// This should be descriptive and meaningful to users, with a maximum
+	// length of 256 characters (e.g., "US Dollar", "Apple Inc. Stock").
 	Name string `json:"name"`
 
 	// Type defines the asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	// The type categorizes the asset and may affect how it behaves in
+	// certain operations or reports.
 	Type string `json:"type"`
 
 	// Code is a unique identifier for the asset type (e.g., "USD", "BTC", "AAPL")
+	// This is typically a short, recognizable string that follows standard
+	// conventions where applicable (e.g., ISO 4217 for currencies).
 	Code string `json:"code"`
 
 	// Status represents the current status of the asset (e.g., "ACTIVE", "INACTIVE")
+	// The status determines whether the asset can be used in new transactions.
 	Status Status `json:"status"`
 
 	// LedgerID is the ID of the ledger that contains this asset
+	// Assets are always created within a specific ledger, which defines
+	// the accounting boundaries and rules.
 	LedgerID string `json:"ledgerId"`
 
 	// OrganizationID is the ID of the organization that owns this asset
+	// All assets must belong to an organization, which provides the
+	// top-level ownership and access control.
 	OrganizationID string `json:"organizationId"`
 
 	// CreatedAt is the timestamp when the asset was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
 	// UpdatedAt is the timestamp when the asset was last updated
+	// This is automatically updated by the system whenever the asset is modified.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// DeletedAt is the timestamp when the asset was deleted, if applicable
+	// This is set when an asset is soft-deleted, allowing for potential recovery.
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 
 	// Metadata contains additional custom data associated with the asset
+	// This can include any arbitrary key-value pairs for application-specific
+	// data that doesn't fit into the standard asset fields, such as:
+	// - For currencies: symbol, decimal places, ISO code
+	// - For securities: exchange, sector, ISIN, CUSIP
+	// - For commodities: unit of measure, grade, origin
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
@@ -464,29 +531,104 @@ type ListAssetResponse struct {
 // AssetRate represents an asset exchange rate in the Midaz Ledger.
 // Asset rates define the conversion ratio between two different assets
 // and are used for currency conversion and other asset exchange operations.
+//
+// Exchange rates in Midaz are directional, meaning they specify the conversion
+// from one specific asset (FromAsset) to another (ToAsset). The Rate value
+// indicates how many units of ToAsset equal one unit of FromAsset.
+//
+// Time-Based Rate Management:
+// Midaz supports time-based rate management through the EffectiveAt and ExpirationAt
+// fields. This allows for:
+//   - Historical rates: Retrieving rates that were valid at a specific point in time
+//   - Scheduled rate changes: Setting future rates in advance
+//   - Rate versioning: Maintaining a history of rate changes over time
+//
+// Common Use Cases:
+//   - Currency conversion for multi-currency ledgers
+//   - Foreign exchange (FX) operations
+//   - Asset valuation and reporting
+//   - Time-series analysis of exchange rates
+//
+// Example Usage:
+//
+//	// Create a new USD to EUR exchange rate
+//	now := time.Now()
+//	tomorrow := now.Add(24 * time.Hour)
+//
+//	usdEurRate := models.NewAssetRate(
+//	    "rate-123",
+//	    "USD",
+//	    "EUR",
+//	    0.92,
+//	    now,
+//	    tomorrow,
+//	)
+//
+//	// Calculate conversion
+//	usdAmount := 100.00
+//	eurAmount := usdAmount * usdEurRate.Rate
+//	fmt.Printf("%.2f USD = %.2f EUR\n", usdAmount, eurAmount)
+//
+// Example - Creating a rate schedule:
+//
+//	// Current rate (effective immediately)
+//	currentRate := models.NewUpdateAssetRateInput(
+//	    "USD",
+//	    "EUR",
+//	    0.92,
+//	    time.Now(),
+//	    time.Now().Add(24 * time.Hour),
+//	)
+//
+//	// Future rate (effective tomorrow)
+//	tomorrow := time.Now().Add(24 * time.Hour)
+//	nextWeek := time.Now().Add(7 * 24 * time.Hour)
+//
+//	futureRate := models.NewUpdateAssetRateInput(
+//	    "USD",
+//	    "EUR",
+//	    0.94,
+//	    tomorrow,
+//	    nextWeek,
+//	)
 type AssetRate struct {
 	// ID is the unique identifier for the asset rate
+	// This is a system-generated UUID that uniquely identifies the rate
+	// across the entire Midaz platform.
 	ID string `json:"id"`
 
-	// FromAsset is the source asset code
+	// FromAsset is the source asset code for the conversion
+	// This is the asset being converted from (e.g., "USD" in a USD→EUR conversion).
+	// Must be a valid asset code in the ledger.
 	FromAsset string `json:"fromAsset"`
 
-	// ToAsset is the target asset code
+	// ToAsset is the target asset code for the conversion
+	// This is the asset being converted to (e.g., "EUR" in a USD→EUR conversion).
+	// Must be a valid asset code in the ledger.
 	ToAsset string `json:"toAsset"`
 
-	// Rate is the exchange rate value (FromAsset to ToAsset)
+	// Rate is the exchange rate value
+	// Represents how many units of ToAsset equal one unit of FromAsset.
+	// For example, if FromAsset is "USD", ToAsset is "EUR", and Rate is 0.92,
+	// then 1 USD = 0.92 EUR.
 	Rate float64 `json:"rate"`
 
-	// CreatedAt is the timestamp when the rate was created
+	// CreatedAt is the timestamp when the asset rate was created
+	// This is automatically set by the system and cannot be modified.
 	CreatedAt time.Time `json:"createdAt"`
 
-	// UpdatedAt is the timestamp when the rate was last updated
+	// UpdatedAt is the timestamp when the asset rate was last updated
+	// This is automatically updated by the system whenever the rate is modified.
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// EffectiveAt is the timestamp when the rate becomes effective
+	// Rates are only applied to transactions that occur on or after this time.
+	// This allows for scheduling future rate changes.
 	EffectiveAt time.Time `json:"effectiveAt"`
 
 	// ExpirationAt is the timestamp when the rate expires
+	// Rates are only applied to transactions that occur before this time.
+	// This allows for defining the validity period of a rate.
 	ExpirationAt time.Time `json:"expirationAt"`
 }
 

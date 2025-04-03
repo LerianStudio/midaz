@@ -33,14 +33,72 @@ type Entity struct {
 // in the Midaz SDK.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests
-//   - authToken: The authentication token for API requests
-//   - baseURLs: Map of base URLs for different API endpoints
-//   - options: Optional configuration options
+//   - client: The HTTP client to use for API requests. Can be configured with custom timeouts
+//     and transport options. If nil, a default client will be used.
+//   - authToken: The authentication token for API authorization. Must be a valid JWT token
+//     issued by the Midaz authentication service.
+//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
+//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
+//   - options: Optional configuration options for customizing the entity behavior.
+//     These are applied in order after the entity is created.
 //
 // Returns:
-//   - *Entity: A pointer to the newly created Entity, ready to interact with the Midaz API
-//   - error: An error if the client initialization fails
+//   - *Entity: A pointer to the newly created Entity, ready to interact with the Midaz API.
+//     The Entity provides access to all service interfaces (Accounts, Assets, Ledgers, etc.).
+//   - error: An error if the client initialization fails, such as when required parameters
+//     are missing or when options cannot be applied.
+//
+// Example - Basic usage:
+//
+//	// Create a new entity with default settings
+//	entity, err := entities.NewEntity(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create entity: %v", err)
+//	}
+//
+//	// Use the entity to access different services
+//	organization, err := entity.Organizations.GetOrganization(
+//	    context.Background(),
+//	    "org-123",
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to retrieve organization: %v", err)
+//	}
+//
+//	fmt.Printf("Organization: %s\n", organization.LegalName)
+//
+// Example - With custom options:
+//
+//	// Create a new entity with debug logging enabled
+//	entity, err := entities.NewEntity(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
+//	    entities.WithDebug(true),
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create entity: %v", err)
+//	}
+//
+//	// Create a ledger using the entity
+//	ledger, err := entity.Ledgers.CreateLedger(
+//	    context.Background(),
+//	    "org-123",
+//	    models.NewCreateLedgerInput("Main Ledger"),
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create ledger: %v", err)
+//	}
+//
+//	fmt.Printf("Ledger created: %s\n", ledger.ID)
 func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, options ...Option) (*Entity, error) {
 	// Create a new entity with the provided configuration
 	entity := &Entity{

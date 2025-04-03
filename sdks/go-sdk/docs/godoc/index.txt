@@ -1,0 +1,53 @@
+package midaz // import "github.com/LerianStudio/midaz/sdks/go-sdk"
+
+Package midaz provides a Go client for the Midaz API.
+
+TYPES
+
+type Client struct {
+
+	// Optional API interfaces
+	Entity      *entities.Entity
+	Builder     *builders.Builder
+	Abstraction *abstractions.Abstraction
+
+	// Has unexported fields.
+}
+    Client is the main entry point for the Midaz SDK.
+
+func New(options ...Option) (*Client, error)
+    New creates a new Midaz client with the provided options.
+
+type Option func(*Client) error
+    Option defines a function type for configuring the client.
+
+func UseAbstraction() Option
+    UseAbstraction enables the Abstraction API interface.
+
+func UseAllAPIs() Option
+    UseAllAPIs enables all API interfaces.
+
+func UseBuilder() Option
+    UseBuilder enables the Builder API interface.
+
+func UseEntity() Option
+    UseEntity enables the Entity API interface.
+
+func WithAuthToken(token string) Option
+    WithAuthToken sets the authentication token for the client.
+
+func WithDebug(debug bool) Option
+    WithDebug enables or disables debug mode for the client.
+
+func WithHTTPClient(httpClient *http.Client) Option
+    WithHTTPClient sets a custom HTTP client for the client.
+
+func WithOnboardingURL(url string) Option
+    WithOnboardingURL sets the base URL for the onboarding API.
+
+func WithTimeout(timeout time.Duration) Option
+    WithTimeout sets the timeout for requests made by the client.
+
+func WithTransactionURL(url string) Option
+    WithTransactionURL sets the base URL for the transaction API.
+

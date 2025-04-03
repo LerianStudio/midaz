@@ -27,9 +27,80 @@ type SegmentsService interface {
 	GetSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string) (*models.Segment, error)
 
 	// CreateSegment creates a new segment in the specified portfolio.
-	// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio to create the segment in.
-	// The input parameter contains the segment details such as name and description.
-	// Returns the created segment, or an error if the operation fails.
+	//
+	// Segments allow for further categorization and grouping of accounts or other entities
+	// within a portfolio, enabling more detailed reporting and management.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization where the segment will be created.
+	//     Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the segment will be created.
+	//     Must be a valid ledger ID within the specified organization.
+	//   - portfolioID: The ID of the portfolio where the segment will be created.
+	//     Must be a valid portfolio ID within the specified ledger.
+	//   - input: The segment details, including required fields:
+	//     - Name: The human-readable name of the segment
+	//     Optional fields include:
+	//     - Status: The initial status (defaults to ACTIVE if not specified)
+	//     - Metadata: Additional custom information about the segment
+	//
+	// Returns:
+	//   - *models.Segment: The created segment if successful, containing the segment ID,
+	//     name, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields or invalid values)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization, ledger, or portfolio ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic segment:
+	//
+	//	// Create a simple segment with just required fields
+	//	segment, err := segmentsService.CreateSegment(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "portfolio-789",
+	//	    models.NewCreateSegmentInput("North America Region"),
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create segment: %v", err)
+	//	}
+	//
+	//	// Use the segment
+	//	fmt.Printf("Segment created: %s (status: %s)\n",
+	//	    segment.ID, segment.Status.Code)
+	//
+	// Example - Creating a segment with metadata:
+	//
+	//	// Create a segment with custom metadata
+	//	input := models.NewCreateSegmentInput("EMEA Region").
+	//	    WithStatus(models.StatusActive).
+	//	    WithMetadata(map[string]any{
+	//	        "regionCode": "EMEA",
+	//	        "countries": []string{"UK", "France", "Germany", "Italy"},
+	//	        "headquarters": "London",
+	//	        "manager": "John Smith",
+	//	    })
+	//
+	//	segment, err := segmentsService.CreateSegment(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    "portfolio-789",
+	//	    input,
+	//	)
+	//
+	//	if err != nil {
+	//	    log.Fatalf("Failed to create segment: %v", err)
+	//	}
+	//
+	//	// Use the segment
+	//	fmt.Printf("Segment created: %s\n", segment.ID)
+	//	fmt.Printf("Name: %s\n", segment.Name)
 	CreateSegment(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.CreateSegmentInput) (*models.Segment, error)
 
 	// UpdateSegment updates an existing segment.
@@ -55,8 +126,42 @@ type segmentsEntity struct {
 }
 
 // NewSegmentsEntity creates a new segments entity.
-// It takes the HTTP client, auth token, and base URLs which are used to make HTTP requests to the Midaz API.
-// Returns an implementation of the SegmentsService interface.
+//
+// Parameters:
+//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
+//     and transport options. If nil, a default client will be used.
+//   - authToken: The authentication token for API authorization. Must be a valid JWT token
+//     issued by the Midaz authentication service.
+//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
+//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
+//
+// Returns:
+//   - SegmentsService: An implementation of the SegmentsService interface that provides
+//     methods for creating, retrieving, updating, and managing segments.
+//
+// Example:
+//
+//	// Create a segments entity with default HTTP client
+//	segmentsEntity := entities.NewSegmentsEntity(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
+//	)
+//
+//	// Use the entity to retrieve segments
+//	segments, err := segmentsEntity.ListSegments(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    "portfolio-789",
+//	    nil, // No pagination options
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to retrieve segments: %v", err)
+//	}
+//
+//	fmt.Printf("Retrieved %d segments\n", len(segments.Items))
 func NewSegmentsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) SegmentsService {
 	return &segmentsEntity{
 		httpClient: httpClient,
@@ -194,9 +299,80 @@ func (e *segmentsEntity) GetSegment(
 }
 
 // CreateSegment creates a new segment in the specified portfolio.
-// The organizationID, ledgerID, and portfolioID parameters specify which organization, ledger, and portfolio to create the segment in.
-// The input parameter contains the segment details such as name and description.
-// Returns the created segment, or an error if the operation fails.
+//
+// Segments allow for further categorization and grouping of accounts or other entities
+// within a portfolio, enabling more detailed reporting and management.
+//
+// Parameters:
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//   - organizationID: The ID of the organization where the segment will be created.
+//     Must be a valid organization ID.
+//   - ledgerID: The ID of the ledger where the segment will be created.
+//     Must be a valid ledger ID within the specified organization.
+//   - portfolioID: The ID of the portfolio where the segment will be created.
+//     Must be a valid portfolio ID within the specified ledger.
+//   - input: The segment details, including required fields:
+//   - Name: The human-readable name of the segment
+//     Optional fields include:
+//   - Status: The initial status (defaults to ACTIVE if not specified)
+//   - Metadata: Additional custom information about the segment
+//
+// Returns:
+//   - *models.Segment: The created segment if successful, containing the segment ID,
+//     name, and other properties.
+//   - error: An error if the operation fails. Possible errors include:
+//   - Invalid input (missing required fields or invalid values)
+//   - Authentication failure (invalid auth token)
+//   - Authorization failure (insufficient permissions)
+//   - Resource not found (invalid organization, ledger, or portfolio ID)
+//   - Network or server errors
+//
+// Example - Creating a basic segment:
+//
+//	// Create a simple segment with just required fields
+//	segment, err := segmentsService.CreateSegment(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    "portfolio-789",
+//	    models.NewCreateSegmentInput("North America Region"),
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create segment: %v", err)
+//	}
+//
+//	// Use the segment
+//	fmt.Printf("Segment created: %s (status: %s)\n",
+//	    segment.ID, segment.Status.Code)
+//
+// Example - Creating a segment with metadata:
+//
+//	// Create a segment with custom metadata
+//	input := models.NewCreateSegmentInput("EMEA Region").
+//	    WithStatus(models.StatusActive).
+//	    WithMetadata(map[string]any{
+//	        "regionCode": "EMEA",
+//	        "countries": []string{"UK", "France", "Germany", "Italy"},
+//	        "headquarters": "London",
+//	        "manager": "John Smith",
+//	    })
+//
+//	segment, err := segmentsService.CreateSegment(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    "portfolio-789",
+//	    input,
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create segment: %v", err)
+//	}
+//
+//	// Use the segment
+//	fmt.Printf("Segment created: %s\n", segment.ID)
+//	fmt.Printf("Name: %s\n", segment.Name)
 func (e *segmentsEntity) CreateSegment(
 	ctx context.Context,
 	organizationID, ledgerID, portfolioID string,

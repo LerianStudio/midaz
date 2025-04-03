@@ -34,9 +34,81 @@ type AccountsService interface {
 	GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)
 
 	// CreateAccount creates a new account in the specified ledger.
-	// The organizationID and ledgerID parameters specify which organization and ledger to create the account in.
-	// The input parameter contains the account details such as name, asset code, and type.
-	// Returns the created account, or an error if the operation fails.
+	//
+	// This method creates a new account in the specified organization and ledger.
+	// Accounts are used to track assets and balances within the Midaz system.
+	// Each account has a type, name, and can be associated with a specific asset code.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - ledgerID: The ID of the ledger where the account will be created. Must be a valid ledger ID.
+	//   - input: The account details, including name, type, asset code, and optional fields.
+	//     Required fields in the input are:
+	//     - Name: The human-readable name of the account (max 256 characters)
+	//     - Type: The account type (e.g., "customer", "revenue", "liability")
+	//     - AssetCode: The currency or asset code (e.g., "USD", "EUR") if applicable
+	//
+	// Returns:
+	//   - *models.Account: The created account if successful, containing the account ID,
+	//     status, and other properties.
+	//   - error: An error if the operation fails. Possible errors include:
+	//     - Invalid input (missing required fields)
+	//     - Authentication failure (invalid auth token)
+	//     - Authorization failure (insufficient permissions)
+	//     - Resource not found (invalid organization or ledger ID)
+	//     - Network or server errors
+	//
+	// Example - Creating a basic customer account:
+	//
+	//	// Create a customer account
+	//	account, err := accountsService.CreateAccount(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    &models.CreateAccountInput{
+	//	        Name: "John Doe",
+	//	        Type: "customer",
+	//	        AssetCode: "USD",
+	//	        Metadata: map[string]interface{}{
+	//	            "customer_id": "cust-789",
+	//	            "email": "john.doe@example.com",
+	//	        },
+	//	    },
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the account
+	//	fmt.Printf("Account created: %s (alias: %s)\n", account.ID, account.Alias)
+	//
+	// Example - Creating an account with portfolio and segment:
+	//
+	//	// Create an account within a portfolio and segment
+	//	account, err := accountsService.CreateAccount(
+	//	    context.Background(),
+	//	    "org-123",
+	//	    "ledger-456",
+	//	    &models.CreateAccountInput{
+	//	        Name: "Investment Account",
+	//	        Type: "investment",
+	//	        AssetCode: "USD",
+	//	        PortfolioID: "portfolio-789",
+	//	        SegmentID: "segment-012",
+	//	        Status: models.StatusActive,
+	//	    },
+	//	)
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the account
+	//	fmt.Printf("Account created: %s (status: %s)\n", account.ID, account.Status)
 	CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
 
 	// UpdateAccount updates an existing account.
@@ -68,8 +140,45 @@ type accountsEntity struct {
 }
 
 // NewAccountsEntity creates a new accounts entity.
-// It takes the HTTP client, auth token, and base URLs which are used to make HTTP requests to the Midaz API.
-// Returns an implementation of the AccountsService interface.
+//
+// Parameters:
+//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
+//     and transport options. If nil, a default client will be used.
+//   - authToken: The authentication token for API authorization. Must be a valid JWT token
+//     issued by the Midaz authentication service.
+//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
+//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
+//
+// Returns:
+//   - AccountsService: An implementation of the AccountsService interface that provides
+//     methods for creating, retrieving, updating, and managing accounts.
+//
+// Example:
+//
+//	// Create an accounts entity with default HTTP client
+//	accountsEntity := entities.NewAccountsEntity(
+//	    &http.Client{Timeout: 30 * time.Second},
+//	    "your-auth-token",
+//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
+//	)
+//
+//	// Use the entity to create an account
+//	account, err := accountsEntity.CreateAccount(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    &models.CreateAccountInput{
+//	        Name: "Customer Account",
+//	        Type: "customer",
+//	        AssetCode: "USD",
+//	    },
+//	)
+//
+//	if err != nil {
+//	    log.Fatalf("Failed to create account: %v", err)
+//	}
+//
+//	fmt.Printf("Account created: %s\n", account.ID)
 func NewAccountsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) AccountsService {
 	return &accountsEntity{
 		httpClient: httpClient,
@@ -212,6 +321,81 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 }
 
 // CreateAccount creates a new account in the specified ledger.
+//
+// This method creates a new account in the specified organization and ledger.
+// Accounts are used to track assets and balances within the Midaz system.
+// Each account has a type, name, and can be associated with a specific asset code.
+//
+// Parameters:
+//   - ctx: Context for the request, which can be used for cancellation and timeout.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - ledgerID: The ID of the ledger where the account will be created. Must be a valid ledger ID.
+//   - input: The account details, including name, type, asset code, and optional fields.
+//     Required fields in the input are:
+//   - Name: The human-readable name of the account (max 256 characters)
+//   - Type: The account type (e.g., "customer", "revenue", "liability")
+//   - AssetCode: The currency or asset code (e.g., "USD", "EUR") if applicable
+//
+// Returns:
+//   - *models.Account: The created account if successful, containing the account ID,
+//     status, and other properties.
+//   - error: An error if the operation fails. Possible errors include:
+//   - Invalid input (missing required fields)
+//   - Authentication failure (invalid auth token)
+//   - Authorization failure (insufficient permissions)
+//   - Resource not found (invalid organization or ledger ID)
+//   - Network or server errors
+//
+// Example - Creating a basic customer account:
+//
+//	// Create a customer account
+//	account, err := accountsService.CreateAccount(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    &models.CreateAccountInput{
+//	        Name: "John Doe",
+//	        Type: "customer",
+//	        AssetCode: "USD",
+//	        Metadata: map[string]interface{}{
+//	            "customer_id": "cust-789",
+//	            "email": "john.doe@example.com",
+//	        },
+//	    },
+//	)
+//
+//	if err != nil {
+//	    // Handle error
+//	    return err
+//	}
+//
+//	// Use the account
+//	fmt.Printf("Account created: %s (alias: %s)\n", account.ID, account.Alias)
+//
+// Example - Creating an account with portfolio and segment:
+//
+//	// Create an account within a portfolio and segment
+//	account, err := accountsService.CreateAccount(
+//	    context.Background(),
+//	    "org-123",
+//	    "ledger-456",
+//	    &models.CreateAccountInput{
+//	        Name: "Investment Account",
+//	        Type: "investment",
+//	        AssetCode: "USD",
+//	        PortfolioID: "portfolio-789",
+//	        SegmentID: "segment-012",
+//	        Status: models.StatusActive,
+//	    },
+//	)
+//
+//	if err != nil {
+//	    // Handle error
+//	    return err
+//	}
+//
+//	// Use the account
+//	fmt.Printf("Account created: %s (status: %s)\n", account.ID, account.Status)
 func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	if organizationID == "" {
 		return nil, fmt.Errorf("organization ID is required")

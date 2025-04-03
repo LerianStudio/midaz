@@ -1,81 +1,140 @@
 # Midaz Go SDK Method Map
 
-This document provides an overview of all public methods available in the Midaz Go SDK, organized by purpose and package.
+This document provides a comprehensive overview of all public methods available in the Midaz Go SDK, organized by package and purpose.
 
-## I. High-Level APIs
+## Table of Contents
 
-These are the primary entry points for most users. They provide a simplified interface to the Midaz APIs and handle common use cases.
+- [I. Client Package (`midaz`)](#i-client-package-midaz)
+- [II. Entities Package (`midaz/entities`)](#ii-entities-package-midazentities)
+- [III. Builders Package (`midaz/builders`)](#iii-builders-package-midazbuilders)
+- [IV. Abstractions Package (`midaz/abstractions`)](#iv-abstractions-package-midazabstractions)
+- [V. Models Package (`midaz/models`)](#v-models-package-midazmodels)
 
-### Top-Level Package (`midaz`)
+## I. Client Package (`midaz`)
 
-- **client.go**
-  - `NewClient()` - Creates a new Midaz client with the given configuration options
+The client package provides the main entry point for the Midaz SDK.
 
-- **options.go**
-  - `WithAuthToken()` - Sets the authentication token for the client
-  - `WithOnboardingURL()` - Sets the onboarding API URL
-  - `WithTransactionURL()` - Sets the transaction API URL
-  - `WithDebug()` - Enables or disables debug mode
-  - `WithTimeout()` - Sets the HTTP request timeout in seconds
+### Client
 
-### Resource Services (`midaz`)
+- `New()` - Creates a new Midaz client with the provided options
+- `WithAuthToken()` - Sets the authentication token for the client
+- `WithOnboardingURL()` - Sets the base URL for the onboarding API
+- `WithTransactionURL()` - Sets the base URL for the transaction API
+- `WithHTTPClient()` - Sets a custom HTTP client for the client
+- `WithTimeout()` - Sets the timeout for requests made by the client
+- `WithDebug()` - Enables or disables debug mode for the client
+- `UseEntity()` - Enables the Entity API interface
+- `UseBuilder()` - Enables the Builder API interface
+- `UseAbstraction()` - Enables the Abstraction API interface
+- `UseAllAPIs()` - Enables all API interfaces
+- `Client.Entity` - Provides access to the Entity API interface
+- `Client.Builder` - Provides access to the Builder API interface
+- `Client.Abstraction` - Provides access to the Abstraction API interface
 
-- **Organizations**
-  - `Client.List()` - Lists all organizations
-  - `Client.Get()` - Gets an organization by ID
-  - `Client.Create()` - Creates a new organization
-  - `Client.Update()` - Updates an organization
-  - `Client.Delete()` - Deletes an organization
+## II. Entities Package (`midaz/entities`)
 
-- **Ledgers**
-  - `Client.List()` - Lists ledgers for an organization
-  - `Client.Get()` - Gets a ledger by ID
-  - `Client.Create()` - Creates a new ledger
-  - `Client.Update()` - Updates a ledger
-  - `Client.Delete()` - Deletes a ledger
+The entities package provides direct access to Midaz API resources.
 
-- **Accounts**
-  - `Client.List()` - Lists accounts for a ledger
-  - `Client.Get()` - Gets an account by ID
-  - `Client.Create()` - Creates a new account
-  - `Client.Update()` - Updates an account
-  - `Client.Delete()` - Deletes an account
+### Entity
 
-- **Assets**
-  - `Client.List()` - Lists assets for a ledger
-  - `Client.Get()` - Gets an asset by ID
-  - `Client.Create()` - Creates a new asset
-  - `Client.Update()` - Updates an asset
-  - `Client.Delete()` - Deletes an asset
+- `NewEntity()` - Creates a new Entity instance that provides access to all service interfaces
+- `Entity.Accounts` - Returns the AccountsService interface for account operations
+- `Entity.Assets` - Returns the AssetsService interface for asset operations
+- `Entity.AssetRates` - Returns the AssetRatesService interface for asset rate operations
+- `Entity.Balances` - Returns the BalancesService interface for balance operations
+- `Entity.Ledgers` - Returns the LedgersService interface for ledger operations
+- `Entity.Operations` - Returns the OperationsService interface for operation operations
+- `Entity.Organizations` - Returns the OrganizationsService interface for organization operations
+- `Entity.Portfolios` - Returns the PortfoliosService interface for portfolio operations
+- `Entity.Segments` - Returns the SegmentsService interface for segment operations
+- `Entity.Transactions` - Returns the TransactionsService interface for transaction operations
 
-- **Portfolios**
-  - `Client.List()` - Lists portfolios for a ledger
-  - `Client.Get()` - Gets a portfolio by ID
-  - `Client.Create()` - Creates a new portfolio
-  - `Client.Update()` - Updates a portfolio
-  - `Client.Delete()` - Deletes a portfolio
+### Accounts Service
 
-- **Transactions**
-  - `Client.List()` - Lists transactions for a ledger
-  - `Client.Get()` - Gets a transaction by ID
-  - `Client.Create()` - Creates a new transaction
-  - `Client.Update()` - Updates a transaction
-  - `Client.Delete()` - Deletes a transaction
+- `AccountsService.List()` - Lists accounts for a ledger with pagination
+- `AccountsService.Get()` - Gets an account by ID
+- `AccountsService.GetByAlias()` - Gets an account by alias
+- `AccountsService.Create()` - Creates a new account
+- `AccountsService.Update()` - Updates an account
+- `AccountsService.Delete()` - Deletes an account
 
-- **Balances**
-  - `Client.List()` - Lists balances for a ledger
-  - `Client.Get()` - Gets a balance by ID
-  - `Client.Update()` - Updates a balance
+### Assets Service
 
-## II. Builder APIs (`midaz/builders`)
+- `AssetsService.List()` - Lists assets for a ledger with pagination
+- `AssetsService.Get()` - Gets an asset by ID
+- `AssetsService.Create()` - Creates a new asset
+- `AssetsService.Update()` - Updates an asset
+- `AssetsService.Delete()` - Deletes an asset
 
-The builders package provides fluent builder interfaces for creating and updating resources. These builders simplify complex API interactions through method chaining and progressive disclosure of options.
+### Asset Rates Service
+
+- `AssetRatesService.List()` - Lists asset rates for a ledger with pagination
+- `AssetRatesService.Get()` - Gets an asset rate by ID
+- `AssetRatesService.Create()` - Creates a new asset rate
+- `AssetRatesService.Update()` - Updates an asset rate
+- `AssetRatesService.Delete()` - Deletes an asset rate
+
+### Balances Service
+
+- `BalancesService.List()` - Lists balances for a ledger with pagination
+- `BalancesService.ListForAccount()` - Lists balances for a specific account
+- `BalancesService.Get()` - Gets a balance by ID
+- `BalancesService.Update()` - Updates a balance
+
+### Ledgers Service
+
+- `LedgersService.List()` - Lists ledgers for an organization with pagination
+- `LedgersService.Get()` - Gets a ledger by ID
+- `LedgersService.Create()` - Creates a new ledger
+- `LedgersService.Update()` - Updates a ledger
+- `LedgersService.Delete()` - Deletes a ledger
+
+### Operations Service
+
+- `OperationsService.List()` - Lists operations for a ledger with pagination
+- `OperationsService.Get()` - Gets an operation by ID
+
+### Organizations Service
+
+- `OrganizationsService.List()` - Lists organizations with pagination
+- `OrganizationsService.Get()` - Gets an organization by ID
+- `OrganizationsService.Create()` - Creates a new organization
+- `OrganizationsService.Update()` - Updates an organization
+- `OrganizationsService.Delete()` - Deletes an organization
+
+### Portfolios Service
+
+- `PortfoliosService.List()` - Lists portfolios for a ledger with pagination
+- `PortfoliosService.Get()` - Gets a portfolio by ID
+- `PortfoliosService.Create()` - Creates a new portfolio
+- `PortfoliosService.Update()` - Updates a portfolio
+- `PortfoliosService.Delete()` - Deletes a portfolio
+
+### Segments Service
+
+- `SegmentsService.List()` - Lists segments for a portfolio with pagination
+- `SegmentsService.Get()` - Gets a segment by ID
+- `SegmentsService.Create()` - Creates a new segment
+- `SegmentsService.Update()` - Updates a segment
+- `SegmentsService.Delete()` - Deletes a segment
+
+### Transactions Service
+
+- `TransactionsService.List()` - Lists transactions for a ledger with pagination
+- `TransactionsService.Get()` - Gets a transaction by ID
+- `TransactionsService.Create()` - Creates a new transaction
+- `TransactionsService.Commit()` - Commits a pending transaction
+- `TransactionsService.Cancel()` - Cancels a pending transaction
+
+## III. Builders Package (`midaz/builders`)
+
+The builders package provides fluent interfaces for creating and updating resources.
 
 ### Organization Builders
 
 - `NewOrganization()` - Creates a new organization builder
   - `WithLegalName()` - Sets the organization's legal name
-  - `WithLegalDocument()` - Sets the organization's legal document (e.g., tax ID)
+  - `WithLegalDocument()` - Sets the organization's legal document
   - `WithStatus()` - Sets the organization status
   - `WithAddress()` - Sets the organization address
   - `WithMetadata()` - Sets additional metadata
@@ -219,6 +278,63 @@ The builders package provides fluent builder interfaces for creating and updatin
   - `WithTags()` - Adds multiple tags to the segment
   - `Update()` - Executes the segment update and returns the updated segment
 
+### Transaction Builders
+
+- `NewTransaction()` - Creates a new transaction builder
+  - `WithOrganization()` - Sets the organization ID
+  - `WithLedger()` - Sets the ledger ID
+  - `WithDescription()` - Sets the transaction description
+  - `WithExternalID()` - Sets an external ID for the transaction
+  - `WithMetadata()` - Sets additional metadata
+  - `WithStatus()` - Sets the transaction status
+  - `WithTag()` - Adds a single tag to the transaction
+  - `WithTags()` - Adds multiple tags to the transaction
+  - `AddOperation()` - Adds an operation to the transaction
+  - `Create()` - Executes the transaction creation and returns the created transaction
+  - `CreateAndCommit()` - Creates and commits the transaction in one step
+
+- `NewDeposit()` - Creates a new deposit transaction builder
+  - `WithOrganization()` - Sets the organization ID
+  - `WithLedger()` - Sets the ledger ID
+  - `WithDescription()` - Sets the transaction description
+  - `WithExternalID()` - Sets an external ID for the transaction
+  - `WithMetadata()` - Sets additional metadata
+  - `WithSourceAccount()` - Sets the source account ID
+  - `WithDestinationAccount()` - Sets the destination account ID
+  - `WithAmount()` - Sets the deposit amount
+  - `WithAssetCode()` - Sets the asset code
+  - `WithTag()` - Adds a single tag to the transaction
+  - `WithTags()` - Adds multiple tags to the transaction
+  - `Execute()` - Executes the deposit and returns the created transaction
+
+- `NewWithdrawal()` - Creates a new withdrawal transaction builder
+  - `WithOrganization()` - Sets the organization ID
+  - `WithLedger()` - Sets the ledger ID
+  - `WithDescription()` - Sets the transaction description
+  - `WithExternalID()` - Sets an external ID for the transaction
+  - `WithMetadata()` - Sets additional metadata
+  - `WithSourceAccount()` - Sets the source account ID
+  - `WithDestinationAccount()` - Sets the destination account ID
+  - `WithAmount()` - Sets the withdrawal amount
+  - `WithAssetCode()` - Sets the asset code
+  - `WithTag()` - Adds a single tag to the transaction
+  - `WithTags()` - Adds multiple tags to the transaction
+  - `Execute()` - Executes the withdrawal and returns the created transaction
+
+- `NewTransfer()` - Creates a new transfer transaction builder
+  - `WithOrganization()` - Sets the organization ID
+  - `WithLedger()` - Sets the ledger ID
+  - `WithDescription()` - Sets the transaction description
+  - `WithExternalID()` - Sets an external ID for the transaction
+  - `WithMetadata()` - Sets additional metadata
+  - `WithSourceAccount()` - Sets the source account ID
+  - `WithDestinationAccount()` - Sets the destination account ID
+  - `WithAmount()` - Sets the transfer amount
+  - `WithAssetCode()` - Sets the asset code
+  - `WithTag()` - Adds a single tag to the transaction
+  - `WithTags()` - Adds multiple tags to the transaction
+  - `Execute()` - Executes the transfer and returns the created transaction
+
 ### Balance Builders
 
 - `NewBalanceUpdate()` - Creates a new balance update builder
@@ -226,101 +342,93 @@ The builders package provides fluent builder interfaces for creating and updatin
   - `WithAllowReceiving()` - Sets whether receiving is allowed
   - `Update()` - Executes the balance update and returns the updated balance
 
-### Transaction Builders
+## IV. Abstractions Package (`midaz/abstractions`)
 
-- `NewDeposit()` - Creates a new deposit transaction builder
-  - `WithOrganization()` - Sets the organization ID
-  - `WithLedger()` - Sets the ledger ID
-  - `WithAmount()` - Sets the amount and scale
-  - `WithAssetCode()` - Sets the asset code
-  - `WithDescription()` - Sets a description for the transaction
-  - `WithMetadata()` - Sets additional metadata
-  - `WithTag()` - Adds a single tag to the transaction
-  - `WithTags()` - Adds multiple tags to the transaction
-  - `WithExternalID()` - Sets an external ID for the transaction
-  - `WithIdempotencyKey()` - Sets an idempotency key
-  - `ToAccount()` - Sets the destination account
-  - `Execute()` - Executes the deposit and returns the created transaction
+The abstractions package provides high-level transaction operations that simplify the creation of common transaction types.
 
-- `NewWithdrawal()` - Creates a new withdrawal transaction builder
-  - `WithOrganization()` - Sets the organization ID
-  - `WithLedger()` - Sets the ledger ID
-  - `WithAmount()` - Sets the amount and scale
-  - `WithAssetCode()` - Sets the asset code
-  - `WithDescription()` - Sets a description for the transaction
-  - `WithMetadata()` - Sets additional metadata
-  - `WithTag()` - Adds a single tag to the transaction
-  - `WithTags()` - Adds multiple tags to the transaction
-  - `WithExternalID()` - Sets an external ID for the transaction
-  - `WithIdempotencyKey()` - Sets an idempotency key
-  - `FromAccount()` - Sets the source account
-  - `Execute()` - Executes the withdrawal and returns the created transaction
+### Abstraction
 
-- `NewTransfer()` - Creates a new transfer transaction builder
-  - `WithOrganization()` - Sets the organization ID
-  - `WithLedger()` - Sets the ledger ID
-  - `WithAmount()` - Sets the amount and scale
-  - `WithAssetCode()` - Sets the asset code
-  - `WithDescription()` - Sets a description for the transaction
-  - `WithMetadata()` - Sets additional metadata
-  - `WithTag()` - Adds a single tag to the transaction
-  - `WithTags()` - Adds multiple tags to the transaction
-  - `WithExternalID()` - Sets an external ID for the transaction
-  - `WithIdempotencyKey()` - Sets an idempotency key
-  - `FromAccount()` - Sets the source account
-  - `ToAccount()` - Sets the destination account
-  - `Execute()` - Executes the transfer and returns the created transaction
+- `NewAbstraction()` - Creates a new Abstraction instance with the provided transaction creation function
 
-## III. Error Handling (`midaz/errors`)
+### Transaction Operations
 
-The errors package provides standardized error types and utilities for handling errors in a consistent way.
+- `Abstraction.CreateDeposit()` - Creates a deposit transaction, adding funds to an internal account from an external source
+- `Abstraction.CreateWithdrawal()` - Creates a withdrawal transaction, removing funds from an internal account to an external destination
+- `Abstraction.CreateTransfer()` - Creates a transfer transaction between two internal accounts
 
-### Standard Error Types
+### Transaction Options
 
-- `ErrNotFound` - Returned when a resource is not found
-- `ErrValidation` - Returned when a request fails validation
-- `ErrTimeout` - Returned when a request times out
-- `ErrAuthentication` - Returned when authentication fails
-- `ErrPermission` - Returned when the user does not have permission
-- `ErrRateLimit` - Returned when the API rate limit is exceeded
-- `ErrInternal` - Returned when an unexpected error occurs
-- `ErrAccountEligibility` - Returned when accounts are not eligible for a transaction
-- `ErrAssetMismatch` - Returned when accounts have different asset types
-- `ErrInsufficientBalance` - Returned when a transaction would result in a negative balance
-- `ErrExternalAccountFormat` - Returned when an external account reference has an invalid format
-- `ErrIdempotencyKey` - Returned when there's an issue with idempotency key handling
+- `WithMetadata()` - Adds structured metadata to a transaction
+- `WithChartOfAccountsGroupName()` - Sets the chart of accounts group for a transaction
+- `WithCode()` - Sets a custom transaction code for a transaction
+- `WithPending()` - Marks a transaction as pending, requiring explicit commitment later
+- `WithIdempotencyKey()` - Adds an idempotency key to ensure transaction uniqueness
+- `WithExternalID()` - Sets an external ID for the transaction
+- `WithNotes()` - Adds detailed notes to a transaction
+- `WithRequestID()` - Attaches a unique request ID to the transaction
+- `WithSendingOptions()` - Configures sending options for a transaction
+- `WithFromTo()` - Adds a from/to entry to a transaction
+- `WithShare()` - Adds a share configuration to a from/to entry
+- `WithRate()` - Adds an exchange rate to a from/to entry
 
-### Error Handling Utilities
-
-- `MidazError` - Detailed error type with code, message, and resource information
-  - `Error()` - Implements the error interface with formatted error message
-  - `Unwrap()` - Returns the underlying error for use with errors.Is() and errors.As()
-  - `Is()` - Checks if the error matches a target error
-
-- `NewError()` - Creates a new MidazError with the given code and error
-- `NewErrorf()` - Creates a new MidazError with the given code and formatted message
-- `APIErrorToError()` - Converts an internal API error type to a public error
-
-### Error Type Checking
+### Error Handling
 
 - `IsNotFoundError()` - Checks if the error is a not found error
 - `IsValidationError()` - Checks if the error is a validation error
-- `IsAccountEligibilityError()` - Checks if the error is related to account eligibility
-- `IsInsufficientBalanceError()` - Checks if the error is an insufficient balance error
-- `IsAssetMismatchError()` - Checks if the error is related to asset mismatch
-- `IsIdempotencyError()` - Checks if the error is related to idempotency key handling
-- `IsTimeoutError()` - Checks if the error is related to timeout
-- `IsAuthenticationError()` - Checks if the error is related to authentication
-- `IsPermissionError()` - Checks if the error is related to permissions
-- `IsRateLimitError()` - Checks if the error is related to rate limiting
+- `IsAuthenticationError()` - Checks if the error is an authentication error
+- `IsPermissionError()` - Checks if the error is a permission error
+- `IsRateLimitError()` - Checks if the error is a rate limit error
 - `IsInternalError()` - Checks if the error is an internal error
-
-### Transaction Error Utilities
-
 - `FormatTransactionError()` - Produces a standardized error message for transaction errors
-- `CategorizeTransactionError()` - Provides the error category as a string
-- `GetTransactionErrorContext()` - Returns detailed context information for transaction errors
-- `TransactionErrorContext` - Struct containing detailed error context information
-- `IsNonTransactionError()` - Checks if an error is not related to transaction processing
-- `IsTransactionRetryable()` - Determines if a transaction error can be safely retried
-- `FormatErrorWithResourceContext()` - Adds context about the affected resource to an error message
+- `GetTransactionErrorCode()` - Extracts the error code from a transaction error
+- `GetTransactionErrorMessage()` - Extracts the error message from a transaction error
+
+## V. Models Package (`midaz/models`)
+
+The models package defines the data structures used throughout the SDK.
+
+### Resource Models
+
+- `Organization` - Represents an organization in the system
+- `Ledger` - Represents a ledger in the system
+- `Account` - Represents an account in the system
+- `Asset` - Represents an asset in the system
+- `AssetRate` - Represents an exchange rate between assets
+- `Portfolio` - Represents a portfolio in the system
+- `Segment` - Represents a segment in the system
+- `Transaction` - Represents a transaction in the system
+- `Operation` - Represents an operation within a transaction
+- `Balance` - Represents an account balance
+
+### Input Models
+
+- `CreateOrganizationInput` - Input for creating an organization
+- `UpdateOrganizationInput` - Input for updating an organization
+- `CreateLedgerInput` - Input for creating a ledger
+- `UpdateLedgerInput` - Input for updating a ledger
+- `CreateAccountInput` - Input for creating an account
+- `UpdateAccountInput` - Input for updating an account
+- `CreateAssetInput` - Input for creating an asset
+- `UpdateAssetInput` - Input for updating an asset
+- `CreateAssetRateInput` - Input for creating an asset rate
+- `UpdateAssetRateInput` - Input for updating an asset rate
+- `CreatePortfolioInput` - Input for creating a portfolio
+- `UpdatePortfolioInput` - Input for updating a portfolio
+- `CreateSegmentInput` - Input for creating a segment
+- `UpdateSegmentInput` - Input for updating a segment
+- `CreateTransactionInput` - Input for creating a transaction
+- `CreateOperationInput` - Input for creating an operation
+- `UpdateBalanceInput` - Input for updating a balance
+
+### Response Models
+
+- `ListResponse` - Generic paginated response for list operations
+- `ListOptions` - Options for list operations
+
+### Common Types and Constants
+
+- `Status` - Enum for resource status
+- `Address` - Struct for address information
+- `TransactionStatus` constants - Pending, Committed, Canceled
+- `OperationType` constants - Debit, Credit
+- `AssetType` constants - Currency, Stock, Crypto

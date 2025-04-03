@@ -4,10 +4,12 @@
 SERVICE_NAME := Midaz Go SDK
 BIN_DIR := ./bin
 ARTIFACTS_DIR := ./artifacts
+DOCS_DIR := ./docs/godoc
 VERSION := 1.0.0
 
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
+$(shell mkdir -p $(DOCS_DIR))
 
 # Define the root directory of the project
 MIDAZ_ROOT ?= $(shell cd ../.. && pwd)
@@ -169,7 +171,7 @@ godoc:
 		echo "$(YELLOW)Installing godoc...$(NC)"; \
 		go install golang.org/x/tools/cmd/godoc@latest; \
 	fi
-	@echo "$(CYAN)Starting godoc server on http://localhost:6060/pkg/github.com/LerianStudio/midaz/sdks/go-sdk/midaz/$(NC)"
+	@echo "$(CYAN)Starting godoc server on http://localhost:6060/pkg/github.com/LerianStudio/midaz/sdks/go-sdk/$(NC)"
 	@echo "$(CYAN)Press Ctrl+C to stop the server$(NC)"
 	@godoc -http=:6060
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Documentation server stopped$(GREEN) ✔️$(NC)"
@@ -178,17 +180,17 @@ godoc:
 godoc-static:
 	$(call title1,"Generating static Go documentation")
 	@echo "$(CYAN)Generating static godoc documentation...$(NC)"
-	@mkdir -p $(ARTIFACTS_DIR)/godoc
+	@mkdir -p $(DOCS_DIR)
 	@if ! command -v go > /dev/null; then \
 		echo "$(RED)Error: go command not found$(NC)"; \
 		exit 1; \
 	fi
 	@echo "$(CYAN)Generating documentation for all packages...$(NC)"
-	@for pkg in $$(go list ./midaz/...); do \
-		pkg_path=$${pkg#github.com/LerianStudio/midaz/sdks/go-sdk/}; \
-		mkdir -p $(ARTIFACTS_DIR)/godoc/$${pkg_path}; \
-		go doc -all $$pkg > $(ARTIFACTS_DIR)/godoc/$${pkg_path}/index.txt; \
+	@go doc -all github.com/LerianStudio/midaz/sdks/go-sdk > $(DOCS_DIR)/index.txt
+	@for pkg in abstractions builders entities models; do \
+		mkdir -p $(DOCS_DIR)/$$pkg; \
+		go doc -all github.com/LerianStudio/midaz/sdks/go-sdk/$$pkg > $(DOCS_DIR)/$$pkg/index.txt; \
 		echo "Generated documentation for $$pkg"; \
 	done
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Static documentation generated at $(ARTIFACTS_DIR)/godoc/$(GREEN) ✔️$(NC)"
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Static documentation generated at $(DOCS_DIR)/$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)You can browse the documentation by opening the text files in your editor$(NC)"

@@ -1,0 +1,2517 @@
+package builders // import "github.com/LerianStudio/midaz/sdks/go-sdk/builders"
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+
+This package contains builders and options for creating and managing financial
+transactions like deposits, withdrawals, and transfers using a fluent API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+It implements the builder pattern to simplify the creation and manipulation of
+Midaz resources through a chainable API.
+
+Package builders provides fluent builder interfaces for the Midaz SDK.
+
+This package defines builder patterns for creating various Midaz resources and
+operations with a chainable API. Builders help make the SDK more intuitive
+and easier to use by providing method chaining and progressive disclosure of
+available options.
+
+TYPES
+
+type AccountBuilder interface {
+	// WithOrganization sets the organization ID for the account.
+	// This is a required field for account creation.
+	WithOrganization(orgID string) AccountBuilder
+
+	// WithLedger sets the ledger ID for the account.
+	// This is a required field for account creation.
+	WithLedger(ledgerID string) AccountBuilder
+
+	// WithName sets the name for the account.
+	// This is a required field for account creation.
+	WithName(name string) AccountBuilder
+
+	// WithAssetCode sets the asset code for the account.
+	// This is a required field for account creation.
+	WithAssetCode(assetCode string) AccountBuilder
+
+	// WithType sets the type for the account.
+	// This is a required field for account creation.
+	// Valid types include: "ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE".
+	// TODO: Create a GET endpoint for account types, aligning with the API spec.
+	WithType(accountType string) AccountBuilder
+
+	// WithParentAccount sets the parent account ID for the account.
+	// This is an optional field that establishes a hierarchical relationship.
+	WithParentAccount(parentAccountID string) AccountBuilder
+
+	// WithEntityID sets the entity ID for the account.
+	// This is an optional field that associates the account with a specific entity.
+	WithEntityID(entityID string) AccountBuilder
+
+	// WithPortfolio sets the portfolio ID for the account.
+	// This is an optional field that associates the account with a specific portfolio.
+	WithPortfolio(portfolioID string) AccountBuilder
+
+	// WithSegment sets the segment ID for the account.
+	// This is an optional field that associates the account with a specific segment.
+	WithSegment(segmentID string) AccountBuilder
+
+	// WithAlias sets the alias for the account.
+	// This is an optional field that provides an alternative identifier for the account.
+	WithAlias(alias string) AccountBuilder
+
+	// WithStatus sets the status for the account.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "CLOSED".
+	// If not specified, the default status is "ACTIVE".
+	// TODO: Create a GET endpoint for account statuses, aligning with the API spec.
+	WithStatus(status string) AccountBuilder
+
+	// WithMetadata adds metadata to the account.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) AccountBuilder
+
+	// WithTag adds a single tag to the account's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTag(tag string) AccountBuilder
+
+	// WithTags adds multiple tags to the account's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTags(tags []string) AccountBuilder
+
+	// Create executes the account creation and returns the created account.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	Create(ctx context.Context) (*models.Account, error)
+}
+    AccountBuilder defines the builder interface for creating accounts.
+    It provides a fluent API for configuring and creating new account resources.
+
+func NewAccount(client AccountClientInterface) AccountBuilder
+    NewAccount creates a new builder for creating accounts.
+
+    An account is a financial record used to track assets, liabilities, equity,
+    revenue, or expenses. This function returns a builder that allows for fluent
+    configuration of the account before creation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the AccountClientInterface with the
+        CreateAccount method.
+
+    Returns:
+      - AccountBuilder: A builder interface for configuring and creating account
+        resources. Use the builder's methods to set required and optional
+        parameters, then call Create() to perform the account creation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an account builder
+        accountBuilder := builders.NewAccount(client)
+
+        // Configure and create the account
+        account, err := accountBuilder.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("Checking Account").
+            WithAssetCode("USD").
+            WithType("ASSET").
+            WithStatus("ACTIVE").
+            WithAlias("checking-001").
+            WithMetadata(map[string]any{
+                "department": "finance",
+                "purpose": "operational",
+            }).
+            WithTag("primary").
+            Create(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create account: %v", err)
+        }
+
+        fmt.Printf("Account created: %s\n", account.ID)
+
+type AccountClientInterface interface {
+	// CreateAccount sends a request to create a new account with the specified parameters.
+	// It requires a context for the API request.
+	// Returns an error if the API request fails.
+	CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
+
+	// UpdateAccount sends a request to update an existing account with the specified parameters.
+	// It requires a context for the API request.
+	// Returns an error if the API request fails.
+	UpdateAccount(ctx context.Context, organizationID, ledgerID, accountID string, input *models.UpdateAccountInput) (*models.Account, error)
+}
+    AccountClientInterface defines the minimal client interface required by the
+    account builders. Implementations of this interface are responsible for the
+    actual API communication with the Midaz backend services.
+
+type AccountUpdateBuilder interface {
+	// WithName sets the name for the account.
+	// This is an optional field for account updates.
+	WithName(name string) AccountUpdateBuilder
+
+	// WithPortfolio sets the portfolio ID for the account.
+	// This is an optional field for account updates.
+	WithPortfolio(portfolioID string) AccountUpdateBuilder
+
+	// WithSegment sets the segment ID for the account.
+	// This is an optional field for account updates.
+	WithSegment(segmentID string) AccountUpdateBuilder
+
+	// WithStatus sets the status for the account.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "CLOSED".
+	// TODO: Create a GET endpoint for account statuses, aligning with the API spec.
+	WithStatus(status string) AccountUpdateBuilder
+
+	// WithMetadata adds metadata to the account.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) AccountUpdateBuilder
+
+	// WithTag adds a single tag to the account's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTag(tag string) AccountUpdateBuilder
+
+	// WithTags adds multiple tags to the account's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTags(tags []string) AccountUpdateBuilder
+
+	// Update executes the account update operation and returns the updated account.
+	//
+	// This method validates that at least one field is set for update, constructs the update input,
+	// and sends the request to the Midaz API to update the account. Only fields that have been
+	// explicitly set using the With* methods will be included in the update.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//     This context is passed to the underlying API client.
+	//
+	// Returns:
+	//   - *models.Account: The updated account object if successful.
+	//     This contains all details about the account, including its ID, name, status,
+	//     and other properties with the updated values.
+	//   - error: An error if the operation fails. Possible error types include:
+	//     - errors.ErrValidation: If no fields are specified for update
+	//     - errors.ErrAuthentication: If authentication fails
+	//     - errors.ErrPermission: If the client lacks permission
+	//     - errors.ErrNotFound: If the organization, ledger, or account is not found
+	//     - errors.ErrInternal: For other internal errors
+	//
+	// Example:
+	//
+	//	// Update only the name of an account
+	//	updatedAccount, err := builders.NewAccountUpdate(client, "org-123", "ledger-456", "account-789").
+	//	    WithName("New Account Name").
+	//	    Update(context.Background())
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	fmt.Printf("Updated account name: %s\n", updatedAccount.Name)
+	//
+	//	// Update multiple fields of an account
+	//	updatedAccount, err = builders.NewAccountUpdate(client, "org-123", "ledger-456", "account-789").
+	//	    WithStatus("INACTIVE").
+	//	    WithMetadata(map[string]any{
+	//	        "archived": true,
+	//	        "archivedDate": time.Now().Format(time.RFC3339),
+	//	    }).
+	//	    WithTag("archived").
+	//	    Update(context.Background())
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	fmt.Printf("Account status updated to: %s\n", updatedAccount.Status.Code)
+	Update(ctx context.Context) (*models.Account, error)
+}
+    AccountUpdateBuilder defines the builder interface for updating accounts.
+    It provides a fluent API for configuring and updating existing account
+    resources.
+
+func NewAccountUpdate(client AccountClientInterface, orgID, ledgerID, accountID string) AccountUpdateBuilder
+    NewAccountUpdate creates a new builder for updating accounts.
+
+    This function returns a builder that allows for fluent configuration of
+    account updates before applying them to an existing account. Only the
+    fields that are explicitly set on the builder will be included in the update
+    operation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the AccountClientInterface with the
+        UpdateAccount method.
+      - orgID: The organization ID that the account belongs to.
+      - ledgerID: The ledger ID that the account belongs to.
+      - accountID: The ID of the account to update.
+
+    Returns:
+      - AccountUpdateBuilder: A builder interface for configuring and executing
+        account updates. Use the builder's methods to set the fields to update,
+        then call Update() to perform the account update operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an account update builder
+        updateBuilder := builders.NewAccountUpdate(client, "org-123", "ledger-456", "account-789")
+
+        // Configure and execute the update
+        updatedAccount, err := updateBuilder.
+            WithName("Updated Account Name").
+            WithStatus("INACTIVE").
+            WithMetadata(map[string]any{
+                "department": "finance",
+                "updated": true,
+                "reason": "consolidation",
+            }).
+            WithTag("primary").
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update account: %v", err)
+        }
+
+        fmt.Printf("Account updated: %s (new status: %s)\n", updatedAccount.ID, updatedAccount.Status.Code)
+
+type AssetBuilder interface {
+	// WithOrganization sets the organization ID for the asset.
+	// This is a required field for asset creation.
+	WithOrganization(orgID string) AssetBuilder
+
+	// WithLedger sets the ledger ID for the asset.
+	// This is a required field for asset creation.
+	WithLedger(ledgerID string) AssetBuilder
+
+	// WithName sets the name for the asset.
+	// This is a required field for asset creation.
+	WithName(name string) AssetBuilder
+
+	// WithCode sets the code for the asset.
+	// This is a required field for asset creation.
+	// The code is a unique identifier for the asset within the ledger.
+	WithCode(code string) AssetBuilder
+
+	// WithType sets the type for the asset.
+	// This is an optional field for asset creation.
+	// Valid types include: "CURRENCY", "SECURITY", "COMMODITY", etc.
+	// TODO: Create a GET endpoint for asset types, aligning with the API spec.
+	WithType(assetType string) AssetBuilder
+
+	// WithStatus sets the status for the asset.
+	// This is an optional field for asset creation.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "ARCHIVED".
+	// If not specified, the default status is "ACTIVE".
+	// TODO: Create a GET endpoint for asset statuses, aligning with the API spec.
+	WithStatus(status string) AssetBuilder
+
+	// WithMetadata adds metadata to the asset.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) AssetBuilder
+
+	// WithTag adds a single tag to the asset's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTag(tag string) AssetBuilder
+
+	// WithTags adds multiple tags to the asset's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTags(tags []string) AssetBuilder
+
+	// Create executes the asset creation and returns the created asset.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	Create(ctx context.Context) (*models.Asset, error)
+}
+    AssetBuilder defines the builder interface for creating assets. It provides
+    a fluent API for configuring and creating new asset resources.
+
+func NewAsset(client AssetClientInterface) AssetBuilder
+    NewAsset creates a new builder for creating assets.
+
+    Assets represent the units of value that can be tracked within a ledger,
+    such as currencies, securities, or commodities. This function returns a
+    builder that allows for fluent configuration of the asset before creation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the AssetClientInterface with the
+        CreateAsset method.
+
+    Returns:
+      - AssetBuilder: A builder interface for configuring and creating asset
+        resources. Use the builder's methods to set required and optional
+        parameters, then call Create() to perform the asset creation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an asset builder
+        assetBuilder := builders.NewAsset(client)
+
+        // Configure and create the asset
+        asset, err := assetBuilder.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("US Dollar").
+            WithCode("USD").
+            WithType("CURRENCY").
+            WithStatus("ACTIVE").
+            WithMetadata(map[string]any{
+                "country": "United States",
+                "symbol": "$",
+            }).
+            WithTags([]string{"fiat", "currency"}).
+            Create(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create asset: %v", err)
+        }
+
+        fmt.Printf("Asset created: %s (%s)\n", asset.ID, asset.Code)
+
+type AssetClientInterface interface {
+	// CreateAsset sends a request to create a new asset with the specified parameters.
+	// It requires a context for the API request.
+	// Returns an error if the API request fails.
+	CreateAsset(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)
+
+	// UpdateAsset sends a request to update an existing asset with the specified parameters.
+	// It requires a context for the API request.
+	// Returns an error if the API request fails.
+	UpdateAsset(ctx context.Context, organizationID, ledgerID, assetID string, input *models.UpdateAssetInput) (*models.Asset, error)
+}
+    AssetClientInterface defines the minimal client interface required by the
+    asset builders. Implementations of this interface are responsible for the
+    actual API communication with the Midaz backend services.
+
+type AssetRateBuilder interface {
+	// WithOrganization sets the organization ID for the asset rate.
+	// This is a required field for asset rate creation/update.
+	WithOrganization(orgID string) AssetRateBuilder
+
+	// WithLedger sets the ledger ID for the asset rate.
+	// This is a required field for asset rate creation/update.
+	WithLedger(ledgerID string) AssetRateBuilder
+
+	// WithFromAsset sets the source asset code for the asset rate.
+	// This is a required field that specifies the asset being converted from.
+	WithFromAsset(assetCode string) AssetRateBuilder
+
+	// WithToAsset sets the destination asset code for the asset rate.
+	// This is a required field that specifies the asset being converted to.
+	WithToAsset(assetCode string) AssetRateBuilder
+
+	// WithRate sets the exchange rate for the asset rate.
+	// This is a required field that specifies the conversion rate from the source asset to the destination asset.
+	// For example, if 1 USD = 0.85 EUR, the rate would be 0.85.
+	WithRate(rate float64) AssetRateBuilder
+
+	// WithEffectiveAt sets the effective date for the asset rate.
+	// This is an optional field that specifies when the rate becomes active.
+	// If not specified, the current time will be used.
+	WithEffectiveAt(effectiveAt time.Time) AssetRateBuilder
+
+	// WithExpirationAt sets the expiration date for the asset rate.
+	// This is an optional field that specifies when the rate expires.
+	// If not specified, the rate will expire 30 days from the effective date.
+	WithExpirationAt(expirationAt time.Time) AssetRateBuilder
+
+	// CreateOrUpdate executes the asset rate creation or update and returns the created or updated asset rate.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	CreateOrUpdate(ctx context.Context) (*models.AssetRate, error)
+}
+    AssetRateBuilder defines the builder interface for creating or updating
+    asset rates. Asset rates define the exchange rate between two assets
+    within a ledger. This builder provides a fluent API for configuring and
+    creating/updating asset rate resources.
+
+func NewAssetRate(client AssetRateClientInterface) AssetRateBuilder
+    NewAssetRate creates a new builder for creating or updating asset rates.
+
+    Asset rates define the exchange rate between two assets within a ledger,
+    allowing for currency conversion and multi-currency accounting. This
+    function returns a builder that allows for fluent configuration of the asset
+    rate before creation or update.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with the
+        Midaz API. This must implement the AssetRateClientInterface with the
+        CreateOrUpdateAssetRate method.
+
+    Returns:
+      - AssetRateBuilder: A builder interface for configuring and
+        creating/updating asset rate resources. Use the builder's methods to set
+        required and optional parameters, then call CreateOrUpdate() to perform
+        the asset rate creation or update.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an asset rate builder
+        rateBuilder := builders.NewAssetRate(client)
+
+        // Configure and create/update the asset rate
+        rate, err := rateBuilder.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithFromAsset("USD").
+            WithToAsset("EUR").
+            WithRate(0.85).
+            WithEffectiveAt(time.Now()).
+            WithExpirationAt(time.Now().AddDate(0, 1, 0)). // 1 month from now
+            CreateOrUpdate(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create/update asset rate: %v", err)
+        }
+
+        fmt.Printf("Asset rate created/updated: %s -> %s at rate %.4f\n",
+            rate.FromAsset, rate.ToAsset, rate.Rate)
+
+type AssetRateClientInterface interface {
+	// CreateOrUpdateAssetRate sends a request to create or update an asset rate with the specified parameters.
+	// If an asset rate with the same from/to asset pair already exists, it will be updated.
+	// Otherwise, a new asset rate will be created.
+	// It requires a context for the API request.
+	// Returns an error if the API request fails.
+	CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID string, input *models.UpdateAssetRateInput) (*models.AssetRate, error)
+}
+    AssetRateClientInterface defines the minimal client interface required by
+    the asset rate builders. Implementations of this interface are responsible
+    for the actual API communication with the Midaz backend services for asset
+    rate operations.
+
+type AssetUpdateBuilder interface {
+	// WithName sets the name for the asset.
+	// This is an optional field for asset updates.
+	WithName(name string) AssetUpdateBuilder
+
+	// WithStatus sets the status for the asset.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "ARCHIVED".
+	// TODO: Create a GET endpoint for asset statuses, aligning with the API spec.
+	WithStatus(status string) AssetUpdateBuilder
+
+	// WithMetadata adds metadata to the asset.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) AssetUpdateBuilder
+
+	// WithTag adds a single tag to the asset's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTag(tag string) AssetUpdateBuilder
+
+	// WithTags adds multiple tags to the asset's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	WithTags(tags []string) AssetUpdateBuilder
+
+	// Update executes the asset update operation and returns the updated asset.
+	// It requires a context for the API request.
+	// Returns an error if no fields are specified for update or if the API request fails.
+	Update(ctx context.Context) (*models.Asset, error)
+}
+    AssetUpdateBuilder defines the builder interface for updating assets. It
+    provides a fluent API for configuring and updating existing asset resources.
+
+func NewAssetUpdate(client AssetClientInterface, orgID, ledgerID, assetID string) AssetUpdateBuilder
+    NewAssetUpdate creates a new builder for updating assets.
+
+    This function returns a builder that allows for fluent configuration of
+    asset updates before applying them to an existing asset. Only the fields
+    that are explicitly set on the builder will be included in the update
+    operation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the AssetClientInterface with the
+        UpdateAsset method.
+      - orgID: The organization ID that the asset belongs to.
+      - ledgerID: The ledger ID that the asset belongs to.
+      - assetID: The ID of the asset to update.
+
+    Returns:
+      - AssetUpdateBuilder: A builder interface for configuring and executing
+        asset updates. Use the builder's methods to set the fields to update,
+        then call Update() to perform the asset update operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an asset update builder
+        updateBuilder := builders.NewAssetUpdate(client, "org-123", "ledger-456", "asset-789")
+
+        // Configure and execute the update
+        updatedAsset, err := updateBuilder.
+            WithName("Updated Asset Name").
+            WithStatus("INACTIVE").
+            WithMetadata(map[string]any{
+                "deprecated": true,
+                "replacedBy": "asset-abc",
+                "deprecationDate": time.Now().Format(time.RFC3339),
+            }).
+            WithTags([]string{"deprecated", "legacy"}).
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update asset: %v", err)
+        }
+
+        fmt.Printf("Asset updated: %s (new status: %s)\n", updatedAsset.ID, updatedAsset.Status.Code)
+
+type BalanceClientInterface interface {
+	// UpdateBalance sends a request to update an existing balance with the specified parameters.
+	// It requires a context for the API request, organization ID, ledger ID, balance ID,
+	// and an input object containing the fields to update.
+	// Returns the updated balance or an error if the API request fails.
+	UpdateBalance(ctx context.Context, organizationID, ledgerID, balanceID string, input *UpdateBalance) (*models.Balance, error)
+}
+    BalanceClientInterface defines the minimal client interface required by the
+    balance builders. Implementations of this interface are responsible for
+    the actual API communication with the Midaz backend services for balance
+    operations.
+
+type BalanceUpdateBuilder interface {
+	// WithAllowSending sets whether sending is allowed for the balance.
+	// When set to true, funds can be transferred out of the account.
+	// When set to false, the account becomes a receive-only account.
+	// This is an optional field for balance updates.
+	WithAllowSending(allowed bool) BalanceUpdateBuilder
+
+	// WithAllowReceiving sets whether receiving is allowed for the balance.
+	// When set to true, funds can be transferred into the account.
+	// When set to false, the account becomes a send-only account.
+	// This is an optional field for balance updates.
+	WithAllowReceiving(allowed bool) BalanceUpdateBuilder
+
+	// Update executes the balance update operation and returns the updated balance.
+	// It requires a context for the API request.
+	// Returns an error if no fields are specified for update or if the API request fails.
+	Update(ctx context.Context) (*models.Balance, error)
+}
+    BalanceUpdateBuilder defines the builder interface for updating balances.
+    A balance represents the current state of an account for a specific asset.
+    This builder provides a fluent API for configuring and updating balance
+    resources.
+
+func NewBalanceUpdate(client BalanceClientInterface, organizationID, ledgerID, balanceID string) BalanceUpdateBuilder
+    NewBalanceUpdate creates a new builder for updating balances.
+
+    Balances represent the current state of an account for a specific asset,
+    including the amount and permissions for sending and receiving funds. This
+    function returns a builder that allows for fluent configuration of balance
+    updates before applying them.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the BalanceClientInterface with the
+        UpdateBalance method.
+      - organizationID: The organization ID that the balance belongs to.
+      - ledgerID: The ledger ID that the balance belongs to.
+      - balanceID: The ID of the balance to update.
+
+    Returns:
+      - BalanceUpdateBuilder: A builder interface for configuring and executing
+        balance updates. Use the builder's methods to set the fields to update,
+        then call Update() to perform the balance update operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a balance update builder
+        updateBuilder := builders.NewBalanceUpdate(client, "org-123", "ledger-456", "balance-789")
+
+        // Configure and execute the update
+        updatedBalance, err := updateBuilder.
+            WithAllowSending(false).     // Disable sending funds
+            WithAllowReceiving(true).    // Enable receiving funds
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update balance: %v", err)
+        }
+
+        fmt.Printf("Balance updated: %s (sending allowed: %t, receiving allowed: %t)\n",
+            updatedBalance.ID, updatedBalance.AllowSending, updatedBalance.AllowReceiving)
+
+type Builder struct {
+	// Has unexported fields.
+}
+    Builder provides a centralized access point to all builder types in the
+    Midaz SDK. It acts as a factory for creating specific builders for different
+    resource types and operations.
+
+func NewBuilder(
+	accountClient AccountClientInterface,
+	assetClient AssetClientInterface,
+	assetRateClient AssetRateClientInterface,
+	balanceClient BalanceClientInterface,
+	ledgerClient LedgerClientInterface,
+	organizationClient OrganizationClientInterface,
+	portfolioClient PortfolioClientInterface,
+	segmentClient SegmentClientInterface,
+	transactionClient ClientInterface,
+) *Builder
+    NewBuilder creates a new Builder instance with the provided client
+    interfaces. This constructor initializes a Builder that provides access to
+    all builder types in the Midaz SDK.
+
+    Parameters:
+      - accountClient: Client interface for account operations
+      - assetClient: Client interface for asset operations
+      - assetRateClient: Client interface for asset rate operations
+      - balanceClient: Client interface for balance operations
+      - ledgerClient: Client interface for ledger operations
+      - organizationClient: Client interface for organization operations
+      - portfolioClient: Client interface for portfolio operations
+      - segmentClient: Client interface for segment operations
+      - transactionClient: Client interface for transaction operations
+
+    Returns:
+      - *Builder: A pointer to the newly created Builder, ready to create
+        specific builders
+
+    Example - Creating a builder with a client:
+
+        // Initialize the builder with a client
+        builder := builders.NewBuilder(
+            client, // AccountClientInterface
+            client, // AssetClientInterface
+            client, // AssetRateClientInterface
+            client, // BalanceClientInterface
+            client, // LedgerClientInterface
+            client, // OrganizationClientInterface
+            client, // PortfolioClientInterface
+            client, // SegmentClientInterface
+            client, // ClientInterface (for transactions)
+        )
+
+    Example - Using the builder to create an account:
+
+        // After creating the builder, use it to create an account
+        account, err := builder.
+            NewAccount().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("Checking Account").
+            WithAssetCode("USD").
+            WithType("ASSET").
+            Create(context.Background())
+
+func (b *Builder) NewAccount() AccountBuilder
+    NewAccount creates a new builder for creating accounts.
+
+    Returns:
+      - AccountBuilder: A builder interface for configuring and creating account
+        resources
+
+    Example:
+
+        account, err := builder.
+            NewAccount().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("Checking Account").
+            WithAssetCode("USD").
+            WithType("ASSET").
+            Create(context.Background())
+
+func (b *Builder) NewAccountUpdate(orgID, ledgerID, accountID string) AccountUpdateBuilder
+    NewAccountUpdate creates a new builder for updating accounts.
+
+    Parameters:
+      - orgID: The organization ID that the account belongs to
+      - ledgerID: The ledger ID that the account belongs to
+      - accountID: The ID of the account to update
+
+    Returns:
+      - AccountUpdateBuilder: A builder interface for configuring and updating
+        account resources
+
+    Example:
+
+        updatedAccount, err := builder.
+            NewAccountUpdate("org-123", "ledger-456", "account-789").
+            WithName("Updated Account Name").
+            WithStatus("INACTIVE").
+            Update(context.Background())
+
+func (b *Builder) NewAsset() AssetBuilder
+    NewAsset creates a new builder for creating assets.
+
+    Returns:
+      - AssetBuilder: A builder interface for configuring and creating asset
+        resources
+
+    Example:
+
+        asset, err := builder.
+            NewAsset().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("US Dollar").
+            WithCode("USD").
+            Create(context.Background())
+
+func (b *Builder) NewAssetRate() AssetRateBuilder
+    NewAssetRate creates a new builder for creating asset rates.
+
+    Returns:
+      - AssetRateBuilder: A builder interface for configuring and creating asset
+        rate resources
+
+    Example:
+
+        assetRate, err := builder.
+            NewAssetRate().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithBaseAsset("USD").
+            WithQuoteAsset("EUR").
+            WithRate(0.85).
+            Create(context.Background())
+
+func (b *Builder) NewAssetUpdate(orgID, ledgerID, assetID string) AssetUpdateBuilder
+    NewAssetUpdate creates a new builder for updating assets.
+
+    Parameters:
+      - orgID: The organization ID that the asset belongs to
+      - ledgerID: The ledger ID that the asset belongs to
+      - assetID: The ID of the asset to update
+
+    Returns:
+      - AssetUpdateBuilder: A builder interface for configuring and updating
+        asset resources
+
+    Example:
+
+        updatedAsset, err := builder.
+            NewAssetUpdate("org-123", "ledger-456", "asset-789").
+            WithName("Updated Asset Name").
+            Update(context.Background())
+
+func (b *Builder) NewDeposit() DepositBuilder
+    NewDeposit creates a new builder for deposit transactions.
+
+    Returns:
+      - DepositBuilder: A builder interface for configuring and executing
+        deposit transactions
+
+    Example:
+
+        tx, err := builder.
+            NewDeposit().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(10000, 2). // $100.00
+            WithAssetCode("USD").
+            WithDescription("Customer deposit").
+            ToAccount("customer:john.doe").
+            Execute(context.Background())
+
+func (b *Builder) NewLedger() LedgerBuilder
+    NewLedger creates a new builder for creating ledgers.
+
+    Returns:
+      - LedgerBuilder: A builder interface for configuring and creating ledger
+        resources
+
+    Example:
+
+        ledger, err := builder.
+            NewLedger().
+            WithOrganization("org-123").
+            WithName("Main Ledger").
+            Create(context.Background())
+
+func (b *Builder) NewLedgerUpdate(orgID, ledgerID string) LedgerUpdateBuilder
+    NewLedgerUpdate creates a new builder for updating ledgers.
+
+    Parameters:
+      - orgID: The organization ID that the ledger belongs to
+      - ledgerID: The ID of the ledger to update
+
+    Returns:
+      - LedgerUpdateBuilder: A builder interface for configuring and updating
+        ledger resources
+
+    Example:
+
+        updatedLedger, err := builder.
+            NewLedgerUpdate("org-123", "ledger-456").
+            WithName("Updated Ledger Name").
+            Update(context.Background())
+
+func (b *Builder) NewOrganization() OrganizationBuilder
+    NewOrganization creates a new builder for creating organizations.
+
+    Returns:
+      - OrganizationBuilder: A builder interface for configuring and creating
+        organization resources
+
+    Example:
+
+        organization, err := builder.
+            NewOrganization().
+            WithName("ACME Corporation").
+            Create(context.Background())
+
+func (b *Builder) NewOrganizationUpdate(orgID string) OrganizationUpdateBuilder
+    NewOrganizationUpdate creates a new builder for updating organizations.
+
+    Parameters:
+      - orgID: The ID of the organization to update
+
+    Returns:
+      - OrganizationUpdateBuilder: A builder interface for configuring and
+        updating organization resources
+
+    Example:
+
+        updatedOrg, err := builder.
+            NewOrganizationUpdate("org-123").
+            WithName("Updated Organization Name").
+            Update(context.Background())
+
+func (b *Builder) NewPortfolio() PortfolioBuilder
+    NewPortfolio creates a new builder for creating portfolios.
+
+    Returns:
+      - PortfolioBuilder: A builder interface for configuring and creating
+        portfolio resources
+
+    Example:
+
+        portfolio, err := builder.
+            NewPortfolio().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("Investment Portfolio").
+            Create(context.Background())
+
+func (b *Builder) NewPortfolioUpdate(orgID, ledgerID, portfolioID string) PortfolioUpdateBuilder
+    NewPortfolioUpdate creates a new builder for updating portfolios.
+
+    Parameters:
+      - orgID: The organization ID that the portfolio belongs to
+      - ledgerID: The ledger ID that the portfolio belongs to
+      - portfolioID: The ID of the portfolio to update
+
+    Returns:
+      - PortfolioUpdateBuilder: A builder interface for configuring and updating
+        portfolio resources
+
+    Example:
+
+        updatedPortfolio, err := builder.
+            NewPortfolioUpdate("org-123", "ledger-456", "portfolio-789").
+            WithName("Updated Portfolio Name").
+            Update(context.Background())
+
+func (b *Builder) NewSegment() SegmentBuilder
+    NewSegment creates a new builder for creating segments.
+
+    Returns:
+      - SegmentBuilder: A builder interface for configuring and creating segment
+        resources
+
+    Example:
+
+        segment, err := builder.
+            NewSegment().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("Retail Segment").
+            Create(context.Background())
+
+func (b *Builder) NewSegmentUpdate(orgID, ledgerID, portfolioID, segmentID string) SegmentUpdateBuilder
+    NewSegmentUpdate creates a new builder for updating segments.
+
+    Parameters:
+      - orgID: The organization ID that the segment belongs to
+      - ledgerID: The ledger ID that the segment belongs to
+      - portfolioID: The portfolio ID that the segment belongs to
+      - segmentID: The ID of the segment to update
+
+    Returns:
+      - SegmentUpdateBuilder: A builder interface for configuring and updating
+        segment resources
+
+    Example:
+
+        updatedSegment, err := builder.
+            NewSegmentUpdate("org-123", "ledger-456", "portfolio-789", "segment-abc").
+            WithName("Updated Segment Name").
+            WithStatus("INACTIVE").
+            Update(context.Background())
+
+func (b *Builder) NewTransfer() TransferBuilder
+    NewTransfer creates a new builder for transfer transactions.
+
+    Returns:
+      - TransferBuilder: A builder interface for configuring and executing
+        transfer transactions
+
+    Example:
+
+        tx, err := builder.
+            NewTransfer().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(2500, 2). // $25.00
+            WithAssetCode("USD").
+            WithDescription("Transfer between accounts").
+            FromAccount("customer:john.doe").
+            ToAccount("merchant:acme").
+            Execute(context.Background())
+
+func (b *Builder) NewWithdrawal() WithdrawalBuilder
+    NewWithdrawal creates a new builder for withdrawal transactions.
+
+    Returns:
+      - WithdrawalBuilder: A builder interface for configuring and executing
+        withdrawal transactions
+
+    Example:
+
+        tx, err := builder.
+            NewWithdrawal().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(5000, 2). // $50.00
+            WithAssetCode("USD").
+            WithDescription("Customer withdrawal").
+            FromAccount("customer:john.doe").
+            Execute(context.Background())
+
+type ClientInterface interface {
+	// CreateTransaction sends a request to create a new transaction with the specified parameters.
+	// It requires a context for the API request and returns the created transaction or an error.
+	CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error)
+}
+    ClientInterface defines the minimal client interface required by the
+    builders. This allows the builders to be used with both the real client and
+    mocks. Implementations of this interface are responsible for the actual API
+    communication with the Midaz backend services.
+
+type DepositBuilder interface {
+	// WithOrganization sets the organization ID for the transaction.
+	// This is a required field for creating a deposit transaction.
+	WithOrganization(orgID string) DepositBuilder
+
+	// WithLedger sets the ledger ID for the transaction.
+	// This is a required field for creating a deposit transaction.
+	WithLedger(ledgerID string) DepositBuilder
+
+	// WithAmount sets the amount and scale for the transaction.
+	// The amount must be greater than zero.
+	// Scale represents the number of decimal places (e.g., scale 2 for cents).
+	// This is a required field for creating a deposit transaction.
+	WithAmount(amount int64, scale int) DepositBuilder
+
+	// WithAssetCode sets the asset code for the transaction.
+	// This is a required field for creating a deposit transaction.
+	WithAssetCode(assetCode string) DepositBuilder
+
+	// WithDescription sets a human-readable description for the transaction.
+	// This is an optional field that provides context about the transaction.
+	WithDescription(description string) DepositBuilder
+
+	// WithMetadata adds metadata to the transaction.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) DepositBuilder
+
+	// WithTag adds a single tag to the transaction.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) DepositBuilder
+
+	// WithTags adds multiple tags to the transaction.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) DepositBuilder
+
+	// WithExternalID sets an external ID for the transaction.
+	// This is an optional field that allows linking the transaction to an external system.
+	WithExternalID(externalID string) DepositBuilder
+
+	// WithIdempotencyKey sets an idempotency key for the transaction.
+	// This is an optional field that ensures the same transaction is not created multiple times.
+	// If a transaction with the same idempotency key already exists, that transaction will be returned.
+	WithIdempotencyKey(key string) DepositBuilder
+
+	// ToAccount sets the destination account for the deposit.
+	// This is a required field that specifies which account receives the funds.
+	ToAccount(accountAlias string) DepositBuilder
+
+	// Execute performs the deposit operation and returns the created transaction.
+	//
+	// This method validates all required parameters, constructs the transaction DSL,
+	// and sends the request to the Midaz API to create the deposit transaction.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//     This context is passed to the underlying API client.
+	//
+	// Returns:
+	//   - *models.Transaction: The created transaction object if successful.
+	//     This contains all details about the transaction, including its ID, status,
+	//     and other properties.
+	//   - error: An error if the operation fails. Possible error types include:
+	//     - errors.ErrValidation: If required parameters are missing or invalid
+	//     - errors.ErrAuthentication: If authentication fails
+	//     - errors.ErrPermission: If the client lacks permission
+	//     - errors.ErrNotFound: If the organization, ledger, or account is not found
+	//     - errors.ErrInternal: For other internal errors
+	//
+	// Example:
+	//
+	//	// Create a deposit transaction
+	//	tx, err := builders.NewDeposit(client).
+	//	    WithOrganization("org-123").
+	//	    WithLedger("ledger-456").
+	//	    WithAmount(1000, 2). // $10.00
+	//	    WithAssetCode("USD").
+	//	    WithDescription("Customer deposit").
+	//	    WithMetadata(map[string]any{
+	//	        "reference": "invoice-789",
+	//	        "channel": "web",
+	//	    }).
+	//	    WithTag("customer-deposit").
+	//	    ToAccount("customer-account").
+	//	    Execute(context.Background())
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the transaction
+	//	fmt.Printf("Created deposit transaction: %s (status: %s)\n", tx.ID, tx.Status)
+	Execute(ctx context.Context) (*models.Transaction, error)
+}
+    DepositBuilder defines the builder interface for deposit transactions.
+    A deposit transaction increases the balance of an account by adding funds to
+    it. This builder provides a fluent API for configuring and executing deposit
+    operations.
+
+func NewDeposit(client ClientInterface) DepositBuilder
+    NewDeposit creates a new builder for deposit transactions.
+
+    A deposit transaction increases the balance of an account by adding funds to
+    it. This function returns a builder that allows for fluent configuration of
+    the deposit transaction before execution.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the ClientInterface with the
+        CreateTransaction method.
+
+    Returns:
+      - DepositBuilder: A builder interface for configuring and executing
+        deposit transactions. Use the builder's methods to set required
+        and optional parameters, then call Execute() to perform the deposit
+        operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a deposit builder
+        deposit := builders.NewDeposit(client)
+
+        // Configure and execute the deposit
+        tx, err := deposit.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(1000, 2). // $10.00
+            WithAssetCode("USD").
+            WithDescription("Customer deposit").
+            ToAccount("customer-account").
+            Execute(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to execute deposit: %v", err)
+        }
+
+        fmt.Printf("Deposit transaction created: %s\n", tx.ID)
+
+type LedgerBuilder interface {
+	// WithOrganization sets the organization ID for the ledger.
+	// This is a required field for ledger creation.
+	WithOrganization(orgID string) LedgerBuilder
+
+	// WithName sets the name for the ledger.
+	// This is a required field for ledger creation.
+	WithName(name string) LedgerBuilder
+
+	// WithStatus sets the status for the ledger.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "ARCHIVED".
+	// If not specified, the default status is "ACTIVE".
+	// TODO: Create a GET endpoint for ledger statuses, aligning with the API spec.
+	WithStatus(status string) LedgerBuilder
+
+	// WithMetadata adds metadata to the ledger.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) LedgerBuilder
+
+	// WithTag adds a single tag to the ledger's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) LedgerBuilder
+
+	// WithTags adds multiple tags to the ledger's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) LedgerBuilder
+
+	// Create executes the ledger creation and returns the created ledger.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	Create(ctx context.Context) (*models.Ledger, error)
+}
+    LedgerBuilder defines the builder interface for creating ledgers.
+    A ledger is a core financial record-keeping structure that contains accounts
+    and transactions. This builder provides a fluent API for configuring and
+    creating ledger resources.
+
+func NewLedger(client LedgerClientInterface) LedgerBuilder
+    NewLedger creates a new builder for creating ledgers.
+
+    A ledger is a core financial record-keeping structure that contains accounts
+    and transactions. This function returns a builder that allows for fluent
+    configuration of the ledger before creation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the LedgerClientInterface with the
+        CreateLedger method.
+
+    Returns:
+      - LedgerBuilder: A builder interface for configuring and creating ledger
+        resources. Use the builder's methods to set required and optional
+        parameters, then call Create() to perform the ledger creation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a ledger builder
+        ledgerBuilder := builders.NewLedger(client)
+
+        // Configure and create the ledger
+        ledger, err := ledgerBuilder.
+            WithOrganization("org-123").
+            WithName("Main Ledger").
+            WithStatus("ACTIVE").
+            WithMetadata(map[string]any{
+                "department": "finance",
+                "purpose": "general-accounting",
+            }).
+            WithTag("production").
+            Create(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create ledger: %v", err)
+        }
+
+        fmt.Printf("Ledger created: %s\n", ledger.ID)
+
+type LedgerClientInterface interface {
+	// CreateLedger sends a request to create a new ledger with the specified parameters.
+	// It requires a context for the API request and an organization ID.
+	// Returns the created ledger or an error if the API request fails.
+	CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)
+
+	// UpdateLedger sends a request to update an existing ledger with the specified parameters.
+	// It requires a context for the API request, organization ID, and ledger ID.
+	// Returns the updated ledger or an error if the API request fails.
+	UpdateLedger(ctx context.Context, organizationID, ledgerID string, input *models.UpdateLedgerInput) (*models.Ledger, error)
+}
+    LedgerClientInterface defines the minimal client interface required by the
+    ledger builders. Implementations of this interface are responsible for
+    the actual API communication with the Midaz backend services for ledger
+    operations.
+
+type LedgerUpdateBuilder interface {
+	// WithOrganization sets the organization ID for the ledger.
+	// This method is typically not needed as the organization ID is already set when creating the builder.
+	WithOrganization(orgID string) LedgerUpdateBuilder
+
+	// WithName sets the name for the ledger.
+	// This is an optional field for ledger updates.
+	WithName(name string) LedgerUpdateBuilder
+
+	// WithStatus sets the status for the ledger.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "ARCHIVED".
+	// This is an optional field for ledger updates.
+	// TODO: Create a GET endpoint for ledger statuses, aligning with the API spec.
+	WithStatus(status string) LedgerUpdateBuilder
+
+	// WithMetadata adds metadata to the ledger.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) LedgerUpdateBuilder
+
+	// WithTag adds a single tag to the ledger's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) LedgerUpdateBuilder
+
+	// WithTags adds multiple tags to the ledger's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) LedgerUpdateBuilder
+
+	// Update executes the ledger update operation and returns the updated ledger.
+	// It requires a context for the API request.
+	// Returns an error if no fields are specified for update or if the API request fails.
+	Update(ctx context.Context) (*models.Ledger, error)
+}
+    LedgerUpdateBuilder defines the builder interface for updating ledgers.
+    This builder provides a fluent API for configuring and updating existing
+    ledger resources.
+
+func NewLedgerUpdate(client LedgerClientInterface, orgID, ledgerID string) LedgerUpdateBuilder
+    NewLedgerUpdate creates a new builder for updating ledgers.
+
+    This function returns a builder that allows for fluent configuration of
+    ledger updates before applying them to an existing ledger. Only the fields
+    that are explicitly set on the builder will be included in the update
+    operation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the LedgerClientInterface with the
+        UpdateLedger method.
+      - orgID: The organization ID that the ledger belongs to.
+      - ledgerID: The ID of the ledger to update.
+
+    Returns:
+      - LedgerUpdateBuilder: A builder interface for configuring and executing
+        ledger updates. Use the builder's methods to set the fields to update,
+        then call Update() to perform the ledger update operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a ledger update builder
+        updateBuilder := builders.NewLedgerUpdate(client, "org-123", "ledger-456")
+
+        // Configure and execute the update
+        updatedLedger, err := updateBuilder.
+            WithName("Updated Ledger Name").
+            WithStatus("INACTIVE").
+            WithMetadata(map[string]any{
+                "department": "finance",
+                "updated": true,
+                "reason": "reorganization",
+            }).
+            WithTag("archived").
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update ledger: %v", err)
+        }
+
+        fmt.Printf("Ledger updated: %s (new status: %s)\n", updatedLedger.ID, updatedLedger.Status.Code)
+
+type Option func(*models.TransactionDSLInput)
+    Option is a function that configures a transaction builder.
+
+    Options are used with transaction builders to customize the transaction's
+    properties beyond the basic required parameters. These options allow for
+    adding metadata, specifying idempotency keys, setting transaction status,
+    and other configurations.
+
+    The Option type follows the functional options pattern, which provides a
+    clean and extensible way to configure objects with many optional parameters.
+    Each option is a function that modifies the transaction input in some way.
+
+    Multiple options can be combined to fully customize a transaction:
+
+        tx, err := builder.NewTransfer().
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(1000, 2).
+            WithAssetCode("USD").
+            WithDescription("Payment").
+            FromAccount("account-source").
+            ToAccount("account-target").
+            WithMetadata(map[string]any{
+                "reference": "INV-456",
+                "department": "Sales",
+            }).
+            WithPending(true).
+            Execute(ctx)
+
+    Available options include:
+      - WithMetadata: Add custom key-value data to the transaction
+      - WithIdempotencyKey: Ensure transaction uniqueness with a
+        client-generated key
+      - WithExternalID: Link the transaction to an external system identifier
+      - WithPending: Create the transaction in a pending state requiring
+        explicit commitment
+      - WithChartOfAccountsGroupName: Categorize the transaction for accounting
+        purposes
+      - WithCode: Add a custom transaction code for categorization
+      - WithNotes: Add detailed notes about the transaction
+
+func WithChartOfAccountsGroupName(name string) Option
+    WithChartOfAccountsGroupName sets the chart of accounts group for a
+    transaction.
+
+    This option is used when integrating with traditional accounting systems
+    that use a chart of accounts. The group name helps categorize the
+    transaction for accounting purposes, making it easier to generate financial
+    reports like balance sheets and income statements.
+
+    Parameters:
+      - name: The chart of accounts group name to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewDeposit().
+            WithChartOfAccountsGroupName("revenue:subscription")
+
+func WithCode(code string) Option
+    WithCode sets a custom transaction code for a transaction.
+
+    Transaction codes are short alphanumeric identifiers that can be used to
+    categorize transactions according to your business logic. They're useful for
+    filtering and searching transactions in reports.
+
+    Parameters:
+      - code: The custom code to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewTransfer().
+            WithCode("SUBS-RENEW")
+
+func WithExternalID(externalID string) Option
+    WithExternalID sets an external ID for the transaction.
+
+    External IDs are used to link transactions in the Midaz system with
+    identifiers from external systems. This is useful for reconciliation and
+    tracking purposes.
+
+    Parameters:
+      - externalID: The external identifier to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewWithdrawal().
+            WithExternalID("WD-123")
+
+func WithIdempotencyKey(key string) Option
+    WithIdempotencyKey adds an idempotency key to ensure transaction uniqueness.
+
+    Idempotency keys protect against duplicate transaction creation in case
+    of network errors or retries. If a request with the same idempotency
+    key is received multiple times, only one transaction will be created,
+    and subsequent requests will return the same result.
+
+    Best practice is to use a UUID or another globally unique identifier as the
+    key.
+
+    Important considerations for idempotency keys:
+      - Keys should be unique per transaction, not per request
+      - Keys should be stored on the client side before making the request
+      - Keys should have a reasonable TTL (Time To Live) - typically 24 hours
+      - Keys should be URL-safe (alphanumeric characters, hyphens, underscores)
+      - Keys should be reasonably sized (typically 36-128 characters)
+
+    Parameters:
+      - key: The unique idempotency key to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewTransfer().
+            WithIdempotencyKey("tx-123-abc")
+
+func WithMetadata(metadata map[string]any) Option
+    WithMetadata adds structured metadata to a transaction.
+
+    Metadata is a flexible key-value store that can be used to add
+    business-specific information to transactions. This is useful for storing
+    references to external systems, categorizing transactions, or adding any
+    other contextual information.
+
+    Parameters:
+      - metadata: A map of key-value pairs to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewDeposit().
+            WithMetadata(map[string]any{
+                "reference": "DEP-123",
+                "customer_id": "CUST-456",
+            })
+
+func WithNotes(notes string) Option
+    WithNotes adds detailed notes to a transaction.
+
+    Notes provide additional context or explanation about a transaction
+    beyond the basic description. They can be used for internal documentation,
+    explaining unusual circumstances, or providing additional context for
+    auditing.
+
+    Parameters:
+      - notes: The detailed notes to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewWithdrawal().
+            WithNotes("Customer requested refund due to damaged product.")
+
+func WithPending(pending bool) Option
+    WithPending marks a transaction as pending, requiring explicit commitment
+    later.
+
+    When a transaction is created with pending=true, it must be explicitly
+    committed using CommitTransaction before its effects are applied to account
+    balances. This two-phase approach allows for validation and verification
+    before the transaction is finalized.
+
+    Default is pending=false, which means the transaction is immediately
+    committed.
+
+    Use cases for pending transactions include:
+      - High-value transactions that require manual approval
+      - Transactions that depend on external verification or conditions
+      - Implementing custom approval workflows
+      - Batching related transactions for atomic commitment
+      - Simulating transactions for testing or forecasting
+
+    Pending transactions have the following characteristics:
+      - They are visible in transaction listings with a PENDING status
+      - They do not affect account balances until committed
+      - They can be committed or canceled (deleted)
+      - They have a default TTL (Time To Live) - typically 24 hours
+
+    Parameters:
+      - pending: Whether the transaction should be created in a pending state
+
+    Returns:
+      - An Option function that can be passed to transaction builders
+
+    Example:
+
+        builder.NewTransfer().
+            WithPending(true)
+
+type OrganizationBuilder interface {
+	// WithLegalName sets the legal name for the organization.
+	// This is a required field for organization creation.
+	WithLegalName(name string) OrganizationBuilder
+
+	// WithLegalDocument sets the legal document (e.g., tax ID) for the organization.
+	// This is a required field for organization creation.
+	WithLegalDocument(document string) OrganizationBuilder
+
+	// WithStatus sets the status for the organization.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "SUSPENDED".
+	// If not specified, the default status is "ACTIVE".
+	// TODO: Create a GET endpoint for organization statuses, aligning with the API spec.
+	WithStatus(status string) OrganizationBuilder
+
+	// WithAddress sets the address for the organization.
+	// This is an optional field that provides location information for the organization.
+	// All address components are optional, but it's recommended to provide as much information as possible.
+	WithAddress(street, postalCode, city, state, country string) OrganizationBuilder
+
+	// WithMetadata adds metadata to the organization.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) OrganizationBuilder
+
+	// WithTag adds a single tag to the organization's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) OrganizationBuilder
+
+	// WithTags adds multiple tags to the organization's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) OrganizationBuilder
+
+	// Create executes the organization creation and returns the created organization.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	Create(ctx context.Context) (*models.Organization, error)
+}
+    OrganizationBuilder defines the builder interface for creating
+    organizations. An organization is the top-level entity in the Midaz
+    hierarchy that contains ledgers and accounts. This builder provides a fluent
+    API for configuring and creating organization resources.
+
+func NewOrganization(client OrganizationClientInterface) OrganizationBuilder
+    NewOrganization creates a new builder for creating organizations.
+
+    An organization is the top-level entity in the Midaz hierarchy that contains
+    ledgers and accounts. This function returns a builder that allows for fluent
+    configuration of the organization before creation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with the
+        Midaz API. This must implement the OrganizationClientInterface with the
+        CreateOrganization method.
+
+    Returns:
+      - OrganizationBuilder: A builder interface for configuring and creating
+        organization resources. Use the builder's methods to set required and
+        optional parameters, then call Create() to perform the organization
+        creation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an organization builder
+        orgBuilder := builders.NewOrganization(client)
+
+        // Configure and create the organization
+        org, err := orgBuilder.
+            WithLegalName("Acme Corporation").
+            WithLegalDocument("123456789").
+            WithStatus("ACTIVE").
+            WithAddress(
+                "123 Main St",
+                "94105",
+                "San Francisco",
+                "CA",
+                "US",
+            ).
+            WithMetadata(map[string]any{
+                "industry": "technology",
+                "size": "enterprise",
+            }).
+            WithTag("customer").
+            Create(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create organization: %v", err)
+        }
+
+        fmt.Printf("Organization created: %s\n", org.ID)
+
+type OrganizationClientInterface interface {
+	// CreateOrganization sends a request to create a new organization with the specified parameters.
+	// It requires a context for the API request.
+	// Returns the created organization or an error if the API request fails.
+	CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
+
+	// UpdateOrganization sends a request to update an existing organization with the specified parameters.
+	// It requires a context for the API request and an organization ID.
+	// Returns the updated organization or an error if the API request fails.
+	UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error)
+}
+    OrganizationClientInterface defines the minimal client interface required by
+    the organization builders. Implementations of this interface are responsible
+    for the actual API communication with the Midaz backend services for
+    organization operations.
+
+type OrganizationUpdateBuilder interface {
+	// WithLegalName sets the legal name for the organization.
+	// This is an optional field for organization updates.
+	WithLegalName(name string) OrganizationUpdateBuilder
+
+	// WithLegalDocument sets the legal document (e.g., tax ID) for the organization.
+	// This is an optional field for organization updates.
+	WithLegalDocument(document string) OrganizationUpdateBuilder
+
+	// WithStatus sets the status for the organization.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "SUSPENDED".
+	// This is an optional field for organization updates.
+	// TODO: Create a GET endpoint for organization statuses, aligning with the API spec.
+	WithStatus(status string) OrganizationUpdateBuilder
+
+	// WithAddress sets the address for the organization.
+	// This is an optional field that provides location information for the organization.
+	// All address components are optional, but it's recommended to provide as much information as possible.
+	WithAddress(street, postalCode, city, state, country string) OrganizationUpdateBuilder
+
+	// WithMetadata adds metadata to the organization.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) OrganizationUpdateBuilder
+
+	// WithTag adds a single tag to the organization's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) OrganizationUpdateBuilder
+
+	// WithTags adds multiple tags to the organization's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) OrganizationUpdateBuilder
+
+	// Update executes the organization update operation and returns the updated organization.
+	// It requires a context for the API request.
+	// Returns an error if no fields are specified for update or if the API request fails.
+	Update(ctx context.Context) (*models.Organization, error)
+}
+    OrganizationUpdateBuilder defines the builder interface for updating
+    organizations. This builder provides a fluent API for configuring and
+    updating existing organization resources.
+
+func NewOrganizationUpdate(client OrganizationClientInterface, id string) OrganizationUpdateBuilder
+    NewOrganizationUpdate creates a new builder for updating organizations. It
+    initializes a builder with default values and the provided client interface
+    for API communication.
+
+    This function returns a builder that allows for fluent configuration of
+    organization updates before applying them to an existing organization.
+    Only the fields that are explicitly set on the builder will be included in
+    the update operation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with the
+        Midaz API. This must implement the OrganizationClientInterface with the
+        UpdateOrganization method.
+      - id: The ID of the organization to update.
+
+    Returns:
+      - OrganizationUpdateBuilder: A builder interface for configuring and
+        executing organization updates. Use the builder's methods to set the
+        fields to update, then call Update() to perform the organization update
+        operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create an organization update builder
+        updateBuilder := builders.NewOrganizationUpdate(client, "org-123")
+
+        // Configure and execute the update
+        updatedOrg, err := updateBuilder.
+            WithLegalName("Updated Company Name").
+            WithStatus("INACTIVE").
+            WithMetadata(map[string]any{
+                "reason": "restructuring",
+                "updated": true,
+                "effectiveDate": time.Now().Format(time.RFC3339),
+            }).
+            WithTags([]string{"archived", "inactive"}).
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update organization: %v", err)
+        }
+
+        fmt.Printf("Organization updated: %s (new status: %s)\n", updatedOrg.ID, updatedOrg.Status.Code)
+
+type PortfolioBuilder interface {
+	// WithOrganization sets the organization ID for the portfolio.
+	// This is a required field for portfolio creation.
+	WithOrganization(orgID string) PortfolioBuilder
+
+	// WithLedger sets the ledger ID for the portfolio.
+	// This is a required field for portfolio creation.
+	WithLedger(ledgerID string) PortfolioBuilder
+
+	// WithName sets the name for the portfolio.
+	// This is a required field for portfolio creation.
+	WithName(name string) PortfolioBuilder
+
+	// WithEntityID sets the entity ID for the portfolio.
+	// This is a required field for portfolio creation that links the portfolio to an entity.
+	// An entity typically represents a customer, user, or business unit.
+	WithEntityID(entityID string) PortfolioBuilder
+
+	// WithStatus sets the status for the portfolio.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "CLOSED".
+	// If not specified, the default status is "ACTIVE".
+	WithStatus(status string) PortfolioBuilder
+
+	// WithMetadata adds metadata to the portfolio.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) PortfolioBuilder
+
+	// WithTag adds a single tag to the portfolio's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) PortfolioBuilder
+
+	// WithTags adds multiple tags to the portfolio's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) PortfolioBuilder
+
+	// Create executes the portfolio creation and returns the created portfolio.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	Create(ctx context.Context) (*models.Portfolio, error)
+}
+    PortfolioBuilder defines the builder interface for creating portfolios.
+    A portfolio is a grouping mechanism for accounts, typically representing
+    a customer or business unit. This builder provides a fluent API for
+    configuring and creating portfolio resources.
+
+func NewPortfolio(client PortfolioClientInterface) PortfolioBuilder
+    NewPortfolio creates a new builder for creating portfolios.
+
+    Portfolios are grouping mechanisms for accounts, typically representing a
+    customer or business unit. This function returns a builder that allows for
+    fluent configuration of the portfolio before creation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with the
+        Midaz API. This must implement the PortfolioClientInterface with the
+        CreatePortfolio method.
+
+    Returns:
+      - PortfolioBuilder: A builder interface for configuring and creating
+        portfolio resources. Use the builder's methods to set required and
+        optional parameters, then call Create() to perform the portfolio
+        creation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a portfolio builder
+        portfolioBuilder := builders.NewPortfolio(client)
+
+        // Configure and create the portfolio
+        portfolio, err := portfolioBuilder.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithName("Customer Portfolio").
+            WithEntityID("entity-789").
+            WithStatus("ACTIVE").
+            WithMetadata(map[string]any{
+                "customerType": "enterprise",
+                "region": "north-america",
+            }).
+            WithTags([]string{"customer", "enterprise"}).
+            Create(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create portfolio: %v", err)
+        }
+
+        fmt.Printf("Portfolio created: %s\n", portfolio.ID)
+
+type PortfolioClientInterface interface {
+	// CreatePortfolio sends a request to create a new portfolio with the specified parameters.
+	// It requires a context for the API request, organization ID, and ledger ID.
+	// Returns the created portfolio or an error if the API request fails.
+	CreatePortfolio(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error)
+
+	// UpdatePortfolio sends a request to update an existing portfolio with the specified parameters.
+	// It requires a context for the API request, organization ID, ledger ID, and portfolio ID.
+	// Returns the updated portfolio or an error if the API request fails.
+	UpdatePortfolio(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.UpdatePortfolioInput) (*models.Portfolio, error)
+}
+    PortfolioClientInterface defines the minimal client interface required by
+    the portfolio builders. Implementations of this interface are responsible
+    for the actual API communication with the Midaz backend services for
+    portfolio operations.
+
+type PortfolioUpdateBuilder interface {
+	// WithName sets the name for the portfolio.
+	// This is an optional field for portfolio updates.
+	WithName(name string) PortfolioUpdateBuilder
+
+	// WithStatus sets the status for the portfolio.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "CLOSED".
+	// This is an optional field for portfolio updates.
+	WithStatus(status string) PortfolioUpdateBuilder
+
+	// WithMetadata adds metadata to the portfolio.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) PortfolioUpdateBuilder
+
+	// WithTag adds a single tag to the portfolio's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) PortfolioUpdateBuilder
+
+	// WithTags adds multiple tags to the portfolio's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) PortfolioUpdateBuilder
+
+	// Update executes the portfolio update operation and returns the updated portfolio.
+	// It requires a context for the API request.
+	// Returns an error if no fields are specified for update or if the API request fails.
+	Update(ctx context.Context) (*models.Portfolio, error)
+}
+    PortfolioUpdateBuilder defines the builder interface for updating
+    portfolios. This builder provides a fluent API for configuring and updating
+    existing portfolio resources.
+
+func NewPortfolioUpdate(client PortfolioClientInterface, orgID, ledgerID, portfolioID string) PortfolioUpdateBuilder
+    NewPortfolioUpdate creates a new builder for updating portfolios.
+
+    This function returns a builder that allows for fluent configuration of
+    portfolio updates before applying them to an existing portfolio. Only the
+    fields that are explicitly set on the builder will be included in the update
+    operation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with the
+        Midaz API. This must implement the PortfolioClientInterface with the
+        UpdatePortfolio method.
+      - orgID: The organization ID that the portfolio belongs to.
+      - ledgerID: The ledger ID that the portfolio belongs to.
+      - portfolioID: The ID of the portfolio to update.
+
+    Returns:
+      - PortfolioUpdateBuilder: A builder interface for configuring and
+        executing portfolio updates. Use the builder's methods to set the fields
+        to update, then call Update() to perform the portfolio update operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a portfolio update builder
+        updateBuilder := builders.NewPortfolioUpdate(client, "org-123", "ledger-456", "portfolio-789")
+
+        // Configure and execute the update
+        updatedPortfolio, err := updateBuilder.
+            WithName("Updated Portfolio Name").
+            WithStatus("INACTIVE").
+            WithMetadata(map[string]any{
+                "updated": true,
+                "reason": "rebranding",
+                "updatedDate": time.Now().Format(time.RFC3339),
+            }).
+            WithTags([]string{"inactive", "archived"}).
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update portfolio: %v", err)
+        }
+
+        fmt.Printf("Portfolio updated: %s (new status: %s)\n", updatedPortfolio.ID, updatedPortfolio.Status.Code)
+
+type SegmentBuilder interface {
+	// WithOrganization sets the organization ID for the segment.
+	// This is a required field for segment creation.
+	WithOrganization(orgID string) SegmentBuilder
+
+	// WithLedger sets the ledger ID for the segment.
+	// This is a required field for segment creation.
+	WithLedger(ledgerID string) SegmentBuilder
+
+	// WithPortfolio sets the portfolio ID for the segment.
+	// This is a required field for segment creation.
+	// A segment must belong to a portfolio.
+	WithPortfolio(portfolioID string) SegmentBuilder
+
+	// WithName sets the name for the segment.
+	// This is a required field for segment creation.
+	WithName(name string) SegmentBuilder
+
+	// WithStatus sets the status for the segment.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "CLOSED".
+	// If not specified, the default status is "ACTIVE".
+	WithStatus(status string) SegmentBuilder
+
+	// WithMetadata adds metadata to the segment.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) SegmentBuilder
+
+	// WithTag adds a single tag to the segment's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) SegmentBuilder
+
+	// WithTags adds multiple tags to the segment's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) SegmentBuilder
+
+	// Create executes the segment creation and returns the created segment.
+	// It requires a context for the API request.
+	// Returns an error if the required fields are not set or if the API request fails.
+	Create(ctx context.Context) (*models.Segment, error)
+}
+    SegmentBuilder defines the builder interface for creating segments.
+    A segment is a subdivision of a portfolio, typically representing a specific
+    business area, project, or classification within a portfolio. This builder
+    provides a fluent API for configuring and creating segment resources.
+
+func NewSegment(client SegmentClientInterface) SegmentBuilder
+    NewSegment creates a new builder for creating segments.
+
+    Segments are subdivisions of a portfolio, typically representing specific
+    business areas, projects, or classifications within a portfolio.
+    This function returns a builder that allows for fluent configuration of the
+    segment before creation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the SegmentClientInterface with the
+        CreateSegment method.
+
+    Returns:
+      - SegmentBuilder: A builder interface for configuring and creating segment
+        resources. Use the builder's methods to set required and optional
+        parameters, then call Create() to perform the segment creation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a segment builder
+        segmentBuilder := builders.NewSegment(client)
+
+        // Configure and create the segment
+        segment, err := segmentBuilder.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithPortfolio("portfolio-789").
+            WithName("Project Alpha").
+            WithStatus("ACTIVE").
+            WithMetadata(map[string]any{
+                "projectType": "internal",
+                "department": "engineering",
+            }).
+            WithTags([]string{"project", "engineering"}).
+            Create(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to create segment: %v", err)
+        }
+
+        fmt.Printf("Segment created: %s\n", segment.ID)
+
+type SegmentClientInterface interface {
+	// CreateSegment sends a request to create a new segment with the specified parameters.
+	// It requires a context for the API request, organization ID, ledger ID, and portfolio ID.
+	// Returns the created segment or an error if the API request fails.
+	CreateSegment(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.CreateSegmentInput) (*models.Segment, error)
+
+	// UpdateSegment sends a request to update an existing segment with the specified parameters.
+	// It requires a context for the API request, organization ID, ledger ID, portfolio ID, and segment ID.
+	// Returns the updated segment or an error if the API request fails.
+	UpdateSegment(ctx context.Context, organizationID, ledgerID, portfolioID, segmentID string, input *models.UpdateSegmentInput) (*models.Segment, error)
+}
+    SegmentClientInterface defines the minimal client interface required by the
+    segment builders. Implementations of this interface are responsible for
+    the actual API communication with the Midaz backend services for segment
+    operations.
+
+type SegmentUpdateBuilder interface {
+	// WithName sets the name for the segment.
+	// This is an optional field for segment updates.
+	WithName(name string) SegmentUpdateBuilder
+
+	// WithStatus sets the status for the segment.
+	// Valid statuses include: "ACTIVE", "INACTIVE", "PENDING", "CLOSED".
+	// This is an optional field for segment updates.
+	WithStatus(status string) SegmentUpdateBuilder
+
+	// WithMetadata adds metadata to the segment.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) SegmentUpdateBuilder
+
+	// WithTag adds a single tag to the segment's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) SegmentUpdateBuilder
+
+	// WithTags adds multiple tags to the segment's metadata.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) SegmentUpdateBuilder
+
+	// Update executes the segment update operation and returns the updated segment.
+	// It requires a context for the API request.
+	// Returns an error if no fields are specified for update or if the API request fails.
+	Update(ctx context.Context) (*models.Segment, error)
+}
+    SegmentUpdateBuilder defines the builder interface for updating segments.
+    This builder provides a fluent API for configuring and updating existing
+    segment resources.
+
+func NewSegmentUpdate(client SegmentClientInterface, orgID, ledgerID, portfolioID, segmentID string) SegmentUpdateBuilder
+    NewSegmentUpdate creates a new builder for updating segments.
+
+    This function returns a builder that allows for fluent configuration of
+    segment updates before applying them to an existing segment. Only the
+    fields that are explicitly set on the builder will be included in the update
+    operation.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the SegmentClientInterface with the
+        UpdateSegment method.
+      - orgID: The organization ID that the segment belongs to.
+      - ledgerID: The ledger ID that the segment belongs to.
+      - portfolioID: The portfolio ID that the segment belongs to.
+      - segmentID: The ID of the segment to update.
+
+    Returns:
+      - SegmentUpdateBuilder: A builder interface for configuring and executing
+        segment updates. Use the builder's methods to set the fields to update,
+        then call Update() to perform the segment update operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a segment update builder
+        updateBuilder := builders.NewSegmentUpdate(client, "org-123", "ledger-456", "portfolio-789", "segment-abc")
+
+        // Configure and execute the update
+        updatedSegment, err := updateBuilder.
+            WithName("Updated Segment Name").
+            WithStatus("INACTIVE").
+            WithMetadata(map[string]any{
+                "updated": true,
+                "reason": "project completion",
+                "completionDate": time.Now().Format(time.RFC3339),
+            }).
+            WithTags([]string{"completed", "archived"}).
+            Update(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to update segment: %v", err)
+        }
+
+        fmt.Printf("Segment updated: %s (new status: %s)\n", updatedSegment.ID, updatedSegment.Status.Code)
+
+type TransferBuilder interface {
+	// WithOrganization sets the organization ID for the transaction.
+	// This is a required field for creating a transfer transaction.
+	WithOrganization(orgID string) TransferBuilder
+
+	// WithLedger sets the ledger ID for the transaction.
+	// This is a required field for creating a transfer transaction.
+	WithLedger(ledgerID string) TransferBuilder
+
+	// WithAmount sets the amount and scale for the transaction.
+	// The amount must be greater than zero.
+	// Scale represents the number of decimal places (e.g., scale 2 for cents).
+	// This is a required field for creating a transfer transaction.
+	WithAmount(amount int64, scale int) TransferBuilder
+
+	// WithAssetCode sets the asset code for the transaction.
+	// This is a required field for creating a transfer transaction.
+	WithAssetCode(assetCode string) TransferBuilder
+
+	// WithDescription sets a human-readable description for the transaction.
+	// This is an optional field that provides context about the transaction.
+	WithDescription(description string) TransferBuilder
+
+	// WithMetadata adds metadata to the transaction.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) TransferBuilder
+
+	// WithTag adds a single tag to the transaction.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) TransferBuilder
+
+	// WithTags adds multiple tags to the transaction.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) TransferBuilder
+
+	// WithExternalID sets an external ID for the transaction.
+	// This is an optional field that allows linking the transaction to an external system.
+	WithExternalID(externalID string) TransferBuilder
+
+	// WithIdempotencyKey sets an idempotency key for the transaction.
+	// This is an optional field that ensures the same transaction is not created multiple times.
+	// If a transaction with the same idempotency key already exists, that transaction will be returned.
+	WithIdempotencyKey(key string) TransferBuilder
+
+	// FromAccount sets the source account for the transfer.
+	// This is a required field that specifies which account the funds are transferred from.
+	FromAccount(accountAlias string) TransferBuilder
+
+	// ToAccount sets the destination account for the transfer.
+	// This is a required field that specifies which account the funds are transferred to.
+	ToAccount(accountAlias string) TransferBuilder
+
+	// Execute performs the transfer operation and returns the created transaction.
+	//
+	// This method validates all required parameters, constructs the transaction DSL,
+	// and sends the request to the Midaz API to create the transfer transaction.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//     This context is passed to the underlying API client.
+	//
+	// Returns:
+	//   - *models.Transaction: The created transaction object if successful.
+	//     This contains all details about the transaction, including its ID, status,
+	//     and other properties.
+	//   - error: An error if the operation fails. Possible error types include:
+	//     - errors.ErrValidation: If required parameters are missing or invalid
+	//     - errors.ErrAuthentication: If authentication fails
+	//     - errors.ErrPermission: If the client lacks permission
+	//     - errors.ErrNotFound: If the organization, ledger, or account is not found
+	//     - errors.ErrInternal: For other internal errors
+	//
+	// Example:
+	//
+	//	// Create a transfer transaction
+	//	tx, err := builders.NewTransfer(client).
+	//	    WithOrganization("org-123").
+	//	    WithLedger("ledger-456").
+	//	    WithAmount(2500, 2). // $25.00
+	//	    WithAssetCode("USD").
+	//	    WithDescription("Transfer between accounts").
+	//	    WithMetadata(map[string]any{
+	//	        "reference": "transfer-789",
+	//	        "purpose": "monthly-allocation",
+	//	    }).
+	//	    WithIdempotencyKey("transfer-idempotency-key-123").
+	//	    FromAccount("source-account").
+	//	    ToAccount("destination-account").
+	//	    Execute(context.Background())
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the transaction
+	//	fmt.Printf("Created transfer transaction: %s (status: %s)\n", tx.ID, tx.Status)
+	Execute(ctx context.Context) (*models.Transaction, error)
+}
+    TransferBuilder defines the builder interface for transfer transactions. A
+    transfer transaction moves funds from one account to another within the same
+    ledger. This builder provides a fluent API for configuring and executing
+    transfer operations.
+
+func NewTransfer(client ClientInterface) TransferBuilder
+    NewTransfer creates a new builder for transfer transactions.
+
+    A transfer transaction moves funds from one account to another within
+    the same ledger. This function returns a builder that allows for fluent
+    configuration of the transfer transaction before execution.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the ClientInterface with the
+        CreateTransaction method.
+
+    Returns:
+      - TransferBuilder: A builder interface for configuring and executing
+        transfer transactions. Use the builder's methods to set required
+        and optional parameters, then call Execute() to perform the transfer
+        operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a transfer builder
+        transfer := builders.NewTransfer(client)
+
+        // Configure and execute the transfer
+        tx, err := transfer.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(2500, 2). // $25.00
+            WithAssetCode("USD").
+            WithDescription("Transfer between accounts").
+            WithIdempotencyKey("transfer-idempotency-key-123").
+            FromAccount("source-account").
+            ToAccount("destination-account").
+            Execute(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to execute transfer: %v", err)
+        }
+
+        fmt.Printf("Transfer transaction created: %s\n", tx.ID)
+
+type UpdateBalance = models.UpdateBalanceInput
+    UpdateBalance is an alias for UpdateBalanceInput to maintain compatibility
+    with client interface. This type represents the input parameters for
+    updating a balance.
+
+type WithdrawalBuilder interface {
+	// WithOrganization sets the organization ID for the transaction.
+	// This is a required field for creating a withdrawal transaction.
+	WithOrganization(orgID string) WithdrawalBuilder
+
+	// WithLedger sets the ledger ID for the transaction.
+	// This is a required field for creating a withdrawal transaction.
+	WithLedger(ledgerID string) WithdrawalBuilder
+
+	// WithAmount sets the amount and scale for the transaction.
+	// The amount must be greater than zero.
+	// Scale represents the number of decimal places (e.g., scale 2 for cents).
+	// This is a required field for creating a withdrawal transaction.
+	WithAmount(amount int64, scale int) WithdrawalBuilder
+
+	// WithAssetCode sets the asset code for the transaction.
+	// This is a required field for creating a withdrawal transaction.
+	WithAssetCode(assetCode string) WithdrawalBuilder
+
+	// WithDescription sets a human-readable description for the transaction.
+	// This is an optional field that provides context about the transaction.
+	WithDescription(description string) WithdrawalBuilder
+
+	// WithMetadata adds metadata to the transaction.
+	// This is an optional field that allows storing additional information as key-value pairs.
+	// The provided map will be merged with any existing metadata.
+	WithMetadata(metadata map[string]any) WithdrawalBuilder
+
+	// WithTag adds a single tag to the transaction.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTag(tag string) WithdrawalBuilder
+
+	// WithTags adds multiple tags to the transaction.
+	// Tags are stored in the metadata under the "tags" key as an array of strings.
+	// This is an optional field that helps with categorization and searching.
+	WithTags(tags []string) WithdrawalBuilder
+
+	// WithExternalID sets an external ID for the transaction.
+	// This is an optional field that allows linking the transaction to an external system.
+	WithExternalID(externalID string) WithdrawalBuilder
+
+	// WithIdempotencyKey sets an idempotency key for the transaction.
+	// This is an optional field that ensures the same transaction is not created multiple times.
+	// If a transaction with the same idempotency key already exists, that transaction will be returned.
+	WithIdempotencyKey(key string) WithdrawalBuilder
+
+	// FromAccount sets the source account for the withdrawal.
+	// This is a required field that specifies which account the funds are withdrawn from.
+	FromAccount(accountAlias string) WithdrawalBuilder
+
+	// Execute performs the withdrawal operation and returns the created transaction.
+	//
+	// This method validates all required parameters, constructs the transaction DSL,
+	// and sends the request to the Midaz API to create the withdrawal transaction.
+	//
+	// Parameters:
+	//   - ctx: Context for the request, which can be used for cancellation and timeout.
+	//     This context is passed to the underlying API client.
+	//
+	// Returns:
+	//   - *models.Transaction: The created transaction object if successful.
+	//     This contains all details about the transaction, including its ID, status,
+	//     and other properties.
+	//   - error: An error if the operation fails. Possible error types include:
+	//     - errors.ErrValidation: If required parameters are missing or invalid
+	//     - errors.ErrAuthentication: If authentication fails
+	//     - errors.ErrPermission: If the client lacks permission
+	//     - errors.ErrNotFound: If the organization, ledger, or account is not found
+	//     - errors.ErrInternal: For other internal errors
+	//
+	// Example:
+	//
+	//	// Create a withdrawal transaction
+	//	tx, err := builders.NewWithdrawal(client).
+	//	    WithOrganization("org-123").
+	//	    WithLedger("ledger-456").
+	//	    WithAmount(5000, 2). // $50.00
+	//	    WithAssetCode("USD").
+	//	    WithDescription("Customer withdrawal").
+	//	    WithMetadata(map[string]any{
+	//	        "reference": "withdrawal-789",
+	//	        "channel": "mobile",
+	//	    }).
+	//	    WithExternalID("ext-withdrawal-123").
+	//	    FromAccount("customer-account").
+	//	    Execute(context.Background())
+	//
+	//	if err != nil {
+	//	    // Handle error
+	//	    return err
+	//	}
+	//
+	//	// Use the transaction
+	//	fmt.Printf("Created withdrawal transaction: %s (status: %s)\n", tx.ID, tx.Status)
+	Execute(ctx context.Context) (*models.Transaction, error)
+}
+    WithdrawalBuilder defines the builder interface for withdrawal transactions.
+    A withdrawal transaction decreases the balance of an account by removing
+    funds from it. This builder provides a fluent API for configuring and
+    executing withdrawal operations.
+
+func NewWithdrawal(client ClientInterface) WithdrawalBuilder
+    NewWithdrawal creates a new builder for withdrawal transactions.
+
+    A withdrawal transaction decreases the balance of an account by removing
+    funds from it. This function returns a builder that allows for fluent
+    configuration of the withdrawal transaction before execution.
+
+    Parameters:
+      - client: The client interface that will be used to communicate with
+        the Midaz API. This must implement the ClientInterface with the
+        CreateTransaction method.
+
+    Returns:
+      - WithdrawalBuilder: A builder interface for configuring and executing
+        withdrawal transactions. Use the builder's methods to set required
+        and optional parameters, then call Execute() to perform the withdrawal
+        operation.
+
+    Example:
+
+        // Create a client
+        client, err := midaz.New(midaz.WithAuthToken("your-auth-token"))
+        if err != nil {
+            log.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Create a withdrawal builder
+        withdrawal := builders.NewWithdrawal(client)
+
+        // Configure and execute the withdrawal
+        tx, err := withdrawal.
+            WithOrganization("org-123").
+            WithLedger("ledger-456").
+            WithAmount(5000, 2). // $50.00
+            WithAssetCode("USD").
+            WithDescription("Customer withdrawal").
+            WithExternalID("ext-withdrawal-123").
+            FromAccount("customer-account").
+            Execute(context.Background())
+
+        if err != nil {
+            log.Fatalf("Failed to execute withdrawal: %v", err)
+        }
+
+        fmt.Printf("Withdrawal transaction created: %s\n", tx.ID)
+

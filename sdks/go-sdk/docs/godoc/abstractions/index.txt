@@ -1,0 +1,728 @@
+package abstractions // import "github.com/LerianStudio/midaz/sdks/go-sdk/abstractions"
+
+Package abstractions provides high-level transaction operations for the Midaz
+platform.
+
+This package contains functions and options for creating and managing financial
+transactions like deposits, withdrawals, and transfers.
+
+Package abstractions provides high-level transaction operations for the Midaz
+platform.
+
+This package contains functions and options for creating and managing financial
+transactions like deposits, withdrawals, and transfers.
+
+Package abstractions provides high-level transaction operations for the Midaz
+platform.
+
+This package contains functions and options for creating and managing financial
+transactions like deposits, withdrawals, and transfers.
+
+Package abstractions provides high-level transaction operations for the Midaz
+platform.
+
+This package contains functions and options for creating and managing financial
+transactions like deposits, withdrawals, and transfers.
+
+Package abstractions provides high-level transaction operations for the Midaz
+platform.
+
+This package contains functions and options for creating and managing financial
+transactions like deposits, withdrawals, and transfers.
+
+TYPES
+
+type Abstraction struct {
+	// Has unexported fields.
+}
+    Abstraction provides high-level transaction operations. This abstraction
+    simplifies the creation of common transaction types like deposits,
+    withdrawals, and transfers by abstracting away the complexities of the
+    underlying Domain-Specific Language (DSL) format.
+
+    The Abstraction is designed to be used through the TransactionService in the
+    services package, but can also be used directly if needed.
+
+func NewAbstraction(
+	createTransactionWithDSL func(context.Context, string, string, *models.TransactionDSLInput) (*models.Transaction, error),
+) *Abstraction
+    NewAbstraction creates a new transactions abstraction with the given
+    implementation function. This constructor initializes an Abstraction that
+    provides high-level transaction operations.
+
+    The Abstraction abstracts away the complexities of the DSL (Domain-Specific
+    Language) format used by the Midaz API for creating transactions.
+    It provides simplified methods for common transaction types like deposits,
+    withdrawals, and transfers.
+
+    Parameters:
+
+      - createTransactionWithDSL: A function that creates a transaction using
+        the DSL format. This function should handle the actual API communication
+        and take the following parameters:
+
+      - ctx: A context.Context for the request
+
+      - organizationID: The ID of the organization
+
+      - ledgerID: The ID of the ledger
+
+      - input: A TransactionDSLInput structure containing the transaction
+        details
+
+        This is typically the CreateTransactionWithDSL method from a
+        client.TransactionsService.
+
+    Returns:
+      - *Abstraction: A pointer to the newly created Abstraction, ready to
+        create transactions
+
+    Example - Creating an abstraction with a client's DSL transaction method:
+
+        // Initialize the abstraction with a client's CreateTransactionWithDSL method
+        txAbstraction := abstractions.NewAbstraction(client.CreateTransactionWithDSL)
+
+    Example - Using the abstraction to create a deposit:
+
+        // After creating the abstraction, use it to create a deposit
+        tx, err := txAbstraction.CreateDeposit(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer deposit",
+            abstractions.WithMetadata(map[string]any{"reference": "DEP12345"}),
+        )
+
+    Example - Creating an abstraction with a custom implementation:
+
+        // Create an abstraction with a custom implementation for testing or special handling
+        mockCreateTx := func(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
+            // Custom implementation for testing or special handling
+            return &models.Transaction{
+                ID:          "tx-mock-123",
+                Description: input.Description,
+                Status:      models.StatusCompleted,
+                // ... other fields
+            }, nil
+        }
+
+        txAbstraction := abstractions.NewAbstraction(mockCreateTx)
+
+func (a *Abstraction) CreateDeposit(
+	ctx context.Context,
+	organizationID, ledgerID string,
+	targetAccountAlias string,
+	amount int64,
+	scale int,
+	assetCode string,
+	description string,
+	options ...Option,
+) (*models.Transaction, error)
+    CreateDeposit creates a deposit transaction, adding funds to an internal
+    account.
+
+    A deposit represents money coming into the system from an external source.
+    The source is implicitly an external account, and the target must be a valid
+    internal account identified by its alias.
+
+    Parameters:
+      - ctx: Context for the request, can be used for cancellation and timeout
+      - organizationID: The unique identifier of the organization (e.g.,
+        "org-123")
+      - ledgerID: The unique identifier of the ledger within the organization
+        (e.g., "ledger-456")
+      - targetAccountAlias: The alias of the account receiving the funds (e.g.,
+        "customer:john.doe")
+      - amount: The amount as a fixed-point integer (actual amount = amount /
+        10^scale) For example, 10000 with scale 2 represents $100.00
+      - scale: The decimal scale factor for the amount (typically 2 for cents,
+        0 for whole units)
+      - assetCode: The currency or asset code (e.g., "USD", "EUR", "BTC")
+      - description: A human-readable description of the purpose of the deposit
+      - options: Optional settings like metadata, externalID, or idempotency key
+
+    Returns:
+      - *models.Transaction: The created transaction with details including ID,
+        status, and operations
+      - error: An error if the operation fails, such as validation errors or API
+        communication issues
+
+    Example - Basic deposit:
+
+        // Deposit $100.00 to a customer's account
+        tx, err := txAbstraction.CreateDeposit(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer deposit",
+            abstractions.WithMetadata(map[string]any{"reference": "DEP12345"}),
+        )
+
+    Example - Deposit with idempotency key:
+
+        // Deposit with idempotency key to prevent duplicate transactions
+        tx, err := txAbstraction.CreateDeposit(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer deposit",
+            abstractions.WithIdempotencyKey("deposit-20230315-123"),
+        )
+
+    Example - Pending deposit (requires explicit commit):
+
+        // Create a pending deposit that requires explicit commitment
+        tx, err := txAbstraction.CreateDeposit(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer deposit pending verification",
+            abstractions.WithPending(true),
+        )
+
+        // Later, after verification:
+        // client.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", tx.ID)
+
+func (a *Abstraction) CreateTransfer(
+	ctx context.Context,
+	organizationID, ledgerID string,
+	sourceAccountAlias string,
+	targetAccountAlias string,
+	amount int64,
+	scale int,
+	assetCode string,
+	description string,
+	options ...Option,
+) (*models.Transaction, error)
+    CreateTransfer creates a transfer transaction between two internal accounts.
+
+    A transfer moves funds from one internal account to another within the
+    same ledger. Both the source and target must be valid internal accounts
+    identified by their aliases.
+
+    Parameters:
+      - ctx: Context for the request, can be used for cancellation and timeout
+      - organizationID: The unique identifier of the organization (e.g.,
+        "org-123")
+      - ledgerID: The unique identifier of the ledger within the organization
+        (e.g., "ledger-456")
+      - sourceAccountAlias: The alias of the account providing the funds (e.g.,
+        "user:alice")
+      - targetAccountAlias: The alias of the account receiving the funds (e.g.,
+        "user:bob")
+      - amount: The amount as a fixed-point integer (actual amount = amount /
+        10^scale) For example, 2500 with scale 2 represents $25.00
+      - scale: The decimal scale factor for the amount (typically 2 for cents,
+        0 for whole units)
+      - assetCode: The currency or asset code (e.g., "USD", "EUR", "BTC")
+      - description: A human-readable description of the purpose of the transfer
+      - options: Optional settings like metadata, externalID, or idempotency key
+
+    Returns:
+      - *models.Transaction: The created transaction with details including ID,
+        status, and operations
+      - error: An error if the operation fails, such as validation errors,
+        insufficient funds, or API communication issues
+
+    Example - Basic transfer:
+
+        // Transfer $100.00 between two accounts
+        tx, err := txAbstraction.CreateTransfer(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            "merchant:acme",
+            10000, 2, "USD",
+            "Payment for services",
+            abstractions.WithMetadata(map[string]any{"reference": "INV12345"}),
+        )
+
+    Example - Transfer with idempotency key:
+
+        // Transfer with idempotency key to prevent duplicate transactions
+        tx, err := txAbstraction.CreateTransfer(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            "merchant:acme",
+            10000, 2, "USD",
+            "Payment for services",
+            abstractions.WithIdempotencyKey("payment-20230315-123"),
+        )
+
+    Example - Pending transfer (requires explicit commit):
+
+        // Create a pending transfer that requires explicit approval
+        tx, err := txAbstraction.CreateTransfer(
+            ctx,
+            "org-123", "ledger-456",
+            "account:reserves",
+            "account:investments",
+            1000000, 2, "USD", // $10,000.00
+            "Investment allocation pending approval",
+            abstractions.WithPending(true),
+            abstractions.WithNotes("Requires CFO approval for investment allocations"),
+        )
+
+        // Later, after approval:
+        // client.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", tx.ID)
+
+func (a *Abstraction) CreateWithdrawal(
+	ctx context.Context,
+	organizationID, ledgerID string,
+	sourceAccountAlias string,
+	amount int64,
+	scale int,
+	assetCode string,
+	description string,
+	options ...Option,
+) (*models.Transaction, error)
+    CreateWithdrawal creates a withdrawal transaction, removing funds from an
+    internal account.
+
+    A withdrawal represents money leaving the system to an external destination.
+    The source must be a valid internal account identified by its alias, and the
+    destination is implicitly an external account.
+
+    Parameters:
+      - ctx: Context for the request, can be used for cancellation and timeout
+      - organizationID: The unique identifier of the organization (e.g.,
+        "org-123")
+      - ledgerID: The unique identifier of the ledger within the organization
+        (e.g., "ledger-456")
+      - sourceAccountAlias: The alias of the account providing the funds (e.g.,
+        "merchant:acme")
+      - amount: The amount as a fixed-point integer (actual amount = amount /
+        10^scale) For example, 5000 with scale 2 represents $50.00
+      - scale: The decimal scale factor for the amount (typically 2 for cents,
+        0 for whole units)
+      - assetCode: The currency or asset code (e.g., "USD", "EUR", "BTC")
+      - description: A human-readable description of the purpose of the
+        withdrawal
+      - options: Optional settings like metadata, externalID, or idempotency key
+
+    Returns:
+      - *models.Transaction: The created transaction with details including ID,
+        status, and operations
+      - error: An error if the operation fails, such as validation errors,
+        insufficient funds, or API communication issues
+
+    Example - Basic withdrawal:
+
+        // Withdraw $100.00 from a customer's account
+        tx, err := txAbstraction.CreateWithdrawal(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer withdrawal",
+            abstractions.WithMetadata(map[string]any{"reference": "WD12345"}),
+        )
+
+    Example - Withdrawal with idempotency key:
+
+        // Withdrawal with idempotency key to prevent duplicate transactions
+        tx, err := txAbstraction.CreateWithdrawal(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer withdrawal",
+            abstractions.WithIdempotencyKey("withdrawal-20230315-123"),
+        )
+
+    Example - Pending withdrawal (requires explicit commit):
+
+        // Create a pending withdrawal that requires explicit approval
+        tx, err := txAbstraction.CreateWithdrawal(
+            ctx,
+            "org-123", "ledger-456",
+            "merchant:acme",
+            100000, 2, "USD", // $1,000.00
+            "Large withdrawal pending approval",
+            abstractions.WithPending(true),
+            abstractions.WithNotes("Requires manager approval for amounts over $500"),
+        )
+
+        // Later, after approval:
+        // client.Transactions.CommitTransaction(ctx, "org-123", "ledger-456", tx.ID)
+
+type MockAbstraction struct {
+	mock.Mock
+}
+    MockAbstraction is a mock implementation of the Abstraction struct for
+    testing
+
+type Option func(*models.TransactionDSLInput)
+    Option is a function that configures transaction creation.
+
+    Options are used with the CreateDeposit, CreateWithdrawal, and
+    CreateTransfer methods to customize the transaction's properties beyond
+    the basic required parameters. These options allow for adding metadata,
+    specifying idempotency keys, setting transaction status, and other advanced
+    configurations.
+
+    The Option type follows the functional options pattern, which provides a
+    clean and extensible way to configure objects with many optional parameters.
+    Each option is a function that modifies the transaction input in some way.
+
+    Multiple options can be combined to fully customize a transaction:
+
+        tx, err := client.CreateTransfer(
+            ctx,
+            "org-123", "ledger-456",
+            "account-source", "account-target",
+            1000, 2, "USD", "Payment",
+            transactions.WithIdempotencyKey("unique-key-123"),
+            transactions.WithMetadata(map[string]any{
+                "reference": "INV-456",
+                "department": "Sales",
+            }),
+            transactions.WithPending(true),
+        )
+
+    Available options include:
+      - WithMetadata: Add custom key-value data to the transaction
+      - WithIdempotencyKey: Ensure transaction uniqueness with a
+        client-generated key
+      - WithExternalID: Link the transaction to an external system identifier
+      - WithPending: Create the transaction in a pending state requiring
+        explicit commitment
+      - WithChartOfAccountsGroupName: Categorize the transaction for accounting
+        purposes
+      - WithCode: Add a custom transaction code for categorization
+      - WithNotes: Add detailed notes about the transaction
+      - WithRequestID: Track the transaction with a request identifier
+
+func WithChartOfAccountsGroupName(name string) Option
+    WithChartOfAccountsGroupName sets the chart of accounts group for a
+    transaction.
+
+    This option is used when integrating with traditional accounting systems
+    that use a chart of accounts. The group name helps categorize the
+    transaction for accounting purposes, making it easier to generate financial
+    reports like balance sheets and income statements.
+
+    Parameters:
+      - name: The chart of accounts group name to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example:
+
+        transactions.WithChartOfAccountsGroupName("revenue:subscription")
+
+func WithCode(code string) Option
+    WithCode sets a custom transaction code for a transaction.
+
+    Transaction codes are short alphanumeric identifiers that can be used to
+    categorize transactions according to your business logic. They're useful for
+    filtering and searching transactions in reports.
+
+    Parameters:
+      - code: The custom code to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example:
+
+        transactions.WithCode("SUBS-RENEW")
+
+func WithExternalID(externalID string) Option
+    WithExternalID sets an external ID for the transaction.
+
+    External IDs are used to link transactions in the Midaz system with
+    identifiers from external systems. This is useful for reconciliation and
+    tracking purposes.
+
+    Parameters:
+      - externalID: The external identifier to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example:
+
+        transactions.WithExternalID("PO-12345")
+
+func WithFromTo(account string, amount *models.DSLAmount, isSource bool, description string, chartOfAccounts string, metadata map[string]any) Option
+    WithFromTo adds a from/to entry to a transaction.
+
+func WithIdempotencyKey(key string) Option
+    WithIdempotencyKey adds an idempotency key to ensure transaction uniqueness.
+
+    Idempotency keys protect against duplicate transaction creation in case
+    of network errors or retries. If a request with the same idempotency
+    key is received multiple times, only one transaction will be created,
+    and subsequent requests will return the same result.
+
+    The key must be unique for each distinct transaction. Reusing an idempotency
+    key for different transactions will return the result of the first
+    transaction created with that key.
+
+    Best practice is to use a UUID or another globally unique identifier as the
+    key.
+
+    Important considerations for idempotency keys:
+      - Keys should be unique per transaction, not per request
+      - Keys should be stored on the client side before making the request
+      - Keys should have a reasonable TTL (Time To Live) - typically 24 hours
+      - Keys should be URL-safe (alphanumeric characters, hyphens, underscores)
+      - Keys should be reasonably sized (typically 36-128 characters)
+
+    Parameters:
+      - key: The unique idempotency key to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example - Basic idempotency key:
+
+        transactions.WithIdempotencyKey("payment-2023-03-15-12345")
+
+    Example - Using a UUID as an idempotency key:
+
+        import "github.com/google/uuid"
+
+        // Generate a UUID for the idempotency key
+        idempotencyKey := uuid.New().String()
+
+        // Use the UUID as the idempotency key
+        tx, err := txAbstraction.CreateDeposit(
+            ctx,
+            "org-123", "ledger-456",
+            "customer:john.doe",
+            10000, 2, "USD",
+            "Customer deposit",
+            abstractions.WithIdempotencyKey(idempotencyKey),
+        )
+
+    Example - Structured idempotency key with business meaning:
+
+        import (
+            "fmt"
+            "time"
+        )
+
+        // Create a structured key with business meaning
+        idempotencyKey := fmt.Sprintf(
+            "customer-%s-invoice-%s-%s",
+            customerID,
+            invoiceNumber,
+            time.Now().Format("20060102"),
+        )
+
+        // Use the structured key
+        abstractions.WithIdempotencyKey(idempotencyKey)
+
+func WithMetadata(metadata map[string]any) Option
+    WithMetadata adds structured metadata to a transaction.
+
+    Metadata is a flexible key-value store that can be used to add
+    business-specific information to transactions. This is useful for storing
+    references to external systems, categorizing transactions, or adding any
+    other contextual information.
+
+    The metadata will be stored with the transaction and can be retrieved
+    later when querying the transaction. It can also be used for searching and
+    filtering transactions in reporting operations.
+
+    Parameters:
+      - metadata: A map of key-value pairs to store as transaction metadata.
+        Keys should be strings, and values can be of any JSON-serializable type.
+        Nested objects and arrays are supported. There is no strict limit
+        on metadata size, but keeping it reasonably small (under 10KB) is
+        recommended for performance reasons.
+
+    Returns:
+      - Option: A function that can be passed to transaction creation methods to
+        add the specified metadata to the transaction.
+
+    Example - Basic metadata:
+
+        // Add simple metadata to a transaction
+        tx, err := abstraction.CreateDeposit(
+            ctx, orgID, ledgerID, accountID, amount, scale, assetCode, description,
+            abstractions.WithMetadata(map[string]any{
+                "invoice_id": "INV-123",
+                "customer_ref": "CUST-456",
+                "channel": "web",
+            }),
+        )
+
+    Example - Nested metadata:
+
+        // Add nested metadata structures
+        tx, err := abstraction.CreateDeposit(
+            ctx, orgID, ledgerID, accountID, amount, scale, assetCode, description,
+            abstractions.WithMetadata(map[string]any{
+                "order": map[string]any{
+                    "id": "ORD-789",
+                    "items": 3,
+                    "shipping": "express",
+                },
+                "customer": map[string]any{
+                    "id": "CUST-456",
+                    "tier": "premium",
+                },
+            }),
+        )
+
+    Example - Combining metadata with other options:
+
+        // Combine metadata with other transaction options
+        tx, err := abstraction.CreateTransfer(
+            ctx, orgID, ledgerID, sourceAccount, targetAccount, amount, scale, assetCode, description,
+            abstractions.WithMetadata(map[string]any{
+                "purpose": "monthly-allocation",
+                "department": "finance",
+            }),
+            abstractions.WithIdempotencyKey("transfer-2023-04-01-123"),
+            abstractions.WithPending(true),
+            abstractions.WithNotes("Requires approval for amounts over $1,000"),
+        )
+
+    Example - Using metadata for categorization and reporting:
+
+        // Add metadata for categorization and reporting
+        tx, err := abstraction.CreateWithdrawal(
+            ctx, orgID, ledgerID, accountID, amount, scale, assetCode, description,
+            abstractions.WithMetadata(map[string]any{
+                "category": "operating-expense",
+                "subcategory": "rent",
+                "fiscal_year": 2023,
+                "fiscal_quarter": 2,
+                "tags": []string{"recurring", "facility", "monthly"},
+            }),
+        )
+
+func WithNotes(notes string) Option
+    WithNotes adds detailed notes to a transaction.
+
+    Notes provide additional context or explanation about a transaction
+    beyond the basic description. They can be used for internal documentation,
+    explaining unusual circumstances, or providing additional context for
+    auditing.
+
+    Parameters:
+      - notes: The detailed notes to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example:
+
+        transactions.WithNotes("Customer requested refund due to damaged product.")
+
+func WithPending(pending bool) Option
+    WithPending marks a transaction as pending, requiring explicit commitment
+    later.
+
+    When a transaction is created with pending=true, it must be explicitly
+    committed using CommitTransaction before its effects are applied to account
+    balances. This two-phase approach allows for validation and verification
+    before the transaction is finalized.
+
+    Default is pending=false, which means the transaction is immediately
+    committed.
+
+    Use cases for pending transactions include:
+      - High-value transactions that require manual approval
+      - Transactions that depend on external verification or conditions
+      - Implementing custom approval workflows
+      - Batching related transactions for atomic commitment
+      - Simulating transactions for testing or forecasting
+
+    Pending transactions have the following characteristics:
+      - They are visible in transaction listings with a PENDING status
+      - They do not affect account balances until committed
+      - They can be committed or canceled (deleted)
+      - They have a default TTL (Time To Live) - typically 24 hours
+
+    Parameters:
+      - pending: Whether the transaction should be created in a pending state
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example - Creating a pending transaction:
+
+        // Create a pending transaction
+        tx, err := client.CreateTransfer(
+            ctx, orgID, ledgerID,
+            sourceAccount, targetAccount,
+            amount, scale, asset, description,
+            transactions.WithPending(true),
+        )
+
+    Example - Committing a pending transaction:
+
+        // Create a pending transaction
+        tx, err := client.CreateTransfer(
+            ctx, orgID, ledgerID,
+            sourceAccount, targetAccount,
+            amount, scale, asset, description,
+            transactions.WithPending(true),
+        )
+
+        // Later, after verification or approval:
+        err = client.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
+
+    Example - Implementing an approval workflow:
+
+        // Create a pending high-value transfer
+        tx, err := client.CreateTransfer(
+            ctx, orgID, ledgerID,
+            "account:treasury", "account:investments",
+            1000000, 2, "USD", // $10,000.00
+            "Investment allocation",
+            transactions.WithPending(true),
+            transactions.WithMetadata(map[string]any{
+                "requires_approval": true,
+                "approval_level": "director",
+                "requested_by": "jane.doe",
+            }),
+        )
+
+        // Store the transaction ID for the approval process
+        pendingTransactionID := tx.ID
+
+        // Later, in the approval handler:
+        if approved {
+            err = client.Transactions.CommitTransaction(ctx, orgID, ledgerID, pendingTransactionID)
+        } else {
+            err = client.Transactions.DeleteTransaction(ctx, orgID, ledgerID, pendingTransactionID)
+        }
+
+func WithRate(from, to string, value, scale int64, externalID string) Option
+    WithRate adds an exchange rate to a from/to entry.
+
+func WithRequestID(id string) Option
+    WithRequestID attaches a unique request ID to the transaction.
+
+    Request IDs are primarily used for tracking API requests across systems
+    for debugging and auditing purposes. They can help correlate logs and trace
+    request flow.
+
+    Parameters:
+      - id: The request identifier to associate with the transaction
+
+    Returns:
+      - An Option function that can be passed to transaction creation methods
+
+    Example:
+
+        transactions.WithRequestID("req-abc-123-xyz")
+
+func WithSendingOptions(asset string, value int64, scale int64, source *models.DSLSource, distribute *models.DSLDistribute) Option
+    WithSendingOptions configures sending options for a transaction.
+
+func WithShare(percentage int64, percentageOfPercentage int64) Option
+    WithShare adds a share configuration to a from/to entry.
+
