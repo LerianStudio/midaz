@@ -7,6 +7,7 @@ package abstractions
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
@@ -131,4 +132,85 @@ func (s *transferService) CreateTransfer(
 
 	// Create the transaction
 	return s.createTx(ctx, organizationID, ledgerID, input)
+}
+
+// ListTransfers lists transfer transactions with optional filtering.
+func (s *transferService) ListTransfers(
+	ctx context.Context,
+	organizationID, ledgerID string,
+	opts *models.ListOptions,
+) (*models.ListResponse[models.Transaction], error) {
+	if opts == nil {
+		opts = &models.ListOptions{}
+	}
+
+	// Add filter for transfer transactions
+	if opts.Filters == nil {
+		opts.Filters = make(map[string]string)
+	}
+
+	// Add filter to identify transfer transactions
+	// A transfer is a transaction where there are both debit and credit operations
+	// between internal accounts
+	opts.Filters["transaction_type"] = "transfer"
+
+	// Delegate to the transactions service
+	return s.txService.ListTransactions(ctx, organizationID, ledgerID, opts)
+}
+
+// GetTransfer retrieves a specific transfer transaction by ID.
+func (s *transferService) GetTransfer(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID string,
+) (*models.Transaction, error) {
+	// Fetch the transaction
+	tx, err := s.txService.GetTransaction(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify this is a transfer transaction
+	if !isTransferTransaction(tx) {
+		return nil, fmt.Errorf("transaction %s is not a transfer transaction", transactionID)
+	}
+
+	return tx, nil
+}
+
+// UpdateTransfer updates a transfer transaction (e.g., metadata or status).
+func (s *transferService) UpdateTransfer(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID string,
+	input *models.UpdateTransactionInput,
+) (*models.Transaction, error) {
+	// First verify this is a transfer transaction
+	_, err := s.GetTransfer(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the transaction
+	return s.txService.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, input)
+}
+
+// isTransferTransaction determines if a transaction is a transfer transaction.
+// A transfer transaction is one where funds are moved between two internal accounts.
+func isTransferTransaction(tx *models.Transaction) bool {
+	if tx == nil || len(tx.Operations) < 2 {
+		return false
+	}
+
+	// Count credits and debits to internal accounts
+	var creditOps, debitOps int
+
+	for _, op := range tx.Operations {
+		if op.Type == "credit" {
+			creditOps++
+		} else if op.Type == "debit" {
+			debitOps++
+		}
+	}
+
+	// A transfer typically has balanced debits and credits between internal accounts
+	return creditOps > 0 && debitOps > 0 && creditOps == debitOps
 }

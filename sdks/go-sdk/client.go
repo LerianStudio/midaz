@@ -114,8 +114,11 @@ func New(options ...Option) (*Client, error) {
 
 	// Initialize Abstraction if requested
 	if client.useAbstraction {
-		// Initialize abstraction with entity's CreateTransactionWithDSL method
-		client.Abstraction = abstractions.NewAbstraction(entity.Transactions.CreateTransactionWithDSL)
+		// Initialize abstraction with entity's CreateTransactionWithDSL method and transactions service
+		client.Abstraction = abstractions.NewAbstraction(
+			entity.Transactions.CreateTransactionWithDSL,
+			entity.Transactions,
+		)
 	}
 
 	return client, nil

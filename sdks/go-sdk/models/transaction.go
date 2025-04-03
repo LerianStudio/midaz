@@ -869,3 +869,43 @@ func (t *Transaction) ToLibTransaction() *libTransaction.Transaction {
 
 	return lt
 }
+
+// UpdateTransactionInput represents the input for updating a transaction.
+// This structure contains the fields that can be updated on an existing transaction.
+//
+// UpdateTransactionInput is used with the TransactionsService.UpdateTransaction method
+// to update existing transactions. It allows for updating metadata and other mutable
+// properties of a transaction.
+//
+// Note that not all fields of a transaction can be updated after creation, especially
+// for transactions that have already been committed. Typically, only metadata and
+// certain status-related fields can be modified.
+//
+// Example - Updating transaction metadata:
+//
+//	// Update a transaction's metadata
+//	input := &models.UpdateTransactionInput{
+//	    Metadata: map[string]interface{}{
+//	        "updated_by": "admin",
+//	        "approval_status": "approved",
+//	        "notes": "Verified and approved by finance team",
+//	    },
+//	}
+//
+//	updatedTx, err := client.Transactions.UpdateTransaction(
+//	    ctx, orgID, ledgerID, transactionID, input,
+//	)
+type UpdateTransactionInput struct {
+	// Metadata contains additional custom data for the transaction
+	// This can be used to store application-specific information
+	// such as references to external systems, tags, or other contextual data
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Description is a human-readable description of the transaction
+	// This should provide context about the purpose or nature of the transaction
+	Description string `json:"description,omitempty"`
+
+	// ExternalID is an optional identifier for linking to external systems
+	// This can be used to correlate transactions with records in other systems
+	ExternalID string `json:"externalId,omitempty"`
+}

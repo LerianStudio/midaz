@@ -356,14 +356,23 @@ The abstractions package provides high-level transaction operations that simplif
 ### Deposit Service
 
 - `DepositService.CreateDeposit()` - Creates a deposit transaction, adding funds to an internal account from an external source
+- `DepositService.ListDeposits()` - Lists deposit transactions with optional filtering
+- `DepositService.GetDeposit()` - Retrieves a specific deposit transaction by ID
+- `DepositService.UpdateDeposit()` - Updates a deposit transaction (e.g., metadata or status)
 
 ### Withdrawal Service
 
 - `WithdrawalService.CreateWithdrawal()` - Creates a withdrawal transaction, removing funds from an internal account to an external destination
+- `WithdrawalService.ListWithdrawals()` - Lists withdrawal transactions with optional filtering
+- `WithdrawalService.GetWithdrawal()` - Retrieves a specific withdrawal transaction by ID
+- `WithdrawalService.UpdateWithdrawal()` - Updates a withdrawal transaction (e.g., metadata or status)
 
 ### Transfer Service
 
 - `TransferService.CreateTransfer()` - Creates a transfer transaction between two internal accounts
+- `TransferService.ListTransfers()` - Lists transfer transactions with optional filtering
+- `TransferService.GetTransfer()` - Retrieves a specific transfer transaction by ID
+- `TransferService.UpdateTransfer()` - Updates a transfer transaction (e.g., metadata or status)
 
 ### Transaction Options
 

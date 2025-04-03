@@ -7,6 +7,7 @@ package abstractions
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
@@ -126,4 +127,87 @@ func (s *withdrawalService) CreateWithdrawal(
 
 	// Create the transaction
 	return s.createTx(ctx, organizationID, ledgerID, input)
+}
+
+// ListWithdrawals lists withdrawal transactions with optional filtering.
+func (s *withdrawalService) ListWithdrawals(
+	ctx context.Context,
+	organizationID, ledgerID string,
+	opts *models.ListOptions,
+) (*models.ListResponse[models.Transaction], error) {
+	if opts == nil {
+		opts = &models.ListOptions{}
+	}
+
+	// Add filter for withdrawal transactions
+	if opts.Filters == nil {
+		opts.Filters = make(map[string]string)
+	}
+
+	// Add filter to identify withdrawal transactions
+	// A withdrawal is a transaction where there's a debit operation from an internal account
+	// and no corresponding credit operation to another internal account
+	opts.Filters["transaction_type"] = "withdrawal"
+
+	// Delegate to the transactions service
+	return s.txService.ListTransactions(ctx, organizationID, ledgerID, opts)
+}
+
+// GetWithdrawal retrieves a specific withdrawal transaction by ID.
+func (s *withdrawalService) GetWithdrawal(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID string,
+) (*models.Transaction, error) {
+	// Fetch the transaction
+	tx, err := s.txService.GetTransaction(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify this is a withdrawal transaction
+	if !isWithdrawalTransaction(tx) {
+		return nil, fmt.Errorf("transaction %s is not a withdrawal transaction", transactionID)
+	}
+
+	return tx, nil
+}
+
+// UpdateWithdrawal updates a withdrawal transaction (e.g., metadata or status).
+func (s *withdrawalService) UpdateWithdrawal(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID string,
+	input *models.UpdateTransactionInput,
+) (*models.Transaction, error) {
+	// First verify this is a withdrawal transaction
+	_, err := s.GetWithdrawal(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the transaction
+	return s.txService.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, input)
+}
+
+// isWithdrawalTransaction determines if a transaction is a withdrawal transaction.
+// A withdrawal transaction is one where funds are removed from an internal account
+// to an external destination.
+func isWithdrawalTransaction(tx *models.Transaction) bool {
+	if tx == nil || len(tx.Operations) == 0 {
+		return false
+	}
+
+	// Count credits and debits to internal accounts
+	var creditOps, debitOps int
+
+	for _, op := range tx.Operations {
+		if op.Type == "credit" {
+			creditOps++
+		} else if op.Type == "debit" {
+			debitOps++
+		}
+	}
+
+	// A withdrawal typically has debits from internal accounts but no credits
+	// or has more debits than credits (indicating external destination)
+	return debitOps > 0 && (creditOps == 0 || debitOps > creditOps)
 }

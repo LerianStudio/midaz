@@ -191,7 +191,15 @@ func TestCreateWithdrawal(t *testing.T) {
 			mockAbs := new(MockAbstraction)
 
 			// Create the abstraction with the mock function
-			abs := NewAbstraction(mockAbs.createTransactionWithDSL)
+			abs := NewAbstraction(
+				mockAbs.createTransactionWithDSL,
+				&MockTransactionsService{
+					ReturnTransaction: &models.Transaction{
+						ID:     "tx-mock-123",
+						Status: models.Status{Code: models.TransactionStatusCompleted},
+					},
+				},
+			)
 
 			// Set up the mock expectations if source account is provided and we're not expecting a validation error
 			if tt.sourceAccountAlias != "" && tt.expectedError == "" {

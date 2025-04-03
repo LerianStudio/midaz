@@ -170,7 +170,15 @@ func TestCreateDeposit(t *testing.T) {
 			mockAbs := new(MockAbstraction)
 
 			// Create the abstraction with the mock function
-			abs := NewAbstraction(mockAbs.createTransactionWithDSL)
+			abs := NewAbstraction(
+				mockAbs.createTransactionWithDSL,
+				&MockTransactionsService{
+					ReturnTransaction: &models.Transaction{
+						ID:     "tx-mock-123",
+						Status: models.Status{Code: models.TransactionStatusCompleted},
+					},
+				},
+			)
 
 			// Set up the mock expectations if target account is provided
 			if tt.targetAccountAlias != "" {
@@ -210,4 +218,131 @@ func TestCreateDeposit(t *testing.T) {
 			mockAbs.AssertExpectations(t)
 		})
 	}
+}
+
+func TestDepositService_ListDeposits(t *testing.T) {
+	// Create a mock transactions service
+	mockTxService := &MockTransactionsService{
+		ReturnTransactionList: &models.ListResponse[models.Transaction]{
+			Items: []models.Transaction{
+				{
+					ID:     "tx-deposit-123",
+					Status: models.Status{Code: models.TransactionStatusCompleted},
+					Operations: []models.Operation{
+						{Type: "credit", AccountID: "acc-123"},
+					},
+				},
+			},
+			Pagination: models.Pagination{
+				Limit:  10,
+				Offset: 0,
+				Total:  1,
+			},
+		},
+	}
+
+	// Create the abstraction with the mock service
+	abs := NewAbstraction(
+		func(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
+			return nil, nil // Not used in this test
+		},
+		mockTxService,
+	)
+
+	// Call the ListDeposits method
+	result, err := abs.Deposits.ListDeposits(
+		context.Background(),
+		"org-123",
+		"ledger-456",
+		&models.ListOptions{},
+	)
+
+	// Verify the result
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result.Items, 1)
+	assert.Equal(t, "tx-deposit-123", result.Items[0].ID)
+}
+
+func TestDepositService_GetDeposit(t *testing.T) {
+	// Create a deposit transaction with credit operations
+	depositTx := &models.Transaction{
+		ID:     "tx-deposit-123",
+		Status: models.Status{Code: models.TransactionStatusCompleted},
+		Operations: []models.Operation{
+			{Type: "credit", AccountID: "acc-123"},
+		},
+	}
+
+	// Create a mock transactions service
+	mockTxService := &MockTransactionsService{
+		ReturnTransaction: depositTx,
+	}
+
+	// Create the abstraction with the mock service
+	abs := NewAbstraction(
+		func(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
+			return nil, nil // Not used in this test
+		},
+		mockTxService,
+	)
+
+	// Call the GetDeposit method
+	result, err := abs.Deposits.GetDeposit(
+		context.Background(),
+		"org-123",
+		"ledger-456",
+		"tx-deposit-123",
+	)
+
+	// Verify the result
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "tx-deposit-123", result.ID)
+}
+
+func TestDepositService_UpdateDeposit(t *testing.T) {
+	// Create a deposit transaction with credit operations
+	depositTx := &models.Transaction{
+		ID:     "tx-deposit-123",
+		Status: models.Status{Code: models.TransactionStatusCompleted},
+		Operations: []models.Operation{
+			{Type: "credit", AccountID: "acc-123"},
+		},
+	}
+
+	// Create a mock transactions service
+	mockTxService := &MockTransactionsService{
+		ReturnTransaction: depositTx,
+	}
+
+	// Create the abstraction with the mock service
+	abs := NewAbstraction(
+		func(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
+			return nil, nil // Not used in this test
+		},
+		mockTxService,
+	)
+
+	// Create an update input
+	updateInput := &models.UpdateTransactionInput{
+		Metadata: map[string]any{
+			"updated_by": "test",
+			"note":       "Updated for testing",
+		},
+	}
+
+	// Call the UpdateDeposit method
+	result, err := abs.Deposits.UpdateDeposit(
+		context.Background(),
+		"org-123",
+		"ledger-456",
+		"tx-deposit-123",
+		updateInput,
+	)
+
+	// Verify the result
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, "tx-deposit-123", result.ID)
 }

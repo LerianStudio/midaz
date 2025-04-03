@@ -7,6 +7,7 @@ package abstractions
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
@@ -126,4 +127,87 @@ func (s *depositService) CreateDeposit(
 
 	// Create the transaction
 	return s.createTx(ctx, organizationID, ledgerID, input)
+}
+
+// ListDeposits lists deposit transactions with optional filtering.
+func (s *depositService) ListDeposits(
+	ctx context.Context,
+	organizationID, ledgerID string,
+	opts *models.ListOptions,
+) (*models.ListResponse[models.Transaction], error) {
+	if opts == nil {
+		opts = &models.ListOptions{}
+	}
+
+	// Add filter for deposit transactions
+	if opts.Filters == nil {
+		opts.Filters = make(map[string]string)
+	}
+
+	// Add filter to identify deposit transactions
+	// A deposit is a transaction where there's a credit operation to an internal account
+	// and no corresponding debit operation to another internal account
+	opts.Filters["transaction_type"] = "deposit"
+
+	// Delegate to the transactions service
+	return s.txService.ListTransactions(ctx, organizationID, ledgerID, opts)
+}
+
+// GetDeposit retrieves a specific deposit transaction by ID.
+func (s *depositService) GetDeposit(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID string,
+) (*models.Transaction, error) {
+	// Fetch the transaction
+	tx, err := s.txService.GetTransaction(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Verify this is a deposit transaction
+	if !isDepositTransaction(tx) {
+		return nil, fmt.Errorf("transaction %s is not a deposit transaction", transactionID)
+	}
+
+	return tx, nil
+}
+
+// UpdateDeposit updates a deposit transaction (e.g., metadata or status).
+func (s *depositService) UpdateDeposit(
+	ctx context.Context,
+	organizationID, ledgerID, transactionID string,
+	input *models.UpdateTransactionInput,
+) (*models.Transaction, error) {
+	// First verify this is a deposit transaction
+	_, err := s.GetDeposit(ctx, organizationID, ledgerID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the transaction
+	return s.txService.UpdateTransaction(ctx, organizationID, ledgerID, transactionID, input)
+}
+
+// isDepositTransaction determines if a transaction is a deposit transaction.
+// A deposit transaction is one where funds are added to an internal account
+// from an external source.
+func isDepositTransaction(tx *models.Transaction) bool {
+	if tx == nil || len(tx.Operations) == 0 {
+		return false
+	}
+
+	// Count credits and debits to internal accounts
+	var creditOps, debitOps int
+
+	for _, op := range tx.Operations {
+		if op.Type == "credit" {
+			creditOps++
+		} else if op.Type == "debit" {
+			debitOps++
+		}
+	}
+
+	// A deposit typically has credits to internal accounts but no debits
+	// or has more credits than debits (indicating external source)
+	return creditOps > 0 && (debitOps == 0 || creditOps > debitOps)
 }

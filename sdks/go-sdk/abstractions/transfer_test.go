@@ -226,7 +226,15 @@ func TestCreateTransfer(t *testing.T) {
 			mockAbs := new(MockAbstraction)
 
 			// Create the abstraction with the mock function
-			abs := NewAbstraction(mockAbs.createTransactionWithDSL)
+			abs := NewAbstraction(
+				mockAbs.createTransactionWithDSL,
+				&MockTransactionsService{
+					ReturnTransaction: &models.Transaction{
+						ID:     "tx-mock-123",
+						Status: models.Status{Code: models.TransactionStatusCompleted},
+					},
+				},
+			)
 
 			// Set up the mock expectations if source and target accounts are provided
 			if tt.sourceAccountAlias != "" && tt.targetAccountAlias != "" {
