@@ -1,3 +1,10 @@
+## [1.51.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.15...v1.51.0-beta.16) (2025-04-03)
+
+
+### Bug Fixes
+
+* improve json unmarshal error handling with detailed field feedback :bug: ([549d5e0](https://github.com/LerianStudio/midaz/commit/549d5e06be8c819815fea8f5b736fdd965aa6297))
+
 ## [1.51.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.14...v1.51.0-beta.15) (2025-04-03)
 
 
