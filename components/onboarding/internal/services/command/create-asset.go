@@ -42,7 +42,11 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 	if err := libCommons.ValidateCode(cii.Code); err != nil {
 		libOpentelemetry.HandleSpanError(&span, "Failed to validate asset code", err)
 
-		return nil, pkg.ValidateBusinessError(err, reflect.TypeOf(mmodel.Asset{}).Name())
+		if err.Error() == constant.ErrInvalidCodeFormat.Error() {
+			return nil, pkg.ValidateBusinessError(constant.ErrInvalidCodeFormat, reflect.TypeOf(mmodel.Asset{}).Name())
+		} else if err.Error() == constant.ErrCodeUppercaseRequirement.Error() {
+			return nil, pkg.ValidateBusinessError(constant.ErrCodeUppercaseRequirement, reflect.TypeOf(mmodel.Asset{}).Name())
+		}
 	}
 
 	if cii.Type == "currency" {
