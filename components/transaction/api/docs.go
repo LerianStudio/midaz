@@ -130,6 +130,36 @@ const docTemplate = `{
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -241,6 +271,36 @@ const docTemplate = `{
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -304,6 +364,30 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Operation"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Operation not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -364,6 +448,36 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/AssetRate"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Ledger or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -490,6 +604,36 @@ const docTemplate = `{
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Asset code not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -545,6 +689,30 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/AssetRate"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Asset rate not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -650,6 +818,30 @@ const docTemplate = `{
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -706,6 +898,30 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/mmodel.Balance"
                         }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Balance not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
@@ -755,10 +971,40 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "204": {
+                        "description": "Balance successfully deleted",
                         "schema": {
-                            "$ref": "#/definitions/mmodel.Balance"
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Balance not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Cannot delete balance with active operations",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -825,6 +1071,36 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/mmodel.Balance"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Balance not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -937,6 +1213,30 @@ const docTemplate = `{
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -995,6 +1295,30 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid DSL file format or validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1056,6 +1380,30 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1186,6 +1534,36 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Transaction"
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
@@ -1251,6 +1629,36 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1397,6 +1805,36 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/Operation"
                         }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Operation not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             }
@@ -1455,6 +1893,42 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/Transaction"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request or transaction cannot be reverted",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Transaction not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Transaction already has a parent transaction",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1654,6 +2128,35 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/FromTo"
                     }
+                }
+            }
+        },
+        "Error": {
+            "description": "Standardized error response format used across all API endpoints for error situations",
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "Error code identifying the specific error condition\nexample: ERR_INVALID_INPUT",
+                    "type": "string"
+                },
+                "entityType": {
+                    "description": "Optional type of entity associated with the error\nexample: Organization",
+                    "type": "string"
+                },
+                "fields": {
+                    "description": "Optional detailed field validations for client-side handling\nexample: {\"name\": \"Field 'name' is required\"}",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "description": "Detailed error message explaining the issue\nexample: The request contains invalid fields. Please check the field 'name' and try again.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Short, human-readable error title\nexample: Bad Request",
+                    "type": "string"
                 }
             }
         },

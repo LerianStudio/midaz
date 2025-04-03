@@ -21,17 +21,23 @@ type AccountHandler struct {
 
 // CreateAccount is a method that creates account information.
 //
-//	@Summary		Create an Account
-//	@Description	Create an Account with the input payload
+//	@Summary		Create a new account
+//	@Description	Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			account			body		mmodel.CreateAccountInput	true	"Account"
-//	@Success		200				{object}	mmodel.Account
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			account			body		mmodel.CreateAccountInput	true	"Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata"
+//	@Success		201				{object}	mmodel.Account				"Successfully created account"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Organization, ledger, parent account, portfolio, or segment not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same alias already exists"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [post]
 func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -73,21 +79,26 @@ func (handler *AccountHandler) CreateAccount(i any, c *fiber.Ctx) error {
 
 // GetAllAccounts is a method that retrieves all Accounts.
 //
-//	@Summary		Get all Accounts
-//	@Description	Get all Accounts with the input metadata or without metadata
+//	@Summary		List all accounts
+//	@Description	Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			metadata		query		string	false	"Metadata"
-//	@Param			limit			query		int		false	"Limit"			default(10)
-//	@Param			page			query		int		false	"Page"			default(1)
-//	@Param			start_date		query		string	false	"Start Date"	example "2021-01-01"
-//	@Param			end_date		query		string	false	"End Date"		example "2021-01-01"
-//	@Param			sort_order		query		string	false	"Sort Order"	Enums(asc,desc)
-//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			metadata		query		string	false	"JSON string to filter accounts by metadata fields"
+//	@Param			limit			query		int		false	"Maximum number of records to return per page"				default(10)	minimum(1)	maximum(100)
+//	@Param			page			query		int		false	"Page number for pagination"									default(1)	minimum(1)
+//	@Param			start_date		query		string	false	"Filter accounts created on or after this date (format: YYYY-MM-DD)"
+//	@Param			end_date		query		string	false	"Filter accounts created on or before this date (format: YYYY-MM-DD)"
+//	@Param			sort_order		query		string	false	"Sort direction for results based on creation date"			Enums(asc,desc)
+//	@Success		200				{object}	libPostgres.Pagination{items=[]mmodel.Account,page=int,limit=int}	"Successfully retrieved accounts list"
+//	@Failure		400				{object}	mmodel.Error	"Invalid query parameters"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Organization or ledger not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts [get]
 func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -167,16 +178,20 @@ func (handler *AccountHandler) GetAllAccounts(c *fiber.Ctx) error {
 
 // GetAccountByID is a method that retrieves Account information by a given account id.
 //
-//	@Summary		Get an Account by ID
-//	@Description	Get an Account with the input ID
+//	@Summary		Retrieve a specific account
+//	@Description	Returns detailed information about an account identified by its UUID within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			id				path		string	true	"Account ID"
-//	@Success		200				{object}	mmodel.Account
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			id				path		string	true	"Account ID in UUID format"
+//	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [get]
 func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -209,16 +224,20 @@ func (handler *AccountHandler) GetAccountByID(c *fiber.Ctx) error {
 
 // GetAccountByAlias is a method that retrieves Account information by a given account alias.
 //
-//	@Summary		Get an Account by Alias
-//	@Description	Get an Account with the input Alias
+//	@Summary		Retrieve an account by alias
+//	@Description	Returns detailed information about an account identified by its alias within the specified ledger
 //	@Tags			Accounts
 //	@Produce		json
-//	@Param			Authorization	header		string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string	false	"Request ID"
-//	@Param			organization_id	path		string	true	"Organization ID"
-//	@Param			ledger_id		path		string	true	"Ledger ID"
-//	@Param			alias			path		string	true	"Alias"
-//	@Success		200				{object}	mmodel.Account
+//	@Param			Authorization	header		string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string	false	"Request ID for tracing"
+//	@Param			organization_id	path		string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string	true	"Ledger ID in UUID format"
+//	@Param			alias			path		string	true	"Account alias (e.g. @person1)"
+//	@Success		200				{object}	mmodel.Account	"Successfully retrieved account"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account with the specified alias, ledger, or organization not found"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias} [get]
 func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -251,18 +270,24 @@ func (handler *AccountHandler) GetAccountByAlias(c *fiber.Ctx) error {
 
 // UpdateAccount is a method that updates Account information.
 //
-//	@Summary		Update an Account
-//	@Description	Update an Account with the input payload
+//	@Summary		Update an account
+//	@Description	Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger
 //	@Tags			Accounts
 //	@Accept			json
 //	@Produce		json
-//	@Param			Authorization	header		string						true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header		string						false	"Request ID"
-//	@Param			organization_id	path		string						true	"Organization ID"
-//	@Param			ledger_id		path		string						true	"Ledger ID"
-//	@Param			id				path		string						true	"Account ID"
-//	@Param			account			body		mmodel.UpdateAccountInput	true	"Account"
-//	@Success		200				{object}	mmodel.Account
+//	@Param			Authorization	header		string						true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header		string						false	"Request ID for tracing"
+//	@Param			organization_id	path		string						true	"Organization ID in UUID format"
+//	@Param			ledger_id		path		string						true	"Ledger ID in UUID format"
+//	@Param			id				path		string						true	"Account ID in UUID format"
+//	@Param			account			body		mmodel.UpdateAccountInput	true	"Account properties to update including name, status, portfolio, segment, and optional metadata"
+//	@Success		200				{object}	mmodel.Account				"Successfully updated account"
+//	@Failure		400				{object}	mmodel.Error				"Invalid input, validation errors"
+//	@Failure		401				{object}	mmodel.Error				"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error				"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error				"Account, ledger, organization, portfolio, or segment not found"
+//	@Failure		409				{object}	mmodel.Error				"Conflict: Account with the same name already exists"
+//	@Failure		500				{object}	mmodel.Error				"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [patch]
 func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 	ctx := c.UserContext()
@@ -314,15 +339,20 @@ func (handler *AccountHandler) UpdateAccount(i any, c *fiber.Ctx) error {
 
 // DeleteAccountByID is a method that removes Account information by a given account id.
 //
-//	@Summary		Delete an Account by ID
-//	@Description	Delete an Account with the input ID
+//	@Summary		Delete an account
+//	@Description	Permanently removes an account from the specified ledger. This operation cannot be undone.
 //	@Tags			Accounts
-//	@Param			Authorization	header	string	true	"Authorization Bearer Token"
-//	@Param			X-Request-Id		header	string	false	"Request ID"
-//	@Param			organization_id	path	string	true	"Organization ID"
-//	@Param			ledger_id		path	string	true	"Ledger ID"
-//	@Param			id				path	string	true	"Account ID"
-//	@Success		204
+//	@Param			Authorization	header	string	true	"Authorization Bearer Token with format: Bearer {token}"
+//	@Param			X-Request-Id	header	string	false	"Request ID for tracing"
+//	@Param			organization_id	path	string	true	"Organization ID in UUID format"
+//	@Param			ledger_id		path	string	true	"Ledger ID in UUID format"
+//	@Param			id				path	string	true	"Account ID in UUID format"
+//	@Success		204				{object}	nil	"Account successfully deleted"
+//	@Failure		401				{object}	mmodel.Error	"Unauthorized access"
+//	@Failure		403				{object}	mmodel.Error	"Forbidden access"
+//	@Failure		404				{object}	mmodel.Error	"Account, ledger, or organization not found"
+//	@Failure		409				{object}	mmodel.Error	"Conflict: Account cannot be deleted due to existing dependencies"
+//	@Failure		500				{object}	mmodel.Error	"Internal server error"
 //	@Router			/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id} [delete]
 func (handler *AccountHandler) DeleteAccountByID(c *fiber.Ctx) error {
 	ctx := c.UserContext()

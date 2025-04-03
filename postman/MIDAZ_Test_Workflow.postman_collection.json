@@ -1,0 +1,1407 @@
+{
+  "info": {
+    "name": "MIDAZ Test Workflow",
+    "description": "A test workflow template for Midaz API demonstrating: create organization > create ledger > create asset > create multiple accounts > perform transactions",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "11b3869d-895d-49b2-a6b5-68b193471560"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Base URL for the onboarding service"
+    },
+    {
+      "key": "txnBaseUrl",
+      "value": "http://localhost:3001",
+      "type": "string",
+      "description": "Base URL for the transaction service"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"auth_token\", jsonData.token);",
+                  "pm.test(\"Authentication successful\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(jsonData.token).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"{{username}}\",\n    \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{authUrl}}/login",
+              "host": [
+                "{{authUrl}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Authenticate with the API to get an access token. Set this up according to your authentication mechanism."
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication steps needed before using the API"
+    },
+    {
+      "name": "2. Create Organization",
+      "item": [
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"organization_id\", jsonData.id);",
+                  "pm.test(\"Organization created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created organization ID: \" + jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Organization\",\n    \"code\": \"TESTORG\",\n    \"legalName\": \"Test Organization Legal Name\",\n    \"legalDocument\": \"123456789\",\n    \"address\": {\n        \"street\": \"123 Test Street\",\n        \"number\": \"100\",\n        \"complement\": \"Suite 2\",\n        \"district\": \"Test District\",\n        \"city\": \"Test City\",\n        \"state\": \"Test State\",\n        \"country\": \"Test Country\",\n        \"zipCode\": \"12345-678\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations"
+              ]
+            },
+            "description": "Create a new organization to use throughout the workflow"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Can retrieve created organization\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"organization_id\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}"
+              ]
+            },
+            "description": "Verify that the organization was created correctly"
+          },
+          "response": []
+        }
+      ],
+      "description": "Create an organization which is needed for all subsequent operations"
+    },
+    {
+      "name": "3. Create Ledger",
+      "item": [
+        {
+          "name": "Create Ledger",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"ledger_id\", jsonData.id);",
+                  "pm.test(\"Ledger created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created ledger ID: \" + jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Ledger\",\n    \"description\": \"Test ledger for workflow\",\n    \"metadata\": {\n        \"purpose\": \"testing\",\n        \"environment\": \"development\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers"
+              ]
+            },
+            "description": "Create a new ledger under the organization"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Ledger",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Can retrieve created ledger\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"ledger_id\"));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}"
+              ]
+            },
+            "description": "Verify that the ledger was created correctly"
+          },
+          "response": []
+        }
+      ],
+      "description": "Create a ledger within the organization"
+    },
+    {
+      "name": "4. Create Asset",
+      "item": [
+        {
+          "name": "Create USD Asset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"asset_id_usd\", jsonData.id);",
+                  "pm.environment.set(\"asset_code_usd\", jsonData.code);",
+                  "pm.test(\"USD Asset created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created USD asset ID: \" + jsonData.id);",
+                  "    console.log(\"USD Asset code: \" + jsonData.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Dollar\",\n    \"code\": \"TUSD\",\n    \"description\": \"Test USD asset for workflow\",\n    \"precision\": 2,\n    \"symbol\": \"$\",\n    \"metadata\": {\n        \"type\": \"fiat\",\n        \"category\": \"test\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "assets"
+              ]
+            },
+            "description": "Create a USD asset for transactions"
+          },
+          "response": []
+        },
+        {
+          "name": "Create EUR Asset",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"asset_id_eur\", jsonData.id);",
+                  "pm.environment.set(\"asset_code_eur\", jsonData.code);",
+                  "pm.test(\"EUR Asset created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created EUR asset ID: \" + jsonData.id);",
+                  "    console.log(\"EUR Asset code: \" + jsonData.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Euro\",\n    \"code\": \"TEUR\",\n    \"description\": \"Test EUR asset for multi-currency workflow\",\n    \"precision\": 2,\n    \"symbol\": \"€\",\n    \"metadata\": {\n        \"type\": \"fiat\",\n        \"category\": \"test\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "assets"
+              ]
+            },
+            "description": "Create a EUR asset for multi-currency transactions"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Assets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Can retrieve created assets\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.items).to.be.an('array');",
+                  "    pm.expect(jsonData.items.length).to.be.at.least(2);",
+                  "    ",
+                  "    // Find our created assets in the list",
+                  "    var assetUSD = jsonData.items.find(function(asset) {",
+                  "        return asset.id === pm.environment.get(\"asset_id_usd\");",
+                  "    });",
+                  "    ",
+                  "    var assetEUR = jsonData.items.find(function(asset) {",
+                  "        return asset.id === pm.environment.get(\"asset_id_eur\");",
+                  "    });",
+                  "    ",
+                  "    pm.expect(assetUSD).to.exist;",
+                  "    pm.expect(assetEUR).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/assets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "assets"
+              ]
+            },
+            "description": "Verify that both assets were created correctly"
+          },
+          "response": []
+        }
+      ],
+      "description": "Create assets for use in transactions"
+    },
+    {
+      "name": "5. Create Accounts",
+      "item": [
+        {
+          "name": "Create Account 1 (User Wallet)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"account_id_1\", jsonData.id);",
+                  "pm.environment.set(\"account_alias_1\", jsonData.alias);",
+                  "pm.test(\"User wallet account created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created user wallet ID: \" + jsonData.id);",
+                  "    console.log(\"User wallet alias: \" + jsonData.alias);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"User Wallet\",\n    \"alias\": \"@user1\",\n    \"type\": \"wallet\",\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"owner\": \"Test User 1\",\n        \"purpose\": \"Personal wallet\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "accounts"
+              ]
+            },
+            "description": "Create a user wallet account"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Account 2 (Merchant)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"account_id_2\", jsonData.id);",
+                  "pm.environment.set(\"account_alias_2\", jsonData.alias);",
+                  "pm.test(\"Merchant account created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created merchant ID: \" + jsonData.id);",
+                  "    console.log(\"Merchant alias: \" + jsonData.alias);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Test Merchant\",\n    \"alias\": \"@merchant\",\n    \"type\": \"merchant\",\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"businessType\": \"retail\",\n        \"purpose\": \"Test merchant account\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "accounts"
+              ]
+            },
+            "description": "Create a merchant account"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Account 3 (Fees)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"account_id_3\", jsonData.id);",
+                  "pm.environment.set(\"account_alias_3\", jsonData.alias);",
+                  "pm.test(\"Fees account created successfully\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created fees account ID: \" + jsonData.id);",
+                  "    console.log(\"Fees account alias: \" + jsonData.alias);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Platform Fees\",\n    \"alias\": \"@fees\",\n    \"type\": \"fee\",\n    \"allowSending\": true,\n    \"allowReceiving\": true,\n    \"metadata\": {\n        \"owner\": \"Platform\",\n        \"purpose\": \"Transaction fees collection\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "accounts"
+              ]
+            },
+            "description": "Create a fees account for fee collection"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Accounts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Can list created accounts\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.items).to.be.an('array');",
+                  "    pm.expect(jsonData.items.length).to.be.at.least(3);",
+                  "    ",
+                  "    // Find our created accounts in the list",
+                  "    var account1 = jsonData.items.find(function(account) {",
+                  "        return account.id === pm.environment.get(\"account_id_1\");",
+                  "    });",
+                  "    ",
+                  "    var account2 = jsonData.items.find(function(account) {",
+                  "        return account.id === pm.environment.get(\"account_id_2\");",
+                  "    });",
+                  "    ",
+                  "    var account3 = jsonData.items.find(function(account) {",
+                  "        return account.id === pm.environment.get(\"account_id_3\");",
+                  "    });",
+                  "    ",
+                  "    pm.expect(account1).to.exist;",
+                  "    pm.expect(account2).to.exist;",
+                  "    pm.expect(account3).to.exist;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "accounts"
+              ]
+            },
+            "description": "Verify that all accounts were created correctly"
+          },
+          "response": []
+        }
+      ],
+      "description": "Create accounts for different purposes (user, merchant, fees)"
+    },
+    {
+      "name": "6. Setup Asset Rates",
+      "item": [
+        {
+          "name": "Create USD-EUR Asset Rate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"usd_eur_rate_id\", jsonData.id);",
+                  "pm.test(\"USD-EUR Asset Rate created successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created USD-EUR rate ID: \" + jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"from\": \"{{asset_code_usd}}\",\n    \"to\": \"{{asset_code_eur}}\",\n    \"rate\": 92,\n    \"scale\": 2,\n    \"source\": \"test\",\n    \"ttl\": 3600,\n    \"metadata\": {\n        \"source\": \"mock exchange rate\",\n        \"date\": \"2025-04-02\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates",
+              "host": [
+                "{{txnBaseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "asset-rates"
+              ]
+            },
+            "description": "Create an asset rate for USD to EUR conversion (1 USD = 0.92 EUR)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create EUR-USD Asset Rate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.environment.set(\"eur_usd_rate_id\", jsonData.id);",
+                  "pm.test(\"EUR-USD Asset Rate created successfully\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(jsonData.id).to.exist;",
+                  "    console.log(\"Created EUR-USD rate ID: \" + jsonData.id);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"from\": \"{{asset_code_eur}}\",\n    \"to\": \"{{asset_code_usd}}\",\n    \"rate\": 109,\n    \"scale\": 2,\n    \"source\": \"test\",\n    \"ttl\": 3600,\n    \"metadata\": {\n        \"source\": \"mock exchange rate\",\n        \"date\": \"2025-04-02\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates",
+              "host": [
+                "{{txnBaseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "asset-rates"
+              ]
+            },
+            "description": "Create an asset rate for EUR to USD conversion (1 EUR = 1.09 USD)"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Asset Rates",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Can retrieve asset rates\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.items).to.be.an('array');",
+                  "    pm.expect(jsonData.items.length).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/asset-rates/from/{{asset_code_usd}}",
+              "host": [
+                "{{txnBaseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "organizations",
+                "{{organization_id}}",
+                "ledgers",
+                "{{ledger_id}}",
+                "asset-rates",
+                "from",
+                "{{asset_code_usd}}"
+              ]
+            },
+            "description": "Verify that asset rates were created correctly"
+          },
+          "response": []
+        }
+      ],
+      "description": "Set up asset rates for currency conversions"
+    },
+    {
+      "name": "7. Perform Transactions",
+      "item": [
+        {
+          "name": "7.1 Simple Transfer",
+          "item": [
+            {
+              "name": "Simple Transfer (User to Merchant)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.environment.set(\"simple_txn_id\", jsonData.id);",
+                      "pm.test(\"Simple transaction created successfully\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    pm.expect(jsonData.id).to.exist;",
+                      "    console.log(\"Created simple transaction ID: \" + jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"description\": \"Simple payment from user to merchant\",\n    \"send\": {\n        \"asset\": \"{{asset_code_usd}}\",\n        \"value\": 1000,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"{{account_alias_1}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 1000,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"{{account_alias_2}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 1000,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        }\n    },\n    \"metadata\": {\n        \"transactionType\": \"payment\",\n        \"reference\": \"INV-12345\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/json",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "json"
+                  ]
+                },
+                "description": "Create a simple $10.00 transfer from user to merchant"
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Simple Transfer",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve simple transaction\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"simple_txn_id\"));",
+                      "    pm.expect(jsonData.amount).to.equal(1000);",
+                      "    pm.expect(jsonData.operations).to.be.an('array');",
+                      "    pm.expect(jsonData.operations.length).to.equal(2); // 1 debit, 1 credit",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{simple_txn_id}}",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "{{simple_txn_id}}"
+                  ]
+                },
+                "description": "Verify the simple transaction details"
+              },
+              "response": []
+            }
+          ],
+          "description": "Simple transfer from user to merchant"
+        },
+        {
+          "name": "7.2 Transfer with Fee",
+          "item": [
+            {
+              "name": "Transfer with Fee (User → Merchant + Fees)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.environment.set(\"fee_txn_id\", jsonData.id);",
+                      "pm.test(\"Transaction with fee created successfully\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    pm.expect(jsonData.id).to.exist;",
+                      "    console.log(\"Created transaction with fee ID: \" + jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"description\": \"Payment with platform fee\",\n    \"send\": {\n        \"asset\": \"{{asset_code_usd}}\",\n        \"value\": 1000,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"{{account_alias_1}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 1000,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"{{account_alias_2}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 950,\n                        \"scale\": 2\n                    }\n                },\n                {\n                    \"account\": \"{{account_alias_3}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 50,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        }\n    },\n    \"metadata\": {\n        \"transactionType\": \"payment_with_fee\",\n        \"reference\": \"INV-12346\",\n        \"feePercentage\": \"5%\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/json",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "json"
+                  ]
+                },
+                "description": "Create a transaction with a 5% platform fee"
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Fee Transaction",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve fee transaction\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"fee_txn_id\"));",
+                      "    pm.expect(jsonData.amount).to.equal(1000);",
+                      "    pm.expect(jsonData.operations).to.be.an('array');",
+                      "    pm.expect(jsonData.operations.length).to.equal(3); // 1 debit, 2 credits",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{fee_txn_id}}",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "{{fee_txn_id}}"
+                  ]
+                },
+                "description": "Verify the transaction with fee details"
+              },
+              "response": []
+            }
+          ],
+          "description": "Transfer with platform fee (5%)"
+        },
+        {
+          "name": "7.3 Multi-Currency Transfer",
+          "item": [
+            {
+              "name": "Multi-Currency Transfer (USD → EUR)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.environment.set(\"fx_txn_id\", jsonData.id);",
+                      "pm.test(\"Multi-currency transaction created successfully\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    pm.expect(jsonData.id).to.exist;",
+                      "    console.log(\"Created multi-currency transaction ID: \" + jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"description\": \"Multi-currency payment (USD to EUR)\",\n    \"send\": {\n        \"asset\": \"{{asset_code_usd}}\",\n        \"value\": 1000,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"{{account_alias_1}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 1000,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"{{account_alias_2}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_eur}}\",\n                        \"value\": 920,\n                        \"scale\": 2\n                    },\n                    \"rate\": {\n                        \"from\": \"{{asset_code_usd}}\",\n                        \"to\": \"{{asset_code_eur}}\",\n                        \"value\": 92,\n                        \"scale\": 2,\n                        \"externalId\": \"{{usd_eur_rate_id}}\"\n                    }\n                }\n            ]\n        }\n    },\n    \"metadata\": {\n        \"transactionType\": \"forex_payment\",\n        \"reference\": \"INV-12347\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/json",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "json"
+                  ]
+                },
+                "description": "Create a transaction that converts USD to EUR"
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Multi-Currency Transaction",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve multi-currency transaction\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"fx_txn_id\"));",
+                      "    pm.expect(jsonData.amount).to.equal(1000);",
+                      "    pm.expect(jsonData.operations).to.be.an('array');",
+                      "    pm.expect(jsonData.operations.length).to.equal(2); // 1 debit USD, 1 credit EUR",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{fx_txn_id}}",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "{{fx_txn_id}}"
+                  ]
+                },
+                "description": "Verify the multi-currency transaction details"
+              },
+              "response": []
+            }
+          ],
+          "description": "Transfer with currency conversion (USD to EUR)"
+        },
+        {
+          "name": "7.4 Multi-Recipient Transfer",
+          "item": [
+            {
+              "name": "Multi-Recipient Transfer (1→3)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "var jsonData = pm.response.json();",
+                      "pm.environment.set(\"split_txn_id\", jsonData.id);",
+                      "pm.test(\"Multi-recipient transaction created successfully\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    pm.expect(jsonData.id).to.exist;",
+                      "    console.log(\"Created multi-recipient transaction ID: \" + jsonData.id);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"description\": \"Split payment to multiple recipients\",\n    \"send\": {\n        \"asset\": \"{{asset_code_usd}}\",\n        \"value\": 1000,\n        \"scale\": 2,\n        \"source\": {\n            \"from\": [\n                {\n                    \"account\": \"{{account_alias_1}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 1000,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        },\n        \"distribute\": {\n            \"to\": [\n                {\n                    \"account\": \"{{account_alias_2}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 700,\n                        \"scale\": 2\n                    }\n                },\n                {\n                    \"account\": \"{{account_alias_3}}\",\n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 200,\n                        \"scale\": 2\n                    }\n                },\n                {\n                    \"account\": \"{{account_alias_1}}\", \n                    \"amount\": {\n                        \"asset\": \"{{asset_code_usd}}\",\n                        \"value\": 100,\n                        \"scale\": 2\n                    }\n                }\n            ]\n        }\n    },\n    \"metadata\": {\n        \"transactionType\": \"split_payment\",\n        \"reference\": \"INV-12348\"\n    }\n}"
+                },
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/json",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "json"
+                  ]
+                },
+                "description": "Create a split payment to multiple recipients with partial refund"
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Multi-Recipient Transaction",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve multi-recipient transaction\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.id).to.equal(pm.environment.get(\"split_txn_id\"));",
+                      "    pm.expect(jsonData.amount).to.equal(1000);",
+                      "    pm.expect(jsonData.operations).to.be.an('array');",
+                      "    pm.expect(jsonData.operations.length).to.equal(4); // 1 debit, 3 credits",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/transactions/{{split_txn_id}}",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "transactions",
+                    "{{split_txn_id}}"
+                  ]
+                },
+                "description": "Verify the multi-recipient transaction details"
+              },
+              "response": []
+            }
+          ],
+          "description": "Split payment to multiple recipients"
+        },
+        {
+          "name": "7.5 Check Account Balances",
+          "item": [
+            {
+              "name": "Check User Account Balances",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve user account balances\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.items).to.be.an('array');",
+                      "    console.log(\"User account balances: \", jsonData.items);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id_1}}/balances",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "accounts",
+                    "{{account_id_1}}",
+                    "balances"
+                  ]
+                },
+                "description": "Check user account balances after transactions"
+              },
+              "response": []
+            },
+            {
+              "name": "Check Merchant Account Balances",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve merchant account balances\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.items).to.be.an('array');",
+                      "    console.log(\"Merchant account balances: \", jsonData.items);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id_2}}/balances",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "accounts",
+                    "{{account_id_2}}",
+                    "balances"
+                  ]
+                },
+                "description": "Check merchant account balances after transactions"
+              },
+              "response": []
+            },
+            {
+              "name": "Check Fees Account Balances",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test(\"Can retrieve fees account balances\", function () {",
+                      "    pm.response.to.have.status(200);",
+                      "    var jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.items).to.be.an('array');",
+                      "    console.log(\"Fees account balances: \", jsonData.items);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{auth_token}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{txnBaseUrl}}/v1/organizations/{{organization_id}}/ledgers/{{ledger_id}}/accounts/{{account_id_3}}/balances",
+                  "host": [
+                    "{{txnBaseUrl}}"
+                  ],
+                  "path": [
+                    "v1",
+                    "organizations",
+                    "{{organization_id}}",
+                    "ledgers",
+                    "{{ledger_id}}",
+                    "accounts",
+                    "{{account_id_3}}",
+                    "balances"
+                  ]
+                },
+                "description": "Check fees account balances after transactions"
+              },
+              "response": []
+            }
+          ],
+          "description": "Check account balances after all transactions"
+        }
+      ],
+      "description": "Perform various transaction types between accounts"
+    }
+  ]
+}

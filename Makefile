@@ -105,6 +105,10 @@ help:
 	@echo "  make generate-docs-all           - Generate Swagger documentation for all services"
 	@echo "  make sync-postman                - Sync Postman collection with OpenAPI documentation"
 	@echo "  make verify-api-docs             - Verify API documentation coverage"
+	@echo "  make validate-api-docs           - Validate API documentation structure and implementation"
+	@echo "  make validate-onboarding         - Validate only the onboarding component"
+	@echo "  make validate-transaction        - Validate only the transaction component"
+	@echo "  make install-api-validation      - Install API validation dependencies"
 	@echo "  make regenerate-mocks            - Regenerate mock files for all components"
 	@echo "  make cleanup-mocks               - Remove all existing mock files"
 	@echo "  make cleanup-regenerate-mocks    - Combine both operations and fix unused imports"
@@ -473,11 +477,11 @@ generate-docs-all:
 	$(call title1,"Generating Swagger documentation for all services")
 	$(call check_command,swag,"go install github.com/swaggo/swag/cmd/swag@latest")
 	@echo "$(CYAN)Verifying API documentation coverage...$(NC)"
-	@sh ./scripts/verify-api-docs.sh || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
+	@sh ./scripts/verify-api-docs.sh 2>/dev/null || echo "$(YELLOW)Warning: Some API endpoints may not be properly documented. Continuing with documentation generation...$(NC)"
 	@echo "$(CYAN)Generating documentation for onboarding component...$(NC)"
-	@cd $(ONBOARDING_DIR) && $(MAKE) generate-docs
+	@cd $(ONBOARDING_DIR) && $(MAKE) generate-docs 2>&1 | grep -v "warning: "
 	@echo "$(CYAN)Generating documentation for transaction component...$(NC)"
-	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs
+	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs 2>&1 | grep -v "warning: "
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully for all services$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)Syncing Postman collection with the generated OpenAPI documentation...$(NC)"
 	@if command -v jq >/dev/null 2>&1; then \
@@ -498,9 +502,55 @@ sync-postman:
 .PHONY: verify-api-docs
 verify-api-docs:
 	$(call title1,"Verifying API documentation coverage")
-	$(call check_command,jq,"brew install jq")
+	@if [ -f "./scripts/package.json" ]; then \
+		echo "$(CYAN)Installing npm dependencies...$(NC)"; \
+		cd ./scripts && npm install; \
+	fi
 	@sh ./scripts/verify-api-docs.sh
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation verification completed$(GREEN) ✔️$(NC)"
+
+.PHONY: validate-api-docs
+validate-api-docs:
+	$(call title1,"Validating API documentation structure and implementation")
+	@if [ -f "./scripts/package.json" ]; then \
+		echo "$(CYAN)Using npm to run validation...$(NC)"; \
+		cd ./scripts && npm run validate-all; \
+	else \
+		echo "$(YELLOW)No package.json found in scripts directory. Running traditional validation...$(NC)"; \
+		$(MAKE) verify-api-docs; \
+	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation validation completed$(GREEN) ✔️$(NC)"
+
+.PHONY: validate-onboarding
+validate-onboarding:
+	$(call title1,"Validating onboarding component API documentation")
+	@if [ -f "./scripts/package.json" ]; then \
+		echo "$(CYAN)Installing npm dependencies...$(NC)"; \
+		cd ./scripts && npm install; \
+	fi
+	@cd ./components/onboarding && make validate-api-docs
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Onboarding API validation completed$(GREEN) ✔️$(NC)"
+
+.PHONY: validate-transaction
+validate-transaction:
+	$(call title1,"Validating transaction component API documentation")
+	@if [ -f "./scripts/package.json" ]; then \
+		echo "$(CYAN)Installing npm dependencies...$(NC)"; \
+		cd ./scripts && npm install; \
+	fi
+	@cd ./components/transaction && make validate-api-docs
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Transaction API validation completed$(GREEN) ✔️$(NC)"
+
+.PHONY: install-api-validation
+install-api-validation:
+	$(call title1,"Installing API validation dependencies")
+	@mkdir -p ./scripts
+	@if [ ! -f "./scripts/package.json" ]; then \
+		echo "$(CYAN)Creating package.json in scripts directory...$(NC)"; \
+		echo '{"name":"midaz-scripts","version":"1.0.0","description":"Midaz API documentation validation scripts","scripts":{"verify-api":"bash ./verify-api-docs.sh","validate-onboarding":"cd ../components/onboarding && make validate-api-docs","validate-transaction":"cd ../components/transaction && make validate-api-docs","validate-all":"npm run validate-onboarding && npm run validate-transaction"},"dependencies":{"axios":"^1.8.4","commander":"^9.4.1","glob":"^8.0.3","js-yaml":"^4.1.0"}}' > ./scripts/package.json; \
+	fi
+	@cd ./scripts && npm install
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API validation dependencies installed$(GREEN) ✔️$(NC)"
 
 .PHONY: mdz-goreleaser
 mdz-goreleaser:

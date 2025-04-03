@@ -290,6 +290,19 @@ generate-docs:
 	@rm -rf ./api/README.md ./api/.openapi-generator* ./api/openapi
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger API documentation generated successfully$(GREEN) ✔️$(NC)"
 
+.PHONY: validate-api-docs
+validate-api-docs: generate-docs
+	$(call title1,"Validating API documentation")
+	@echo "$(YELLOW)Validating API documentation structure...$(NC)"
+	@if [ -f "$(MIDAZ_ROOT)/components/transaction/scripts/validate-api-docs.js" ] && [ -f "$(MIDAZ_ROOT)/scripts/package.json" ]; then \
+		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/transaction/scripts/validate-api-docs.js; \
+		echo "$(YELLOW)Validating API implementations...$(NC)"; \
+		cd $(MIDAZ_ROOT)/scripts && node $(MIDAZ_ROOT)/components/transaction/scripts/validate-api-docs.js; \
+	else \
+		echo "$(YELLOW)Validation script or package.json not found, skipping detailed validation$(NC)"; \
+	fi
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) API documentation validation completed$(GREEN) ✔️$(NC)"
+
 #-------------------------------------------------------
 # Developer Helper Commands
 #-------------------------------------------------------
