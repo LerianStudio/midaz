@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -241,6 +242,25 @@ func ValidateInternalError(err error, entityType string) error {
 		Title:      "Internal Server Error",
 		Message:    "The server encountered an unexpected error. Please try again later or contact support.",
 		Err:        err,
+	}
+}
+
+// ValidateUnmarshallingError validates the error and returns an appropriate ResponseError.
+func ValidateUnmarshallingError(err error) error {
+	var message = err.Error()
+
+	var ute *json.UnmarshalTypeError
+	if errors.As(err, &ute) {
+		field := ute.Field
+		expected := ute.Type.String()
+		actual := ute.Value
+		message = fmt.Sprintf("invalid value for field '%s': expected type '%s', but got '%s'", field, expected, actual)
+	}
+
+	return ResponseError{
+		Code:    constant.ErrInvalidRequestBody.Error(),
+		Title:   "Unmarshalling error",
+		Message: message,
 	}
 }
 
