@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
+	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/api"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
@@ -81,6 +83,12 @@ func (e *assetRatesEntity) GetAssetRate(ctx context.Context, organizationID, led
 
 	defer resp.Body.Close()
 
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
+
 	var assetRate models.AssetRate
 
 	if err := json.NewDecoder(resp.Body).Decode(&assetRate); err != nil {
@@ -131,6 +139,12 @@ func (e *assetRatesEntity) CreateOrUpdateAssetRate(ctx context.Context, organiza
 	}
 
 	defer resp.Body.Close()
+
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
 
 	var assetRate models.AssetRate
 

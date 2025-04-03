@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
+	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/api"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
@@ -109,6 +111,12 @@ func (e *balancesEntity) ListBalances(
 
 	defer resp.Body.Close()
 
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
+
 	var response models.ListResponse[models.Balance]
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -170,6 +178,12 @@ func (e *balancesEntity) ListAccountBalances(
 
 	defer resp.Body.Close()
 
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
+
 	var response models.ListResponse[models.Balance]
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
@@ -217,6 +231,12 @@ func (e *balancesEntity) GetBalance(
 	}
 
 	defer resp.Body.Close()
+
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
 
 	var balance models.Balance
 
@@ -267,7 +287,7 @@ func (e *balancesEntity) UpdateBalance(
 		return nil, fmt.Errorf("internal error: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(payload))
 
 	if err != nil {
 		return nil, fmt.Errorf("internal error: %w", err)
@@ -282,6 +302,12 @@ func (e *balancesEntity) UpdateBalance(
 	}
 
 	defer resp.Body.Close()
+
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
 
 	var balance models.Balance
 
@@ -330,6 +356,12 @@ func (e *balancesEntity) DeleteBalance(
 	}
 
 	defer resp.Body.Close()
+
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return api.ErrorFromResponse(resp, respBody)
+	}
 
 	return nil
 }

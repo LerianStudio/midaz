@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/api"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
@@ -131,16 +133,10 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	var transaction models.Transaction
@@ -199,16 +195,10 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	var transaction models.Transaction
@@ -252,16 +242,10 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	var transaction models.Transaction
@@ -275,8 +259,17 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 
 // GetTransaction gets a transaction by ID.
 func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	// Validate required parameters
+	if orgID == "" {
+		return nil, fmt.Errorf("organization ID cannot be empty")
+	}
+
+	if ledgerID == "" {
+		return nil, fmt.Errorf("ledger ID cannot be empty")
+	}
+
 	if transactionID == "" {
-		return nil, fmt.Errorf("transaction ID is required")
+		return nil, fmt.Errorf("transaction ID cannot be empty")
 	}
 
 	url := e.buildURL(orgID, ledgerID, transactionID)
@@ -297,16 +290,10 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	// Decode the response into a lib-commons Transaction first
@@ -324,6 +311,15 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 
 // ListTransactions lists transactions for a ledger with optional filters.
 func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
+	// Validate required parameters
+	if orgID == "" {
+		return nil, fmt.Errorf("organization ID cannot be empty")
+	}
+
+	if ledgerID == "" {
+		return nil, fmt.Errorf("ledger ID cannot be empty")
+	}
+
 	url := e.buildURL(orgID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -359,16 +355,10 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	// First decode into a partial response to get the structure
@@ -447,16 +437,10 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	// Decode the response into a lib-commons Transaction first
@@ -496,16 +480,10 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 
 	defer resp.Body.Close()
 
-	// Handle error responses
+	// Check if the response status code indicates an error
 	if resp.StatusCode >= 400 {
-		var errResp struct {
-			Error   string `json:"error"`
-			Message string `json:"message"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-			return nil, fmt.Errorf("API error (status %d): failed to decode error response", resp.StatusCode)
-		}
-		return nil, fmt.Errorf("API error: %s - %s", errResp.Error, errResp.Message)
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
 	}
 
 	var transaction models.Transaction
@@ -540,6 +518,12 @@ func (e *transactionsEntity) CommitTransactionWithExternalID(ctx context.Context
 	}
 
 	defer resp.Body.Close()
+
+	// Check if the response status code indicates an error
+	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, api.ErrorFromResponse(resp, respBody)
+	}
 
 	var transaction models.Transaction
 
