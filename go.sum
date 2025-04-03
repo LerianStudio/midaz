@@ -5,10 +5,10 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/KyleBanks/depth v1.2.1 h1:5h8fQADFrWtarTdtDudMmGsC7GPbOAu6RVB3ffsVFHc=
 github.com/KyleBanks/depth v1.2.1/go.mod h1:jzSb9d0L43HxTQfT+oSA1EEp2q+ne2uh6XgeJcm8brE=
-github.com/LerianStudio/lib-auth v1.9.0 h1:Q6cl0WYvW39ZrBbxEPKwSofiyEnpryqVvO4asRNvN8w=
-github.com/LerianStudio/lib-auth v1.9.0/go.mod h1:ZcVMPHlvAQmaqAwAaxoYAFxmcz65H7NoiNHjiBhrSlk=
-github.com/LerianStudio/lib-commons v1.0.0 h1:UlPnHmg8iQ6oiPpCJduhRqNsv5dQ1naSVIj96NKfrMk=
-github.com/LerianStudio/lib-commons v1.0.0/go.mod h1:ljJ3Weelq4fm+rJt/fA8q6JhBtPS+PLQqOMeUCmUL6k=
+github.com/LerianStudio/lib-auth v1.10.0 h1:CcXlfVQC644OlMYhRVKKHQrJAx50YbXNNh9tTBGzuiw=
+github.com/LerianStudio/lib-auth v1.10.0/go.mod h1:eGBbLjqMNqwwUmz+CQZTggd3YVqZNZmu27aQATmFAZc=
+github.com/LerianStudio/lib-commons v1.1.0 h1:Y5PTpQKFDBhiB3+VU5Kreajy1+tWQGD+CMwOeHDJ/mM=
+github.com/LerianStudio/lib-commons v1.1.0/go.mod h1:6HziJ0nOIzoxbUvzw2W8XqGa8jptS4022MPZgvMhnUs=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
@@ -277,8 +277,8 @@ github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6Kllzaw
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.35.0/go.mod h1:t/G+3rLek+CyY9bnIE+YlMRddxVAAGjhxndDB4i4C0I=
 github.com/valyala/fasthttp v1.36.0/go.mod h1:t/G+3rLek+CyY9bnIE+YlMRddxVAAGjhxndDB4i4C0I=
-github.com/valyala/fasthttp v1.59.0 h1:Qu0qYHfXvPk1mSLNqcFtEk6DpxgA26hy6bmydotDpRI=
-github.com/valyala/fasthttp v1.59.0/go.mod h1:GTxNb9Bc6r2a9D0TWNSPwDz78UxnTGBViY3xZNEqyYU=
+github.com/valyala/fasthttp v1.60.0 h1:kBRYS0lOhVJ6V+bYN8PqAHELKHtXqwq9zNMLKx1MBsw=
+github.com/valyala/fasthttp v1.60.0/go.mod h1:iY4kDgV3Gc6EqhRZ8icqcmlG6bqhcDXfuHgTO4FXCvc=
 github.com/valyala/tcplisten v1.0.0/go.mod h1:T0xQ8SeCZGxckz9qRXTfG43PvQ/mcWh7FwZEA7Ioqkc=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=
 github.com/xdg-go/pbkdf2 v1.0.0/go.mod h1:jrpuAogTd400dnrH08LKmI/xc1MbPOebTwRqcT5RDeI=
