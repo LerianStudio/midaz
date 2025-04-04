@@ -484,13 +484,8 @@ generate-docs-all:
 	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs 2>&1 | grep -v "warning: "
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully for all services$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)Syncing Postman collection with the generated OpenAPI documentation...$(NC)"
-	@if command -v jq >/dev/null 2>&1; then \
-		sh ./scripts/sync-postman.sh; \
-	else \
-		echo "$(YELLOW)Warning: jq is not installed. Skipping Postman collection sync.$(NC)"; \
-		echo "$(YELLOW)To install jq: brew install jq$(NC)"; \
-		echo "$(YELLOW)Then run: make sync-postman$(NC)"; \
-	fi
+	@sh ./scripts/sync-postman.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Postman collection synced successfully with OpenAPI documentation$(GREEN) ✔️$(NC)"
 
 .PHONY: sync-postman
 sync-postman:
