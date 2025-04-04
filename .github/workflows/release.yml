@@ -6,6 +6,7 @@ on:
       - develop
       - main
       - hotfix/v*
+      -feature/*
     paths-ignore:
       - '.gitignore'
       - '**/*.env'   # Ignores all .env files
@@ -45,55 +46,36 @@ jobs:
       WORKING_DIR: components/onboarding
     name: Create release to Midaz
     steps:
-    - uses: actions/create-github-app-token@v1
-      id: app-token
-      with:
-        app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-        private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ steps.app-token.outputs.token }}
+    # - name: Semantic Release
+    #   uses: cycjimmy/semantic-release-action@v4
+    #   id: semantic
+    #   with:
+    #     ci: false
+    #     semantic_version: 23.0.8
+    #     extra_plugins: |
+    #       conventional-changelog-conventionalcommits@v7.0.2
+    #       @saithodev/semantic-release-backmerge
+    #   env:
+    #     GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+    #     GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+    #     GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+    #     GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+    #     GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
 
-    - name: Import GPG key
-      uses: crazy-max/ghaction-import-gpg@v6
-      id: import_gpg
-      with:
-        gpg_private_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
-        passphrase: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
-        git_committer_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-        git_committer_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-        git_config_global: true
-        git_user_signingkey: true
-        git_commit_gpgsign: true
+    # - uses: actions/setup-go@v5
+    #   with:
+    #     go-version: '1.23'
+    #     cache: false
 
-    - name: Semantic Release
-      uses: cycjimmy/semantic-release-action@v4
-      id: semantic
-      with:
-        ci: false
-        semantic_version: 23.0.8
-        extra_plugins: |
-          conventional-changelog-conventionalcommits@v7.0.2
-          @saithodev/semantic-release-backmerge
-      env:
-        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        GIT_AUTHOR_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-        GIT_AUTHOR_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-        GIT_COMMITTER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
-        GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-
-    - uses: actions/setup-go@v5
-      with:
-        go-version: '1.23'
-        cache: false
-
+    # Using Golang-Releaser Module
     - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v6
+      uses: LerianStudio/github-actions-golang-releaser@main
       with:
-        version: latest
-        args: release --clean
-      env:
-        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+        github_token: ${{ steps.app-token.outputs.token }}
+        lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+        lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+        lerian_studio_midaz_push_bot_app_id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+        lerian_studio_midaz_push_bot_private_key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
+        lerian_ci_cd_user_gpg_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
+        lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
