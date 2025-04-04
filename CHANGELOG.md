@@ -1,3 +1,11 @@
+## [1.51.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.16...v1.51.0-beta.17) (2025-04-04)
+
+
+### Bug Fixes
+
+* add right return erros and status codes; :bug: ([02791d5](https://github.com/LerianStudio/midaz/commit/02791d5cb29649c6f7b6a7714cad58383bc63e69))
+* rabbitmq mispelling name; :bug: ([55e2525](https://github.com/LerianStudio/midaz/commit/55e252565db2675c79a43f9b30f359d3a2d99d7b))
+
 ## [1.51.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.15...v1.51.0-beta.16) (2025-04-03)
 
 
