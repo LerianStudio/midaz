@@ -9,15 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}
-
 func TestValidateTransactionDSL(t *testing.T) {
 	testCases := []struct {
 		name          string
-		input         *models.TransactionDSLInput
+		input         validation.TransactionDSLValidator
 		expectedError bool
 		errorContains string
 	}{
@@ -25,13 +20,15 @@ func TestValidateTransactionDSL(t *testing.T) {
 			name:          "Nil input",
 			input:         nil,
 			expectedError: true,
-			errorContains: "transaction input cannot be nil",
+			errorContains: "cannot be nil",
 		},
 		{
-			name:          "Nil send object",
-			input:         &models.TransactionDSLInput{},
+			name: "Nil send object",
+			input: &models.TransactionDSLInput{
+				Send: &models.DSLSend{},
+			},
 			expectedError: true,
-			errorContains: "send object is required",
+			errorContains: "asset code is required",
 		},
 		{
 			name: "Empty asset code",

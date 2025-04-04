@@ -3,11 +3,10 @@ package models
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/validation/core"
 )
 
 // Account represents an account in the Midaz Ledger.
@@ -374,29 +373,6 @@ type CreateAccountInput struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
-// validateAccountType validates if the account type is one of the supported types
-// in the Midaz system.
-func validateAccountType(accountType string) error {
-	// Convert to lowercase for consistency
-	accountType = strings.ToLower(accountType)
-
-	// List of valid account types based on the Midaz system
-	validTypes := []string{
-		"deposit",
-		"external",
-		"liability",
-	}
-
-	for _, validType := range validTypes {
-		if accountType == validType {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid account type: %s. Valid types are: %s",
-		accountType, strings.Join(validTypes, ", "))
-}
-
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateAccountInput) Validate() error {
@@ -412,10 +388,8 @@ func (input *CreateAccountInput) Validate() error {
 		return fmt.Errorf("asset code is required")
 	}
 
-	// Validate asset code if it's a currency
-	if err := commons.ValidateCurrency(input.AssetCode); err == nil {
-		// No error means it's a valid currency code
-	} else {
+	// Validate asset code using the core validation package
+	if err := core.ValidateCurrencyCode(input.AssetCode); err != nil {
 		// If not a valid currency, it might be a custom asset code
 		// which should be validated by the backend
 	}
@@ -424,15 +398,15 @@ func (input *CreateAccountInput) Validate() error {
 		return fmt.Errorf("account type is required")
 	}
 
-	// Validate account type
-	if err := validateAccountType(input.Type); err != nil {
+	// Validate account type using the core validation package
+	if err := core.ValidateAccountType(input.Type); err != nil {
 		return fmt.Errorf("invalid account type: %w", err)
 	}
 
-	// Validate alias if provided
+	// Validate alias if provided using the core validation package
 	if input.Alias != nil && *input.Alias != "" {
-		if len(*input.Alias) > 50 {
-			return fmt.Errorf("alias must be at most 50 characters")
+		if err := core.ValidateAccountAlias(*input.Alias); err != nil {
+			return err
 		}
 	}
 
@@ -595,13 +569,20 @@ type UpdateAccountInput struct {
 // Validate checks if the UpdateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *UpdateAccountInput) Validate() error {
-	// Check optional fields with length constraints
-	if len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters, got %d", len(input.Name))
+	if input.Name != "" && len(input.Name) > 256 {
+		return fmt.Errorf("name must be at most 256 characters")
 	}
 
-	// Metadata validation would typically be more complex
-	// For now, we'll just ensure it's not nil if provided
+	// Validate status if provided
+	// Status is an enum type, so we don't need additional validation here
+	// The API will validate if the status is valid
+
+	// Validate metadata if provided
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
 
 	return nil
 }

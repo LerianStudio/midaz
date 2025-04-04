@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
+	"github.com/LerianStudio/lib-commons/commons"
 )
 
 // externalAccountPattern is the regex pattern for external account references
@@ -30,62 +30,75 @@ var accountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
 // assetCodePattern is the regex pattern for asset codes
 var assetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
 
+// TransactionDSLValidator defines an interface for transaction DSL validation
+type TransactionDSLValidator interface {
+	GetAsset() string
+	GetValue() float64
+	GetSourceAccounts() []AccountReference
+	GetDestinationAccounts() []AccountReference
+	GetMetadata() map[string]any
+}
+
+// AccountReference defines an interface for account references in transactions
+type AccountReference interface {
+	GetAccount() string
+}
+
 // ValidateTransactionDSL performs pre-validation of transaction DSL input
 // before sending to the API to catch common errors early
-func ValidateTransactionDSL(input *models.TransactionDSLInput) error {
+func ValidateTransactionDSL(input TransactionDSLValidator) error {
 	if input == nil {
 		return fmt.Errorf("transaction input cannot be nil")
 	}
 
-	// Validate Send object
-	if input.Send == nil {
-		return fmt.Errorf("send object is required")
-	}
-
 	// Validate asset code
-	if input.Send.Asset == "" {
+	asset := input.GetAsset()
+	if asset == "" {
 		return fmt.Errorf("asset code is required")
 	}
 
-	if !assetCodePattern.MatchString(input.Send.Asset) {
-		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", input.Send.Asset)
+	if !assetCodePattern.MatchString(asset) {
+		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", asset)
 	}
 
 	// Validate amount
-	if input.Send.Value <= 0 {
+	if input.GetValue() <= 0 {
 		return fmt.Errorf("transaction amount must be greater than zero")
 	}
 
 	// Validate source accounts
-	if input.Send.Source == nil || len(input.Send.Source.From) == 0 {
+	sourceAccounts := input.GetSourceAccounts()
+	if len(sourceAccounts) == 0 {
 		return fmt.Errorf("at least one source account is required")
 	}
 
-	for i, account := range input.Send.Source.From {
-		if err := validateAccountReference(account.Account, input.Send.Asset); err != nil {
+	for i, account := range sourceAccounts {
+		if err := validateAccountReference(account.GetAccount(), asset); err != nil {
 			return fmt.Errorf("invalid source account at index %d: %w", i, err)
 		}
 	}
 
 	// Validate destination accounts
-	if input.Send.Distribute == nil || len(input.Send.Distribute.To) == 0 {
+	destAccounts := input.GetDestinationAccounts()
+	if len(destAccounts) == 0 {
 		return fmt.Errorf("at least one destination account is required")
 	}
 
-	for i, account := range input.Send.Distribute.To {
-		if err := validateAccountReference(account.Account, input.Send.Asset); err != nil {
+	for i, account := range destAccounts {
+		if err := validateAccountReference(account.GetAccount(), asset); err != nil {
 			return fmt.Errorf("invalid destination account at index %d: %w", i, err)
 		}
 	}
 
-	// Validate asset consistency
+	// Validate asset consistency across external accounts
 	if err := validateAssetConsistency(input); err != nil {
 		return err
 	}
 
 	// Validate metadata if present
-	if input.Metadata != nil {
-		if err := ValidateMetadata(input.Metadata); err != nil {
+	metadata := input.GetMetadata()
+	if metadata != nil {
+		if err := ValidateMetadata(metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
@@ -95,26 +108,26 @@ func ValidateTransactionDSL(input *models.TransactionDSLInput) error {
 
 // validateAssetConsistency checks that all accounts in the transaction
 // are using the same asset code
-func validateAssetConsistency(input *models.TransactionDSLInput) error {
+func validateAssetConsistency(input TransactionDSLValidator) error {
 	// Extract asset code from external account references
-	for _, account := range input.Send.Source.From {
-		matches := externalAccountPattern.FindStringSubmatch(account.Account)
+	for _, account := range input.GetSourceAccounts() {
+		matches := externalAccountPattern.FindStringSubmatch(account.GetAccount())
 		if len(matches) > 1 {
 			externalAsset := matches[1]
-			if externalAsset != input.Send.Asset {
+			if externalAsset != input.GetAsset() {
 				return fmt.Errorf("asset code mismatch: transaction uses %s but external account uses %s",
-					input.Send.Asset, externalAsset)
+					input.GetAsset(), externalAsset)
 			}
 		}
 	}
 
-	for _, account := range input.Send.Distribute.To {
-		matches := externalAccountPattern.FindStringSubmatch(account.Account)
+	for _, account := range input.GetDestinationAccounts() {
+		matches := externalAccountPattern.FindStringSubmatch(account.GetAccount())
 		if len(matches) > 1 {
 			externalAsset := matches[1]
-			if externalAsset != input.Send.Asset {
+			if externalAsset != input.GetAsset() {
 				return fmt.Errorf("asset code mismatch: transaction uses %s but external account uses %s",
-					input.Send.Asset, externalAsset)
+					input.GetAsset(), externalAsset)
 			}
 		}
 	}
@@ -376,35 +389,44 @@ func (vs *ValidationSummary) GetErrorSummary() string {
 }
 
 // validateOperation validates a single operation in a transaction
-func validateOperation(op models.CreateOperationInput, index int, transactionAssetCode string) ([]error, bool) {
+func validateOperation(op map[string]any, index int, transactionAssetCode string) ([]error, bool) {
 	var errors []error
 	valid := true
 
 	// Validate operation type
-	if op.Type == "" {
+	if op["type"] == nil {
 		errors = append(errors, fmt.Errorf("operation %d: type is required", index))
 		valid = false
-	} else if op.Type != "DEBIT" && op.Type != "CREDIT" {
-		errors = append(errors, fmt.Errorf("operation %d: invalid type '%s' (must be DEBIT or CREDIT)", index, op.Type))
+	} else if op["type"].(string) != "DEBIT" && op["type"].(string) != "CREDIT" {
+		errors = append(errors, fmt.Errorf("operation %d: invalid type '%s' (must be DEBIT or CREDIT)", index, op["type"].(string)))
 		valid = false
 	}
 
 	// Validate account ID
-	if op.AccountID == "" {
+	if op["account_id"] == nil {
 		errors = append(errors, fmt.Errorf("operation %d: account ID is required", index))
 		valid = false
 	}
 
 	// Validate account alias if provided
-	if op.AccountAlias != nil && *op.AccountAlias != "" {
-		if err := ValidateAccountAlias(*op.AccountAlias); err != nil {
+	if op["account_alias"] != nil && op["account_alias"].(string) != "" {
+		if err := ValidateAccountAlias(op["account_alias"].(string)); err != nil {
 			errors = append(errors, fmt.Errorf("operation %d: %w", index, err))
 			valid = false
 		}
 	}
 
+	// Validate asset code if provided and ensure it matches transaction asset code
+	if op["asset_code"] != nil && op["asset_code"].(string) != "" {
+		if op["asset_code"].(string) != transactionAssetCode {
+			errors = append(errors, fmt.Errorf("operation %d: asset code '%s' must match transaction asset code '%s'",
+				index, op["asset_code"].(string), transactionAssetCode))
+			valid = false
+		}
+	}
+
 	// Validate amount
-	if op.Amount <= 0 {
+	if op["amount"].(float64) <= 0 {
 		errors = append(errors, fmt.Errorf("operation %d: amount must be greater than zero", index))
 		valid = false
 	}
@@ -437,25 +459,25 @@ func validateChartOfAccountsGroupName(name string) error {
 // Example:
 //
 //	// Create a transaction input
-//	input := &models.CreateTransactionInput{
-//		Amount:    10000,
-//		Scale:     2,
-//		AssetCode: "USD",
-//		Operations: []models.CreateOperationInput{
+//	input := map[string]any{
+//		"amount": 10000,
+//		"scale":  2,
+//		"asset_code": "USD",
+//		"operations": []map[string]any{
 //			{
-//				Type:         "DEBIT",
-//				AccountID:    "acc_123",
-//				AccountAlias: ptr.String("savings"),
-//				Amount:       10000,
+//				"type":         "DEBIT",
+//				"account_id":   "acc_123",
+//				"account_alias": "savings",
+//				"amount":       10000,
 //			},
 //			{
-//				Type:         "CREDIT",
-//				AccountID:    "acc_456",
-//				AccountAlias: ptr.String("checking"),
-//				Amount:       10000,
+//				"type":         "CREDIT",
+//				"account_id":   "acc_456",
+//				"account_alias": "checking",
+//				"amount":       10000,
 //			},
 //		},
-//		Metadata: map[string]any{
+//		"metadata": map[string]any{
 //			"reference": "TX-123456",
 //			"purpose": "Monthly transfer",
 //		},
@@ -470,7 +492,7 @@ func validateChartOfAccountsGroupName(name string) error {
 //	}
 //
 //	// Proceed with creating the transaction
-func ValidateCreateTransactionInput(input *models.CreateTransactionInput) ValidationSummary {
+func ValidateCreateTransactionInput(input map[string]any) ValidationSummary {
 	summary := ValidationSummary{
 		Valid:  true,
 		Errors: []error{},
@@ -482,24 +504,24 @@ func ValidateCreateTransactionInput(input *models.CreateTransactionInput) Valida
 	}
 
 	// Validate asset code
-	if input.AssetCode == "" {
+	if input["asset_code"] == nil {
 		summary.AddError(fmt.Errorf("asset code is required"))
-	} else if err := ValidateAssetCode(input.AssetCode); err != nil {
+	} else if err := ValidateAssetCode(input["asset_code"].(string)); err != nil {
 		summary.AddError(err)
 	}
 
 	// Validate amount
-	if input.Amount <= 0 {
-		summary.AddError(fmt.Errorf("amount must be greater than zero"))
+	if input["amount"].(float64) <= 0 {
+		summary.AddError(fmt.Errorf("amount must be greater than zero (got %.2f)", input["amount"].(float64)))
 	}
 
 	// Validate scale
-	if input.Scale < 0 || input.Scale > 18 {
+	if input["scale"].(int) < 0 || input["scale"].(int) > 18 {
 		summary.AddError(fmt.Errorf("scale must be between 0 and 18"))
 	}
 
 	// Validate operations
-	hasOperations := len(input.Operations) > 0
+	hasOperations := len(input["operations"].([]map[string]any)) > 0
 	if !hasOperations {
 		summary.AddError(fmt.Errorf("at least one operation is required"))
 	} else {
@@ -507,8 +529,8 @@ func ValidateCreateTransactionInput(input *models.CreateTransactionInput) Valida
 		var totalDebits, totalCredits int64
 
 		// Validate each operation
-		for i, op := range input.Operations {
-			errors, valid := validateOperation(op, i, input.AssetCode)
+		for i, op := range input["operations"].([]map[string]any) {
+			errors, valid := validateOperation(op, i, input["asset_code"].(string))
 			if !valid {
 				for _, err := range errors {
 					summary.AddError(err)
@@ -516,10 +538,10 @@ func ValidateCreateTransactionInput(input *models.CreateTransactionInput) Valida
 			}
 
 			// Track totals for balance check
-			if op.Type == "DEBIT" {
-				totalDebits += op.Amount
-			} else if op.Type == "CREDIT" {
-				totalCredits += op.Amount
+			if op["type"].(string) == "DEBIT" {
+				totalDebits += int64(op["amount"].(float64))
+			} else if op["type"].(string) == "CREDIT" {
+				totalCredits += int64(op["amount"].(float64))
 			}
 		}
 
@@ -530,58 +552,27 @@ func ValidateCreateTransactionInput(input *models.CreateTransactionInput) Valida
 		}
 
 		// Check if total matches transaction amount
-		if totalDebits != input.Amount {
-			summary.AddError(fmt.Errorf("operation amounts do not match transaction amount: operations total (%d) != transaction amount (%d)",
-				totalDebits, input.Amount))
+		if totalDebits != int64(input["amount"].(float64)) {
+			summary.AddError(fmt.Errorf("operation amounts do not match transaction amount: operations total (%d) != transaction amount (%.2f)",
+				totalDebits, input["amount"].(float64)))
 		}
 	}
 
 	// Validate chart of accounts group name if provided
-	if input.ChartOfAccountsGroupName != "" {
-		if err := validateChartOfAccountsGroupName(input.ChartOfAccountsGroupName); err != nil {
+	if input["chart_of_accounts_group_name"] != nil && input["chart_of_accounts_group_name"].(string) != "" {
+		if err := validateChartOfAccountsGroupName(input["chart_of_accounts_group_name"].(string)); err != nil {
 			summary.AddError(err)
 		}
 	}
 
 	// Validate metadata if present
-	if input.Metadata != nil {
-		if err := ValidateMetadata(input.Metadata); err != nil {
+	if input["metadata"] != nil {
+		if err := ValidateMetadata(input["metadata"].(map[string]any)); err != nil {
 			summary.AddError(fmt.Errorf("invalid metadata: %w", err))
 		}
 	}
 
 	return summary
-}
-
-// ValidateAccountType validates if the account type is one of the supported types
-// in the Midaz system.
-func ValidateAccountType(accountType string) error {
-	if accountType == "" {
-		return fmt.Errorf("account type is required")
-	}
-
-	// Convert to uppercase for case-insensitive comparison
-	accountTypeUpper := strings.ToUpper(accountType)
-
-	// List of valid account types
-	validTypes := map[string]bool{
-		"DEPOSIT":   true,
-		"EXTERNAL":  true,
-		"LIABILITY": true,
-	}
-
-	if !validTypes[accountTypeUpper] {
-		// Create a list of valid types for the error message
-		validTypesList := []string{}
-		for t := range validTypes {
-			validTypesList = append(validTypesList, strings.ToLower(t))
-		}
-
-		return fmt.Errorf("invalid account type: %s. Valid types are: %s",
-			accountType, strings.Join(validTypesList, ", "))
-	}
-
-	return nil
 }
 
 // ValidateAssetType validates if the asset type is one of the supported types
@@ -591,27 +582,34 @@ func ValidateAssetType(assetType string) error {
 		return fmt.Errorf("asset type is required")
 	}
 
-	// Convert to uppercase for case-insensitive comparison
-	assetTypeUpper := strings.ToUpper(assetType)
-
-	// List of valid asset types
-	validTypes := map[string]bool{
-		"FIAT":       true,
-		"CRYPTO":     true,
-		"COMMODITY":  true,
-		"SECURITY":   true,
-		"DERIVATIVE": true,
-	}
-
-	if !validTypes[assetTypeUpper] {
+	// Use commons.ValidateType to ensure consistency with backend APIs
+	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
+	if err := commons.ValidateType(strings.ToLower(assetType)); err != nil {
 		// Create a list of valid types for the error message
-		validTypesList := []string{}
-		for t := range validTypes {
-			validTypesList = append(validTypesList, strings.ToLower(t))
-		}
+		validTypes := []string{"crypto", "currency", "commodity", "others"}
 
 		return fmt.Errorf("invalid asset type: %s. Valid types are: %s",
-			assetType, strings.Join(validTypesList, ", "))
+			assetType, strings.Join(validTypes, ", "))
+	}
+
+	return nil
+}
+
+// ValidateAccountType validates if the account type is one of the supported types
+// in the Midaz system.
+func ValidateAccountType(accountType string) error {
+	if accountType == "" {
+		return fmt.Errorf("account type is required")
+	}
+
+	// Use commons.ValidateAccountType to ensure consistency with backend APIs
+	if err := commons.ValidateAccountType(accountType); err != nil {
+		// Convert the error to a more user-friendly message
+		// Create a list of valid types for the error message
+		validTypes := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
+
+		return fmt.Errorf("invalid account type: %s. Valid types are: %s",
+			accountType, strings.Join(validTypes, ", "))
 	}
 
 	return nil
@@ -623,10 +621,9 @@ func ValidateCurrencyCode(code string) error {
 		return fmt.Errorf("currency code cannot be empty")
 	}
 
-	// Simplified validation - in a real implementation, this would check against
-	// a comprehensive list of ISO 4217 currency codes
-	if !assetCodePattern.MatchString(code) {
-		return fmt.Errorf("invalid currency code format: %s (must be 3-4 uppercase letters)", code)
+	// Use commons.ValidateCurrency to ensure consistency with backend APIs
+	if err := commons.ValidateCurrency(code); err != nil {
+		return fmt.Errorf("invalid currency code: %s", code)
 	}
 
 	return nil
@@ -638,10 +635,9 @@ func ValidateCountryCode(code string) error {
 		return fmt.Errorf("country code cannot be empty")
 	}
 
-	// Simplified validation - in a real implementation, this would check against
-	// a comprehensive list of ISO 3166-1 alpha-2 country codes
-	if len(code) != 2 || !regexp.MustCompile(`^[A-Z]{2}$`).MatchString(code) {
-		return fmt.Errorf("invalid country code format: %s (must be 2 uppercase letters)", code)
+	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
+	if err := commons.ValidateCountryAddress(code); err != nil {
+		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
 	}
 
 	return nil

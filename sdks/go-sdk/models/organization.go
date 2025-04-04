@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/validation/core"
 )
 
 // Organization represents an organization in the Midaz Ledger.
@@ -359,15 +360,15 @@ func (input *CreateOrganizationInput) Validate() error {
 		return fmt.Errorf("address.country must be a 2-letter country code")
 	}
 
+	// Validate country code
+	if err := core.ValidateCountryCode(input.Address.Country); err != nil {
+		return fmt.Errorf("invalid address.country: %w", err)
+	}
+
 	// Validate metadata if provided
 	if input.Metadata != nil {
-		for key, value := range input.Metadata {
-			if len(key) > 64 {
-				return fmt.Errorf("metadata key '%s' exceeds 64 characters", key)
-			}
-			if len(fmt.Sprintf("%v", value)) > 256 {
-				return fmt.Errorf("metadata value for key '%s' exceeds 256 characters", key)
-			}
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 
@@ -526,19 +527,21 @@ func (input *UpdateOrganizationInput) Validate() error {
 		return fmt.Errorf("address.zipCode must not exceed 32 characters")
 	}
 
-	if input.Address.Country != "" && len(input.Address.Country) > 2 {
-		return fmt.Errorf("address.country must be a 2-letter country code")
+	if input.Address.Country != "" {
+		if len(input.Address.Country) > 2 {
+			return fmt.Errorf("address.country must be a 2-letter country code")
+		}
+
+		// Validate country code
+		if err := core.ValidateCountryCode(input.Address.Country); err != nil {
+			return fmt.Errorf("invalid address.country: %w", err)
+		}
 	}
 
 	// Validate metadata if provided
 	if input.Metadata != nil {
-		for key, value := range input.Metadata {
-			if len(key) > 64 {
-				return fmt.Errorf("metadata key '%s' exceeds 64 characters", key)
-			}
-			if len(fmt.Sprintf("%v", value)) > 256 {
-				return fmt.Errorf("metadata value for key '%s' exceeds 256 characters", key)
-			}
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 
@@ -625,17 +628,14 @@ type ListOrganizationInput struct {
 // Returns:
 //   - error: An error if the input is invalid, nil otherwise
 func (input *ListOrganizationInput) Validate() error {
-	// Validate page number if provided
-	if input.Page < 0 {
-		return fmt.Errorf("page number cannot be negative")
+	if input.Page < 1 {
+		return fmt.Errorf("page number must be at least 1")
 	}
 
-	// Validate per page count if provided
-	if input.PerPage < 0 {
-		return fmt.Errorf("perPage cannot be negative")
+	if input.PerPage < 1 {
+		return fmt.Errorf("perPage must be at least 1")
 	}
 
-	// Validate maximum per page to prevent excessive resource usage
 	if input.PerPage > 100 {
 		return fmt.Errorf("perPage cannot exceed 100")
 	}

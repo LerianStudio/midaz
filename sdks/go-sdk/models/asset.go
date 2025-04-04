@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/validation/core"
 )
 
 // Asset represents an asset in the Midaz Ledger.
@@ -304,36 +304,8 @@ func (c *CreateAssetInput) WithMetadata(metadata map[string]any) *CreateAssetInp
 	return c
 }
 
-// validateAssetType validates if the asset type is one of the supported types
-// in the Midaz system.
-func validateAssetType(assetType string) error {
-	// Convert to lowercase for consistency
-	assetType = strings.ToLower(assetType)
-
-	// List of valid asset types based on the Midaz system
-	validTypes := []string{
-		"currency",
-		"crypto",
-		"commodities",
-		"others",
-	}
-
-	for _, validType := range validTypes {
-		if assetType == validType {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid asset type: %s. Valid types are: %s",
-		assetType, strings.Join(validTypes, ", "))
-}
-
-// Validate validates the CreateAssetInput and returns an error if it's invalid.
-// This method checks that all required fields are present and meet the validation constraints
-// defined by the backend.
-//
-// Returns:
-//   - error: An error if the input is invalid, nil otherwise
+// Validate checks if the CreateAssetInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
 func (input *CreateAssetInput) Validate() error {
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
@@ -349,15 +321,22 @@ func (input *CreateAssetInput) Validate() error {
 
 	// Validate asset type if provided
 	if input.Type != "" {
-		if err := validateAssetType(input.Type); err != nil {
+		if err := core.ValidateAssetType(input.Type); err != nil {
 			return fmt.Errorf("invalid asset type: %w", err)
 		}
 	}
 
 	// Validate currency code if asset type is currency
 	if strings.ToLower(input.Type) == "currency" {
-		if err := commons.ValidateCurrency(input.Code); err != nil {
+		if err := core.ValidateCurrencyCode(input.Code); err != nil {
 			return fmt.Errorf("invalid currency code: %w", err)
+		}
+	}
+
+	// Validate metadata if provided
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 
@@ -460,7 +439,7 @@ func (input *UpdateAssetInput) Validate() error {
 
 	// Validate metadata keys and values if present
 	if input.Metadata != nil {
-		if err := validateMetadata(input.Metadata); err != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return err
 		}
 	}
@@ -543,9 +522,6 @@ type ListAssetInput struct {
 
 // Validate checks if the ListAssetInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
-//
-// Returns:
-//   - error: An error if the input is invalid, nil otherwise
 func (input *ListAssetInput) Validate() error {
 	// Validate page number if provided
 	if input.Page < 0 {

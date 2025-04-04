@@ -5,6 +5,8 @@ import (
 	"time"
 
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/validation"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/validation/core"
 )
 
 // Transaction represents a transaction in the Midaz Ledger.
@@ -209,6 +211,59 @@ type TransactionDSLInput struct {
 	Pending bool `json:"pending,omitempty"`
 }
 
+// DSLAccountRef is a helper struct to implement the AccountReference interface
+type DSLAccountRef struct {
+	Account string
+}
+
+// GetAccount returns the account identifier
+func (ref *DSLAccountRef) GetAccount() string {
+	return ref.Account
+}
+
+// GetAsset returns the asset code for the transaction
+func (input *TransactionDSLInput) GetAsset() string {
+	if input.Send == nil {
+		return ""
+	}
+	return input.Send.Asset
+}
+
+// GetValue returns the amount value for the transaction
+func (input *TransactionDSLInput) GetValue() float64 {
+	if input.Send == nil {
+		return 0
+	}
+	return float64(input.Send.Value)
+}
+
+// GetSourceAccounts returns the source accounts for the transaction
+func (input *TransactionDSLInput) GetSourceAccounts() []validation.AccountReference {
+	var accounts []validation.AccountReference
+	if input.Send != nil && input.Send.Source != nil {
+		for _, from := range input.Send.Source.From {
+			accounts = append(accounts, &DSLAccountRef{Account: from.Account})
+		}
+	}
+	return accounts
+}
+
+// GetDestinationAccounts returns the destination accounts for the transaction
+func (input *TransactionDSLInput) GetDestinationAccounts() []validation.AccountReference {
+	var accounts []validation.AccountReference
+	if input.Send != nil && input.Send.Distribute != nil {
+		for _, to := range input.Send.Distribute.To {
+			accounts = append(accounts, &DSLAccountRef{Account: to.Account})
+		}
+	}
+	return accounts
+}
+
+// GetMetadata returns the metadata for the transaction
+func (input *TransactionDSLInput) GetMetadata() map[string]any {
+	return input.Metadata
+}
+
 // Share represents the sharing configuration for a transaction.
 type Share struct {
 	Percentage             int64 `json:"percentage"`
@@ -231,12 +286,17 @@ func (send *DSLSend) Validate() error {
 		return fmt.Errorf("asset is required")
 	}
 
-	if send.Value <= 0 {
-		return fmt.Errorf("value must be greater than 0, got %d", send.Value)
+	// Validate asset code
+	if err := core.ValidateAssetCode(send.Asset); err != nil {
+		return err
 	}
 
-	if send.Scale <= 0 {
-		return fmt.Errorf("scale must be greater than 0, got %d", send.Scale)
+	if send.Value <= 0 {
+		return fmt.Errorf("value must be greater than 0")
+	}
+
+	if send.Scale < 0 || send.Scale > 18 {
+		return fmt.Errorf("scale must be between 0 and 18")
 	}
 
 	// Validate source
@@ -247,6 +307,21 @@ func (send *DSLSend) Validate() error {
 	for i, from := range send.Source.From {
 		if from.Account == "" {
 			return fmt.Errorf("source.from[%d].account is required", i)
+		}
+
+		// Validate external account references
+		if from.Account != "" && from.Account[0] == '@' {
+			// For external accounts, check if they match the expected format
+			if !core.ExternalAccountPattern.MatchString(from.Account) {
+				return fmt.Errorf("invalid external account format in source.from[%d]: %s", i, from.Account)
+			}
+
+			// Check if the asset code in the external account matches the transaction asset
+			matches := core.ExternalAccountPattern.FindStringSubmatch(from.Account)
+			if len(matches) > 1 && matches[1] != send.Asset {
+				return fmt.Errorf("asset code mismatch in source.from[%d]: transaction uses %s but external account uses %s",
+					i, send.Asset, matches[1])
+			}
 		}
 	}
 
@@ -259,12 +334,28 @@ func (send *DSLSend) Validate() error {
 		if to.Account == "" {
 			return fmt.Errorf("distribute.to[%d].account is required", i)
 		}
+
+		// Validate external account references
+		if to.Account != "" && to.Account[0] == '@' {
+			// For external accounts, check if they match the expected format
+			if !core.ExternalAccountPattern.MatchString(to.Account) {
+				return fmt.Errorf("invalid external account format in distribute.to[%d]: %s", i, to.Account)
+			}
+
+			// Check if the asset code in the external account matches the transaction asset
+			matches := core.ExternalAccountPattern.FindStringSubmatch(to.Account)
+			if len(matches) > 1 && matches[1] != send.Asset {
+				return fmt.Errorf("asset code mismatch in distribute.to[%d]: transaction uses %s but external account uses %s",
+					i, send.Asset, matches[1])
+			}
+		}
 	}
 
 	return nil
 }
 
-// Validate checks that the TransactionDSLInput meets all validation requirements.
+// Validate checks if the TransactionDSLInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
 func (input *TransactionDSLInput) Validate() error {
 	// Validate send
 	if input.Send == nil {
@@ -278,15 +369,25 @@ func (input *TransactionDSLInput) Validate() error {
 
 	// Validate string length constraints
 	if len(input.ChartOfAccountsGroupName) > 256 {
-		return fmt.Errorf("chartOfAccountsGroupName must be at most 256 characters, got %d", len(input.ChartOfAccountsGroupName))
+		return fmt.Errorf("chartOfAccountsGroupName must be at most 256 characters")
 	}
 
 	if len(input.Description) > 256 {
-		return fmt.Errorf("description must be at most 256 characters, got %d", len(input.Description))
+		return fmt.Errorf("description must be at most 256 characters")
 	}
 
-	if len(input.Code) > 100 {
-		return fmt.Errorf("code must be at most 100 characters, got %d", len(input.Code))
+	// Validate transaction code
+	if input.Code != "" {
+		if err := core.ValidateTransactionCode(input.Code); err != nil {
+			return err
+		}
+	}
+
+	// Validate metadata if present
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
 	}
 
 	return nil
@@ -675,23 +776,30 @@ type CreateTransactionInput struct {
 }
 
 // Validate checks that the CreateTransactionInput meets all validation requirements.
+// It returns an error if any of the validation checks fail.
 func (input *CreateTransactionInput) Validate() error {
 	if input.Amount <= 0 {
-		return fmt.Errorf("amount must be greater than 0, got %d", input.Amount)
+		return fmt.Errorf("amount must be greater than zero")
 	}
 
-	if input.Scale <= 0 {
-		return fmt.Errorf("scale must be greater than 0, got %d", input.Scale)
+	if input.Scale < 0 || input.Scale > 18 {
+		return fmt.Errorf("scale must be between 0 and 18")
 	}
 
 	if input.AssetCode == "" {
 		return fmt.Errorf("assetCode is required")
 	}
 
+	// Validate asset code
+	if err := core.ValidateAssetCode(input.AssetCode); err != nil {
+		return err
+	}
+
 	if len(input.Operations) == 0 {
 		return fmt.Errorf("at least one operation is required")
 	}
 
+	// Validate operations
 	for i, op := range input.Operations {
 		if err := op.Validate(); err != nil {
 			return fmt.Errorf("invalid operation at index %d: %w", i, err)
@@ -700,11 +808,28 @@ func (input *CreateTransactionInput) Validate() error {
 
 	// Validate string length constraints
 	if len(input.ChartOfAccountsGroupName) > 256 {
-		return fmt.Errorf("chartOfAccountsGroupName must be at most 256 characters, got %d", len(input.ChartOfAccountsGroupName))
+		return fmt.Errorf("chartOfAccountsGroupName must be at most 256 characters")
 	}
 
 	if len(input.Description) > 256 {
-		return fmt.Errorf("description must be at most 256 characters, got %d", len(input.Description))
+		return fmt.Errorf("description must be at most 256 characters")
+	}
+
+	// Validate external ID if provided
+	if len(input.ExternalID) > 100 {
+		return fmt.Errorf("externalId must be at most 100 characters")
+	}
+
+	// Validate idempotency key if provided
+	if len(input.IdempotencyKey) > 100 {
+		return fmt.Errorf("idempotencyKey must be at most 100 characters")
+	}
+
+	// Validate metadata if present
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
 	}
 
 	return nil
@@ -928,13 +1053,8 @@ func (input *UpdateTransactionInput) Validate() error {
 
 	// Validate metadata if provided
 	if input.Metadata != nil {
-		for key, value := range input.Metadata {
-			if len(key) > 64 {
-				return fmt.Errorf("metadata key '%s' exceeds 64 characters", key)
-			}
-			if len(fmt.Sprintf("%v", value)) > 256 {
-				return fmt.Errorf("metadata value for key '%s' exceeds 256 characters", key)
-			}
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/validation/core"
 )
 
 // Ledger represents a ledger in the Midaz system.
@@ -195,24 +196,20 @@ func (input *CreateLedgerInput) WithMetadata(metadata map[string]any) *CreateLed
 	return input
 }
 
-// Validate validates the CreateLedgerInput and returns an error if it's invalid.
-// This method checks that all required fields are present and that all fields
-// meet the validation constraints defined by the backend.
-//
-// Returns:
-//   - error: An error if the input is invalid, nil otherwise
+// Validate checks if the CreateLedgerInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
 func (input *CreateLedgerInput) Validate() error {
 	if input.Name == "" {
 		return errors.New("name is required")
 	}
 	if len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters, got %d", len(input.Name))
+		return fmt.Errorf("name must be at most 256 characters")
 	}
 
-	// Validate metadata keys and values if present
+	// Validate metadata if present
 	if input.Metadata != nil {
-		if err := validateMetadata(input.Metadata); err != nil {
-			return err
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 
@@ -326,22 +323,18 @@ func (input *UpdateLedgerInput) WithMetadata(metadata map[string]any) *UpdateLed
 	return input
 }
 
-// Validate validates the UpdateLedgerInput and returns an error if it's invalid.
-// This method checks that all fields meet the validation constraints defined by the backend.
-// For update operations, fields are optional but must be valid if provided.
-//
-// Returns:
-//   - error: An error if the input is invalid, nil otherwise
+// Validate checks if the UpdateLedgerInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
 func (input *UpdateLedgerInput) Validate() error {
 	// Name is optional for updates, but if provided must be valid
 	if input.Name != "" && len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters, got %d", len(input.Name))
+		return fmt.Errorf("name must be at most 256 characters")
 	}
 
-	// Validate metadata keys and values if present
+	// Validate metadata if present
 	if input.Metadata != nil {
-		if err := validateMetadata(input.Metadata); err != nil {
-			return err
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 
@@ -359,37 +352,6 @@ func (input UpdateLedgerInput) ToMmodelUpdateLedgerInput() mmodel.UpdateLedgerIn
 		Status:   input.Status.ToMmodelStatus(),
 		Metadata: input.Metadata,
 	}
-}
-
-// validateMetadata validates the metadata map against the backend constraints.
-// This is a helper function used by both CreateLedgerInput and UpdateLedgerInput.
-//
-// Parameters:
-//   - metadata: The metadata map to validate
-//
-// Returns:
-//   - error: An error if the metadata is invalid, nil otherwise
-func validateMetadata(metadata map[string]any) error {
-	for key, value := range metadata {
-		// Validate key length
-		if len(key) > 100 {
-			return fmt.Errorf("metadata key '%s' exceeds maximum length of 100 characters", key)
-		}
-
-		// Validate value
-		if strValue, ok := value.(string); ok {
-			if len(strValue) > 2000 {
-				return fmt.Errorf("metadata value for key '%s' exceeds maximum length of 2000 characters", key)
-			}
-		}
-
-		// Check for nested objects (not allowed)
-		if _, ok := value.(map[string]any); ok {
-			return fmt.Errorf("nested objects are not allowed in metadata (key: '%s')", key)
-		}
-	}
-
-	return nil
 }
 
 // Ledgers represents a list of ledgers with pagination information.
@@ -449,21 +411,15 @@ type ListLedgerInput struct {
 
 // Validate checks if the ListLedgerInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
-//
-// Returns:
-//   - error: An error if the input is invalid, nil otherwise
 func (input *ListLedgerInput) Validate() error {
-	// Validate page number if provided
-	if input.Page < 0 {
-		return fmt.Errorf("page number cannot be negative")
+	if input.Page < 1 {
+		return fmt.Errorf("page number must be at least 1")
 	}
 
-	// Validate per page count if provided
-	if input.PerPage < 0 {
-		return fmt.Errorf("perPage cannot be negative")
+	if input.PerPage < 1 {
+		return fmt.Errorf("perPage must be at least 1")
 	}
 
-	// Validate maximum per page to prevent excessive resource usage
 	if input.PerPage > 100 {
 		return fmt.Errorf("perPage cannot exceed 100")
 	}
