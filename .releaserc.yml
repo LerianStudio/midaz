@@ -18,7 +18,6 @@ plugins:
             { "type": "refactor", "release": "minor" },
             { "type": "docs", "release": "patch" },
             { "type": "breaking", "release": "major" },
-            { "breaking": true, "release": "major" },
           ],
       },
     ],
