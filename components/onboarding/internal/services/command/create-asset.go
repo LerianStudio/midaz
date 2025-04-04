@@ -53,7 +53,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		if err := libCommons.ValidateCurrency(cii.Code); err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to validate asset currency", err)
 
-			return nil, pkg.ValidateBusinessError(constant.ErrInvalidType, reflect.TypeOf(mmodel.Asset{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrCurrencyCodeStandardCompliance, reflect.TypeOf(mmodel.Asset{}).Name())
 		}
 	}
 
