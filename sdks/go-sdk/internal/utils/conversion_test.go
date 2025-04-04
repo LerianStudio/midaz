@@ -6,8 +6,14 @@ import (
 
 	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/conversion"
 	"github.com/stretchr/testify/assert"
 )
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
+}
 
 func TestParseAmount(t *testing.T) {
 	testCases := []struct {
@@ -177,18 +183,18 @@ func TestConvertTransactionToSummary(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name           string
-		transaction    *models.Transaction
-		expectedResult string
+		name     string
+		tx       *models.Transaction
+		expected string
 	}{
 		{
-			name:           "Nil transaction",
-			transaction:    nil,
-			expectedResult: "Invalid transaction: nil",
+			name:     "Nil transaction",
+			tx:       nil,
+			expected: "Invalid transaction: nil",
 		},
 		{
 			name: "Simple transfer between internal accounts",
-			transaction: &models.Transaction{
+			tx: &models.Transaction{
 				ID:        "tx_123",
 				Amount:    10000,
 				Scale:     2,
@@ -207,11 +213,11 @@ func TestConvertTransactionToSummary(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: "Transfer: 100.00 USD from savings to checking (Completed)",
+			expected: "Transfer: 100.00 USD from savings to checking (Completed)",
 		},
 		{
 			name: "Deposit from external account",
-			transaction: &models.Transaction{
+			tx: &models.Transaction{
 				ID:        "tx_456",
 				Amount:    5000,
 				Scale:     2,
@@ -230,11 +236,11 @@ func TestConvertTransactionToSummary(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: "Deposit: 50.00 USD to checking (Pending)",
+			expected: "Deposit: 50.00 USD to checking (Pending)",
 		},
 		{
 			name: "Withdrawal to external account",
-			transaction: &models.Transaction{
+			tx: &models.Transaction{
 				ID:        "tx_789",
 				Amount:    7500,
 				Scale:     2,
@@ -253,11 +259,11 @@ func TestConvertTransactionToSummary(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: "Withdrawal: 75.00 USD from savings (Failed)",
+			expected: "Withdrawal: 75.00 USD from savings (Failed)",
 		},
 		{
 			name: "Transaction with account IDs only",
-			transaction: &models.Transaction{
+			tx: &models.Transaction{
 				ID:        "tx_101",
 				Amount:    2000,
 				Scale:     2,
@@ -274,11 +280,11 @@ func TestConvertTransactionToSummary(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: "Transfer: 20.00 EUR from acc_source to acc_dest (Completed)",
+			expected: "Transfer: 20.00 EUR from acc_source to acc_dest (Completed)",
 		},
 		{
 			name: "Transaction with multiple source accounts",
-			transaction: &models.Transaction{
+			tx: &models.Transaction{
 				ID:        "tx_102",
 				Amount:    3000,
 				Scale:     2,
@@ -302,33 +308,33 @@ func TestConvertTransactionToSummary(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: "Transfer: 30.00 USD from multiple accounts (2) to investment (Completed)",
+			expected: "Transfer: 30.00 USD from multiple accounts (2) to investment (Completed)",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.ConvertTransactionToSummary(tc.transaction)
-			assert.Equal(t, tc.expectedResult, result)
+			result := conversion.ConvertTransactionToSummary(tc.tx)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
 func TestConvertMetadataToTags(t *testing.T) {
 	testCases := []struct {
-		name           string
-		metadata       map[string]any
-		expectedResult []string
+		name     string
+		metadata map[string]any
+		expected []string
 	}{
 		{
-			name:           "Nil metadata",
-			metadata:       nil,
-			expectedResult: nil,
+			name:     "Nil metadata",
+			metadata: nil,
+			expected: nil,
 		},
 		{
-			name:           "Empty metadata",
-			metadata:       map[string]any{},
-			expectedResult: nil,
+			name:     "Empty metadata",
+			metadata: map[string]any{},
+			expected: nil,
 		},
 		{
 			name: "Metadata without tags",
@@ -336,28 +342,28 @@ func TestConvertMetadataToTags(t *testing.T) {
 				"reference":  "INV-123",
 				"customerId": "CUST-456",
 			},
-			expectedResult: nil,
+			expected: nil,
 		},
 		{
 			name: "Metadata with empty tags",
 			metadata: map[string]any{
 				"tags": "",
 			},
-			expectedResult: []string{},
+			expected: []string{},
 		},
 		{
 			name: "Metadata with single tag",
 			metadata: map[string]any{
 				"tags": "payment",
 			},
-			expectedResult: []string{"payment"},
+			expected: []string{"payment"},
 		},
 		{
 			name: "Metadata with multiple tags",
 			metadata: map[string]any{
 				"tags": "payment,recurring,subscription",
 			},
-			expectedResult: []string{"payment", "recurring", "subscription"},
+			expected: []string{"payment", "recurring", "subscription"},
 		},
 		{
 			name: "Metadata with tags and other fields",
@@ -366,51 +372,51 @@ func TestConvertMetadataToTags(t *testing.T) {
 				"tags":      "payment,recurring",
 				"amount":    100.50,
 			},
-			expectedResult: []string{"payment", "recurring"},
+			expected: []string{"payment", "recurring"},
 		},
 		{
 			name: "Metadata with tags containing whitespace",
 			metadata: map[string]any{
 				"tags": " payment , recurring , subscription ",
 			},
-			expectedResult: []string{"payment", "recurring", "subscription"},
+			expected: []string{"payment", "recurring", "subscription"},
 		},
 		{
 			name: "Metadata with tags containing empty elements",
 			metadata: map[string]any{
 				"tags": "payment,,subscription",
 			},
-			expectedResult: []string{"payment", "subscription"},
+			expected: []string{"payment", "subscription"},
 		},
 		{
 			name: "Metadata with non-string tags field",
 			metadata: map[string]any{
 				"tags": 123,
 			},
-			expectedResult: nil,
+			expected: nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.ConvertMetadataToTags(tc.metadata)
-			assert.Equal(t, tc.expectedResult, result)
+			result := conversion.ConvertMetadataToTags(tc.metadata)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
 
 func TestConvertTagsToMetadata(t *testing.T) {
 	testCases := []struct {
-		name           string
-		metadata       map[string]any
-		tags           []string
-		expectedResult map[string]any
+		name     string
+		metadata map[string]any
+		tags     []string
+		expected map[string]any
 	}{
 		{
-			name:           "Empty tags with nil metadata",
-			metadata:       nil,
-			tags:           []string{},
-			expectedResult: nil,
+			name:     "Empty tags with nil metadata",
+			metadata: nil,
+			tags:     []string{},
+			expected: nil,
 		},
 		{
 			name: "Empty tags with existing metadata",
@@ -418,15 +424,15 @@ func TestConvertTagsToMetadata(t *testing.T) {
 				"reference": "INV-123",
 			},
 			tags: []string{},
-			expectedResult: map[string]any{
+			expected: map[string]any{
 				"reference": "INV-123",
 			},
 		},
 		{
-			name:           "Single tag with nil metadata",
-			metadata:       nil,
-			tags:           []string{"payment"},
-			expectedResult: map[string]any{"tags": "payment"},
+			name:     "Single tag with nil metadata",
+			metadata: nil,
+			tags:     []string{"payment"},
+			expected: map[string]any{"tags": "payment"},
 		},
 		{
 			name: "Single tag with existing metadata",
@@ -434,16 +440,16 @@ func TestConvertTagsToMetadata(t *testing.T) {
 				"reference": "INV-123",
 			},
 			tags: []string{"payment"},
-			expectedResult: map[string]any{
+			expected: map[string]any{
 				"reference": "INV-123",
 				"tags":      "payment",
 			},
 		},
 		{
-			name:           "Multiple tags with nil metadata",
-			metadata:       nil,
-			tags:           []string{"payment", "recurring", "subscription"},
-			expectedResult: map[string]any{"tags": "payment,recurring,subscription"},
+			name:     "Multiple tags with nil metadata",
+			metadata: nil,
+			tags:     []string{"payment", "recurring", "subscription"},
+			expected: map[string]any{"tags": "payment,recurring,subscription"},
 		},
 		{
 			name: "Multiple tags with existing metadata",
@@ -452,7 +458,7 @@ func TestConvertTagsToMetadata(t *testing.T) {
 				"amount":    100.50,
 			},
 			tags: []string{"payment", "recurring", "subscription"},
-			expectedResult: map[string]any{
+			expected: map[string]any{
 				"reference": "INV-123",
 				"amount":    100.50,
 				"tags":      "payment,recurring,subscription",
@@ -465,7 +471,7 @@ func TestConvertTagsToMetadata(t *testing.T) {
 				"tags":      "old-tag",
 			},
 			tags: []string{"payment", "recurring"},
-			expectedResult: map[string]any{
+			expected: map[string]any{
 				"reference": "INV-123",
 				"tags":      "payment,recurring",
 			},
@@ -474,8 +480,8 @@ func TestConvertTagsToMetadata(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.ConvertTagsToMetadata(tc.metadata, tc.tags)
-			assert.Equal(t, tc.expectedResult, result)
+			result := conversion.ConvertTagsToMetadata(tc.metadata, tc.tags)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
