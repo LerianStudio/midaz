@@ -1,5 +1,6 @@
-# Midaz Project Root Makefile - Project Management
+# Midaz Project Root Makefile -----------------------------------------
 # Coordinates all component Makefiles and provides centralized commands
+#-------------------------------------------------------
 
 # Define the root directory of the project
 MIDAZ_ROOT := $(shell pwd)
