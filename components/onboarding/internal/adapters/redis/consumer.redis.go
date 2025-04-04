@@ -9,8 +9,7 @@ import (
 )
 
 // RedisRepository provides an interface for redis.
-//
-//go:generate mockgen --destination=redis.mock.go --package=redis . RedisRepository
+// It is used to set, get and delete keys in redis.
 type RedisRepository interface {
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
 	Get(ctx context.Context, key string) error

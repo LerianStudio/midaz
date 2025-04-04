@@ -10,8 +10,7 @@ import (
 )
 
 // ConsumerRepository provides an interface for Consumer related to rabbitmq.
-//
-//go:generate mockgen --destination=consumer.mock.go --package=rabbitmq . ConsumerRepository
+// It defines methods for registering queues and running consumers.
 type ConsumerRepository interface {
 	Register(queueName string, handler QueueHandlerFunc)
 	RunConsumers() error
@@ -22,25 +21,31 @@ type QueueHandlerFunc func(ctx context.Context, body []byte) error
 
 // ConsumerRoutes struct
 type ConsumerRoutes struct {
-	conn       *libRabbitmq.RabbitMQConnection
-	routes     map[string]QueueHandlerFunc
-	numWorkers int
+	conn              *libRabbitmq.RabbitMQConnection
+	routes            map[string]QueueHandlerFunc
+	NumbersOfWorkers  int
+	NumbersOfPrefetch int
 	libLog.Logger
 	libOpentelemetry.Telemetry
 }
 
 // NewConsumerRoutes creates a new instance of ConsumerRoutes.
-func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numWorkers int, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *ConsumerRoutes {
-	if numWorkers == 0 {
-		numWorkers = 5
+func NewConsumerRoutes(conn *libRabbitmq.RabbitMQConnection, numbersOfWorkers int, numbersOfPrefetch int, logger libLog.Logger, telemetry *libOpentelemetry.Telemetry) *ConsumerRoutes {
+	if numbersOfWorkers == 0 {
+		numbersOfWorkers = 5
+	}
+
+	if numbersOfPrefetch == 0 {
+		numbersOfPrefetch = 10
 	}
 
 	cr := &ConsumerRoutes{
-		conn:       conn,
-		routes:     make(map[string]QueueHandlerFunc),
-		numWorkers: numWorkers,
-		Logger:     logger,
-		Telemetry:  *telemetry,
+		conn:              conn,
+		routes:            make(map[string]QueueHandlerFunc),
+		NumbersOfWorkers:  numbersOfWorkers,
+		NumbersOfPrefetch: numbersOfWorkers * numbersOfPrefetch,
+		Logger:            logger,
+		Telemetry:         *telemetry,
 	}
 
 	_, err := conn.GetNewConnect()
@@ -59,10 +64,10 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 // RunConsumers  init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
-		cr.Logger.Infof("Initializing consumer for queue: %s", queueName)
+		cr.Infof("Initializing consumer for queue: %s", queueName)
 
 		err := cr.conn.Channel.Qos(
-			10,
+			cr.NumbersOfPrefetch,
 			0,
 			false,
 		)
@@ -83,7 +88,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 			return err
 		}
 
-		for i := 0; i < cr.numWorkers; i++ {
+		for i := 0; i < cr.NumbersOfWorkers; i++ {
 			go func(workerID int, queue string, handlerFunc QueueHandlerFunc) {
 				for msg := range messages {
 					midazID, found := msg.Headers[libConstants.HeaderID]

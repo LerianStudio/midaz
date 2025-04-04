@@ -24,8 +24,9 @@ func (uc *UseCase) UpdatePortfolioByID(ctx context.Context, organizationID, ledg
 	logger.Infof("Trying to update portfolio: %v", upi)
 
 	portfolio := &mmodel.Portfolio{
-		Name:   upi.Name,
-		Status: upi.Status,
+		EntityID: upi.EntityID,
+		Name:     upi.Name,
+		Status:   upi.Status,
 	}
 
 	portfolioUpdated, err := uc.PortfolioRepo.Update(ctx, organizationID, ledgerID, id, portfolio)

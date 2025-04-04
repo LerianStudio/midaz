@@ -1,3 +1,127 @@
+## [1.51.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.16...v1.51.0-beta.17) (2025-04-04)
+
+
+### Bug Fixes
+
+* add right return erros and status codes; :bug: ([02791d5](https://github.com/LerianStudio/midaz/commit/02791d5cb29649c6f7b6a7714cad58383bc63e69))
+* rabbitmq mispelling name; :bug: ([55e2525](https://github.com/LerianStudio/midaz/commit/55e252565db2675c79a43f9b30f359d3a2d99d7b))
+
+## [1.51.0-beta.16](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.15...v1.51.0-beta.16) (2025-04-03)
+
+
+### Bug Fixes
+
+* improve json unmarshal error handling with detailed field feedback :bug: ([549d5e0](https://github.com/LerianStudio/midaz/commit/549d5e06be8c819815fea8f5b736fdd965aa6297))
+
+## [1.51.0-beta.15](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.14...v1.51.0-beta.15) (2025-04-03)
+
+
+### Bug Fixes
+
+* adjust to return right error code and status; :bug: ([a887f4f](https://github.com/LerianStudio/midaz/commit/a887f4f6fb876dcf0f7e5bfeec968e0fc9ac3b3d))
+* update go mod and go sum; :bug: ([0dcd926](https://github.com/LerianStudio/midaz/commit/0dcd92605116ea4c8df9e094a83cff57b8f43136))
+* update go mod and sum; :bug: ([0648e2d](https://github.com/LerianStudio/midaz/commit/0648e2d52208205ea978045431ad3750eb9c536d))
+
+## [1.51.0-beta.14](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.13...v1.51.0-beta.14) (2025-04-03)
+
+
+### Bug Fixes
+
+* change return error 400 to 404 when find account by alias; :bug: ([7a4bb31](https://github.com/LerianStudio/midaz/commit/7a4bb31aa84b4c0da73f90462d41d9dce1d3c895))
+* update postman add api find by alias; :bug: ([46fcc3c](https://github.com/LerianStudio/midaz/commit/46fcc3c34c76901df34b9ac8ef76822184ccfbf3))
+
+## [1.51.0-beta.13](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.12...v1.51.0-beta.13) (2025-04-03)
+
+
+### Bug Fixes
+
+* adjust to return right error and status code; :bug: ([7aaca78](https://github.com/LerianStudio/midaz/commit/7aaca782afb65de385f22b0eadb1dbc6c373efcd))
+
+## [1.51.0-beta.12](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.11...v1.51.0-beta.12) (2025-04-02)
+
+
+### Features
+
+* add entity_id optional on post and add on patch to update; :sparkles: ([405cab3](https://github.com/LerianStudio/midaz/commit/405cab3cfa3733c6658208e65b5e2c88ef7021ad))
+* migrate golangci-lint to v2 on pipeline validations ([6fa1dc5](https://github.com/LerianStudio/midaz/commit/6fa1dc57498f081c8d4c32d5352b130627774ee3))
+
+## [1.51.0-beta.11](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.10...v1.51.0-beta.11) (2025-04-02)
+
+
+### Bug Fixes
+
+* http error code data range and sort fields; :bug: ([b267c47](https://github.com/LerianStudio/midaz/commit/b267c47d5b1a2e4b35870ed4602d9704f8ee110c))
+
+## [1.51.0-beta.10](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.9...v1.51.0-beta.10) (2025-04-01)
+
+
+### Features
+
+* adding plugin auth network into midaz ([3ad0a6f](https://github.com/LerianStudio/midaz/commit/3ad0a6f62236dab02b1a99648de2e12c68147152))
+
+## [1.51.0-beta.9](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.8...v1.51.0-beta.9) (2025-04-01)
+
+
+### Features
+
+* update libs on go.mod and go.sum; :sparkles: ([1b04822](https://github.com/LerianStudio/midaz/commit/1b04822c3309fda6c3094988fff3f616bd23d46a))
+
+## [1.51.0-beta.8](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.7...v1.51.0-beta.8) (2025-04-01)
+
+## [1.51.0-beta.7](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.6...v1.51.0-beta.7) (2025-03-31)
+
+
+### Bug Fixes
+
+* **metadata:** add support for updating or removing metadata using JSON Merge Patch; :bug: ([18d2315](https://github.com/LerianStudio/midaz/commit/18d2315a267727066d0500ad5a56e3ca0a784f0b))
+
+## [1.51.0-beta.6](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.5...v1.51.0-beta.6) (2025-03-31)
+
+
+### Bug Fixes
+
+* add omitempty to avoid nested erro when metadata receives null; :bug: ([4dbaa6f](https://github.com/LerianStudio/midaz/commit/4dbaa6f4db2419caa35f26d66726823831feb54b))
+
+## [1.51.0-beta.5](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.4...v1.51.0-beta.5) (2025-03-31)
+
+
+### Bug Fixes
+
+* update Swagger documentation generation process ([#606](https://github.com/LerianStudio/midaz/issues/606)) ([2cca7a2](https://github.com/LerianStudio/midaz/commit/2cca7a2c3124a3e7c46bf7f642506051e94ba112))
+
+## [1.51.0-beta.4](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.3...v1.51.0-beta.4) (2025-03-27)
+
+
+### Features
+
+* adjust mongo.sh to init configs; :sparkles: ([8104d3d](https://github.com/LerianStudio/midaz/commit/8104d3debce27b4a6cd675113da0dac134b333ef))
+* enable logical replication in Postgres and configure MongoDB replica set; :sparkles: ([93e14e9](https://github.com/LerianStudio/midaz/commit/93e14e9af47c4d44ba158336084c9ed5dfc10758))
+
+## [1.51.0-beta.3](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.2...v1.51.0-beta.3) (2025-03-27)
+
+
+### Features
+
+* increase checkout for v4 ([ee9d982](https://github.com/LerianStudio/midaz/commit/ee9d982059222a8373883e0aac1f91df6d5d9660))
+* mantain the name of jobs on Midaz ([67c34b3](https://github.com/LerianStudio/midaz/commit/67c34b3d543f0dc54aef1d5249c0072db1edc029))
+* organize golangci-lint on module ([d9735f8](https://github.com/LerianStudio/midaz/commit/d9735f8eaf2022188a9d0b63dd182afc8e0cce60))
+
+## [1.51.0-beta.2](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.1...v1.51.0-beta.2) (2025-03-26)
+
+
+### Bug Fixes
+
+* add error response from lib-commons to return right business error; :bug: ([27af975](https://github.com/LerianStudio/midaz/commit/27af97542a36d619dca0e04bd6039c195701650e))
+* adjust other places that we change pkg error for lib-commons error; :bug: ([5b07da5](https://github.com/LerianStudio/midaz/commit/5b07da53c91cc006a152211e360bd1d18b11464c))
+
+## [1.51.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.50.0...v1.51.0-beta.1) (2025-03-24)
+
+
+### Bug Fixes
+
+* remove old description about midaz on readme; :bug: ([160fb34](https://github.com/LerianStudio/midaz/commit/160fb348abbea1a5969f50c12723a1675eb10772))
+* use default variable in channel qos; set golangci lint version; :bug: ([a15a80f](https://github.com/LerianStudio/midaz/commit/a15a80fdf2d26cba1eef603d6a74de19de9aeb94))
+
 ## [1.50.0](https://github.com/LerianStudio/midaz/compare/v1.49.0...v1.50.0) (2025-03-21)
 
 

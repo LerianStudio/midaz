@@ -58,22 +58,22 @@ func (d *decoderHandler) FiberHandlerFunc(c *fiber.Ctx) error {
 	bodyBytes := c.Body() // Get the body bytes
 
 	if err := json.Unmarshal(bodyBytes, s); err != nil {
-		return err
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	marshaled, err := json.Marshal(s)
 	if err != nil {
-		return err
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	var originalMap, marshaledMap map[string]any
 
 	if err := json.Unmarshal(bodyBytes, &originalMap); err != nil {
-		return err
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	if err := json.Unmarshal(marshaled, &marshaledMap); err != nil {
-		return err
+		return BadRequest(c, pkg.ValidateUnmarshallingError(err))
 	}
 
 	diffFields := findUnknownFields(originalMap, marshaledMap)

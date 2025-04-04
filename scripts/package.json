@@ -1,0 +1,17 @@
+{
+  "name": "midaz-scripts",
+  "version": "1.0.0",
+  "description": "Midaz API documentation validation scripts",
+  "scripts": {
+    "verify-api": "bash ./verify-api-docs.sh",
+    "validate-onboarding": "cd ../components/onboarding && make validate-api-docs",
+    "validate-transaction": "cd ../components/transaction && make validate-api-docs",
+    "validate-all": "npm run validate-onboarding && npm run validate-transaction"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "commander": "^9.4.1",
+    "glob": "^8.0.3",
+    "js-yaml": "^4.1.0"
+  }
+}

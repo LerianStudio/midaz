@@ -19,57 +19,60 @@
     "paths": {
         "/v1/organizations": {
             "get": {
-                "description": "Get all Organizations with the input metadata or without metadata",
+                "description": "Returns a paginated list of organizations, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Get all Organizations",
+                "summary": "List all organizations",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Metadata",
+                        "description": "JSON string to filter organizations by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter organizations created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter organizations created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -79,14 +82,14 @@
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved organizations list",
                         "schema": {
                             "allOf": [
                                 {
@@ -111,11 +114,35 @@
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "post": {
-                "description": "Create an Organization with the input payload",
+                "description": "Creates a new organization with the provided details including legal name, legal document, and optional address information",
                 "consumes": [
                     "application/json"
                 ],
@@ -125,23 +152,23 @@
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Create an Organization",
+                "summary": "Create a new organization",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
-                        "description": "Organization Input",
+                        "description": "Organization details including legal name, legal document, and optional address information",
                         "name": "organization",
                         "in": "body",
                         "required": true,
@@ -151,10 +178,34 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created organization",
                         "schema": {
                             "$ref": "#/definitions/Organization"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -162,31 +213,31 @@
         },
         "/v1/organizations/{id}": {
             "get": {
-                "description": "Get an Organization with the input ID",
+                "description": "Returns detailed information about an organization identified by its UUID",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Get an Organization by ID",
+                "summary": "Retrieve a specific organization",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -194,36 +245,60 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved organization",
                         "schema": {
                             "$ref": "#/definitions/Organization"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete an Organization with the input ID",
+                "description": "Permanently removes an organization identified by its UUID. Note: This operation is not available in production environments.",
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Delete an Organization by ID",
+                "summary": "Delete an organization",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -231,12 +306,45 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Organization successfully deleted",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden action or not permitted in production environment",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Cannot delete organization with dependent resources",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "patch": {
-                "description": "Update an Organization with the input payload",
+                "description": "Updates an organization's information such as legal name, address, or status. Only supplied fields will be updated.",
                 "consumes": [
                     "application/json"
                 ],
@@ -246,30 +354,30 @@
                 "tags": [
                     "Organizations"
                 ],
-                "summary": "Update an Organization",
+                "summary": "Update an existing organization",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Organization Input",
+                        "description": "Organization fields to update. Only supplied fields will be modified.",
                         "name": "organization",
                         "in": "body",
                         "required": true,
@@ -280,9 +388,39 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated organization",
                         "schema": {
                             "$ref": "#/definitions/Organization"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -290,65 +428,67 @@
         },
         "/v1/organizations/{organization_id}/ledgers": {
             "get": {
-                "description": "Get all Ledgers with the input metadata or without metadata",
+                "description": "Returns a paginated list of ledgers within the specified organization, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Ledgers"
                 ],
-                "summary": "Get all Ledgers",
+                "summary": "List all ledgers",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
+                        "description": "JSON string to filter ledgers by metadata fields",
+                        "name": "metadata",
+                        "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter ledgers created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter ledgers created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -358,14 +498,14 @@
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved ledgers list",
                         "schema": {
                             "allOf": [
                                 {
@@ -390,11 +530,41 @@
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "post": {
-                "description": "Create a Ledger with the input payload",
+                "description": "Creates a new ledger within the specified organization. A ledger is a financial record-keeping system for tracking assets, accounts, and transactions.",
                 "consumes": [
                     "application/json"
                 ],
@@ -404,30 +574,30 @@
                 "tags": [
                     "Ledgers"
                 ],
-                "summary": "Create a Ledger",
+                "summary": "Create a new ledger",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Ledger Input",
+                        "description": "Ledger details including name, status, and optional metadata",
                         "name": "ledger",
                         "in": "body",
                         "required": true,
@@ -437,10 +607,40 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created ledger",
                         "schema": {
                             "$ref": "#/definitions/Ledger"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -448,38 +648,38 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{id}": {
             "get": {
-                "description": "Get a Ledger with the input ID",
+                "description": "Returns detailed information about a ledger identified by its UUID within the specified organization",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Ledgers"
                 ],
-                "summary": "Get a Ledger by ID",
+                "summary": "Retrieve a specific ledger",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -487,43 +687,67 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved ledger",
                         "schema": {
                             "$ref": "#/definitions/Ledger"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Ledger or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete a Ledger with the input ID",
+                "description": "Permanently removes a ledger identified by its UUID. Note: This operation is not available in production environments.",
                 "tags": [
                     "Ledgers"
                 ],
-                "summary": "Delete a Ledger by ID",
+                "summary": "Delete a ledger",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -531,12 +755,45 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Ledger successfully deleted",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden action or not permitted in production environment",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Ledger or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Cannot delete ledger with dependent resources",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "patch": {
-                "description": "Update a Ledger with the input payload",
+                "description": "Updates a ledger's information such as name, status, or metadata. Only supplied fields will be updated.",
                 "consumes": [
                     "application/json"
                 ],
@@ -546,37 +803,37 @@
                 "tags": [
                     "Ledgers"
                 ],
-                "summary": "Update a Ledger",
+                "summary": "Update an existing ledger",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Ledger Input",
+                        "description": "Ledger fields to update. Only supplied fields will be modified.",
                         "name": "ledger",
                         "in": "body",
                         "required": true,
@@ -587,9 +844,39 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated ledger",
                         "schema": {
                             "$ref": "#/definitions/Ledger"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Ledger or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -597,71 +884,74 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts": {
             "get": {
-                "description": "Get all Accounts with the input metadata or without metadata",
+                "description": "Returns a paginated list of accounts within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Get all Accounts",
+                "summary": "List all accounts",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Metadata",
+                        "description": "JSON string to filter accounts by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter accounts created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter accounts created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -671,14 +961,14 @@
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved accounts list",
                         "schema": {
                             "allOf": [
                                 {
@@ -703,11 +993,41 @@
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "post": {
-                "description": "Create an Account with the input payload",
+                "description": "Creates a new account within the specified ledger. Accounts represent individual financial entities like bank accounts, credit cards, or expense categories.",
                 "consumes": [
                     "application/json"
                 ],
@@ -717,37 +1037,37 @@
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Create an Account",
+                "summary": "Create a new account",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Account",
+                        "description": "Account details including name, type, asset code, and optional parent account, portfolio, segment, and metadata",
                         "name": "account",
                         "in": "body",
                         "required": true,
@@ -757,56 +1077,92 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created account",
                         "schema": {
                             "$ref": "#/definitions/Account"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization, ledger, parent account, portfolio, or segment not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Account with the same alias already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             }
         },
-        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}": {
+        "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}": {
             "get": {
-                "description": "Get an Account with the input Alias",
+                "description": "Returns detailed information about an account identified by its alias within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Get an Account by Alias",
+                "summary": "Retrieve an account by alias",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Alias",
+                        "description": "Account alias (e.g. @person1)",
                         "name": "alias",
                         "in": "path",
                         "required": true
@@ -814,9 +1170,33 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved account",
                         "schema": {
                             "$ref": "#/definitions/Account"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account with the specified alias, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -824,45 +1204,45 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}": {
             "get": {
-                "description": "Get an Account with the input ID",
+                "description": "Returns detailed information about an account identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Get an Account by ID",
+                "summary": "Retrieve a specific account",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -870,50 +1250,74 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved account",
                         "schema": {
                             "$ref": "#/definitions/Account"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete an Account with the input ID",
+                "description": "Permanently removes an account from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Delete an Account by ID",
+                "summary": "Delete an account",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -921,12 +1325,42 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Account successfully deleted"
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Account cannot be deleted due to existing dependencies",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "patch": {
-                "description": "Update an Account with the input payload",
+                "description": "Updates an existing account's properties such as name, status, portfolio, segment, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
                 ],
@@ -936,44 +1370,44 @@
                 "tags": [
                     "Accounts"
                 ],
-                "summary": "Update an Account",
+                "summary": "Update an account",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Account ID",
+                        "description": "Account ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Account",
+                        "description": "Account properties to update including name, status, portfolio, segment, and optional metadata",
                         "name": "account",
                         "in": "body",
                         "required": true,
@@ -984,9 +1418,45 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated account",
                         "schema": {
                             "$ref": "#/definitions/Account"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Account, ledger, organization, portfolio, or segment not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Account with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -994,71 +1464,74 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets": {
             "get": {
-                "description": "Get all Assets with the input metadata or without metadata",
+                "description": "Returns a paginated list of assets within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Assets"
                 ],
-                "summary": "Get all Assets",
+                "summary": "List all assets",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Metadata",
+                        "description": "JSON string to filter assets by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter assets created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter assets created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -1068,14 +1541,14 @@
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved assets list",
                         "schema": {
                             "allOf": [
                                 {
@@ -1100,11 +1573,41 @@
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "post": {
-                "description": "Create an Asset with the input payload",
+                "description": "Creates a new asset within the specified ledger. Assets represent currencies, cryptocurrencies, commodities, or other financial instruments tracked in the ledger.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1114,37 +1617,37 @@
                 "tags": [
                     "Assets"
                 ],
-                "summary": "Create an Asset",
+                "summary": "Create a new asset",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Asset Input",
+                        "description": "Asset details including name, code, type, status, and optional metadata",
                         "name": "asset",
                         "in": "body",
                         "required": true,
@@ -1154,10 +1657,46 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created asset",
                         "schema": {
                             "$ref": "#/definitions/Asset"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Asset with the same name or code already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1165,45 +1704,45 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}": {
             "get": {
-                "description": "Get an Asset with the input ID",
+                "description": "Returns detailed information about an asset identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Assets"
                 ],
-                "summary": "Get an Asset by ID",
+                "summary": "Retrieve a specific asset",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Asset ID",
+                        "description": "Asset ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1211,50 +1750,74 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved asset",
                         "schema": {
                             "$ref": "#/definitions/Asset"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Asset, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete an Asset with the input ID",
+                "description": "Permanently removes an asset from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Assets"
                 ],
-                "summary": "Delete an Asset by ID",
+                "summary": "Delete an asset",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Asset ID",
+                        "description": "Asset ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1262,12 +1825,42 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Asset successfully deleted"
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Asset, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Asset cannot be deleted due to existing dependencies",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "patch": {
-                "description": "Update an Asset with the input payload",
+                "description": "Updates an existing asset's properties such as name, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
                 ],
@@ -1277,44 +1870,44 @@
                 "tags": [
                     "Assets"
                 ],
-                "summary": "Update an Asset",
+                "summary": "Update an asset",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Asset ID",
+                        "description": "Asset ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Asset Input",
+                        "description": "Asset properties to update including name, status, and optional metadata",
                         "name": "asset",
                         "in": "body",
                         "required": true,
@@ -1325,9 +1918,45 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated asset",
                         "schema": {
                             "$ref": "#/definitions/Asset"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Asset, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Asset with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1335,71 +1964,74 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios": {
             "get": {
-                "description": "Get all Portfolios with the input metadata or without metadata",
+                "description": "Returns a paginated list of portfolios within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Portfolios"
                 ],
-                "summary": "Get all Portfolios",
+                "summary": "List all portfolios",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Metadata query",
+                        "description": "JSON string to filter portfolios by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter portfolios created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter portfolios created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -1409,14 +2041,14 @@
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved portfolios list",
                         "schema": {
                             "allOf": [
                                 {
@@ -1441,11 +2073,41 @@
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "post": {
-                "description": "Create a Portfolio with the input payload",
+                "description": "Creates a new portfolio within the specified ledger. Portfolios represent collections of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1455,37 +2117,37 @@
                 "tags": [
                     "Portfolios"
                 ],
-                "summary": "Create a Portfolio",
+                "summary": "Create a new portfolio",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Portfolio Payload",
+                        "description": "Portfolio details including name, optional entity ID, status, and metadata",
                         "name": "portfolio",
                         "in": "body",
                         "required": true,
@@ -1495,10 +2157,46 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created portfolio",
                         "schema": {
                             "$ref": "#/definitions/Portfolio"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Portfolio with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1506,45 +2204,45 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}": {
             "get": {
-                "description": "Get a Portfolio with the input ID",
+                "description": "Returns detailed information about a portfolio identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Portfolios"
                 ],
-                "summary": "Get a Portfolio by ID",
+                "summary": "Retrieve a specific portfolio",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Portfolio ID",
+                        "description": "Portfolio ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1552,50 +2250,74 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved portfolio",
                         "schema": {
                             "$ref": "#/definitions/Portfolio"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Portfolio, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete a Portfolio with the input ID",
+                "description": "Permanently removes a portfolio from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Portfolios"
                 ],
-                "summary": "Delete a Portfolio by ID",
+                "summary": "Delete a portfolio",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Portfolio ID",
+                        "description": "Portfolio ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1603,12 +2325,42 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Portfolio successfully deleted"
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Portfolio, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Portfolio cannot be deleted due to existing dependencies",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "patch": {
-                "description": "Update a Portfolio with the input payload",
+                "description": "Updates an existing portfolio's properties such as name, entity ID, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
                 ],
@@ -1618,44 +2370,44 @@
                 "tags": [
                     "Portfolios"
                 ],
-                "summary": "Update a Portfolio",
+                "summary": "Update a portfolio",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Portfolio ID",
+                        "description": "Portfolio ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Portfolio Payload",
+                        "description": "Portfolio properties to update including name, entity ID, status, and optional metadata",
                         "name": "portfolio",
                         "in": "body",
                         "required": true,
@@ -1666,9 +2418,45 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated portfolio",
                         "schema": {
                             "$ref": "#/definitions/Portfolio"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Portfolio, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Portfolio with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1676,71 +2464,74 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments": {
             "get": {
-                "description": "Get all Segments with the input metadata or without metadata",
+                "description": "Returns a paginated list of segments within the specified ledger, optionally filtered by metadata, date range, and other criteria",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Segments"
                 ],
-                "summary": "Get all Segments",
+                "summary": "List all segments",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Metadata",
+                        "description": "JSON string to filter segments by metadata fields",
                         "name": "metadata",
                         "in": "query"
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
                         "default": 10,
-                        "description": "Limit",
+                        "description": "Maximum number of records to return per page",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 1,
                         "type": "integer",
                         "default": 1,
-                        "description": "Page",
+                        "description": "Page number for pagination",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Start Date",
+                        "description": "Filter segments created on or after this date (format: YYYY-MM-DD)",
                         "name": "start_date",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "End Date",
+                        "description": "Filter segments created on or before this date (format: YYYY-MM-DD)",
                         "name": "end_date",
                         "in": "query"
                     },
@@ -1750,14 +2541,14 @@
                             "desc"
                         ],
                         "type": "string",
-                        "description": "Sort Order",
+                        "description": "Sort direction for results based on creation date",
                         "name": "sort_order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved segments list",
                         "schema": {
                             "allOf": [
                                 {
@@ -1782,11 +2573,41 @@
                                 }
                             ]
                         }
+                    },
+                    "400": {
+                        "description": "Invalid query parameters",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "post": {
-                "description": "Create a Segment with the input payload",
+                "description": "Creates a new segment within the specified ledger. Segments represent logical divisions within a ledger, such as business areas, product lines, or customer categories.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1796,37 +2617,37 @@
                 "tags": [
                     "Segments"
                 ],
-                "summary": "Create a Segment",
+                "summary": "Create a new segment",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Segment",
+                        "description": "Segment details including name, status, and optional metadata",
                         "name": "segment",
                         "in": "body",
                         "required": true,
@@ -1836,10 +2657,46 @@
                     }
                 ],
                 "responses": {
-                    "200": {
-                        "description": "OK",
+                    "201": {
+                        "description": "Successfully created segment",
                         "schema": {
                             "$ref": "#/definitions/Segment"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Organization or ledger not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Segment with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -1847,45 +2704,45 @@
         },
         "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}": {
             "get": {
-                "description": "Get a Segment with the input ID",
+                "description": "Returns detailed information about a segment identified by its UUID within the specified ledger",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Segments"
                 ],
-                "summary": "Get a Segment by ID",
+                "summary": "Retrieve a specific segment",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Segment ID",
+                        "description": "Segment ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1893,50 +2750,74 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully retrieved segment",
                         "schema": {
                             "$ref": "#/definitions/Segment"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Segment, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete a Segment with the input ID",
+                "description": "Permanently removes a segment from the specified ledger. This operation cannot be undone.",
                 "tags": [
                     "Segments"
                 ],
-                "summary": "Delete a Segment by ID",
+                "summary": "Delete a segment",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Segment ID",
+                        "description": "Segment ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1944,12 +2825,42 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "No Content"
+                        "description": "Segment successfully deleted"
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Segment, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Segment cannot be deleted due to existing dependencies",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
                     }
                 }
             },
             "patch": {
-                "description": "Update a Segment with the input payload",
+                "description": "Updates an existing segment's properties such as name, status, and metadata within the specified ledger",
                 "consumes": [
                     "application/json"
                 ],
@@ -1959,44 +2870,44 @@
                 "tags": [
                     "Segments"
                 ],
-                "summary": "Update a Segment",
+                "summary": "Update a segment",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authorization Bearer Token",
+                        "description": "Authorization Bearer Token with format: Bearer {token}",
                         "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Request ID",
+                        "description": "Request ID for tracing",
                         "name": "X-Request-Id",
                         "in": "header"
                     },
                     {
                         "type": "string",
-                        "description": "Organization ID",
+                        "description": "Organization ID in UUID format",
                         "name": "organization_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Ledger ID",
+                        "description": "Ledger ID in UUID format",
                         "name": "ledger_id",
                         "in": "path",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Segment ID",
+                        "description": "Segment ID in UUID format",
                         "name": "id",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Segment",
+                        "description": "Segment properties to update including name, status, and optional metadata",
                         "name": "segment",
                         "in": "body",
                         "required": true,
@@ -2007,9 +2918,45 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Successfully updated segment",
                         "schema": {
                             "$ref": "#/definitions/Segment"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input, validation errors",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden access",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "404": {
+                        "description": "Segment, ledger, or organization not found",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict: Segment with the same name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/Error"
                         }
                     }
                 }
@@ -2018,210 +2965,294 @@
     },
     "definitions": {
         "Account": {
-            "description": "Account is a struct designed to store account data.",
+            "description": "Account represents an individual financial entity within a ledger, such as a bank account, credit card, or expense category.",
             "type": "object",
             "properties": {
                 "alias": {
+                    "description": "Unique alias for the account (max length 100 characters)",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "@person1"
                 },
                 "assetCode": {
+                    "description": "Asset code associated with this account (max length 100 characters)",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "BRL"
                 },
                 "createdAt": {
+                    "description": "Timestamp when the account was created",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the account was deleted (null if not deleted)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "entityId": {
+                    "description": "Optional external entity identifier (max length 256 characters)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
+                    "description": "Unique identifier for the account (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
+                    "description": "ID of the ledger this account belongs to (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the account",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the account (max length 256 characters)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "My Account"
                 },
                 "organizationId": {
+                    "description": "ID of the organization that owns this account (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "parentAccountId": {
+                    "description": "ID of the parent account if this is a sub-account (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "portfolioId": {
+                    "description": "ID of the portfolio this account belongs to (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "segmentId": {
+                    "description": "ID of the segment this account belongs to (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the account (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "type": {
+                    "description": "Type of the account (e.g., checking, savings, creditCard, expense)",
                     "type": "string",
                     "example": "creditCard"
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the account was last updated",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
         "Address": {
-            "description": "Address is a struct designed to store the address data of an organization.",
+            "description": "Structured address information following standard postal address format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country codes).",
             "type": "object",
             "properties": {
                 "city": {
+                    "description": "City or locality name",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "New York"
                 },
                 "country": {
-                    "description": "According to ISO 3166-1 alpha-2",
+                    "description": "Country code in ISO 3166-1 alpha-2 format (two-letter country code)",
                     "type": "string",
+                    "maxLength": 2,
+                    "minLength": 2,
                     "example": "US"
                 },
                 "line1": {
+                    "description": "Primary address line (street address or PO Box)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Street 1"
                 },
                 "line2": {
+                    "description": "Secondary address information like apartment number, suite, or floor",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Street 2"
                 },
                 "state": {
+                    "description": "State, province, or region name or code",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "NY"
                 },
                 "zipCode": {
+                    "description": "Postal code or ZIP code",
                     "type": "string",
+                    "maxLength": 20,
                     "example": "00000-000"
                 }
             }
         },
         "Asset": {
-            "description": "Asset is a struct designed to store asset data.",
+            "description": "Asset represents a financial instrument within a ledger, such as a currency, cryptocurrency, commodity, or other asset type.",
             "type": "object",
             "properties": {
                 "code": {
+                    "description": "Unique code/symbol for the asset (max length 100 characters)",
                     "type": "string",
+                    "maxLength": 100,
                     "example": "BRL"
                 },
                 "createdAt": {
+                    "description": "Timestamp when the asset was created",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the asset was deleted (null if not deleted)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "id": {
+                    "description": "Unique identifier for the asset (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
+                    "description": "ID of the ledger this asset belongs to (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the asset",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the asset (max length 256 characters)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Brazilian Real"
                 },
                 "organizationId": {
+                    "description": "ID of the organization that owns this asset (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the asset (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "type": {
+                    "description": "Type of the asset (e.g., currency, cryptocurrency, commodity, stock)",
                     "type": "string",
                     "example": "currency"
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the asset was last updated",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
         "CreateAccountInput": {
-            "description": "CreateAccountInput is the input payload to create an account.",
+            "description": "CreateAccountInput is the input payload to create an account within a ledger, representing an individual financial entity like a bank account, credit card, or expense category.",
             "type": "object",
             "required": [
-                "alias",
                 "assetCode",
                 "type"
             ],
             "properties": {
                 "alias": {
+                    "description": "Unique alias for the account (optional, max length 100 characters, must follow alias format rules)",
                     "type": "string",
                     "maxLength": 100,
                     "example": "@person1"
                 },
                 "assetCode": {
+                    "description": "Asset code that this account will use (required, max length 100 characters)",
                     "type": "string",
                     "maxLength": 100,
                     "example": "BRL"
                 },
                 "entityId": {
+                    "description": "Optional external entity identifier (max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the account\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the account (optional, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "My Account"
                 },
                 "parentAccountId": {
+                    "description": "ID of the parent account if this is a sub-account (optional, UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "portfolioId": {
+                    "description": "ID of the portfolio this account belongs to (optional, UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "segmentId": {
+                    "description": "ID of the segment this account belongs to (optional, UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the account (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "type": {
+                    "description": "Type of the account (e.g., checking, savings, creditCard, expense)",
                     "type": "string",
                     "example": "creditCard"
                 }
             }
         },
         "CreateAssetInput": {
-            "description": "CreateAssetInput is the input payload to create an asset.",
+            "description": "CreateAssetInput is the input payload to create an asset within a ledger, such as a currency, cryptocurrency, or other financial instrument.",
             "type": "object",
             "required": [
                 "code",
@@ -2229,51 +3260,67 @@
             ],
             "properties": {
                 "code": {
+                    "description": "Unique code/symbol for the asset (required, max length 100 characters)",
                     "type": "string",
                     "maxLength": 100,
                     "example": "BRL"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the asset\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the asset (required, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Brazilian Real"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the asset (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "type": {
+                    "description": "Type of the asset (e.g., currency, cryptocurrency, commodity, stock)",
                     "type": "string",
                     "example": "currency"
                 }
             }
         },
         "CreateLedgerInput": {
-            "description": "CreateLedgerInput is the input payload to create a ledger.",
+            "description": "Request payload for creating a new ledger. Contains the ledger name (required), status, and optional metadata.",
             "type": "object",
             "required": [
                 "name"
             ],
             "properties": {
                 "metadata": {
+                    "description": "Custom key-value pairs for extending the ledger information",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Display name of the ledger (required)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Current operating status of the ledger (defaults to ACTIVE if not specified)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "CreateOrganizationInput": {
-            "description": "CreateOrganizationInput is the input payload to create an organization.",
+            "description": "Request payload for creating a new organization. Contains all the necessary fields for organization creation, with required fields marked as such.",
             "type": "object",
             "required": [
                 "legalDocument",
@@ -2281,165 +3328,269 @@
             ],
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/Address"
+                    "description": "Physical address of the organization (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 },
                 "doingBusinessAs": {
+                    "description": "Trading or brand name of the organization, if different from legal name (optional)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "legalDocument": {
+                    "description": "Official tax ID, company registration number, or other legal identification (required)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "00000000000000"
                 },
                 "legalName": {
+                    "description": "Official legal name of the organization (required)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "metadata": {
+                    "description": "Custom key-value pairs for extending the organization information",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
+                    "description": "UUID of the parent organization if this is a child organization (optional)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Current operating status of the organization (defaults to ACTIVE if not specified)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "CreatePortfolioInput": {
-            "description": "CreatePortfolioInput is the input payload to create a portfolio.",
+            "description": "CreatePortfolioInput is the input payload to create a portfolio within a ledger, representing a collection of accounts grouped for specific purposes.",
             "type": "object",
             "required": [
-                "entityId",
                 "name"
             ],
             "properties": {
                 "entityId": {
+                    "description": "Optional external entity identifier (max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the portfolio\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the portfolio (required, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "My Portfolio"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the portfolio (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "CreateSegmentInput": {
-            "description": "CreateSegmentInput is the input payload to create a segment.",
+            "description": "CreateSegmentInput is the input payload to create a segment within a ledger, representing a logical division such as a business area, product line, or customer category.",
             "type": "object",
             "required": [
                 "name"
             ],
             "properties": {
                 "metadata": {
+                    "description": "Additional custom attributes for the segment\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the segment (required, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "My Segment"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the segment (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
+                }
+            }
+        },
+        "Error": {
+            "description": "Standardized error response format used across all API endpoints for error situations",
+            "type": "object",
+            "properties": {
+                "code": {
+                    "description": "Error code identifying the specific error condition\nexample: ERR_INVALID_INPUT",
+                    "type": "string"
+                },
+                "entityType": {
+                    "description": "Optional type of entity associated with the error\nexample: Organization",
+                    "type": "string"
+                },
+                "fields": {
+                    "description": "Optional detailed field validations for client-side handling\nexample: {\"name\": \"Field 'name' is required\"}",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "description": "Detailed error message explaining the issue\nexample: The request contains invalid fields. Please check the field 'name' and try again.",
+                    "type": "string"
+                },
+                "title": {
+                    "description": "Short, human-readable error title\nexample: Bad Request",
+                    "type": "string"
                 }
             }
         },
         "Ledger": {
-            "description": "Ledger is a struct designed to store ledger data.",
+            "description": "Complete ledger entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for ledger operations.",
             "type": "object",
             "properties": {
                 "createdAt": {
+                    "description": "Timestamp when the ledger was created (RFC3339 format)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the ledger was soft deleted, null if not deleted (RFC3339 format)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "id": {
+                    "description": "Unique identifier for the ledger (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Custom key-value pairs for extending the ledger information",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Display name of the ledger",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "organizationId": {
+                    "description": "Reference to the organization that owns this ledger",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Current operating status of the ledger",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the ledger was last updated (RFC3339 format)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
         "Organization": {
-            "description": "Organization is a struct designed to store organization data.",
+            "description": "Complete organization entity containing all fields including system-generated fields like ID, creation timestamps, and metadata. This is the response format for organization operations.",
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/Address"
+                    "description": "Physical address of the organization",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 },
                 "createdAt": {
+                    "description": "Timestamp when the organization was created (RFC3339 format)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the organization was soft deleted, null if not deleted (RFC3339 format)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "doingBusinessAs": {
+                    "description": "Trading or brand name of the organization, if different from legal name",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "id": {
+                    "description": "Unique identifier for the organization (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "legalDocument": {
+                    "description": "Official tax ID, company registration number, or other legal identification",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "00000000000000"
                 },
                 "legalName": {
+                    "description": "Official legal name of the organization",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "Lerian Studio"
                 },
                 "metadata": {
+                    "description": "Custom key-value pairs for extending the organization information",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
+                    "description": "Reference to the parent organization, if this is a child organization",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Current operating status of the organization",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the organization was last updated (RFC3339 format)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
@@ -2470,101 +3621,145 @@
             }
         },
         "Portfolio": {
-            "description": "Portfolio is a struct designed to store portfolio data.",
+            "description": "Portfolio represents a collection of accounts grouped for specific purposes such as business units, departments, or client portfolios.",
             "type": "object",
             "properties": {
                 "createdAt": {
+                    "description": "Timestamp when the portfolio was created",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the portfolio was deleted (null if not deleted)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "entityId": {
+                    "description": "Optional external entity identifier (max length 256 characters)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "id": {
+                    "description": "Unique identifier for the portfolio (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
+                    "description": "ID of the ledger this portfolio belongs to (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the portfolio",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the portfolio (max length 256 characters)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "My Portfolio"
                 },
                 "organizationId": {
+                    "description": "ID of the organization that owns this portfolio (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the portfolio (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the portfolio was last updated",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
         "Segment": {
-            "description": "Segment is a struct designed to store segment data.",
+            "description": "Segment represents a logical division within a ledger such as a business area, product line, or customer category.",
             "type": "object",
             "properties": {
                 "createdAt": {
+                    "description": "Timestamp when the segment was created",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "deletedAt": {
+                    "description": "Timestamp when the segment was deleted (null if not deleted)",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 },
                 "id": {
+                    "description": "Unique identifier for the segment (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "ledgerId": {
+                    "description": "ID of the ledger this segment belongs to (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "metadata": {
+                    "description": "Additional custom attributes for the segment",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Name of the segment (max length 256 characters)",
                     "type": "string",
+                    "maxLength": 256,
                     "example": "My Segment"
                 },
                 "organizationId": {
+                    "description": "ID of the organization that owns this segment (UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Status of the segment (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 },
                 "updatedAt": {
+                    "description": "Timestamp when the segment was last updated",
                     "type": "string",
+                    "format": "date-time",
                     "example": "2021-01-01T00:00:00Z"
                 }
             }
         },
         "Status": {
-            "description": "Status is the struct designed to store the status data of an entity.",
+            "description": "Entity status information with a standardized code and optional description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED.",
             "type": "object",
             "properties": {
                 "code": {
+                    "description": "Status code identifier, common values include: ACTIVE, INACTIVE, PENDING, SUSPENDED, DELETED",
                     "type": "string",
                     "maxLength": 100,
                     "example": "ACTIVE"
                 },
                 "description": {
+                    "description": "Optional human-readable description of the status",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Active status"
@@ -2572,130 +3767,190 @@
             }
         },
         "UpdateAccountInput": {
-            "description": "UpdateAccountInput is the input payload to update an account.",
+            "description": "UpdateAccountInput is the input payload to update an existing account's properties such as name, status, portfolio, segment, and metadata.",
             "type": "object",
             "properties": {
                 "metadata": {
+                    "description": "Updated or additional custom attributes for the account\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Updated name of the account (optional, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "My Account Updated"
                 },
                 "portfolioId": {
+                    "description": "Updated portfolio ID for the account (optional, UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "segmentId": {
+                    "description": "Updated segment ID for the account (optional, UUID format)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Updated status of the account (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "UpdateAssetInput": {
-            "description": "UpdateAssetInput is the input payload to update an asset.",
+            "description": "UpdateAssetInput is the input payload to update an existing asset's properties such as name, status, and metadata.",
             "type": "object",
             "properties": {
                 "metadata": {
+                    "description": "Updated or additional custom attributes for the asset\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Updated name of the asset (optional, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Bitcoin"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Updated status of the asset (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "UpdateLedgerInput": {
-            "description": "UpdateLedgerInput is the input payload to update a ledger.",
+            "description": "Request payload for updating an existing ledger. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.",
             "type": "object",
             "properties": {
                 "metadata": {
+                    "description": "Updated custom key-value pairs for extending the ledger information (optional)",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Updated display name of the ledger (optional)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Lerian Studio Updated"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Updated status of the ledger (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "UpdateOrganizationInput": {
-            "description": "UpdateOrganizationInput is the input payload to update an organization.",
+            "description": "Request payload for updating an existing organization. All fields are optional - only specified fields will be updated. Omitted fields will remain unchanged.",
             "type": "object",
             "properties": {
                 "address": {
-                    "$ref": "#/definitions/Address"
+                    "description": "Updated physical address of the organization (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Address"
+                        }
+                    ]
                 },
                 "doingBusinessAs": {
+                    "description": "Updated trading or brand name of the organization (optional)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "The ledger.io"
                 },
                 "legalName": {
+                    "description": "Updated legal name of the organization (optional)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "Lerian Studio Updated"
                 },
                 "metadata": {
+                    "description": "Updated custom key-value pairs for extending the organization information (optional)",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "parentOrganizationId": {
+                    "description": "UUID of the parent organization if this is a child organization (optional)",
                     "type": "string",
+                    "format": "uuid",
                     "example": "00000000-0000-0000-0000-000000000000"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Updated status of the organization (optional)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "UpdatePortfolioInput": {
-            "description": "UpdatePortfolioInput is the input payload to update a portfolio.",
+            "description": "UpdatePortfolioInput is the input payload to update an existing portfolio's properties such as name, entity ID, status, and metadata.",
             "type": "object",
             "properties": {
+                "entityId": {
+                    "description": "Updated external entity identifier (optional, max length 256 characters)",
+                    "type": "string",
+                    "maxLength": 256,
+                    "example": "00000000-0000-0000-0000-000000000000"
+                },
                 "metadata": {
+                    "description": "Updated or additional custom attributes for the portfolio\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Updated name of the portfolio (optional, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "My Portfolio Updated"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Updated status of the portfolio (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         },
         "UpdateSegmentInput": {
-            "description": "UpdateSegmentInput is the input payload to update a segment.",
+            "description": "UpdateSegmentInput is the input payload to update an existing segment's properties such as name, status, and metadata.",
             "type": "object",
             "properties": {
                 "metadata": {
+                    "description": "Updated or additional custom attributes for the segment\nKeys max length: 100 characters, Values max length: 2000 characters",
                     "type": "object",
                     "additionalProperties": {}
                 },
                 "name": {
+                    "description": "Updated name of the segment (optional, max length 256 characters)",
                     "type": "string",
                     "maxLength": 256,
                     "example": "My Segment Updated"
                 },
                 "status": {
-                    "$ref": "#/definitions/Status"
+                    "description": "Updated status of the segment (active, inactive, pending)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/Status"
+                        }
+                    ]
                 }
             }
         }

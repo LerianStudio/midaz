@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to account entities.
-//
-//go:generate mockgen --destination=account.mock.go --package=account . Repository
+// It defines methods for creating, retrieving, updating, and deleting accounts in the database.
 type Repository interface {
 	Create(ctx context.Context, acc *mmodel.Account) (*mmodel.Account, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, filter http.Pagination) ([]*mmodel.Account, error)
@@ -411,7 +410,7 @@ func (r *AccountPostgreSQLRepository) FindAlias(ctx context.Context, organizatio
 		libOpentelemetry.HandleSpanError(&span, "Failed to scan row", err)
 
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, libCommons.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
+			return nil, pkg.ValidateBusinessError(constant.ErrAccountAliasNotFound, reflect.TypeOf(mmodel.Account{}).Name())
 		}
 
 		return nil, err
@@ -448,7 +447,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 	spanQuery.End()
 
 	if rows.Next() {
-		err := libCommons.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
+		err := pkg.ValidateBusinessError(constant.ErrAliasUnavailability, reflect.TypeOf(mmodel.Account{}).Name(), alias)
 
 		libOpentelemetry.HandleSpanError(&span, "Alias is already taken", err)
 

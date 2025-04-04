@@ -101,4 +101,5 @@ var (
 	ErrParentIDSameID                           = errors.New("0091")
 	ErrNoBalancesFound                          = errors.New("0092")
 	ErrBalancesCantDeleted                      = errors.New("0093")
+	ErrInvalidRequestBody                       = errors.New("0094")
 )

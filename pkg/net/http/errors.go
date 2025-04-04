@@ -2,6 +2,8 @@ package http
 
 import (
 	"errors"
+	libCommons "github.com/LerianStudio/lib-commons/commons"
+	libConstants "github.com/LerianStudio/lib-commons/commons/constants"
 	"github.com/LerianStudio/midaz/pkg"
 	"github.com/gofiber/fiber/v2"
 )
@@ -33,6 +35,19 @@ func WithError(c *fiber.Ctx, err error) error {
 		_ = errors.As(err, &rErr)
 
 		return JSONResponseError(c, rErr)
+	case libCommons.Response:
+		switch e.Code {
+		case libConstants.ErrInsufficientFunds.Error(), libConstants.ErrAccountIneligibility.Error():
+			return UnprocessableEntity(c, e.Code, e.Title, e.Message)
+		case libConstants.ErrAssetCodeNotFound.Error():
+			return NotFound(c, e.Code, e.Title, e.Message)
+		default:
+			return BadRequest(c, pkg.ValidationKnownFieldsError{
+				Code:    e.Code,
+				Title:   e.Title,
+				Message: e.Message,
+			})
+		}
 	default:
 		var iErr pkg.InternalServerError
 		_ = errors.As(pkg.ValidateInternalError(err, ""), &iErr)

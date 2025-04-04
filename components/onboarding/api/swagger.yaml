@@ -1,173 +1,272 @@
 basePath: /
 definitions:
   Account:
-    description: Account is a struct designed to store account data.
+    description: Account represents an individual financial entity within a ledger,
+      such as a bank account, credit card, or expense category.
     properties:
       alias:
+        description: Unique alias for the account (max length 100 characters)
         example: '@person1'
+        maxLength: 100
         type: string
       assetCode:
+        description: Asset code associated with this account (max length 100 characters)
         example: BRL
+        maxLength: 100
         type: string
       createdAt:
+        description: Timestamp when the account was created
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       deletedAt:
+        description: Timestamp when the account was deleted (null if not deleted)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       entityId:
+        description: Optional external entity identifier (max length 256 characters)
         example: 00000000-0000-0000-0000-000000000000
+        maxLength: 256
         type: string
       id:
+        description: Unique identifier for the account (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       ledgerId:
+        description: ID of the ledger this account belongs to (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
+        description: Additional custom attributes for the account
         type: object
       name:
+        description: Name of the account (max length 256 characters)
         example: My Account
+        maxLength: 256
         type: string
       organizationId:
+        description: ID of the organization that owns this account (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       parentAccountId:
+        description: ID of the parent account if this is a sub-account (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       portfolioId:
+        description: ID of the portfolio this account belongs to (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       segmentId:
+        description: ID of the segment this account belongs to (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the account (active, inactive, pending)
       type:
+        description: Type of the account (e.g., checking, savings, creditCard, expense)
         example: creditCard
         type: string
       updatedAt:
+        description: Timestamp when the account was last updated
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   Address:
-    description: Address is a struct designed to store the address data of an organization.
+    description: Structured address information following standard postal address
+      format. Country field follows ISO 3166-1 alpha-2 standard (2-letter country
+      codes).
     properties:
       city:
+        description: City or locality name
         example: New York
+        maxLength: 100
         type: string
       country:
-        description: According to ISO 3166-1 alpha-2
+        description: Country code in ISO 3166-1 alpha-2 format (two-letter country
+          code)
         example: US
+        maxLength: 2
+        minLength: 2
         type: string
       line1:
+        description: Primary address line (street address or PO Box)
         example: Street 1
+        maxLength: 256
         type: string
       line2:
+        description: Secondary address information like apartment number, suite, or
+          floor
         example: Street 2
+        maxLength: 256
         type: string
       state:
+        description: State, province, or region name or code
         example: NY
+        maxLength: 100
         type: string
       zipCode:
+        description: Postal code or ZIP code
         example: 00000-000
+        maxLength: 20
         type: string
     type: object
   Asset:
-    description: Asset is a struct designed to store asset data.
+    description: Asset represents a financial instrument within a ledger, such as
+      a currency, cryptocurrency, commodity, or other asset type.
     properties:
       code:
+        description: Unique code/symbol for the asset (max length 100 characters)
         example: BRL
+        maxLength: 100
         type: string
       createdAt:
+        description: Timestamp when the asset was created
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       deletedAt:
+        description: Timestamp when the asset was deleted (null if not deleted)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       id:
+        description: Unique identifier for the asset (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       ledgerId:
+        description: ID of the ledger this asset belongs to (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
+        description: Additional custom attributes for the asset
         type: object
       name:
+        description: Name of the asset (max length 256 characters)
         example: Brazilian Real
+        maxLength: 256
         type: string
       organizationId:
+        description: ID of the organization that owns this asset (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the asset (active, inactive, pending)
       type:
+        description: Type of the asset (e.g., currency, cryptocurrency, commodity,
+          stock)
         example: currency
         type: string
       updatedAt:
+        description: Timestamp when the asset was last updated
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   CreateAccountInput:
-    description: CreateAccountInput is the input payload to create an account.
+    description: CreateAccountInput is the input payload to create an account within
+      a ledger, representing an individual financial entity like a bank account, credit
+      card, or expense category.
     properties:
       alias:
+        description: Unique alias for the account (optional, max length 100 characters,
+          must follow alias format rules)
         example: '@person1'
         maxLength: 100
         type: string
       assetCode:
+        description: Asset code that this account will use (required, max length 100
+          characters)
         example: BRL
         maxLength: 100
         type: string
       entityId:
+        description: Optional external entity identifier (max length 256 characters)
         example: 00000000-0000-0000-0000-000000000000
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
+        description: |-
+          Additional custom attributes for the account
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Name of the account (optional, max length 256 characters)
         example: My Account
         maxLength: 256
         type: string
       parentAccountId:
+        description: ID of the parent account if this is a sub-account (optional,
+          UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       portfolioId:
+        description: ID of the portfolio this account belongs to (optional, UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       segmentId:
+        description: ID of the segment this account belongs to (optional, UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the account (active, inactive, pending)
       type:
+        description: Type of the account (e.g., checking, savings, creditCard, expense)
         example: creditCard
         type: string
     required:
-    - alias
     - assetCode
     - type
     type: object
   CreateAssetInput:
-    description: CreateAssetInput is the input payload to create an asset.
+    description: CreateAssetInput is the input payload to create an asset within a
+      ledger, such as a currency, cryptocurrency, or other financial instrument.
     properties:
       code:
+        description: Unique code/symbol for the asset (required, max length 100 characters)
         example: BRL
         maxLength: 100
         type: string
       metadata:
         additionalProperties: {}
+        description: |-
+          Additional custom attributes for the asset
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Name of the asset (required, max length 256 characters)
         example: Brazilian Real
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the asset (active, inactive, pending)
       type:
+        description: Type of the asset (e.g., currency, cryptocurrency, commodity,
+          stock)
         example: currency
         type: string
     required:
@@ -175,144 +274,256 @@ definitions:
     - name
     type: object
   CreateLedgerInput:
-    description: CreateLedgerInput is the input payload to create a ledger.
+    description: Request payload for creating a new ledger. Contains the ledger name
+      (required), status, and optional metadata.
     properties:
       metadata:
         additionalProperties: {}
+        description: Custom key-value pairs for extending the ledger information
         type: object
       name:
+        description: Display name of the ledger (required)
         example: Lerian Studio
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Current operating status of the ledger (defaults to ACTIVE if
+          not specified)
     required:
     - name
     type: object
   CreateOrganizationInput:
-    description: CreateOrganizationInput is the input payload to create an organization.
+    description: Request payload for creating a new organization. Contains all the
+      necessary fields for organization creation, with required fields marked as such.
     properties:
       address:
-        $ref: '#/definitions/Address'
+        allOf:
+        - $ref: '#/definitions/Address'
+        description: Physical address of the organization (optional)
       doingBusinessAs:
+        description: Trading or brand name of the organization, if different from
+          legal name (optional)
         example: Lerian Studio
         maxLength: 256
         type: string
       legalDocument:
+        description: Official tax ID, company registration number, or other legal
+          identification (required)
         example: "00000000000000"
         maxLength: 256
         type: string
       legalName:
+        description: Official legal name of the organization (required)
         example: Lerian Studio
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
+        description: Custom key-value pairs for extending the organization information
         type: object
       parentOrganizationId:
+        description: UUID of the parent organization if this is a child organization
+          (optional)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Current operating status of the organization (defaults to ACTIVE
+          if not specified)
     required:
     - legalDocument
     - legalName
     type: object
   CreatePortfolioInput:
-    description: CreatePortfolioInput is the input payload to create a portfolio.
+    description: CreatePortfolioInput is the input payload to create a portfolio within
+      a ledger, representing a collection of accounts grouped for specific purposes.
     properties:
       entityId:
+        description: Optional external entity identifier (max length 256 characters)
         example: 00000000-0000-0000-0000-000000000000
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
+        description: |-
+          Additional custom attributes for the portfolio
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Name of the portfolio (required, max length 256 characters)
         example: My Portfolio
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the portfolio (active, inactive, pending)
     required:
-    - entityId
     - name
     type: object
   CreateSegmentInput:
-    description: CreateSegmentInput is the input payload to create a segment.
+    description: CreateSegmentInput is the input payload to create a segment within
+      a ledger, representing a logical division such as a business area, product line,
+      or customer category.
     properties:
       metadata:
         additionalProperties: {}
+        description: |-
+          Additional custom attributes for the segment
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Name of the segment (required, max length 256 characters)
         example: My Segment
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the segment (active, inactive, pending)
     required:
     - name
     type: object
+  Error:
+    description: Standardized error response format used across all API endpoints
+      for error situations
+    properties:
+      code:
+        description: |-
+          Error code identifying the specific error condition
+          example: ERR_INVALID_INPUT
+        type: string
+      entityType:
+        description: |-
+          Optional type of entity associated with the error
+          example: Organization
+        type: string
+      fields:
+        additionalProperties:
+          type: string
+        description: |-
+          Optional detailed field validations for client-side handling
+          example: {"name": "Field 'name' is required"}
+        type: object
+      message:
+        description: |-
+          Detailed error message explaining the issue
+          example: The request contains invalid fields. Please check the field 'name' and try again.
+        type: string
+      title:
+        description: |-
+          Short, human-readable error title
+          example: Bad Request
+        type: string
+    type: object
   Ledger:
-    description: Ledger is a struct designed to store ledger data.
+    description: Complete ledger entity containing all fields including system-generated
+      fields like ID, creation timestamps, and metadata. This is the response format
+      for ledger operations.
     properties:
       createdAt:
+        description: Timestamp when the ledger was created (RFC3339 format)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       deletedAt:
+        description: Timestamp when the ledger was soft deleted, null if not deleted
+          (RFC3339 format)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       id:
+        description: Unique identifier for the ledger (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
+        description: Custom key-value pairs for extending the ledger information
         type: object
       name:
+        description: Display name of the ledger
         example: Lerian Studio
+        maxLength: 256
         type: string
       organizationId:
+        description: Reference to the organization that owns this ledger
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Current operating status of the ledger
       updatedAt:
+        description: Timestamp when the ledger was last updated (RFC3339 format)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   Organization:
-    description: Organization is a struct designed to store organization data.
+    description: Complete organization entity containing all fields including system-generated
+      fields like ID, creation timestamps, and metadata. This is the response format
+      for organization operations.
     properties:
       address:
-        $ref: '#/definitions/Address'
+        allOf:
+        - $ref: '#/definitions/Address'
+        description: Physical address of the organization
       createdAt:
+        description: Timestamp when the organization was created (RFC3339 format)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       deletedAt:
+        description: Timestamp when the organization was soft deleted, null if not
+          deleted (RFC3339 format)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       doingBusinessAs:
+        description: Trading or brand name of the organization, if different from
+          legal name
         example: Lerian Studio
+        maxLength: 256
         type: string
       id:
+        description: Unique identifier for the organization (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       legalDocument:
+        description: Official tax ID, company registration number, or other legal
+          identification
         example: "00000000000000"
+        maxLength: 256
         type: string
       legalName:
+        description: Official legal name of the organization
         example: Lerian Studio
+        maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
+        description: Custom key-value pairs for extending the organization information
         type: object
       parentOrganizationId:
+        description: Reference to the parent organization, if this is a child organization
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Current operating status of the organization
       updatedAt:
+        description: Timestamp when the organization was last updated (RFC3339 format)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   Pagination:
@@ -336,172 +547,272 @@ definitions:
         x-omitempty: true
     type: object
   Portfolio:
-    description: Portfolio is a struct designed to store portfolio data.
+    description: Portfolio represents a collection of accounts grouped for specific
+      purposes such as business units, departments, or client portfolios.
     properties:
       createdAt:
+        description: Timestamp when the portfolio was created
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       deletedAt:
+        description: Timestamp when the portfolio was deleted (null if not deleted)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       entityId:
+        description: Optional external entity identifier (max length 256 characters)
         example: 00000000-0000-0000-0000-000000000000
+        maxLength: 256
         type: string
       id:
+        description: Unique identifier for the portfolio (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       ledgerId:
+        description: ID of the ledger this portfolio belongs to (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
+        description: Additional custom attributes for the portfolio
         type: object
       name:
+        description: Name of the portfolio (max length 256 characters)
         example: My Portfolio
+        maxLength: 256
         type: string
       organizationId:
+        description: ID of the organization that owns this portfolio (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the portfolio (active, inactive, pending)
       updatedAt:
+        description: Timestamp when the portfolio was last updated
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   Segment:
-    description: Segment is a struct designed to store segment data.
+    description: Segment represents a logical division within a ledger such as a business
+      area, product line, or customer category.
     properties:
       createdAt:
+        description: Timestamp when the segment was created
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       deletedAt:
+        description: Timestamp when the segment was deleted (null if not deleted)
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
       id:
+        description: Unique identifier for the segment (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       ledgerId:
+        description: ID of the ledger this segment belongs to (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       metadata:
         additionalProperties: {}
+        description: Additional custom attributes for the segment
         type: object
       name:
+        description: Name of the segment (max length 256 characters)
         example: My Segment
+        maxLength: 256
         type: string
       organizationId:
+        description: ID of the organization that owns this segment (UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Status of the segment (active, inactive, pending)
       updatedAt:
+        description: Timestamp when the segment was last updated
         example: "2021-01-01T00:00:00Z"
+        format: date-time
         type: string
     type: object
   Status:
-    description: Status is the struct designed to store the status data of an entity.
+    description: 'Entity status information with a standardized code and optional
+      description. Common status codes include: ACTIVE, INACTIVE, PENDING, SUSPENDED,
+      DELETED.'
     properties:
       code:
+        description: 'Status code identifier, common values include: ACTIVE, INACTIVE,
+          PENDING, SUSPENDED, DELETED'
         example: ACTIVE
         maxLength: 100
         type: string
       description:
+        description: Optional human-readable description of the status
         example: Active status
         maxLength: 256
         type: string
     type: object
   UpdateAccountInput:
-    description: UpdateAccountInput is the input payload to update an account.
+    description: UpdateAccountInput is the input payload to update an existing account's
+      properties such as name, status, portfolio, segment, and metadata.
     properties:
       metadata:
         additionalProperties: {}
+        description: |-
+          Updated or additional custom attributes for the account
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Updated name of the account (optional, max length 256 characters)
         example: My Account Updated
         maxLength: 256
         type: string
       portfolioId:
+        description: Updated portfolio ID for the account (optional, UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       segmentId:
+        description: Updated segment ID for the account (optional, UUID format)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Updated status of the account (active, inactive, pending)
     type: object
   UpdateAssetInput:
-    description: UpdateAssetInput is the input payload to update an asset.
+    description: UpdateAssetInput is the input payload to update an existing asset's
+      properties such as name, status, and metadata.
     properties:
       metadata:
         additionalProperties: {}
+        description: |-
+          Updated or additional custom attributes for the asset
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Updated name of the asset (optional, max length 256 characters)
         example: Bitcoin
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Updated status of the asset (active, inactive, pending)
     type: object
   UpdateLedgerInput:
-    description: UpdateLedgerInput is the input payload to update a ledger.
+    description: Request payload for updating an existing ledger. All fields are optional
+      - only specified fields will be updated. Omitted fields will remain unchanged.
     properties:
       metadata:
         additionalProperties: {}
+        description: Updated custom key-value pairs for extending the ledger information
+          (optional)
         type: object
       name:
+        description: Updated display name of the ledger (optional)
         example: Lerian Studio Updated
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Updated status of the ledger (optional)
     type: object
   UpdateOrganizationInput:
-    description: UpdateOrganizationInput is the input payload to update an organization.
+    description: Request payload for updating an existing organization. All fields
+      are optional - only specified fields will be updated. Omitted fields will remain
+      unchanged.
     properties:
       address:
-        $ref: '#/definitions/Address'
+        allOf:
+        - $ref: '#/definitions/Address'
+        description: Updated physical address of the organization (optional)
       doingBusinessAs:
+        description: Updated trading or brand name of the organization (optional)
         example: The ledger.io
         maxLength: 256
         type: string
       legalName:
+        description: Updated legal name of the organization (optional)
         example: Lerian Studio Updated
         maxLength: 256
         type: string
       metadata:
         additionalProperties: {}
+        description: Updated custom key-value pairs for extending the organization
+          information (optional)
         type: object
       parentOrganizationId:
+        description: UUID of the parent organization if this is a child organization
+          (optional)
         example: 00000000-0000-0000-0000-000000000000
+        format: uuid
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Updated status of the organization (optional)
     type: object
   UpdatePortfolioInput:
-    description: UpdatePortfolioInput is the input payload to update a portfolio.
+    description: UpdatePortfolioInput is the input payload to update an existing portfolio's
+      properties such as name, entity ID, status, and metadata.
     properties:
+      entityId:
+        description: Updated external entity identifier (optional, max length 256
+          characters)
+        example: 00000000-0000-0000-0000-000000000000
+        maxLength: 256
+        type: string
       metadata:
         additionalProperties: {}
+        description: |-
+          Updated or additional custom attributes for the portfolio
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Updated name of the portfolio (optional, max length 256 characters)
         example: My Portfolio Updated
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Updated status of the portfolio (active, inactive, pending)
     type: object
   UpdateSegmentInput:
-    description: UpdateSegmentInput is the input payload to update a segment.
+    description: UpdateSegmentInput is the input payload to update an existing segment's
+      properties such as name, status, and metadata.
     properties:
       metadata:
         additionalProperties: {}
+        description: |-
+          Updated or additional custom attributes for the segment
+          Keys max length: 100 characters, Values max length: 2000 characters
         type: object
       name:
+        description: Updated name of the segment (optional, max length 256 characters)
         example: My Segment Updated
         maxLength: 256
         type: string
       status:
-        $ref: '#/definitions/Status'
+        allOf:
+        - $ref: '#/definitions/Status'
+        description: Updated status of the segment (active, inactive, pending)
     type: object
 host: localhost:3000
 info:
@@ -518,40 +829,46 @@ info:
 paths:
   /v1/organizations:
     get:
-      description: Get all Organizations with the input metadata or without metadata
+      description: Returns a paginated list of organizations, optionally filtered
+        by metadata, date range, and other criteria
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Metadata
+      - description: JSON string to filter organizations by metadata fields
         in: query
         name: metadata
         type: string
       - default: 10
-        description: Limit
+        description: Maximum number of records to return per page
         in: query
+        maximum: 100
+        minimum: 1
         name: limit
         type: integer
       - default: 1
-        description: Page
+        description: Page number for pagination
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Start Date
+      - description: 'Filter organizations created on or after this date (format:
+          YYYY-MM-DD)'
         in: query
         name: start_date
         type: string
-      - description: End Date
+      - description: 'Filter organizations created on or before this date (format:
+          YYYY-MM-DD)'
         in: query
         name: end_date
         type: string
-      - description: Sort Order
+      - description: Sort direction for results based on creation date
         enum:
         - asc
         - desc
@@ -562,7 +879,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved organizations list
           schema:
             allOf:
             - $ref: '#/definitions/Pagination'
@@ -576,24 +893,42 @@ paths:
                 page:
                   type: integer
               type: object
-      summary: Get all Organizations
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List all organizations
       tags:
       - Organizations
     post:
       consumes:
       - application/json
-      description: Create an Organization with the input payload
+      description: Creates a new organization with the provided details including
+        legal name, legal document, and optional address information
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization Input
+      - description: Organization details including legal name, legal document, and
+          optional address information
         in: body
         name: organization
         required: true
@@ -602,50 +937,90 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Successfully created organization
           schema:
             $ref: '#/definitions/Organization'
-      summary: Create an Organization
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a new organization
       tags:
       - Organizations
   /v1/organizations/{id}:
     delete:
-      description: Delete an Organization with the input ID
+      description: 'Permanently removes an organization identified by its UUID. Note:
+        This operation is not available in production environments.'
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: id
         required: true
         type: string
       responses:
         "204":
-          description: No Content
-      summary: Delete an Organization by ID
+          description: Organization successfully deleted
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden action or not permitted in production environment
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Cannot delete organization with dependent resources'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete an organization
       tags:
       - Organizations
     get:
-      description: Get an Organization with the input ID
+      description: Returns detailed information about an organization identified by
+        its UUID
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: id
         required: true
@@ -654,32 +1029,49 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved organization
           schema:
             $ref: '#/definitions/Organization'
-      summary: Get an Organization by ID
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific organization
       tags:
       - Organizations
     patch:
       consumes:
       - application/json
-      description: Update an Organization with the input payload
+      description: Updates an organization's information such as legal name, address,
+        or status. Only supplied fields will be updated.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: id
         required: true
         type: string
-      - description: Organization Input
+      - description: Organization fields to update. Only supplied fields will be modified.
         in: body
         name: organization
         required: true
@@ -689,54 +1081,77 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully updated organization
           schema:
             $ref: '#/definitions/Organization'
-      summary: Update an Organization
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update an existing organization
       tags:
       - Organizations
   /v1/organizations/{organization_id}/ledgers:
     get:
-      description: Get all Ledgers with the input metadata or without metadata
+      description: Returns a paginated list of ledgers within the specified organization,
+        optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
-        in: path
-        name: id
-        required: true
+      - description: JSON string to filter ledgers by metadata fields
+        in: query
+        name: metadata
         type: string
       - default: 10
-        description: Limit
+        description: Maximum number of records to return per page
         in: query
+        maximum: 100
+        minimum: 1
         name: limit
         type: integer
       - default: 1
-        description: Page
+        description: Page number for pagination
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Start Date
+      - description: 'Filter ledgers created on or after this date (format: YYYY-MM-DD)'
         in: query
         name: start_date
         type: string
-      - description: End Date
+      - description: 'Filter ledgers created on or before this date (format: YYYY-MM-DD)'
         in: query
         name: end_date
         type: string
-      - description: Sort Order
+      - description: Sort direction for results based on creation date
         enum:
         - asc
         - desc
@@ -747,7 +1162,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved ledgers list
           schema:
             allOf:
             - $ref: '#/definitions/Pagination'
@@ -761,29 +1176,50 @@ paths:
                 page:
                   type: integer
               type: object
-      summary: Get all Ledgers
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List all ledgers
       tags:
       - Ledgers
     post:
       consumes:
       - application/json
-      description: Create a Ledger with the input payload
+      description: Creates a new ledger within the specified organization. A ledger
+        is a financial record-keeping system for tracking assets, accounts, and transactions.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger Input
+      - description: Ledger details including name, status, and optional metadata
         in: body
         name: ledger
         required: true
@@ -792,60 +1228,104 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Successfully created ledger
           schema:
             $ref: '#/definitions/Ledger'
-      summary: Create a Ledger
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a new ledger
       tags:
       - Ledgers
   /v1/organizations/{organization_id}/ledgers/{id}:
     delete:
-      description: Delete a Ledger with the input ID
+      description: 'Permanently removes a ledger identified by its UUID. Note: This
+        operation is not available in production environments.'
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: id
         required: true
         type: string
       responses:
         "204":
-          description: No Content
-      summary: Delete a Ledger by ID
+          description: Ledger successfully deleted
+          schema:
+            type: string
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden action or not permitted in production environment
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Cannot delete ledger with dependent resources'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete a ledger
       tags:
       - Ledgers
     get:
-      description: Get a Ledger with the input ID
+      description: Returns detailed information about a ledger identified by its UUID
+        within the specified organization
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: id
         required: true
@@ -854,37 +1334,54 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved ledger
           schema:
             $ref: '#/definitions/Ledger'
-      summary: Get a Ledger by ID
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific ledger
       tags:
       - Ledgers
     patch:
       consumes:
       - application/json
-      description: Update a Ledger with the input payload
+      description: Updates a ledger's information such as name, status, or metadata.
+        Only supplied fields will be updated.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: id
         required: true
         type: string
-      - description: Ledger Input
+      - description: Ledger fields to update. Only supplied fields will be modified.
         in: body
         name: ledger
         required: true
@@ -894,58 +1391,82 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully updated ledger
           schema:
             $ref: '#/definitions/Ledger'
-      summary: Update a Ledger
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Ledger or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update an existing ledger
       tags:
       - Ledgers
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts:
     get:
-      description: Get all Accounts with the input metadata or without metadata
+      description: Returns a paginated list of accounts within the specified ledger,
+        optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Metadata
+      - description: JSON string to filter accounts by metadata fields
         in: query
         name: metadata
         type: string
       - default: 10
-        description: Limit
+        description: Maximum number of records to return per page
         in: query
+        maximum: 100
+        minimum: 1
         name: limit
         type: integer
       - default: 1
-        description: Page
+        description: Page number for pagination
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Start Date
+      - description: 'Filter accounts created on or after this date (format: YYYY-MM-DD)'
         in: query
         name: start_date
         type: string
-      - description: End Date
+      - description: 'Filter accounts created on or before this date (format: YYYY-MM-DD)'
         in: query
         name: end_date
         type: string
-      - description: Sort Order
+      - description: Sort direction for results based on creation date
         enum:
         - asc
         - desc
@@ -956,7 +1477,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved accounts list
           schema:
             allOf:
             - $ref: '#/definitions/Pagination'
@@ -970,34 +1491,57 @@ paths:
                 page:
                   type: integer
               type: object
-      summary: Get all Accounts
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List all accounts
       tags:
       - Accounts
     post:
       consumes:
       - application/json
-      description: Create an Account with the input payload
+      description: Creates a new account within the specified ledger. Accounts represent
+        individual financial entities like bank accounts, credit cards, or expense
+        categories.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Account
+      - description: Account details including name, type, asset code, and optional
+          parent account, portfolio, segment, and metadata
         in: body
         name: account
         required: true
@@ -1006,108 +1550,117 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Successfully created account
           schema:
             $ref: '#/definitions/Account'
-      summary: Create an Account
-      tags:
-      - Accounts
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{alias}:
-    get:
-      description: Get an Account with the input Alias
-      parameters:
-      - description: Authorization Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Request ID
-        in: header
-        name: X-Request-Id
-        type: string
-      - description: Organization ID
-        in: path
-        name: organization_id
-        required: true
-        type: string
-      - description: Ledger ID
-        in: path
-        name: ledger_id
-        required: true
-        type: string
-      - description: Alias
-        in: path
-        name: alias
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
+        "400":
+          description: Invalid input, validation errors
           schema:
-            $ref: '#/definitions/Account'
-      summary: Get an Account by Alias
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization, ledger, parent account, portfolio, or segment
+            not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Account with the same alias already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a new account
       tags:
       - Accounts
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}:
     delete:
-      description: Delete an Account with the input ID
+      description: Permanently removes an account from the specified ledger. This
+        operation cannot be undone.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Account ID
+      - description: Account ID in UUID format
         in: path
         name: id
         required: true
         type: string
       responses:
         "204":
-          description: No Content
-      summary: Delete an Account by ID
+          description: Account successfully deleted
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Account cannot be deleted due to existing dependencies'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete an account
       tags:
       - Accounts
     get:
-      description: Get an Account with the input ID
+      description: Returns detailed information about an account identified by its
+        UUID within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Account ID
+      - description: Account ID in UUID format
         in: path
         name: id
         required: true
@@ -1116,42 +1669,60 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved account
           schema:
             $ref: '#/definitions/Account'
-      summary: Get an Account by ID
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific account
       tags:
       - Accounts
     patch:
       consumes:
       - application/json
-      description: Update an Account with the input payload
+      description: Updates an existing account's properties such as name, status,
+        portfolio, segment, and metadata within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Account ID
+      - description: Account ID in UUID format
         in: path
         name: id
         required: true
         type: string
-      - description: Account
+      - description: Account properties to update including name, status, portfolio,
+          segment, and optional metadata
         in: body
         name: account
         required: true
@@ -1161,58 +1732,142 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully updated account
           schema:
             $ref: '#/definitions/Account'
-      summary: Update an Account
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account, ledger, organization, portfolio, or segment not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Account with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update an account
       tags:
       - Accounts
-  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}:
     get:
-      description: Get all Assets with the input metadata or without metadata
+      description: Returns detailed information about an account identified by its
+        alias within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Metadata
+      - description: Account alias (e.g. @person1)
+        in: path
+        name: alias
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully retrieved account
+          schema:
+            $ref: '#/definitions/Account'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Account with the specified alias, ledger, or organization not
+            found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve an account by alias
+      tags:
+      - Accounts
+  /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets:
+    get:
+      description: Returns a paginated list of assets within the specified ledger,
+        optionally filtered by metadata, date range, and other criteria
+      parameters:
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Request ID for tracing
+        in: header
+        name: X-Request-Id
+        type: string
+      - description: Organization ID in UUID format
+        in: path
+        name: organization_id
+        required: true
+        type: string
+      - description: Ledger ID in UUID format
+        in: path
+        name: ledger_id
+        required: true
+        type: string
+      - description: JSON string to filter assets by metadata fields
         in: query
         name: metadata
         type: string
       - default: 10
-        description: Limit
+        description: Maximum number of records to return per page
         in: query
+        maximum: 100
+        minimum: 1
         name: limit
         type: integer
       - default: 1
-        description: Page
+        description: Page number for pagination
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Start Date
+      - description: 'Filter assets created on or after this date (format: YYYY-MM-DD)'
         in: query
         name: start_date
         type: string
-      - description: End Date
+      - description: 'Filter assets created on or before this date (format: YYYY-MM-DD)'
         in: query
         name: end_date
         type: string
-      - description: Sort Order
+      - description: Sort direction for results based on creation date
         enum:
         - asc
         - desc
@@ -1223,7 +1878,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved assets list
           schema:
             allOf:
             - $ref: '#/definitions/Pagination'
@@ -1237,34 +1892,57 @@ paths:
                 page:
                   type: integer
               type: object
-      summary: Get all Assets
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List all assets
       tags:
       - Assets
     post:
       consumes:
       - application/json
-      description: Create an Asset with the input payload
+      description: Creates a new asset within the specified ledger. Assets represent
+        currencies, cryptocurrencies, commodities, or other financial instruments
+        tracked in the ledger.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Asset Input
+      - description: Asset details including name, code, type, status, and optional
+          metadata
         in: body
         name: asset
         required: true
@@ -1273,70 +1951,116 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Successfully created asset
           schema:
             $ref: '#/definitions/Asset'
-      summary: Create an Asset
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Asset with the same name or code already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a new asset
       tags:
       - Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}:
     delete:
-      description: Delete an Asset with the input ID
+      description: Permanently removes an asset from the specified ledger. This operation
+        cannot be undone.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Asset ID
+      - description: Asset ID in UUID format
         in: path
         name: id
         required: true
         type: string
       responses:
         "204":
-          description: No Content
-      summary: Delete an Asset by ID
+          description: Asset successfully deleted
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Asset, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Asset cannot be deleted due to existing dependencies'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete an asset
       tags:
       - Assets
     get:
-      description: Get an Asset with the input ID
+      description: Returns detailed information about an asset identified by its UUID
+        within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Asset ID
+      - description: Asset ID in UUID format
         in: path
         name: id
         required: true
@@ -1345,42 +2069,60 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved asset
           schema:
             $ref: '#/definitions/Asset'
-      summary: Get an Asset by ID
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Asset, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific asset
       tags:
       - Assets
     patch:
       consumes:
       - application/json
-      description: Update an Asset with the input payload
+      description: Updates an existing asset's properties such as name, status, and
+        metadata within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Asset ID
+      - description: Asset ID in UUID format
         in: path
         name: id
         required: true
         type: string
-      - description: Asset Input
+      - description: Asset properties to update including name, status, and optional
+          metadata
         in: body
         name: asset
         required: true
@@ -1390,58 +2132,86 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully updated asset
           schema:
             $ref: '#/definitions/Asset'
-      summary: Update an Asset
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Asset, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Asset with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update an asset
       tags:
       - Assets
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios:
     get:
-      description: Get all Portfolios with the input metadata or without metadata
+      description: Returns a paginated list of portfolios within the specified ledger,
+        optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Metadata query
+      - description: JSON string to filter portfolios by metadata fields
         in: query
         name: metadata
         type: string
       - default: 10
-        description: Limit
+        description: Maximum number of records to return per page
         in: query
+        maximum: 100
+        minimum: 1
         name: limit
         type: integer
       - default: 1
-        description: Page
+        description: Page number for pagination
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Start Date
+      - description: 'Filter portfolios created on or after this date (format: YYYY-MM-DD)'
         in: query
         name: start_date
         type: string
-      - description: End Date
+      - description: 'Filter portfolios created on or before this date (format: YYYY-MM-DD)'
         in: query
         name: end_date
         type: string
-      - description: Sort Order
+      - description: Sort direction for results based on creation date
         enum:
         - asc
         - desc
@@ -1452,7 +2222,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved portfolios list
           schema:
             allOf:
             - $ref: '#/definitions/Pagination'
@@ -1466,34 +2236,57 @@ paths:
                 page:
                   type: integer
               type: object
-      summary: Get all Portfolios
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List all portfolios
       tags:
       - Portfolios
     post:
       consumes:
       - application/json
-      description: Create a Portfolio with the input payload
+      description: Creates a new portfolio within the specified ledger. Portfolios
+        represent collections of accounts grouped for specific purposes such as business
+        units, departments, or client portfolios.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Portfolio Payload
+      - description: Portfolio details including name, optional entity ID, status,
+          and metadata
         in: body
         name: portfolio
         required: true
@@ -1502,70 +2295,116 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Successfully created portfolio
           schema:
             $ref: '#/definitions/Portfolio'
-      summary: Create a Portfolio
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Portfolio with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a new portfolio
       tags:
       - Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}:
     delete:
-      description: Delete a Portfolio with the input ID
+      description: Permanently removes a portfolio from the specified ledger. This
+        operation cannot be undone.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Portfolio ID
+      - description: Portfolio ID in UUID format
         in: path
         name: id
         required: true
         type: string
       responses:
         "204":
-          description: No Content
-      summary: Delete a Portfolio by ID
+          description: Portfolio successfully deleted
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Portfolio, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Portfolio cannot be deleted due to existing dependencies'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete a portfolio
       tags:
       - Portfolios
     get:
-      description: Get a Portfolio with the input ID
+      description: Returns detailed information about a portfolio identified by its
+        UUID within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Portfolio ID
+      - description: Portfolio ID in UUID format
         in: path
         name: id
         required: true
@@ -1574,42 +2413,60 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved portfolio
           schema:
             $ref: '#/definitions/Portfolio'
-      summary: Get a Portfolio by ID
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Portfolio, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific portfolio
       tags:
       - Portfolios
     patch:
       consumes:
       - application/json
-      description: Update a Portfolio with the input payload
+      description: Updates an existing portfolio's properties such as name, entity
+        ID, status, and metadata within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Portfolio ID
+      - description: Portfolio ID in UUID format
         in: path
         name: id
         required: true
         type: string
-      - description: Portfolio Payload
+      - description: Portfolio properties to update including name, entity ID, status,
+          and optional metadata
         in: body
         name: portfolio
         required: true
@@ -1619,58 +2476,86 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully updated portfolio
           schema:
             $ref: '#/definitions/Portfolio'
-      summary: Update a Portfolio
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Portfolio, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Portfolio with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a portfolio
       tags:
       - Portfolios
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments:
     get:
-      description: Get all Segments with the input metadata or without metadata
+      description: Returns a paginated list of segments within the specified ledger,
+        optionally filtered by metadata, date range, and other criteria
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Metadata
+      - description: JSON string to filter segments by metadata fields
         in: query
         name: metadata
         type: string
       - default: 10
-        description: Limit
+        description: Maximum number of records to return per page
         in: query
+        maximum: 100
+        minimum: 1
         name: limit
         type: integer
       - default: 1
-        description: Page
+        description: Page number for pagination
         in: query
+        minimum: 1
         name: page
         type: integer
-      - description: Start Date
+      - description: 'Filter segments created on or after this date (format: YYYY-MM-DD)'
         in: query
         name: start_date
         type: string
-      - description: End Date
+      - description: 'Filter segments created on or before this date (format: YYYY-MM-DD)'
         in: query
         name: end_date
         type: string
-      - description: Sort Order
+      - description: Sort direction for results based on creation date
         enum:
         - asc
         - desc
@@ -1681,7 +2566,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved segments list
           schema:
             allOf:
             - $ref: '#/definitions/Pagination'
@@ -1695,34 +2580,56 @@ paths:
                 page:
                   type: integer
               type: object
-      summary: Get all Segments
+        "400":
+          description: Invalid query parameters
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: List all segments
       tags:
       - Segments
     post:
       consumes:
       - application/json
-      description: Create a Segment with the input payload
+      description: Creates a new segment within the specified ledger. Segments represent
+        logical divisions within a ledger, such as business areas, product lines,
+        or customer categories.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Segment
+      - description: Segment details including name, status, and optional metadata
         in: body
         name: segment
         required: true
@@ -1731,70 +2638,116 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
+        "201":
+          description: Successfully created segment
           schema:
             $ref: '#/definitions/Segment'
-      summary: Create a Segment
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Organization or ledger not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Segment with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Create a new segment
       tags:
       - Segments
   /v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}:
     delete:
-      description: Delete a Segment with the input ID
+      description: Permanently removes a segment from the specified ledger. This operation
+        cannot be undone.
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Segment ID
+      - description: Segment ID in UUID format
         in: path
         name: id
         required: true
         type: string
       responses:
         "204":
-          description: No Content
-      summary: Delete a Segment by ID
+          description: Segment successfully deleted
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Segment, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Segment cannot be deleted due to existing dependencies'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Delete a segment
       tags:
       - Segments
     get:
-      description: Get a Segment with the input ID
+      description: Returns detailed information about a segment identified by its
+        UUID within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Segment ID
+      - description: Segment ID in UUID format
         in: path
         name: id
         required: true
@@ -1803,42 +2756,60 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully retrieved segment
           schema:
             $ref: '#/definitions/Segment'
-      summary: Get a Segment by ID
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Segment, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Retrieve a specific segment
       tags:
       - Segments
     patch:
       consumes:
       - application/json
-      description: Update a Segment with the input payload
+      description: Updates an existing segment's properties such as name, status,
+        and metadata within the specified ledger
       parameters:
-      - description: Authorization Bearer Token
+      - description: 'Authorization Bearer Token with format: Bearer {token}'
         in: header
         name: Authorization
         required: true
         type: string
-      - description: Request ID
+      - description: Request ID for tracing
         in: header
         name: X-Request-Id
         type: string
-      - description: Organization ID
+      - description: Organization ID in UUID format
         in: path
         name: organization_id
         required: true
         type: string
-      - description: Ledger ID
+      - description: Ledger ID in UUID format
         in: path
         name: ledger_id
         required: true
         type: string
-      - description: Segment ID
+      - description: Segment ID in UUID format
         in: path
         name: id
         required: true
         type: string
-      - description: Segment
+      - description: Segment properties to update including name, status, and optional
+          metadata
         in: body
         name: segment
         required: true
@@ -1848,10 +2819,34 @@ paths:
       - application/json
       responses:
         "200":
-          description: OK
+          description: Successfully updated segment
           schema:
             $ref: '#/definitions/Segment'
-      summary: Update a Segment
+        "400":
+          description: Invalid input, validation errors
+          schema:
+            $ref: '#/definitions/Error'
+        "401":
+          description: Unauthorized access
+          schema:
+            $ref: '#/definitions/Error'
+        "403":
+          description: Forbidden access
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Segment, ledger, or organization not found
+          schema:
+            $ref: '#/definitions/Error'
+        "409":
+          description: 'Conflict: Segment with the same name already exists'
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/Error'
+      summary: Update a segment
       tags:
       - Segments
 swagger: "2.0"

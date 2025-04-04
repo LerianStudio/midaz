@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to portfolio entities.
-//
-//go:generate mockgen --destination=portfolio.mock.go --package=portfolio . Repository
+// It defines methods for creating, finding, updating, and deleting portfolios in the database.
 type Repository interface {
 	Create(ctx context.Context, portfolio *mmodel.Portfolio) (*mmodel.Portfolio, error)
 	FindByIDEntity(ctx context.Context, organizationID, ledgerID, entityID uuid.UUID) (*mmodel.Portfolio, error)
@@ -374,6 +373,11 @@ func (r *PortfolioPostgreSQLRepository) Update(ctx context.Context, organization
 	var updates []string
 
 	var args []any
+
+	if portfolio.EntityID != "" {
+		updates = append(updates, "entity_id = $"+strconv.Itoa(len(args)+1))
+		args = append(args, record.EntityID)
+	}
 
 	if portfolio.Name != "" {
 		updates = append(updates, "name = $"+strconv.Itoa(len(args)+1))

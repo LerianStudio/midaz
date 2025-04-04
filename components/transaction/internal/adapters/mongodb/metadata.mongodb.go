@@ -17,8 +17,7 @@ import (
 )
 
 // Repository provides an interface for operations related on mongodb a metadata entities.
-//
-//go:generate mockgen --destination=metadata.mock.go --package=mongodb . Repository
+// It defines methods for creating, finding, updating, and deleting metadata entities.
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)

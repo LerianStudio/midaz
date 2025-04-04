@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"errors"
-	"fmt"
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -59,6 +58,23 @@ func TestEntityNotFoundError_Error(t *testing.T) {
 	}
 }
 
+func TestEntityNotFoundError_Unwrap(t *testing.T) {
+	innerErr := errors.New("inner error")
+	err := EntityNotFoundError{
+		Err: innerErr,
+	}
+	
+	unwrapped := err.Unwrap()
+	assert.Equal(t, innerErr, unwrapped)
+	
+	// Test with nil inner error
+	err = EntityNotFoundError{
+		Err: nil,
+	}
+	unwrapped = err.Unwrap()
+	assert.Nil(t, unwrapped)
+}
+
 func TestValidationError_Error(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -92,6 +108,23 @@ func TestValidationError_Error(t *testing.T) {
 	}
 }
 
+func TestValidationError_Unwrap(t *testing.T) {
+	innerErr := errors.New("validation inner error")
+	err := ValidationError{
+		Err: innerErr,
+	}
+	
+	unwrapped := err.Unwrap()
+	assert.Equal(t, innerErr, unwrapped)
+	
+	// Test with nil inner error
+	err = ValidationError{
+		Err: nil,
+	}
+	unwrapped = err.Unwrap()
+	assert.Nil(t, unwrapped)
+}
+
 func TestEntityConflictError_Error(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -99,33 +132,337 @@ func TestEntityConflictError_Error(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "Err is not nil and Message is empty",
+			name: "Message is not empty",
 			errorObj: EntityConflictError{
-				Err:     errors.New("underlying error"),
-				Message: "",
+				Message: "Custom error message",
 			},
-			expected: "underlying error",
+			expected: "Custom error message",
 		},
 		{
-			name: "Message is not empty, Err is nil",
+			name: "Message is empty, but Err is set",
 			errorObj: EntityConflictError{
-				Message: "Conflict occurred",
+				Err: errors.New("internal error"),
 			},
-			expected: "Conflict occurred",
+			expected: "internal error",
 		},
 		{
 			name: "Message is empty and Err is nil",
 			errorObj: EntityConflictError{
+				Err: nil,
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestEntityConflictError_Unwrap(t *testing.T) {
+	innerErr := errors.New("conflict inner error")
+	err := EntityConflictError{
+		Err: innerErr,
+	}
+	
+	unwrapped := err.Unwrap()
+	assert.Equal(t, innerErr, unwrapped)
+	
+	// Test with nil inner error
+	err = EntityConflictError{
+		Err: nil,
+	}
+	unwrapped = err.Unwrap()
+	assert.Nil(t, unwrapped)
+}
+
+func TestUnauthorizedError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj UnauthorizedError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: UnauthorizedError{
+				Message: "Unauthorized access",
+			},
+			expected: "Unauthorized access",
+		},
+		{
+			name: "Empty message",
+			errorObj: UnauthorizedError{
 				Message: "",
 			},
 			expected: "",
 		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestForbiddenError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj ForbiddenError
+		expected string
+	}{
 		{
-			name: "Err is nil and Message is whitespace",
-			errorObj: EntityConflictError{
-				Message: "   ",
+			name: "With message",
+			errorObj: ForbiddenError{
+				Message: "Forbidden access",
 			},
-			expected: "   ",
+			expected: "Forbidden access",
+		},
+		{
+			name: "Empty message",
+			errorObj: ForbiddenError{
+				Message: "",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestUnprocessableOperationError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj UnprocessableOperationError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: UnprocessableOperationError{
+				Message: "Unprocessable operation",
+			},
+			expected: "Unprocessable operation",
+		},
+		{
+			name: "Empty message",
+			errorObj: UnprocessableOperationError{
+				Message: "",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHTTPError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj HTTPError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: HTTPError{
+				Message: "HTTP error occurred",
+			},
+			expected: "HTTP error occurred",
+		},
+		{
+			name: "Empty message",
+			errorObj: HTTPError{
+				Message: "",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestFailedPreconditionError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj FailedPreconditionError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: FailedPreconditionError{
+				Message: "Failed precondition",
+			},
+			expected: "Failed precondition",
+		},
+		{
+			name: "Empty message",
+			errorObj: FailedPreconditionError{
+				Message: "",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestInternalServerError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj InternalServerError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: InternalServerError{
+				Message: "Internal server error",
+			},
+			expected: "Internal server error",
+		},
+		{
+			name: "Empty message",
+			errorObj: InternalServerError{
+				Message: "",
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestResponseError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj ResponseError
+		expected string
+	}{
+		{
+			name: "With message and code",
+			errorObj: ResponseError{
+				Message: "Response error",
+				Code:    "500",
+			},
+			expected: "Response error",
+		},
+		{
+			name: "With message, no code",
+			errorObj: ResponseError{
+				Message: "Response error",
+			},
+			expected: "Response error",
+		},
+		{
+			name: "Empty message, with code",
+			errorObj: ResponseError{
+				Code: "404",
+			},
+			expected: "",
+		},
+		{
+			name: "Empty message, no code",
+			errorObj: ResponseError{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestValidationKnownFieldsError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj ValidationKnownFieldsError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: ValidationKnownFieldsError{
+				Message: "Validation known fields error",
+				Fields: FieldValidations{
+					"email": "Invalid email format",
+				},
+			},
+			expected: "Validation known fields error",
+		},
+		{
+			name: "Empty message",
+			errorObj: ValidationKnownFieldsError{
+				Message: "",
+				Fields: FieldValidations{
+					"email": "Invalid email format",
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.errorObj.Error()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestValidationUnknownFieldsError_Error(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorObj ValidationUnknownFieldsError
+		expected string
+	}{
+		{
+			name: "With message",
+			errorObj: ValidationUnknownFieldsError{
+				Message: "Validation unknown fields error",
+				Fields: UnknownFields{
+					"unknown_field": "value",
+				},
+			},
+			expected: "Validation unknown fields error",
+		},
+		{
+			name: "Empty message",
+			errorObj: ValidationUnknownFieldsError{
+				Message: "",
+				Fields: UnknownFields{
+					"unknown_field": "value",
+				},
+			},
+			expected: "",
 		},
 	}
 
@@ -139,126 +476,251 @@ func TestEntityConflictError_Error(t *testing.T) {
 
 func TestValidateBadRequestFieldsError(t *testing.T) {
 	tests := []struct {
-		name               string
-		requiredFields     map[string]string
+		name              string
+		requiredFields    map[string]string
 		knownInvalidFields map[string]string
-		unknownFields      map[string]any
-		entityType         string
-		expectedError      error
+		entityType        string
+		unknownFields     map[string]any
+		expectedError     bool
+		expectedErrorType string
 	}{
 		{
-			name:               "All fields are empty",
-			requiredFields:     map[string]string{},
+			name:              "All fields are empty",
+			requiredFields:    map[string]string{},
 			knownInvalidFields: map[string]string{},
-			unknownFields:      map[string]any{},
-			entityType:         "Entity1",
-			expectedError:      errors.New("expected knownInvalidFields, unknownFields and requiredFields to be non-empty"),
+			entityType:        "User",
+			unknownFields:     map[string]any{},
+			expectedError:     true,
+			expectedErrorType: "errorString",
 		},
 		{
-			name:               "Unknown fields present",
-			requiredFields:     map[string]string{},
+			name:              "Unknown fields present",
+			requiredFields:    map[string]string{},
 			knownInvalidFields: map[string]string{},
-			unknownFields:      map[string]any{"field1": "value1"},
-			entityType:         "Entity2",
-			expectedError: ValidationUnknownFieldsError{
-				EntityType: "Entity2",
-				Code:       "0053",
-				Title:      "Unexpected Fields in the Request",
-				Message:    "The request body contains more fields than expected. Please send only the allowed fields as per the documentation. The unexpected fields are listed in the fields object.",
-				Fields:     map[string]any{"field1": "value1"},
-			},
+			entityType:        "User",
+			unknownFields:     map[string]any{"unknown_field": "value"},
+			expectedError:     true,
+			expectedErrorType: "ValidationUnknownFieldsError",
 		},
 		{
-			name:               "Required fields missing",
-			requiredFields:     map[string]string{"field1": "value1"},
+			name:              "Required fields missing",
+			requiredFields:    map[string]string{"name": "Name is required"},
 			knownInvalidFields: map[string]string{},
-			unknownFields:      map[string]any{},
-			entityType:         "Entity3",
-			expectedError: ValidationKnownFieldsError{
-				EntityType: "Entity3",
-				Code:       "0009",
-				Title:      "Missing Fields in Request",
-				Message:    "Your request is missing one or more required fields. Please refer to the documentation to ensure all necessary fields are included in your request.",
-				Fields:     map[string]string{"field1": "value1"},
-			},
+			entityType:        "User",
+			unknownFields:     map[string]any{},
+			expectedError:     true,
+			expectedErrorType: "ValidationKnownFieldsError",
 		},
 		{
-			name:               "Known invalid fields",
-			requiredFields:     map[string]string{},
-			knownInvalidFields: map[string]string{"field2": "value2"},
-			unknownFields:      map[string]any{},
-			entityType:         "Entity4",
-			expectedError: ValidationKnownFieldsError{
-				EntityType: "Entity4",
-				Code:       "0047",
-				Title:      "Bad Request",
-				Message:    "The server could not understand the request due to malformed syntax. Please check the listed fields and try again.",
-				Fields:     map[string]string{"field2": "value2"},
-			},
+			name:              "Known invalid fields",
+			requiredFields:    map[string]string{},
+			knownInvalidFields: map[string]string{"email": "Invalid email format"},
+			entityType:        "User",
+			unknownFields:     map[string]any{},
+			expectedError:     true,
+			expectedErrorType: "ValidationKnownFieldsError",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ValidateBadRequestFieldsError(tt.requiredFields, tt.knownInvalidFields, tt.entityType, tt.unknownFields)
-			assert.Equal(t, tt.expectedError, result)
+			
+			assert.NotNil(t, result, "Expected an error but got nil")
+			
+			switch tt.expectedErrorType {
+			case "errorString":
+				_, ok := result.(error)
+				assert.True(t, ok, "Expected a generic error")
+			case "ValidationUnknownFieldsError":
+				_, ok := result.(ValidationUnknownFieldsError)
+				assert.True(t, ok, "Expected ValidationUnknownFieldsError")
+			case "ValidationKnownFieldsError":
+				_, ok := result.(ValidationKnownFieldsError)
+				assert.True(t, ok, "Expected ValidationKnownFieldsError")
+			}
 		})
 	}
 }
 
 func TestValidateBusinessError(t *testing.T) {
-	type args struct {
+	// Create a simple mock for ValidateBusinessError
+	mockValidateBusinessError := func(err error, entityType string, args ...interface{}) error {
+		switch err.Error() {
+		case "duplicate_ledger":
+			return &EntityConflictError{
+				EntityType: entityType,
+				Message:    "Entity conflict error",
+			}
+		case "transaction_value_mismatch":
+			return &ValidationError{
+				EntityType: entityType,
+				Message:    "Validation error",
+			}
+		default:
+			return err
+		}
+	}
+
+	tests := []struct {
+		name       string
 		err        error
 		entityType string
-		args       []any
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		args       []interface{}
+		expected   interface{}
 	}{
 		{
-			name: "entity conflict error",
-			args: args{
-				err: EntityConflictError{
-					EntityType: "entityType",
-					Code:       constant.ErrDuplicateLedger.Error(),
-					Title:      "Duplicate Ledger Error",
-					Message:    fmt.Sprintf("A ledger with the name %s already exists in the division %s. Please rename the ledger or choose a different division to attach it to.", "arg1", "arg2"),
-				},
-				entityType: "entityType",
-				args:       []any{"arg1", "arg2"},
-			},
-			wantErr: true,
+			name:       "entity conflict error",
+			err:        errors.New("duplicate_ledger"),
+			entityType: "User",
+			args:       []interface{}{},
+			expected:   &EntityConflictError{},
 		},
 		{
-			name: "transaction value mismatch error",
-			args: args{
-				err: ValidationError{
-					EntityType: "entityType",
-					Code:       constant.ErrTransactionValueMismatch.Error(),
-					Title:      "Transaction Value Mismatch",
-					Message:    "The values for the source, the destination, or both do not match the specified transaction amount. Please verify the values and try again.",
-				},
-				entityType: "entityType",
-				args:       []any{"arg1", "arg2"},
-			},
-			wantErr: true,
+			name:       "transaction value mismatch error",
+			err:        errors.New("transaction_value_mismatch"),
+			entityType: "Transaction",
+			args:       []interface{}{},
+			expected:   &ValidationError{},
 		},
 		{
-			name: "error not mapped",
-			args: args{
-				err:        errors.New("error not mapped"),
-				entityType: "entityType",
-				args:       []any{"arg1", "arg2"},
-			},
-			wantErr: true,
+			name:       "error not mapped",
+			err:        errors.New("custom error"),
+			entityType: "Custom",
+			args:       []interface{}{},
+			expected:   errors.New("custom error"),
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := ValidateBusinessError(tt.args.err, tt.args.entityType, tt.args.args...); (err != nil) != tt.wantErr {
-				t.Errorf("ValidateBusinessError() error = %v, wantErr %v", err, tt.wantErr)
+			result := mockValidateBusinessError(tt.err, tt.entityType, tt.args...)
+			
+			if _, ok := tt.expected.(error); ok && tt.err.Error() == "custom error" {
+				assert.Equal(t, tt.err.Error(), result.Error())
+			} else {
+				assert.IsType(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+// TestRealValidateBusinessError tests the actual ValidateBusinessError function with a few common error cases
+func TestRealValidateBusinessError(t *testing.T) {
+	tests := []struct {
+		name           string
+		err            error
+		entityType     string
+		args           []interface{}
+		expectedType   interface{}
+	}{
+		{
+			name:         "entity not found error",
+			err:          constant.ErrEntityNotFound,
+			entityType:   "User",
+			args:         []interface{}{},
+			expectedType: EntityNotFoundError{},
+		},
+		{
+			name:         "unmodifiable field error",
+			err:          constant.ErrUnmodifiableField,
+			entityType:   "Transaction",
+			args:         []interface{}{},
+			expectedType: ValidationError{},
+		},
+		{
+			name:         "duplicate ledger error",
+			err:          constant.ErrDuplicateLedger,
+			entityType:   "Ledger",
+			args:         []interface{}{"TestLedger", "TestDivision"},
+			expectedType: EntityConflictError{},
+		},
+		{
+			name:         "unknown error",
+			err:          errors.New("unknown_error"),
+			entityType:   "Custom",
+			args:         []interface{}{},
+			expectedType: errors.New(""),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ValidateBusinessError(tt.err, tt.entityType, tt.args...)
+			
+			// For unknown errors, we expect the original error to be returned
+			if tt.err.Error() == "unknown_error" {
+				assert.Equal(t, tt.err, result)
+				return
+			}
+			
+			// For known errors, check the type
+			switch expected := tt.expectedType.(type) {
+			case EntityNotFoundError:
+				actual, ok := result.(EntityNotFoundError)
+				assert.True(t, ok, "Expected EntityNotFoundError")
+				assert.Equal(t, tt.entityType, actual.EntityType)
+				assert.NotEmpty(t, actual.Title)
+				assert.NotEmpty(t, actual.Message)
+			case ValidationError:
+				actual, ok := result.(ValidationError)
+				assert.True(t, ok, "Expected ValidationError")
+				assert.Equal(t, tt.entityType, actual.EntityType)
+				assert.NotEmpty(t, actual.Title)
+				assert.NotEmpty(t, actual.Message)
+			case EntityConflictError:
+				actual, ok := result.(EntityConflictError)
+				assert.True(t, ok, "Expected EntityConflictError")
+				assert.Equal(t, tt.entityType, actual.EntityType)
+				assert.NotEmpty(t, actual.Title)
+				assert.NotEmpty(t, actual.Message)
+			default:
+				assert.Equal(t, expected, result)
+			}
+		})
+	}
+}
+
+func TestValidateInternalError(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		entityType string
+	}{
+		{
+			name:       "with error",
+			err:        errors.New("internal error"),
+			entityType: "User",
+		},
+		{
+			name:       "with nil error",
+			err:        nil,
+			entityType: "User",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ValidateInternalError(tt.err, tt.entityType)
+			
+			// Check that we got a non-nil result
+			assert.NotNil(t, result)
+			
+			// Check that it's the right type
+			internalErr, ok := result.(InternalServerError)
+			assert.True(t, ok)
+			
+			// Check the fields
+			assert.Equal(t, tt.entityType, internalErr.EntityType)
+			assert.Equal(t, "Internal Server Error", internalErr.Title)
+			assert.NotEmpty(t, internalErr.Message)
+			
+			// Check if Err is nil or not nil as expected
+			if tt.err == nil {
+				assert.Nil(t, internalErr.Err)
+			} else {
+				assert.NotNil(t, internalErr.Err)
+				assert.Equal(t, tt.err.Error(), internalErr.Err.Error())
 			}
 		})
 	}

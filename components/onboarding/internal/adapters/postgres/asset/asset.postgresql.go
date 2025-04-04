@@ -24,8 +24,7 @@ import (
 )
 
 // Repository provides an interface for operations related to asset entities.
-//
-//go:generate mockgen --destination=asset.mock.go --package=asset . Repository
+// It defines methods for creating, finding, updating, and deleting assets in the database.
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
 	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
@@ -155,7 +154,7 @@ func (r *AssetPostgreSQLRepository) FindByNameOrCode(ctx context.Context, organi
 	spanQuery.End()
 
 	if rows.Next() {
-		err := libCommons.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
+		err := pkg.ValidateBusinessError(constant.ErrAssetNameOrCodeDuplicate, reflect.TypeOf(mmodel.Asset{}).Name())
 
 		libOpentelemetry.HandleSpanError(&span, "Asset name or code already exists", err)
 

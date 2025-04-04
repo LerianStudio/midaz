@@ -2,20 +2,37 @@ services:
   midaz-mongodb:
     container_name: midaz-mongodb
     image: mongo:latest
+    env_file:
+      - .env
     restart: always
     healthcheck:
       test: echo 'db.runCommand("ping").ok'
       interval: 10s
       timeout: 5s
       retries: 5
+    user: root
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    command: mongod --port ${MONGO_PORT}
     ports:
       - ${MONGO_PORT}:${MONGO_PORT}
+    command: [ "sh", "-c", "chmod 400 /data/mongo-keyfile && mongod --replSet rs0 --bind_ip_all --port ${MONGO_PORT}" ]
     volumes:
+      - ./mongo/mongo-keyfile:/data/mongo-keyfile
       - mongodb-data:/data/db
+    networks:
+      - infra-network
+
+  midaz-mongodb-init:
+    container_name: midaz-mongodb-init
+    env_file:
+      - .env
+    image: mongo:latest
+    depends_on:
+      - midaz-mongodb
+    volumes:
+      - ./mongo/mongo.sh:/data/mongo.sh
+    entrypoint: [ "sh", "-c", "chmod +x /data/mongo.sh && sh /data/mongo.sh" ]
     networks:
       - infra-network
 
@@ -56,7 +73,7 @@ services:
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     command: |
       postgres
-      -c wal_level=replica
+      -c wal_level=logical
       -c hot_standby=on
       -c max_wal_senders=10
       -c max_replication_slots=10
@@ -111,6 +128,8 @@ services:
     depends_on:
       midaz-postgres-primary:
         condition: service_healthy
+    volumes:
+      - postgres-replica-data:/var/lib/postgresql/data
     networks:
       - infra-network
 
@@ -140,7 +159,7 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
       - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
-      - ${RABBITMQ_PORT_AMPQ}:${RABBITMQ_PORT_AMPQ}
+      - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
     volumes:
       - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
       - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
@@ -151,9 +170,10 @@ services:
 
 volumes:
   postgres-data:
-  mongodb-data:
+  postgres-replica-data:
   redis-data:
   grafana-data:
+  mongodb-data:
 
 networks:
   infra-network:

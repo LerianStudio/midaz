@@ -54,7 +54,7 @@ type Config struct {
 	RabbitURI               string `env:"RABBITMQ_URI"`
 	RabbitMQHost            string `env:"RABBITMQ_HOST"`
 	RabbitMQPortHost        string `env:"RABBITMQ_PORT_HOST"`
-	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMPQ"`
+	RabbitMQPortAMQP        string `env:"RABBITMQ_PORT_AMQP"`
 	RabbitMQUser            string `env:"RABBITMQ_DEFAULT_USER"`
 	RabbitMQPass            string `env:"RABBITMQ_DEFAULT_PASS"`
 	RabbitMQExchange        string `env:"RABBITMQ_EXCHANGE"`

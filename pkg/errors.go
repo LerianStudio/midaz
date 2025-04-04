@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/LerianStudio/midaz/pkg/constant"
@@ -241,6 +242,25 @@ func ValidateInternalError(err error, entityType string) error {
 		Title:      "Internal Server Error",
 		Message:    "The server encountered an unexpected error. Please try again later or contact support.",
 		Err:        err,
+	}
+}
+
+// ValidateUnmarshallingError validates the error and returns an appropriate ResponseError.
+func ValidateUnmarshallingError(err error) error {
+	var message = err.Error()
+
+	var ute *json.UnmarshalTypeError
+	if errors.As(err, &ute) {
+		field := ute.Field
+		expected := ute.Type.String()
+		actual := ute.Value
+		message = fmt.Sprintf("invalid value for field '%s': expected type '%s', but got '%s'", field, expected, actual)
+	}
+
+	return ResponseError{
+		Code:    constant.ErrInvalidRequestBody.Error(),
+		Title:   "Unmarshalling error",
+		Message: message,
 	}
 }
 
@@ -738,19 +758,19 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Audit Tree Record Not Found",
 			Message:    fmt.Sprintf("The record %v does not exist in the audit tree. Please ensure the audit tree is available and try again.", args...),
 		},
-		constant.ErrInvalidDateFormat: EntityNotFoundError{
+		constant.ErrInvalidDateFormat: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidDateFormat.Error(),
 			Title:      "Invalid Date Format Error",
 			Message:    "The 'initialDate', 'finalDate', or both are in the incorrect format. Please use the 'yyyy-mm-dd' format and try again.",
 		},
-		constant.ErrInvalidFinalDate: EntityNotFoundError{
+		constant.ErrInvalidFinalDate: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidFinalDate.Error(),
 			Title:      "Invalid Final Date Error",
 			Message:    "The 'finalDate' cannot be earlier than the 'initialDate'. Please verify the dates and try again.",
 		},
-		constant.ErrDateRangeExceedsLimit: EntityNotFoundError{
+		constant.ErrDateRangeExceedsLimit: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrDateRangeExceedsLimit.Error(),
 			Title:      "Date Range Exceeds Limit Error",
@@ -762,7 +782,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Pagination Limit Exceeded",
 			Message:    fmt.Sprintf("The pagination limit exceeds the maximum allowed of %v items per page. Please verify the limit and try again.", args...),
 		},
-		constant.ErrInvalidSortOrder: EntityNotFoundError{
+		constant.ErrInvalidSortOrder: ValidationError{
 			EntityType: entityType,
 			Code:       constant.ErrInvalidSortOrder.Error(),
 			Title:      "Invalid Sort Order",
@@ -786,7 +806,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Duplicate Idempotency Key",
 			Message:    fmt.Sprintf("The idempotency key %v is already in use. Please provide a unique key and try again.", args),
 		},
-		constant.ErrAccountAliasNotFound: ValidationError{
+		constant.ErrAccountAliasNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAliasNotFound.Error(),
 			Title:      "Account Alias Not Found",
