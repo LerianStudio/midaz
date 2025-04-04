@@ -1,3 +1,10 @@
+## [1.51.0](https://github.com/LerianStudio/midaz/compare/v1.50.0...v1.51.0) (2025-04-04)
+
+
+### Bug Fixes
+
+* remove old description about midaz on readme; :bug: ([160fb34](https://github.com/LerianStudio/midaz/commit/160fb348abbea1a5969f50c12723a1675eb10772))
+
 ## [1.51.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.16...v1.51.0-beta.17) (2025-04-04)
 
 
