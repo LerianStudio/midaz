@@ -1,3 +1,42 @@
+## [1.51.0-beta.18](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.17...v1.51.0-beta.18) (2025-04-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* sync postman script auto installing dependencies
+* breaking change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* breaking change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* breaking change
+
+BREAKING
+
+* Breaking/installing node on sync postman process (#650) ([659c0fb](https://github.com/LerianStudio/midaz/commit/659c0fb6c4f2760323993afb35381308b9c5a498)), closes [#650](https://github.com/LerianStudio/midaz/issues/650)
+* Breaking/installing node on sync postman process (#649) ([4ec2d1b](https://github.com/LerianStudio/midaz/commit/4ec2d1b2ea896c458877cb9e1bd2cff7185ded9f)), closes [#649](https://github.com/LerianStudio/midaz/issues/649)
+* Breaking/installing node on sync postman process (#648) ([42b8dac](https://github.com/LerianStudio/midaz/commit/42b8dac80a2287e9b52a5b0c793349f9c471a91a)), closes [#648](https://github.com/LerianStudio/midaz/issues/648)
+
+
+### Features
+
+* **makefile:** testing breaking change ([1791699](https://github.com/LerianStudio/midaz/commit/17916994923c7ec302d2277598a76903b952c1dd))
+* **makefile:** testing breaking change ([106af7c](https://github.com/LerianStudio/midaz/commit/106af7c21c8abe1f007dafbfe2cae1410bdbf547))
+
 ## [1.51.0-beta.17](https://github.com/LerianStudio/midaz/compare/v1.51.0-beta.16...v1.51.0-beta.17) (2025-04-04)
 
 
