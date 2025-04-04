@@ -159,7 +159,7 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
       - ${RABBITMQ_PORT_HOST}:${RABBITMQ_PORT_HOST}
-      - ${RABBITMQ_PORT_AMPQ}:${RABBITMQ_PORT_AMPQ}
+      - ${RABBITMQ_PORT_AMQP}:${RABBITMQ_PORT_AMQP}
     volumes:
       - ./rabbitmq/etc/definitions.json:/etc/rabbitmq/definitions.json
       - ./rabbitmq/etc/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
