@@ -553,6 +553,12 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 
 		logger.Error("Validation failed:", err.Error())
 
+		if err.Error() == constant.ErrTransactionAmbiguous.Error() {
+			err = pkg.ValidateBusinessError(constant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+		} else if err.Error() == constant.ErrTransactionValueMismatch.Error() {
+			err = pkg.ValidateBusinessError(constant.ErrTransactionValueMismatch, "ValidateSendSourceAndDistribute")
+		}
+
 		return http.WithError(c, err)
 	}
 
