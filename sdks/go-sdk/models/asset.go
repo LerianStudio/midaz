@@ -2,8 +2,10 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
@@ -231,9 +233,13 @@ type CreateAssetInput struct {
 	Name string `json:"name"`
 
 	// Type defines the asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
+	// The type categorizes the asset and may affect how it behaves in
+	// certain operations or reports.
 	Type string `json:"type,omitempty"`
 
 	// Code is a unique identifier for the asset type (e.g., "USD", "BTC", "AAPL")
+	// This is typically a short, recognizable string that follows standard
+	// conventions where applicable (e.g., ISO 4217 for currencies).
 	Code string `json:"code"`
 
 	// Status represents the initial status of the asset
@@ -298,6 +304,30 @@ func (c *CreateAssetInput) WithMetadata(metadata map[string]any) *CreateAssetInp
 	return c
 }
 
+// validateAssetType validates if the asset type is one of the supported types
+// in the Midaz system.
+func validateAssetType(assetType string) error {
+	// Convert to lowercase for consistency
+	assetType = strings.ToLower(assetType)
+
+	// List of valid asset types based on the Midaz system
+	validTypes := []string{
+		"currency",
+		"crypto",
+		"commodities",
+		"others",
+	}
+
+	for _, validType := range validTypes {
+		if assetType == validType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid asset type: %s. Valid types are: %s",
+		assetType, strings.Join(validTypes, ", "))
+}
+
 // Validate validates the CreateAssetInput and returns an error if it's invalid.
 // This method checks that all required fields are present and meet the validation constraints
 // defined by the backend.
@@ -305,27 +335,29 @@ func (c *CreateAssetInput) WithMetadata(metadata map[string]any) *CreateAssetInp
 // Returns:
 //   - error: An error if the input is invalid, nil otherwise
 func (input *CreateAssetInput) Validate() error {
-	// Check required fields
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}
 
 	if len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters, got %d", len(input.Name))
+		return fmt.Errorf("name must be at most 256 characters")
 	}
 
 	if input.Code == "" {
 		return fmt.Errorf("code is required")
 	}
 
-	if len(input.Code) > 100 {
-		return fmt.Errorf("code must be at most 100 characters, got %d", len(input.Code))
+	// Validate asset type if provided
+	if input.Type != "" {
+		if err := validateAssetType(input.Type); err != nil {
+			return fmt.Errorf("invalid asset type: %w", err)
+		}
 	}
 
-	// Validate metadata keys and values if present
-	if input.Metadata != nil {
-		if err := validateMetadata(input.Metadata); err != nil {
-			return err
+	// Validate currency code if asset type is currency
+	if strings.ToLower(input.Type) == "currency" {
+		if err := commons.ValidateCurrency(input.Code); err != nil {
+			return fmt.Errorf("invalid currency code: %w", err)
 		}
 	}
 
@@ -507,6 +539,30 @@ type ListAssetInput struct {
 
 	// Filter contains the filtering criteria
 	Filter AssetFilter `json:"filter,omitempty"`
+}
+
+// Validate checks if the ListAssetInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *ListAssetInput) Validate() error {
+	// Validate page number if provided
+	if input.Page < 0 {
+		return fmt.Errorf("page number cannot be negative")
+	}
+
+	// Validate per page count if provided
+	if input.PerPage < 0 {
+		return fmt.Errorf("perPage cannot be negative")
+	}
+
+	// Validate maximum per page to prevent excessive resource usage
+	if input.PerPage > 100 {
+		return fmt.Errorf("perPage cannot exceed 100")
+	}
+
+	return nil
 }
 
 // ListAssetResponse for asset listing responses.

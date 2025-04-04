@@ -909,3 +909,34 @@ type UpdateTransactionInput struct {
 	// This can be used to correlate transactions with records in other systems
 	ExternalID string `json:"externalId,omitempty"`
 }
+
+// Validate checks if the UpdateTransactionInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *UpdateTransactionInput) Validate() error {
+	// Validate description length if provided
+	if input.Description != "" && len(input.Description) > 256 {
+		return fmt.Errorf("description must not exceed 256 characters")
+	}
+
+	// Validate external ID if provided
+	if input.ExternalID != "" && len(input.ExternalID) > 64 {
+		return fmt.Errorf("externalId must not exceed 64 characters")
+	}
+
+	// Validate metadata if provided
+	if input.Metadata != nil {
+		for key, value := range input.Metadata {
+			if len(key) > 64 {
+				return fmt.Errorf("metadata key '%s' exceeds 64 characters", key)
+			}
+			if len(fmt.Sprintf("%v", value)) > 256 {
+				return fmt.Errorf("metadata value for key '%s' exceeds 256 characters", key)
+			}
+		}
+	}
+
+	return nil
+}

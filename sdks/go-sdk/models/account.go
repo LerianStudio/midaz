@@ -3,8 +3,10 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 )
 
@@ -372,37 +374,67 @@ type CreateAccountInput struct {
 	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
+// validateAccountType validates if the account type is one of the supported types
+// in the Midaz system.
+func validateAccountType(accountType string) error {
+	// Convert to lowercase for consistency
+	accountType = strings.ToLower(accountType)
+
+	// List of valid account types based on the Midaz system
+	validTypes := []string{
+		"deposit",
+		"external",
+		"liability",
+	}
+
+	for _, validType := range validTypes {
+		if accountType == validType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid account type: %s. Valid types are: %s",
+		accountType, strings.Join(validTypes, ", "))
+}
+
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateAccountInput) Validate() error {
-	// Check required fields
+	if input.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+
+	if len(input.Name) > 256 {
+		return fmt.Errorf("name must be at most 256 characters")
+	}
+
 	if input.AssetCode == "" {
 		return fmt.Errorf("asset code is required")
 	}
 
-	if len(input.AssetCode) > 100 {
-		return fmt.Errorf("asset code must be at most 100 characters, got %d", len(input.AssetCode))
+	// Validate asset code if it's a currency
+	if err := commons.ValidateCurrency(input.AssetCode); err == nil {
+		// No error means it's a valid currency code
+	} else {
+		// If not a valid currency, it might be a custom asset code
+		// which should be validated by the backend
 	}
 
 	if input.Type == "" {
-		return fmt.Errorf("type is required")
+		return fmt.Errorf("account type is required")
 	}
 
-	// Check optional fields with length constraints
-	if len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters, got %d", len(input.Name))
+	// Validate account type
+	if err := validateAccountType(input.Type); err != nil {
+		return fmt.Errorf("invalid account type: %w", err)
 	}
 
-	if input.EntityID != nil && len(*input.EntityID) > 256 {
-		return fmt.Errorf("entity ID must be at most 256 characters, got %d", len(*input.EntityID))
+	// Validate alias if provided
+	if input.Alias != nil && *input.Alias != "" {
+		if len(*input.Alias) > 50 {
+			return fmt.Errorf("alias must be at most 50 characters")
+		}
 	}
-
-	if input.Alias != nil && len(*input.Alias) > 100 {
-		return fmt.Errorf("alias must be at most 100 characters, got %d", len(*input.Alias))
-	}
-
-	// Metadata validation would typically be more complex
-	// For now, we'll just ensure it's not nil if provided
 
 	return nil
 }
@@ -716,6 +748,30 @@ type ListAccountInput struct {
 
 	// Filter contains the filtering criteria
 	Filter AccountFilter `json:"filter,omitempty"`
+}
+
+// Validate checks if the ListAccountInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *ListAccountInput) Validate() error {
+	// Validate page number if provided
+	if input.Page < 0 {
+		return fmt.Errorf("page number cannot be negative")
+	}
+
+	// Validate per page count if provided
+	if input.PerPage < 0 {
+		return fmt.Errorf("perPage cannot be negative")
+	}
+
+	// Validate maximum per page to prevent excessive resource usage
+	if input.PerPage > 100 {
+		return fmt.Errorf("perPage cannot exceed 100")
+	}
+
+	return nil
 }
 
 // ListAccountResponse for account listing responses.

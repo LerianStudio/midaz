@@ -976,3 +976,290 @@ func TestValidateCreateTransactionInput(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateAccountType(t *testing.T) {
+	tests := []struct {
+		name        string
+		accountType string
+		wantErr     bool
+	}{
+		{
+			name:        "Valid deposit account type",
+			accountType: "deposit",
+			wantErr:     false,
+		},
+		{
+			name:        "Valid external account type",
+			accountType: "external",
+			wantErr:     false,
+		},
+		{
+			name:        "Valid liability account type",
+			accountType: "liability",
+			wantErr:     false,
+		},
+		{
+			name:        "Valid uppercase account type",
+			accountType: "DEPOSIT",
+			wantErr:     false,
+		},
+		{
+			name:        "Invalid account type",
+			accountType: "invalid",
+			wantErr:     true,
+		},
+		{
+			name:        "Empty account type",
+			accountType: "",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := utils.ValidateAccountType(tt.accountType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAccountType() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateAssetType(t *testing.T) {
+	tests := []struct {
+		name      string
+		assetType string
+		wantErr   bool
+	}{
+		{
+			name:      "Valid currency asset type",
+			assetType: "currency",
+			wantErr:   false,
+		},
+		{
+			name:      "Valid crypto asset type",
+			assetType: "crypto",
+			wantErr:   false,
+		},
+		{
+			name:      "Valid commodities asset type",
+			assetType: "commodities",
+			wantErr:   false,
+		},
+		{
+			name:      "Valid others asset type",
+			assetType: "others",
+			wantErr:   false,
+		},
+		{
+			name:      "Valid uppercase asset type",
+			assetType: "CURRENCY",
+			wantErr:   false,
+		},
+		{
+			name:      "Invalid asset type",
+			assetType: "invalid",
+			wantErr:   true,
+		},
+		{
+			name:      "Empty asset type",
+			assetType: "",
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := utils.ValidateAssetType(tt.assetType)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAssetType() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCurrencyCode(t *testing.T) {
+	tests := []struct {
+		name    string
+		code    string
+		wantErr bool
+	}{
+		{
+			name:    "Valid USD currency code",
+			code:    "USD",
+			wantErr: false,
+		},
+		{
+			name:    "Valid EUR currency code",
+			code:    "EUR",
+			wantErr: false,
+		},
+		{
+			name:    "Invalid currency code",
+			code:    "XYZ",
+			wantErr: true,
+		},
+		{
+			name:    "Empty currency code",
+			code:    "",
+			wantErr: true,
+		},
+		{
+			name:    "Lowercase currency code",
+			code:    "usd",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := utils.ValidateCurrencyCode(tt.code)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateCurrencyCode() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCountryCode(t *testing.T) {
+	tests := []struct {
+		name    string
+		code    string
+		wantErr bool
+	}{
+		{
+			name:    "Valid US country code",
+			code:    "US",
+			wantErr: false,
+		},
+		{
+			name:    "Valid GB country code",
+			code:    "GB",
+			wantErr: false,
+		},
+		{
+			name:    "Invalid country code",
+			code:    "XX",
+			wantErr: true,
+		},
+		{
+			name:    "Empty country code",
+			code:    "",
+			wantErr: true,
+		},
+		{
+			name:    "Lowercase country code",
+			code:    "us",
+			wantErr: true,
+		},
+		{
+			name:    "Too long country code",
+			code:    "USA",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := utils.ValidateCountryCode(tt.code)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateCountryCode() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateAddress(t *testing.T) {
+	tests := []struct {
+		name    string
+		address *utils.Address
+		wantErr bool
+	}{
+		{
+			name: "Valid address",
+			address: &utils.Address{
+				Line1:   "123 Main St",
+				ZipCode: "12345",
+				City:    "New York",
+				State:   "NY",
+				Country: "US",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "Nil address",
+			address: nil,
+			wantErr: true,
+		},
+		{
+			name: "Missing line1",
+			address: &utils.Address{
+				ZipCode: "12345",
+				City:    "New York",
+				State:   "NY",
+				Country: "US",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing zipCode",
+			address: &utils.Address{
+				Line1:   "123 Main St",
+				City:    "New York",
+				State:   "NY",
+				Country: "US",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing city",
+			address: &utils.Address{
+				Line1:   "123 Main St",
+				ZipCode: "12345",
+				State:   "NY",
+				Country: "US",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing state",
+			address: &utils.Address{
+				Line1:   "123 Main St",
+				ZipCode: "12345",
+				City:    "New York",
+				Country: "US",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Missing country",
+			address: &utils.Address{
+				Line1:   "123 Main St",
+				ZipCode: "12345",
+				City:    "New York",
+				State:   "NY",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Invalid country code",
+			address: &utils.Address{
+				Line1:   "123 Main St",
+				ZipCode: "12345",
+				City:    "New York",
+				State:   "NY",
+				Country: "XX", // Invalid country code
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := utils.ValidateAddress(tt.address)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateAddress() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

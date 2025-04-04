@@ -13,21 +13,37 @@ package utils
 import (
 	"fmt"
 	"strings"
-
-	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
+
+// Account represents a simplified account structure for utility functions.
+// This avoids the import cycle with the models package.
+type Account struct {
+	ID              string
+	Name            string
+	ParentAccountID *string
+	AssetCode       string
+	Type            string
+	Alias           *string
+	Status          Status
+}
+
+// Status represents a simplified status structure.
+type Status struct {
+	Code        string
+	Description *string
+}
 
 // GetAccountIdentifier returns the best identifier for an account (alias if available, ID otherwise).
 // This prevents nil pointer exceptions when dealing with the optional Alias field.
 //
 // Example:
 //
-//	account := &models.Account{ID: "acc_123", Alias: &aliasValue}
+//	account := &utils.Account{ID: "acc_123", Alias: &aliasValue}
 //	identifier := utils.GetAccountIdentifier(account) // Returns aliasValue
 //
-//	accountNoAlias := &models.Account{ID: "acc_456"} // Alias is nil
+//	accountNoAlias := &utils.Account{ID: "acc_456"} // Alias is nil
 //	identifier = utils.GetAccountIdentifier(accountNoAlias) // Returns "acc_456"
-func GetAccountIdentifier(account *models.Account) string {
+func GetAccountIdentifier(account *Account) string {
 	if account == nil {
 		return ""
 	}
@@ -45,14 +61,14 @@ func GetAccountIdentifier(account *models.Account) string {
 // Example:
 //
 //	// Search for an account by alias in a list of accounts
-//	:= []models.Account{
+//	:= []utils.Account{
 //		{
 //			ID: "acc_123",
 //			Name: "Savings Account",
 //			AssetCode: "USD",
 //			Alias: ptr.String("savings"),
 //			Type: "ASSET",
-//			Status: models.NewStatus("ACTIVE"),
+//			Status: utils.Status{Code: "ACTIVE"},
 //		},
 //		{
 //			ID: "acc_456",
@@ -60,7 +76,7 @@ func GetAccountIdentifier(account *models.Account) string {
 //			AssetCode: "USD",
 //			Alias: ptr.String("checking"),
 //			Type: "ASSET",
-//			Status: models.NewStatus("ACTIVE"),
+//			Status: utils.Status{Code: "ACTIVE"},
 //		},
 //	}
 //
@@ -70,7 +86,7 @@ func GetAccountIdentifier(account *models.Account) string {
 //	} else {
 //	    log.Printf("Found account: %s", account.ID) // Prints: Found account: acc_123
 //	}
-func FindAccountByAlias(accounts []models.Account, alias string) *models.Account {
+func FindAccountByAlias(accounts []Account, alias string) *Account {
 	for i, account := range accounts {
 		if account.Alias != nil && *account.Alias == alias {
 			return &accounts[i]
@@ -85,14 +101,14 @@ func FindAccountByAlias(accounts []models.Account, alias string) *models.Account
 //
 // Example:
 //
-//	accounts := []models.Account{...}
+//	accounts := []utils.Account{...}
 //	account := utils.FindAccountByID(accounts, "acc_123")
 //	if account == nil {
 //	    log.Println("Account not found")
 //	} else {
 //	    log.Printf("Found account: %s", account.Alias)
 //	}
-func FindAccountByID(accounts []models.Account, id string) *models.Account {
+func FindAccountByID(accounts []Account, id string) *Account {
 	for i, account := range accounts {
 		if account.ID == id {
 			return &accounts[i]
@@ -107,11 +123,11 @@ func FindAccountByID(accounts []models.Account, id string) *models.Account {
 //
 // Example:
 //
-//	accounts := []models.Account{...}
+//	accounts := []utils.Account{...}
 //	usdAccounts := utils.FindAccountsByAssetCode(accounts, "USD")
 //	log.Printf("Found %d USD accounts", len(usdAccounts))
-func FindAccountsByAssetCode(accounts []models.Account, assetCode string) []models.Account {
-	var result []models.Account
+func FindAccountsByAssetCode(accounts []Account, assetCode string) []Account {
+	var result []Account
 
 	for _, account := range accounts {
 		if account.AssetCode == assetCode {
@@ -127,11 +143,11 @@ func FindAccountsByAssetCode(accounts []models.Account, assetCode string) []mode
 //
 // Example:
 //
-//	accounts := []models.Account{...}
+//	accounts := []utils.Account{...}
 //	activeAccounts := utils.FindAccountsByStatus(accounts, "ACTIVE")
 //	log.Printf("Found %d active accounts", len(activeAccounts))
-func FindAccountsByStatus(accounts []models.Account, status string) []models.Account {
-	var result []models.Account
+func FindAccountsByStatus(accounts []Account, status string) []Account {
+	var result []Account
 
 	for _, account := range accounts {
 		if account.Status.Code == status {
@@ -143,7 +159,7 @@ func FindAccountsByStatus(accounts []models.Account, status string) []models.Acc
 }
 
 // matchesFilter checks if an account matches a specific filter key and value
-func matchesFilter(account models.Account, key, value string) bool {
+func matchesFilter(account Account, key, value string) bool {
 	switch strings.ToLower(key) {
 	case "assetcode":
 		return account.AssetCode == value
@@ -168,13 +184,13 @@ func matchesFilter(account models.Account, key, value string) bool {
 // Example:
 //
 //	// Create a list of accounts
-//	:= []models.Account{
+//	:= []utils.Account{
 //		{
 //			ID:        "acc_123",
 //			Name:      "USD Savings",
 //			AssetCode: "USD",
 //			Type:      "ASSET",
-//			Status:    models.NewStatus("ACTIVE"),
+//			Status:    utils.Status{Code: "ACTIVE"},
 //			Alias:     ptr.String("usd_savings"),
 //		},
 //		{
@@ -182,7 +198,7 @@ func matchesFilter(account models.Account, key, value string) bool {
 //			Name:      "EUR Checking",
 //			AssetCode: "EUR",
 //			Type:      "ASSET",
-//			Status:    models.NewStatus("ACTIVE"),
+//			Status:    utils.Status{Code: "ACTIVE"},
 //			Alias:     ptr.String("eur_checking"),
 //		},
 //		{
@@ -190,7 +206,7 @@ func matchesFilter(account models.Account, key, value string) bool {
 //			Name:      "USD Frozen Account",
 //			AssetCode: "USD",
 //			Type:      "ASSET",
-//			Status:    models.NewStatus("FROZEN"),
+//			Status:    utils.Status{Code: "FROZEN"},
 //			Alias:     ptr.String("usd_frozen"),
 //		},
 //	}
@@ -201,12 +217,12 @@ func matchesFilter(account models.Account, key, value string) bool {
 //	    "status": "ACTIVE",
 //	})
 //	log.Printf("Found %d matching accounts", len(filtered)) // Prints: Found 1 matching accounts
-func FilterAccounts(accounts []models.Account, filters map[string]string) []models.Account {
+func FilterAccounts(accounts []Account, filters map[string]string) []Account {
 	if len(filters) == 0 {
 		return accounts
 	}
 
-	var result []models.Account
+	var result []Account
 
 	for _, account := range accounts {
 		match := true
@@ -240,20 +256,30 @@ type AccountBalanceSummary struct {
 	Scale        int
 }
 
+// Balance represents a simplified balance structure for utility functions.
+type Balance struct {
+	ID        string
+	AccountID string
+	AssetCode string
+	Available int64
+	OnHold    int64
+	Scale     int32
+}
+
 // GetAccountBalanceSummary creates a human-readable balance summary for an account.
 // This is useful for displaying account balances in a user interface.
 //
 // Example:
 //
 //	// Create account and balance objects
-//	account := &models.Account{
+//	account := &utils.Account{
 //		ID:        "acc_123",
 //		Name:      "Savings Account",
 //		AssetCode: "USD",
 //		Alias:     ptr.String("savings"),
 //	}
 //
-//	balance := &models.Balance{
+//	balance := &utils.Balance{
 //		ID:        "bal_456",
 //		AccountID: "acc_123",
 //		AssetCode: "USD",
@@ -269,7 +295,7 @@ type AccountBalanceSummary struct {
 //
 //	log.Printf("Account %s has available balance: %s",
 //		summary.AccountAlias, summary.AvailableStr) // Prints: Account savings has available balance: 100.00
-func GetAccountBalanceSummary(account *models.Account, balance *models.Balance) (AccountBalanceSummary, error) {
+func GetAccountBalanceSummary(account *Account, balance *Balance) (AccountBalanceSummary, error) {
 	summary := AccountBalanceSummary{
 		Scale: int(balance.Scale),
 	}
@@ -304,11 +330,11 @@ func GetAccountBalanceSummary(account *models.Account, balance *models.Balance) 
 //
 // Example:
 //
-//	account := &models.Account{...}
+//	account := &utils.Account{...}
 //	summary := utils.FormatAccountSummary(account)
 //	log.Println(summary)
 //	// Result: "Account: savings (acc_123) - Type: ASSET - Asset: USD - Status: ACTIVE"
-func FormatAccountSummary(account *models.Account) string {
+func FormatAccountSummary(account *Account) string {
 	if account == nil {
 		return "Account: <nil>"
 	}

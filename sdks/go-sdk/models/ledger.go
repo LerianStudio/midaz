@@ -447,6 +447,30 @@ type ListLedgerInput struct {
 	Filter LedgerFilter `json:"filter,omitempty"`
 }
 
+// Validate checks if the ListLedgerInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *ListLedgerInput) Validate() error {
+	// Validate page number if provided
+	if input.Page < 0 {
+		return fmt.Errorf("page number cannot be negative")
+	}
+
+	// Validate per page count if provided
+	if input.PerPage < 0 {
+		return fmt.Errorf("perPage cannot be negative")
+	}
+
+	// Validate maximum per page to prevent excessive resource usage
+	if input.PerPage > 100 {
+		return fmt.Errorf("perPage cannot exceed 100")
+	}
+
+	return nil
+}
+
 // ListLedgerResponse for ledger listing responses.
 // This structure represents the response from a list ledgers request.
 type ListLedgerResponse struct {

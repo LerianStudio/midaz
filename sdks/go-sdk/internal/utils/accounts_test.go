@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
-	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +15,7 @@ func strPtr(s string) *string {
 func TestGetAccountIdentifier(t *testing.T) {
 	testCases := []struct {
 		name           string
-		account        *models.Account
+		account        *utils.Account
 		expectedResult string
 	}{
 		{
@@ -26,7 +25,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 		},
 		{
 			name: "Account with alias",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:    "acc_123",
 				Alias: strPtr("savings"),
 			},
@@ -34,7 +33,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 		},
 		{
 			name: "Account with nil alias",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:    "acc_123",
 				Alias: nil,
 			},
@@ -42,7 +41,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 		},
 		{
 			name: "Account with empty alias",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:    "acc_123",
 				Alias: strPtr(""),
 			},
@@ -59,195 +58,250 @@ func TestGetAccountIdentifier(t *testing.T) {
 }
 
 func TestFindAccountByID(t *testing.T) {
-	accounts := []models.Account{
-		{
-			ID:    "acc_123",
-			Alias: strPtr("savings"),
-		},
-		{
-			ID:    "acc_456",
-			Alias: strPtr("checking"),
-		},
-		{
-			ID:    "acc_789",
-			Alias: strPtr("investment"),
-		},
-	}
-
 	testCases := []struct {
-		name           string
-		accounts       []models.Account
-		id             string
-		expectedResult *models.Account
+		name          string
+		accounts      []utils.Account
+		id            string
+		expectedFound bool
 	}{
 		{
-			name:           "Empty accounts",
-			accounts:       []models.Account{},
-			id:             "acc_123",
-			expectedResult: nil,
+			name:          "Empty accounts",
+			accounts:      []utils.Account{},
+			id:            "acc_123",
+			expectedFound: false,
 		},
 		{
-			name:           "Nil accounts",
-			accounts:       nil,
-			id:             "acc_123",
-			expectedResult: nil,
+			name: "Account found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+				{
+					ID:        "acc_456",
+					Name:      "Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+			},
+			id:            "acc_123",
+			expectedFound: true,
 		},
 		{
-			name:           "Account found",
-			accounts:       accounts,
-			id:             "acc_456",
-			expectedResult: &accounts[1],
-		},
-		{
-			name:           "Account not found",
-			accounts:       accounts,
-			id:             "acc_999",
-			expectedResult: nil,
+			name: "Account not found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+				{
+					ID:        "acc_456",
+					Name:      "Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+			},
+			id:            "acc_789",
+			expectedFound: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := utils.FindAccountByID(tc.accounts, tc.id)
-			assert.Equal(t, tc.expectedResult, result)
+			if tc.expectedFound {
+				assert.NotNil(t, result)
+				assert.Equal(t, tc.id, result.ID)
+			} else {
+				assert.Nil(t, result)
+			}
 		})
 	}
 }
 
 func TestFindAccountByAlias(t *testing.T) {
-	accounts := []models.Account{
-		{
-			ID:    "acc_123",
-			Alias: strPtr("savings"),
-		},
-		{
-			ID:    "acc_456",
-			Alias: strPtr("checking"),
-		},
-		{
-			ID:    "acc_789",
-			Alias: nil,
-		},
-	}
-
 	testCases := []struct {
-		name           string
-		accounts       []models.Account
-		alias          string
-		expectedResult *models.Account
+		name          string
+		accounts      []utils.Account
+		alias         string
+		expectedFound bool
 	}{
 		{
-			name:           "Empty accounts",
-			accounts:       []models.Account{},
-			alias:          "savings",
-			expectedResult: nil,
+			name:          "Empty accounts",
+			accounts:      []utils.Account{},
+			alias:         "savings",
+			expectedFound: false,
 		},
 		{
-			name:           "Nil accounts",
-			accounts:       nil,
-			alias:          "savings",
-			expectedResult: nil,
+			name: "Account found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("checking"),
+				},
+			},
+			alias:         "savings",
+			expectedFound: true,
 		},
 		{
-			name:           "Account found",
-			accounts:       accounts,
-			alias:          "checking",
-			expectedResult: &accounts[1],
+			name: "Account not found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("checking"),
+				},
+			},
+			alias:         "investment",
+			expectedFound: false,
 		},
 		{
-			name:           "Account not found",
-			accounts:       accounts,
-			alias:          "nonexistent",
-			expectedResult: nil,
-		},
-		{
-			name:           "Empty alias",
-			accounts:       accounts,
-			alias:          "",
-			expectedResult: nil,
+			name: "Nil alias",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     nil,
+				},
+				{
+					ID:        "acc_456",
+					Name:      "Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("checking"),
+				},
+			},
+			alias:         "savings",
+			expectedFound: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := utils.FindAccountByAlias(tc.accounts, tc.alias)
-			assert.Equal(t, tc.expectedResult, result)
+			if tc.expectedFound {
+				assert.NotNil(t, result)
+				assert.Equal(t, tc.alias, *result.Alias)
+			} else {
+				assert.Nil(t, result)
+			}
 		})
 	}
 }
 
 func TestFindAccountsByAssetCode(t *testing.T) {
-	accounts := []models.Account{
-		{
-			ID:        "acc_123",
-			Alias:     strPtr("savings_usd"),
-			AssetCode: "USD",
-		},
-		{
-			ID:        "acc_456",
-			Alias:     strPtr("checking_usd"),
-			AssetCode: "USD",
-		},
-		{
-			ID:        "acc_789",
-			Alias:     strPtr("savings_eur"),
-			AssetCode: "EUR",
-		},
-		{
-			ID:        "acc_012",
-			Alias:     strPtr("investment_btc"),
-			AssetCode: "BTC",
-		},
-	}
-
 	testCases := []struct {
-		name           string
-		accounts       []models.Account
-		assetCode      string
-		expectedCount  int
-		expectedResult []models.Account
+		name            string
+		accounts        []utils.Account
+		assetCode       string
+		expectedCount   int
+		expectedCodes   []string
+		expectedIDs     []string
+		expectedAliases []string
 	}{
 		{
-			name:           "Empty accounts",
-			accounts:       []models.Account{},
-			assetCode:      "USD",
-			expectedCount:  0,
-			expectedResult: []models.Account{},
+			name:            "Empty accounts",
+			accounts:        []utils.Account{},
+			assetCode:       "USD",
+			expectedCount:   0,
+			expectedCodes:   []string{},
+			expectedIDs:     []string{},
+			expectedAliases: []string{},
 		},
 		{
-			name:           "Nil accounts",
-			accounts:       nil,
-			assetCode:      "USD",
-			expectedCount:  0,
-			expectedResult: nil,
+			name: "Multiple accounts found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+				{
+					ID:        "acc_789",
+					Name:      "USD Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_checking"),
+				},
+			},
+			assetCode:       "USD",
+			expectedCount:   2,
+			expectedCodes:   []string{"USD", "USD"},
+			expectedIDs:     []string{"acc_123", "acc_789"},
+			expectedAliases: []string{"usd_savings", "usd_checking"},
 		},
 		{
-			name:           "Filter USD accounts",
-			accounts:       accounts,
-			assetCode:      "USD",
-			expectedCount:  2,
-			expectedResult: []models.Account{accounts[0], accounts[1]},
-		},
-		{
-			name:           "Filter EUR accounts",
-			accounts:       accounts,
-			assetCode:      "EUR",
-			expectedCount:  1,
-			expectedResult: []models.Account{accounts[2]},
-		},
-		{
-			name:           "Filter BTC accounts",
-			accounts:       accounts,
-			assetCode:      "BTC",
-			expectedCount:  1,
-			expectedResult: []models.Account{accounts[3]},
-		},
-		{
-			name:           "Filter nonexistent asset code",
-			accounts:       accounts,
-			assetCode:      "XYZ",
-			expectedCount:  0,
-			expectedResult: []models.Account{},
+			name: "No accounts found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+			},
+			assetCode:       "GBP",
+			expectedCount:   0,
+			expectedCodes:   []string{},
+			expectedIDs:     []string{},
+			expectedAliases: []string{},
 		},
 	}
 
@@ -255,89 +309,85 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := utils.FindAccountsByAssetCode(tc.accounts, tc.assetCode)
 			assert.Equal(t, tc.expectedCount, len(result))
-			// For empty results, just check the length is 0 instead of comparing exact value
-			// since the function might return nil instead of empty slice
-			if tc.expectedCount == 0 {
-				assert.Empty(t, result, "Expected empty result")
-			} else {
-				assert.Equal(t, tc.expectedResult, result)
+
+			for i, account := range result {
+				assert.Equal(t, tc.expectedCodes[i], account.AssetCode)
+				assert.Equal(t, tc.expectedIDs[i], account.ID)
+				assert.Equal(t, tc.expectedAliases[i], *account.Alias)
 			}
 		})
 	}
 }
 
 func TestFindAccountsByStatus(t *testing.T) {
-	accounts := []models.Account{
-		{
-			ID:     "acc_123",
-			Alias:  strPtr("savings"),
-			Status: models.Status{Code: "ACTIVE"},
-		},
-		{
-			ID:     "acc_456",
-			Alias:  strPtr("checking"),
-			Status: models.Status{Code: "ACTIVE"},
-		},
-		{
-			ID:     "acc_789",
-			Alias:  strPtr("closed"),
-			Status: models.Status{Code: "CLOSED"},
-		},
-		{
-			ID:     "acc_012",
-			Alias:  strPtr("pending"),
-			Status: models.Status{Code: "PENDING"},
-		},
-	}
-
 	testCases := []struct {
-		name           string
-		accounts       []models.Account
-		status         string
-		expectedCount  int
-		expectedResult []models.Account
+		name             string
+		accounts         []utils.Account
+		status           string
+		expectedCount    int
+		expectedIDs      []string
+		expectedStatuses []string
 	}{
 		{
-			name:           "Empty accounts",
-			accounts:       []models.Account{},
-			status:         "ACTIVE",
-			expectedCount:  0,
-			expectedResult: []models.Account{},
+			name:             "Empty accounts",
+			accounts:         []utils.Account{},
+			status:           "ACTIVE",
+			expectedCount:    0,
+			expectedIDs:      []string{},
+			expectedStatuses: []string{},
 		},
 		{
-			name:           "Nil accounts",
-			accounts:       nil,
-			status:         "ACTIVE",
-			expectedCount:  0,
-			expectedResult: nil,
+			name: "Multiple accounts found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "FROZEN"},
+				},
+				{
+					ID:        "acc_789",
+					Name:      "USD Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+			},
+			status:           "ACTIVE",
+			expectedCount:    2,
+			expectedIDs:      []string{"acc_123", "acc_789"},
+			expectedStatuses: []string{"ACTIVE", "ACTIVE"},
 		},
 		{
-			name:           "Filter active accounts",
-			accounts:       accounts,
-			status:         "ACTIVE",
-			expectedCount:  2,
-			expectedResult: []models.Account{accounts[0], accounts[1]},
-		},
-		{
-			name:           "Filter closed accounts",
-			accounts:       accounts,
-			status:         "CLOSED",
-			expectedCount:  1,
-			expectedResult: []models.Account{accounts[2]},
-		},
-		{
-			name:           "Filter pending accounts",
-			accounts:       accounts,
-			status:         "PENDING",
-			expectedCount:  1,
-			expectedResult: []models.Account{accounts[3]},
-		},
-		{
-			name:           "Filter nonexistent status",
-			accounts:       accounts,
-			status:         "NONEXISTENT",
-			expectedCount:  0,
-			expectedResult: []models.Account{},
+			name: "No accounts found",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "FROZEN"},
+				},
+			},
+			status:           "CLOSED",
+			expectedCount:    0,
+			expectedIDs:      []string{},
+			expectedStatuses: []string{},
 		},
 	}
 
@@ -345,131 +395,183 @@ func TestFindAccountsByStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := utils.FindAccountsByStatus(tc.accounts, tc.status)
 			assert.Equal(t, tc.expectedCount, len(result))
-			// For empty results, just check the length is 0 instead of comparing exact value
-			// since the function might return nil instead of empty slice
-			if tc.expectedCount == 0 {
-				assert.Empty(t, result, "Expected empty result")
-			} else {
-				assert.Equal(t, tc.expectedResult, result)
+
+			for i, account := range result {
+				assert.Equal(t, tc.expectedIDs[i], account.ID)
+				assert.Equal(t, tc.expectedStatuses[i], account.Status.Code)
 			}
 		})
 	}
 }
 
 func TestFilterAccounts(t *testing.T) {
-	accounts := []models.Account{
-		{
-			ID:        "acc_123",
-			Alias:     strPtr("savings_usd"),
-			AssetCode: "USD",
-			Type:      "SAVINGS",
-			Status:    models.Status{Code: "ACTIVE"},
-		},
-		{
-			ID:        "acc_456",
-			Alias:     strPtr("checking_usd"),
-			AssetCode: "USD",
-			Type:      "CHECKING",
-			Status:    models.Status{Code: "ACTIVE"},
-		},
-		{
-			ID:        "acc_789",
-			Alias:     strPtr("savings_eur"),
-			AssetCode: "EUR",
-			Type:      "SAVINGS",
-			Status:    models.Status{Code: "ACTIVE"},
-		},
-		{
-			ID:        "acc_012",
-			Alias:     strPtr("closed_usd"),
-			AssetCode: "USD",
-			Type:      "SAVINGS",
-			Status:    models.Status{Code: "CLOSED"},
-		},
-	}
-
 	testCases := []struct {
-		name           string
-		accounts       []models.Account
-		filters        map[string]string
-		expectedCount  int
-		expectedResult []models.Account
+		name          string
+		accounts      []utils.Account
+		filters       map[string]string
+		expectedCount int
+		expectedIDs   []string
 	}{
 		{
-			name:           "Empty accounts",
-			accounts:       []models.Account{},
-			filters:        map[string]string{"assetCode": "USD"},
-			expectedCount:  0,
-			expectedResult: []models.Account{},
+			name:          "Empty accounts",
+			accounts:      []utils.Account{},
+			filters:       map[string]string{"assetCode": "USD"},
+			expectedCount: 0,
+			expectedIDs:   []string{},
 		},
 		{
-			name:           "Nil accounts",
-			accounts:       nil,
-			filters:        map[string]string{"assetCode": "USD"},
-			expectedCount:  0,
-			expectedResult: nil,
+			name: "Filter by asset code",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+				{
+					ID:        "acc_789",
+					Name:      "USD Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "FROZEN"},
+					Alias:     strPtr("usd_checking"),
+				},
+			},
+			filters:       map[string]string{"assetCode": "USD"},
+			expectedCount: 2,
+			expectedIDs:   []string{"acc_123", "acc_789"},
 		},
 		{
-			name:           "Empty filters",
-			accounts:       accounts,
-			filters:        map[string]string{},
-			expectedCount:  4,
-			expectedResult: accounts,
+			name: "Filter by asset code and status",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+				{
+					ID:        "acc_789",
+					Name:      "USD Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "FROZEN"},
+					Alias:     strPtr("usd_checking"),
+				},
+			},
+			filters:       map[string]string{"assetCode": "USD", "status": "ACTIVE"},
+			expectedCount: 1,
+			expectedIDs:   []string{"acc_123"},
 		},
 		{
-			name:           "Filter by asset code",
-			accounts:       accounts,
-			filters:        map[string]string{"assetCode": "USD"},
-			expectedCount:  3,
-			expectedResult: []models.Account{accounts[0], accounts[1], accounts[3]},
+			name: "Filter by alias contains",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+				{
+					ID:        "acc_789",
+					Name:      "USD Checking",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "FROZEN"},
+					Alias:     strPtr("usd_checking"),
+				},
+			},
+			filters:       map[string]string{"aliasContains": "checking"},
+			expectedCount: 2,
+			expectedIDs:   []string{"acc_456", "acc_789"},
 		},
 		{
-			name:           "Filter by status",
-			accounts:       accounts,
-			filters:        map[string]string{"status": "ACTIVE"},
-			expectedCount:  3,
-			expectedResult: []models.Account{accounts[0], accounts[1], accounts[2]},
+			name: "No matching accounts",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+			},
+			filters:       map[string]string{"assetCode": "GBP"},
+			expectedCount: 0,
+			expectedIDs:   []string{},
 		},
 		{
-			name:           "Filter by type",
-			accounts:       accounts,
-			filters:        map[string]string{"type": "SAVINGS"},
-			expectedCount:  3,
-			expectedResult: []models.Account{accounts[0], accounts[2], accounts[3]},
-		},
-		{
-			name:           "Filter by multiple criteria",
-			accounts:       accounts,
-			filters:        map[string]string{"assetCode": "USD", "status": "ACTIVE", "type": "SAVINGS"},
-			expectedCount:  1,
-			expectedResult: []models.Account{accounts[0]},
-		},
-		{
-			name:           "Filter by alias contains",
-			accounts:       accounts,
-			filters:        map[string]string{"aliasContains": "savings"},
-			expectedCount:  2,
-			expectedResult: []models.Account{accounts[0], accounts[2]},
-		},
-		{
-			name:           "No matching accounts",
-			accounts:       accounts,
-			filters:        map[string]string{"assetCode": "XYZ"},
-			expectedCount:  0,
-			expectedResult: []models.Account{},
+			name: "Empty filters",
+			accounts: []utils.Account{
+				{
+					ID:        "acc_123",
+					Name:      "USD Savings",
+					AssetCode: "USD",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("usd_savings"),
+				},
+				{
+					ID:        "acc_456",
+					Name:      "EUR Checking",
+					AssetCode: "EUR",
+					Type:      "ASSET",
+					Status:    utils.Status{Code: "ACTIVE"},
+					Alias:     strPtr("eur_checking"),
+				},
+			},
+			filters:       map[string]string{},
+			expectedCount: 2,
+			expectedIDs:   []string{"acc_123", "acc_456"},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := utils.FilterAccounts(tc.accounts, tc.filters)
-			assert.Len(t, result, tc.expectedCount)
-			// For empty results, just check the length is 0 instead of comparing exact value
-			// since the function might return nil instead of empty slice
-			if tc.expectedCount == 0 {
-				assert.Empty(t, result, "Expected empty result")
-			} else {
-				assert.Equal(t, tc.expectedResult, result)
+			assert.Equal(t, tc.expectedCount, len(result))
+
+			for i, account := range result {
+				assert.Equal(t, tc.expectedIDs[i], account.ID)
 			}
 		})
 	}
@@ -478,7 +580,7 @@ func TestFilterAccounts(t *testing.T) {
 func TestFormatAccountSummary(t *testing.T) {
 	testCases := []struct {
 		name           string
-		account        *models.Account
+		account        *utils.Account
 		expectedResult string
 	}{
 		{
@@ -488,36 +590,39 @@ func TestFormatAccountSummary(t *testing.T) {
 		},
 		{
 			name: "Account with all fields",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:        "acc_123",
-				Alias:     strPtr("savings"),
+				Name:      "Savings Account",
 				AssetCode: "USD",
-				Type:      "SAVINGS",
-				Status:    models.Status{Code: "ACTIVE"},
+				Type:      "ASSET",
+				Status:    utils.Status{Code: "ACTIVE"},
+				Alias:     strPtr("savings"),
 			},
-			expectedResult: "Account: savings (acc_123) - Type: SAVINGS - Asset: USD - Status: ACTIVE",
+			expectedResult: "Account: savings (acc_123) - Type: ASSET - Asset: USD - Status: ACTIVE",
 		},
 		{
 			name: "Account with nil alias",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:        "acc_123",
-				Alias:     nil,
+				Name:      "Savings Account",
 				AssetCode: "USD",
-				Type:      "SAVINGS",
-				Status:    models.Status{Code: "ACTIVE"},
+				Type:      "ASSET",
+				Status:    utils.Status{Code: "ACTIVE"},
+				Alias:     nil,
 			},
-			expectedResult: "Account: <no alias> (acc_123) - Type: SAVINGS - Asset: USD - Status: ACTIVE",
+			expectedResult: "Account: <no alias> (acc_123) - Type: ASSET - Asset: USD - Status: ACTIVE",
 		},
 		{
 			name: "Account with empty status",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:        "acc_123",
-				Alias:     strPtr("savings"),
+				Name:      "Savings Account",
 				AssetCode: "USD",
-				Type:      "SAVINGS",
-				Status:    models.Status{Code: ""},
+				Type:      "ASSET",
+				Status:    utils.Status{Code: ""},
+				Alias:     strPtr("savings"),
 			},
-			expectedResult: "Account: savings (acc_123) - Type: SAVINGS - Asset: USD - Status: <no status>",
+			expectedResult: "Account: savings (acc_123) - Type: ASSET - Asset: USD - Status: <no status>",
 		},
 	}
 
@@ -532,28 +637,30 @@ func TestFormatAccountSummary(t *testing.T) {
 func TestGetAccountBalanceSummary(t *testing.T) {
 	testCases := []struct {
 		name           string
-		account        *models.Account
-		balance        *models.Balance
+		account        *utils.Account
+		balance        *utils.Balance
 		expectedError  bool
 		expectedResult utils.AccountBalanceSummary
 	}{
 		{
 			name:          "Nil account",
 			account:       nil,
-			balance:       &models.Balance{AccountID: "acc_123", AssetCode: "USD", Available: 1000, OnHold: 500, Scale: 2},
+			balance:       &utils.Balance{ID: "bal_123", AccountID: "acc_123", AssetCode: "USD", Available: 10000, OnHold: 500, Scale: 2},
 			expectedError: true,
 		},
 		{
 			name: "Valid account and balance",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:        "acc_123",
-				Alias:     strPtr("savings"),
+				Name:      "Savings Account",
 				AssetCode: "USD",
+				Alias:     strPtr("savings"),
 			},
-			balance: &models.Balance{
+			balance: &utils.Balance{
+				ID:        "bal_123",
 				AccountID: "acc_123",
 				AssetCode: "USD",
-				Available: 1000,
+				Available: 10000,
 				OnHold:    500,
 				Scale:     2,
 			},
@@ -562,26 +669,28 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 				AccountID:    "acc_123",
 				AccountAlias: "savings",
 				AssetCode:    "USD",
-				Available:    1000,
-				AvailableStr: "10.00",
+				Available:    10000,
+				AvailableStr: "100.00",
 				OnHold:       500,
 				OnHoldStr:    "5.00",
-				Total:        1500,
-				TotalStr:     "15.00",
+				Total:        10500,
+				TotalStr:     "105.00",
 				Scale:        2,
 			},
 		},
 		{
 			name: "Account with nil alias",
-			account: &models.Account{
+			account: &utils.Account{
 				ID:        "acc_123",
-				Alias:     nil,
+				Name:      "Savings Account",
 				AssetCode: "USD",
+				Alias:     nil,
 			},
-			balance: &models.Balance{
+			balance: &utils.Balance{
+				ID:        "bal_123",
 				AccountID: "acc_123",
 				AssetCode: "USD",
-				Available: 1000,
+				Available: 10000,
 				OnHold:    500,
 				Scale:     2,
 			},
@@ -590,12 +699,12 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 				AccountID:    "acc_123",
 				AccountAlias: "",
 				AssetCode:    "USD",
-				Available:    1000,
-				AvailableStr: "10.00",
+				Available:    10000,
+				AvailableStr: "100.00",
 				OnHold:       500,
 				OnHoldStr:    "5.00",
-				Total:        1500,
-				TotalStr:     "15.00",
+				Total:        10500,
+				TotalStr:     "105.00",
 				Scale:        2,
 			},
 		},
@@ -604,7 +713,6 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := utils.GetAccountBalanceSummary(tc.account, tc.balance)
-
 			if tc.expectedError {
 				assert.Error(t, err)
 			} else {

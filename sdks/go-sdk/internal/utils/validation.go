@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
 )
 
@@ -495,4 +496,107 @@ func ValidateCreateTransactionInput(input *models.CreateTransactionInput) Valida
 	}
 
 	return summary
+}
+
+// ValidateAccountType validates if the account type is one of the supported types
+// in the Midaz system.
+func ValidateAccountType(accountType string) error {
+	// Convert to lowercase for consistency
+	accountType = strings.ToLower(accountType)
+
+	// List of valid account types based on the Midaz system
+	validTypes := []string{
+		"deposit",
+		"external",
+		"liability",
+	}
+
+	for _, validType := range validTypes {
+		if accountType == validType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid account type: %s. Valid types are: %s",
+		accountType, strings.Join(validTypes, ", "))
+}
+
+// ValidateAssetType validates if the asset type is one of the supported types
+// in the Midaz system.
+func ValidateAssetType(assetType string) error {
+	// Convert to lowercase for consistency
+	assetType = strings.ToLower(assetType)
+
+	// List of valid asset types based on the Midaz system
+	validTypes := []string{
+		"currency",
+		"crypto",
+		"commodities",
+		"others",
+	}
+
+	for _, validType := range validTypes {
+		if assetType == validType {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid asset type: %s. Valid types are: %s",
+		assetType, strings.Join(validTypes, ", "))
+}
+
+// ValidateCurrencyCode uses the lib-commons validation to check if the
+// currency code is valid according to ISO 4217.
+func ValidateCurrencyCode(code string) error {
+	return commons.ValidateCurrency(code)
+}
+
+// ValidateCountryCode uses the lib-commons validation to check if the
+// country code is valid according to ISO 3166-1 alpha-2.
+func ValidateCountryCode(code string) error {
+	return commons.ValidateCountryAddress(code)
+}
+
+// Address is a simplified address structure for validation purposes.
+type Address struct {
+	Line1   string
+	Line2   *string
+	ZipCode string
+	City    string
+	State   string
+	Country string
+}
+
+// ValidateAddress validates an address structure for completeness and correctness.
+func ValidateAddress(address *Address) error {
+	if address == nil {
+		return fmt.Errorf("address cannot be nil")
+	}
+
+	if address.Line1 == "" {
+		return fmt.Errorf("address line1 is required")
+	}
+
+	if address.ZipCode == "" {
+		return fmt.Errorf("address zipCode is required")
+	}
+
+	if address.City == "" {
+		return fmt.Errorf("address city is required")
+	}
+
+	if address.State == "" {
+		return fmt.Errorf("address state is required")
+	}
+
+	if address.Country == "" {
+		return fmt.Errorf("address country is required")
+	}
+
+	// Validate country code using lib-commons
+	if err := ValidateCountryCode(address.Country); err != nil {
+		return fmt.Errorf("invalid country code: %w", err)
+	}
+
+	return nil
 }

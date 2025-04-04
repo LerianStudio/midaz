@@ -2,6 +2,7 @@
 package models
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/LerianStudio/midaz/pkg/mmodel"
@@ -289,6 +290,90 @@ func (input CreateOrganizationInput) ToMmodelCreateOrganizationInput() mmodel.Cr
 	}
 }
 
+// Validate checks if the CreateOrganizationInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *CreateOrganizationInput) Validate() error {
+	// Validate required fields
+	if input.LegalName == "" {
+		return fmt.Errorf("legalName is required")
+	}
+
+	if len(input.LegalName) > 256 {
+		return fmt.Errorf("legalName must not exceed 256 characters")
+	}
+
+	if input.LegalDocument == "" {
+		return fmt.Errorf("legalDocument is required")
+	}
+
+	if len(input.LegalDocument) > 64 {
+		return fmt.Errorf("legalDocument must not exceed 64 characters")
+	}
+
+	// Validate optional fields if provided
+	if input.DoingBusinessAs != nil && len(*input.DoingBusinessAs) > 256 {
+		return fmt.Errorf("doingBusinessAs must not exceed 256 characters")
+	}
+
+	// Validate address
+	if input.Address.Line1 == "" {
+		return fmt.Errorf("address.line1 is required")
+	}
+
+	if len(input.Address.Line1) > 256 {
+		return fmt.Errorf("address.line1 must not exceed 256 characters")
+	}
+
+	if input.Address.City == "" {
+		return fmt.Errorf("address.city is required")
+	}
+
+	if len(input.Address.City) > 128 {
+		return fmt.Errorf("address.city must not exceed 128 characters")
+	}
+
+	if input.Address.State == "" {
+		return fmt.Errorf("address.state is required")
+	}
+
+	if len(input.Address.State) > 128 {
+		return fmt.Errorf("address.state must not exceed 128 characters")
+	}
+
+	if input.Address.ZipCode == "" {
+		return fmt.Errorf("address.zipCode is required")
+	}
+
+	if len(input.Address.ZipCode) > 32 {
+		return fmt.Errorf("address.zipCode must not exceed 32 characters")
+	}
+
+	if input.Address.Country == "" {
+		return fmt.Errorf("address.country is required")
+	}
+
+	if len(input.Address.Country) > 2 {
+		return fmt.Errorf("address.country must be a 2-letter country code")
+	}
+
+	// Validate metadata if provided
+	if input.Metadata != nil {
+		for key, value := range input.Metadata {
+			if len(key) > 64 {
+				return fmt.Errorf("metadata key '%s' exceeds 64 characters", key)
+			}
+			if len(fmt.Sprintf("%v", value)) > 256 {
+				return fmt.Errorf("metadata value for key '%s' exceeds 256 characters", key)
+			}
+		}
+	}
+
+	return nil
+}
+
 // UpdateOrganizationInput is the input for updating an organization.
 // This structure contains all the fields that can be specified when updating an existing organization.
 // Only fields that are set will be updated; omitted fields will remain unchanged.
@@ -409,6 +494,57 @@ func (input UpdateOrganizationInput) ToMmodelUpdateOrganizationInput() mmodel.Up
 	}
 }
 
+// Validate checks if the UpdateOrganizationInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *UpdateOrganizationInput) Validate() error {
+	// Validate fields if provided
+	if input.LegalName != "" && len(input.LegalName) > 256 {
+		return fmt.Errorf("legalName must not exceed 256 characters")
+	}
+
+	if input.DoingBusinessAs != "" && len(input.DoingBusinessAs) > 256 {
+		return fmt.Errorf("doingBusinessAs must not exceed 256 characters")
+	}
+
+	// Validate address if fields are provided
+	if input.Address.Line1 != "" && len(input.Address.Line1) > 256 {
+		return fmt.Errorf("address.line1 must not exceed 256 characters")
+	}
+
+	if input.Address.City != "" && len(input.Address.City) > 128 {
+		return fmt.Errorf("address.city must not exceed 128 characters")
+	}
+
+	if input.Address.State != "" && len(input.Address.State) > 128 {
+		return fmt.Errorf("address.state must not exceed 128 characters")
+	}
+
+	if input.Address.ZipCode != "" && len(input.Address.ZipCode) > 32 {
+		return fmt.Errorf("address.zipCode must not exceed 32 characters")
+	}
+
+	if input.Address.Country != "" && len(input.Address.Country) > 2 {
+		return fmt.Errorf("address.country must be a 2-letter country code")
+	}
+
+	// Validate metadata if provided
+	if input.Metadata != nil {
+		for key, value := range input.Metadata {
+			if len(key) > 64 {
+				return fmt.Errorf("metadata key '%s' exceeds 64 characters", key)
+			}
+			if len(fmt.Sprintf("%v", value)) > 256 {
+				return fmt.Errorf("metadata value for key '%s' exceeds 256 characters", key)
+			}
+		}
+	}
+
+	return nil
+}
+
 // FromMmodelUpdateOrganizationInput converts an mmodel UpdateOrganizationInput to an SDK UpdateOrganizationInput.
 // This function is used internally to convert between backend and SDK models.
 //
@@ -481,6 +617,30 @@ type ListOrganizationInput struct {
 
 	// Filter contains the filtering criteria
 	Filter OrganizationFilter `json:"filter,omitempty"`
+}
+
+// Validate checks if the ListOrganizationInput meets the validation requirements.
+// It returns an error if any of the validation checks fail.
+//
+// Returns:
+//   - error: An error if the input is invalid, nil otherwise
+func (input *ListOrganizationInput) Validate() error {
+	// Validate page number if provided
+	if input.Page < 0 {
+		return fmt.Errorf("page number cannot be negative")
+	}
+
+	// Validate per page count if provided
+	if input.PerPage < 0 {
+		return fmt.Errorf("perPage cannot be negative")
+	}
+
+	// Validate maximum per page to prevent excessive resource usage
+	if input.PerPage > 100 {
+		return fmt.Errorf("perPage cannot exceed 100")
+	}
+
+	return nil
 }
 
 // ListOrganizationResponse for organization listing responses.
