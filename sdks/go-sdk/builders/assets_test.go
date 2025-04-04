@@ -48,8 +48,8 @@ func TestAssetBuilder(t *testing.T) {
 					t.Errorf("unexpected name, got: %s, want: Test Asset", input.Name)
 				}
 
-				if input.Code != "TST" {
-					t.Errorf("unexpected code, got: %s, want: TST", input.Code)
+				if input.Code != "USD" {
+					t.Errorf("unexpected code, got: %s, want: USD", input.Code)
 				}
 
 				if input.Status.Code != "ACTIVE" {
@@ -71,7 +71,7 @@ func TestAssetBuilder(t *testing.T) {
 			WithOrganization("org-123").
 			WithLedger("ledger-123").
 			WithName("Test Asset").
-			WithCode("TST")
+			WithCode("USD")
 
 		asset, err := builder.Create(context.Background())
 
@@ -87,8 +87,8 @@ func TestAssetBuilder(t *testing.T) {
 			t.Errorf("unexpected name, got: %s, want: Test Asset", asset.Name)
 		}
 
-		if asset.Code != "TST" {
-			t.Errorf("unexpected code, got: %s, want: TST", asset.Code)
+		if asset.Code != "USD" {
+			t.Errorf("unexpected code, got: %s, want: USD", asset.Code)
 		}
 
 		if asset.OrganizationID != "org-123" {
@@ -128,7 +128,7 @@ func TestAssetBuilder(t *testing.T) {
 			WithOrganization("org-123").
 			WithLedger("ledger-123").
 			WithName("Test Asset").
-			WithCode("TST").
+			WithCode("USD").
 			WithType("CURRENCY").
 			WithStatus("INACTIVE")
 
@@ -174,7 +174,7 @@ func TestAssetBuilder(t *testing.T) {
 			WithOrganization("org-123").
 			WithLedger("ledger-123").
 			WithName("Test Asset").
-			WithCode("TST").
+			WithCode("USD").
 			WithMetadata(map[string]any{"key1": "value1"}).
 			WithTag("tag1").
 			WithTag("tag2")
@@ -201,7 +201,7 @@ func TestAssetBuilder(t *testing.T) {
 		builder1 := NewAsset(client).
 			WithLedger("ledger-123").
 			WithName("Test Asset").
-			WithCode("TST")
+			WithCode("USD")
 
 		_, err := builder1.Create(context.Background())
 
@@ -217,7 +217,7 @@ func TestAssetBuilder(t *testing.T) {
 		builder2 := NewAsset(client).
 			WithOrganization("org-123").
 			WithName("Test Asset").
-			WithCode("TST")
+			WithCode("USD")
 
 		_, err = builder2.Create(context.Background())
 		if err == nil {
@@ -232,7 +232,7 @@ func TestAssetBuilder(t *testing.T) {
 		builder3 := NewAsset(client).
 			WithOrganization("org-123").
 			WithLedger("ledger-123").
-			WithCode("TST")
+			WithCode("USD")
 
 		_, err = builder3.Create(context.Background())
 		if err == nil {

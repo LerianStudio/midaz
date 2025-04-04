@@ -52,8 +52,8 @@ func TestAccountBuilder(t *testing.T) {
 					t.Errorf("unexpected asset code, got: %s, want: USD", input.AssetCode)
 				}
 
-				if input.Type != "ASSET" {
-					t.Errorf("unexpected type, got: %s, want: ASSET", input.Type)
+				if input.Type != "deposit" {
+					t.Errorf("unexpected type, got: %s, want: deposit", input.Type)
 				}
 
 				if input.Status.Code != "ACTIVE" {
@@ -77,7 +77,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithLedger("ledger-123").
 			WithName("Test Account").
 			WithAssetCode("USD").
-			WithType("ASSET")
+			WithType("deposit")
 
 		account, err := builder.Create(context.Background())
 
@@ -97,8 +97,8 @@ func TestAccountBuilder(t *testing.T) {
 			t.Errorf("unexpected asset code, got: %s, want: USD", account.AssetCode)
 		}
 
-		if account.Type != "ASSET" {
-			t.Errorf("unexpected type, got: %s, want: ASSET", account.Type)
+		if account.Type != "deposit" {
+			t.Errorf("unexpected type, got: %s, want: deposit", account.Type)
 		}
 
 		if account.OrganizationID != "org-123" {
@@ -166,7 +166,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithLedger("ledger-123").
 			WithName("Test Account").
 			WithAssetCode("USD").
-			WithType("ASSET").
+			WithType("deposit").
 			WithParentAccount("parent-123").
 			WithEntityID("entity-123").
 			WithPortfolio("portfolio-123").
@@ -238,7 +238,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithLedger("ledger-123").
 			WithName("Test Account").
 			WithAssetCode("USD").
-			WithType("ASSET").
+			WithType("deposit").
 			WithMetadata(map[string]any{"key1": "value1"}).
 			WithTag("tag1").
 			WithTag("tag2")
@@ -266,7 +266,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithLedger("ledger-123").
 			WithName("Test Account").
 			WithAssetCode("USD").
-			WithType("ASSET")
+			WithType("deposit")
 
 		_, err := builder1.Create(context.Background())
 
@@ -283,7 +283,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithOrganization("org-123").
 			WithName("Test Account").
 			WithAssetCode("USD").
-			WithType("ASSET")
+			WithType("deposit")
 
 		_, err = builder2.Create(context.Background())
 		if err == nil {
@@ -299,7 +299,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithOrganization("org-123").
 			WithLedger("ledger-123").
 			WithAssetCode("USD").
-			WithType("ASSET")
+			WithType("deposit")
 
 		_, err = builder3.Create(context.Background())
 		if err == nil {
@@ -315,7 +315,7 @@ func TestAccountBuilder(t *testing.T) {
 			WithOrganization("org-123").
 			WithLedger("ledger-123").
 			WithName("Test Account").
-			WithType("ASSET")
+			WithType("deposit")
 
 		_, err = builder4.Create(context.Background())
 		if err == nil {
