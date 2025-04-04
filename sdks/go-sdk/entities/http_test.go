@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 

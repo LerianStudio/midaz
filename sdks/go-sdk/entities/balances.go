@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/api"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/api"
 )
 
 // BalancesService defines the interface for balance-related operations.

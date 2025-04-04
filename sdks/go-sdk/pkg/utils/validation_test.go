@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 

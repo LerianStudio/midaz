@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/api"
 	"github.com/LerianStudio/midaz/sdks/go-sdk/models"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/api"
 )
 
 // TransactionsService defines the interface for transaction-related operations.
@@ -124,6 +124,7 @@ type transactionsEntity struct {
 //	    log.Fatalf("Failed to create transaction: %v", err)
 //	}
 //
+//	// Use the transaction
 //	fmt.Printf("Transaction created: %s\n", tx.ID)
 func NewTransactionsEntity(httpClient *http.Client, authToken string, baseURLs map[string]string) TransactionsService {
 	return &transactionsEntity{

@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/internal/utils"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -267,7 +267,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 					Name:      "USD Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    utils.Status{Code: "FROZEN"},
 					Alias:     strPtr("usd_checking"),
 				},
 			},
