@@ -17,45 +17,37 @@ plugins:
             { "type": "fix", "release": "minor" },
             { "type": "refactor", "release": "minor" },
             { "type": "docs", "release": "patch" },
-            { "breaking": true, "release": "major" }
-          ]
-      }
+            { "type": "breaking", "release": "major" },
+          ],
+      },
     ],
     [
       "@semantic-release/release-notes-generator",
       {
         "preset": "conventionalcommits",
-        "parserOpts": {
-          "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"]
-        },
-        "writerOpts": {
-          "commitsSort": ["subject", "scope"]
-        }
-      }
+        "parserOpts":
+          {
+            "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"],
+          },
+        "writerOpts": { "commitsSort": ["subject", "scope"] },
+      },
     ],
-    [
-      "@semantic-release/changelog",
-      {
-        "changelogFile": "CHANGELOG.md"
-      }
-    ],
+    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
     [
       "@semantic-release/git",
       {
         "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}",
-        "assets": ["CHANGELOG.md"]
-      }
+        "assets": ["CHANGELOG.md"],
+      },
     ],
-    [
-      "@semantic-release/github"
-    ],
+    ["@semantic-release/github"],
     [
       "@saithodev/semantic-release-backmerge",
       {
-        "backmergeBranches": [{"from": "main", "to": "develop"}],
-        "message": "chore(release): Preparations for next release [skip ci]"
-      }
-    ]
+        "backmergeBranches": [{ "from": "main", "to": "develop" }],
+        "message": "chore(release): Preparations for next release [skip ci]",
+      },
+    ],
   ]
 
 branches:

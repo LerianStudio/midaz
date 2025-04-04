@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 builds:
   - id: "mdz"
@@ -6,24 +6,20 @@ builds:
       - CGO_ENABLED=0
     main: ./components/mdz
     binary: mdz
-
     goos:
       - linux
       - windows
       - darwin
       - freebsd
-
     goarch:
       - "386"
       - amd64
       - arm
       - ppc64
-
     goarm:
       - "7"
-
     ldflags:
-      - -s -w 
+      - -s -w
       - -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.ClientID=9670e0ca55a29a466d31
       - -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.ClientSecret=dd03f916cacf4a98c6a413d9c38ba102dce436a9
       - -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.URLAPIAuth=http://127.0.0.1:8080
@@ -31,12 +27,12 @@ builds:
       - -X github.com/LerianStudio/midaz/components/mdz/pkg/environment.Version={{.Version}}
 
 archives:
-  - format: zip
+  - id: default
 
 nfpms:
   - id: packages
     license: Apache-2.0 license
-    maintainer: Lerian Studio Technologies <https://github.com/LerianStudio/>
+    maintainer: "Lerian Studio Technologies <https://github.com/LerianStudio/>"
     package_name: mdz
     homepage: https://github.com/LerianStudio/midaz
     bindir: /usr/local/bin
@@ -51,10 +47,10 @@ changelog:
   filters:
     exclude:
       - "merge conflict"
-      - Merge pull request
-      - Merge remote-tracking branch
-      - Merge branch
-      - go mod tidy
+      - "Merge pull request"
+      - "Merge remote-tracking branch"
+      - "Merge branch"
+      - "go mod tidy"
   groups:
     - title: "Breaking Changes"
       regexp: "^.*breaking[(\\w)]*:+.*$"
@@ -72,10 +68,10 @@ changelog:
       regexp: '^.*?sec(\([[:word:]]+\))??!?:.+$'
       order: 40
     - title: "Documentation Updates"
-      regexp: ^.*?docs(\([[:word:]]+\))??!?:.+$
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
       order: 50
     - title: "Tests"
-      regexp: ^.*?(test(s)?(\([[:word:]]+\))?)!?:.+$
+      regexp: '^.*?(test(s)?(\([[:word:]]+\))?)!?:.+$'
       order: 60
-    - title: Other Work
+    - title: "Other Work"
       order: 999
