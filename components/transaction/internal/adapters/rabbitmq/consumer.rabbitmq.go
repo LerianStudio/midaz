@@ -64,7 +64,7 @@ func (cr *ConsumerRoutes) Register(queueName string, handler QueueHandlerFunc) {
 // RunConsumers  init consume for all registry queues.
 func (cr *ConsumerRoutes) RunConsumers() error {
 	for queueName, handler := range cr.routes {
-		cr.Logger.Infof("Initializing consumer for queue: %s", queueName)
+		cr.Infof("Initializing consumer for queue: %s", queueName)
 
 		err := cr.conn.Channel.Qos(
 			cr.NumbersOfPrefetch,
