@@ -137,7 +137,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode b
 
 	// Create USD accounts
 	usdSavingsAccount, err := createAccount(
-		ctx, orgID, ledgerID, "USD Savings", "asset", "USD", "usd_savings", entity.Accounts, debugMode,
+		ctx, orgID, ledgerID, "USD Savings", "savings", "USD", "usd_savings", entity.Accounts, debugMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD savings account: %w", err)
@@ -150,7 +150,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode b
 	}
 
 	usdCheckingAccount, err := createAccount(
-		ctx, orgID, ledgerID, "USD Checking", "asset", "USD", "usd_checking", entity.Accounts, debugMode,
+		ctx, orgID, ledgerID, "USD Checking", "deposit", "USD", "usd_checking", entity.Accounts, debugMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD checking account: %w", err)
@@ -164,7 +164,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode b
 
 	// Create EUR accounts
 	eurSavingsAccount, err := createAccount(
-		ctx, orgID, ledgerID, "EUR Savings", "asset", "EUR", "eur_savings", entity.Accounts, debugMode,
+		ctx, orgID, ledgerID, "EUR Savings", "savings", "EUR", "eur_savings", entity.Accounts, debugMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create EUR savings account: %w", err)
@@ -177,7 +177,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode b
 	}
 
 	eurCheckingAccount, err := createAccount(
-		ctx, orgID, ledgerID, "EUR Checking", "asset", "EUR", "eur_checking", entity.Accounts, debugMode,
+		ctx, orgID, ledgerID, "EUR Checking", "deposit", "EUR", "eur_checking", entity.Accounts, debugMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create EUR checking account: %w", err)
@@ -253,14 +253,14 @@ func createAsset(ctx context.Context, orgID, ledgerID, name, assetType, code str
 	// Validate input
 	if err := input.Validate(); err != nil {
 		// Try to fix common issues
-		if assetType == "currency" {
-			input.Type = "CURRENCY"
-		} else if assetType == "crypto" {
-			input.Type = "CRYPTO"
-		} else if assetType == "commodities" {
-			input.Type = "COMMODITIES"
+		if assetType == "crypto" {
+			input.Type = "crypto"
+		} else if assetType == "currency" {
+			input.Type = "currency"
+		} else if assetType == "commodity" {
+			input.Type = "commodity"
 		} else if assetType == "others" {
-			input.Type = "OTHERS"
+			input.Type = "others"
 		}
 
 		// Validate again
@@ -295,16 +295,16 @@ func createAccount(ctx context.Context, orgID, ledgerID, name, accountType, asse
 	// Validate input
 	if err := input.Validate(); err != nil {
 		// Try to fix common issues
-		if accountType == "asset" {
-			input.Type = "ASSET"
-		} else if accountType == "liability" {
-			input.Type = "LIABILITY"
-		} else if accountType == "equity" {
-			input.Type = "EQUITY"
-		} else if accountType == "revenue" {
-			input.Type = "REVENUE"
-		} else if accountType == "expense" {
-			input.Type = "EXPENSE"
+		if accountType == "deposit" {
+			input.Type = "deposit"
+		} else if accountType == "savings" {
+			input.Type = "savings"
+		} else if accountType == "loans" {
+			input.Type = "loans"
+		} else if accountType == "marketplace" {
+			input.Type = "marketplace"
+		} else if accountType == "creditCard" {
+			input.Type = "creditCard"
 		}
 
 		// Validate again
