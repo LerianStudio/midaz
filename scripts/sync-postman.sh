@@ -3,18 +3,107 @@
 # Script to sync Postman collection with OpenAPI documentation
 # This script uses a custom Node.js converter to convert OpenAPI specs to Postman collections
 
+# Function to install Node.js
+install_nodejs() {
+    echo "Node.js is not installed. Attempting to install..."
+    
+    # Check the operating system
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            echo "Installing Node.js via Homebrew..."
+            brew install node
+        else
+            echo "Homebrew not found. Installing Homebrew first..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            echo "Installing Node.js via Homebrew..."
+            brew install node
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            echo "Installing Node.js via apt..."
+            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+        elif command -v yum &> /dev/null; then
+            echo "Installing Node.js via yum..."
+            curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
+            sudo yum install -y nodejs
+        else
+            echo "Could not determine package manager. Please install Node.js manually."
+            echo "Visit https://nodejs.org/ to download and install Node.js"
+            exit 1
+        fi
+    else
+        echo "Unsupported operating system. Please install Node.js manually."
+        echo "Visit https://nodejs.org/ to download and install Node.js"
+        exit 1
+    fi
+    
+    # Verify installation
+    if ! command -v node &> /dev/null; then
+        echo "Failed to install Node.js. Please install it manually."
+        echo "Visit https://nodejs.org/ to download and install Node.js"
+        exit 1
+    fi
+    
+    echo "Node.js installed successfully."
+}
+
+# Function to install jq
+install_jq() {
+    echo "jq is not installed. Attempting to install..."
+    
+    # Check the operating system
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            echo "Installing jq via Homebrew..."
+            brew install jq
+        else
+            echo "Homebrew not found. Installing Homebrew first..."
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            echo "Installing jq via Homebrew..."
+            brew install jq
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if command -v apt-get &> /dev/null; then
+            echo "Installing jq via apt..."
+            sudo apt-get update
+            sudo apt-get install -y jq
+        elif command -v yum &> /dev/null; then
+            echo "Installing jq via yum..."
+            sudo yum install -y jq
+        else
+            echo "Could not determine package manager. Please install jq manually."
+            echo "For installation instructions, visit: https://stedolan.github.io/jq/download/"
+            exit 1
+        fi
+    else
+        echo "Unsupported operating system. Please install jq manually."
+        echo "For installation instructions, visit: https://stedolan.github.io/jq/download/"
+        exit 1
+    fi
+    
+    # Verify installation
+    if ! command -v jq &> /dev/null; then
+        echo "Failed to install jq. Please install it manually."
+        echo "For installation instructions, visit: https://stedolan.github.io/jq/download/"
+        exit 1
+    fi
+    
+    echo "jq installed successfully."
+}
+
 # Check if Node.js is installed
 if ! command -v node &> /dev/null; then
-    echo "Error: Node.js is not installed. Please install Node.js to use this script."
-    echo "Visit https://nodejs.org/ to download and install Node.js"
-    exit 1
+    install_nodejs
 fi
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
-    echo "Error: jq is not installed. Please install jq to use this script."
-    echo "Run: brew install jq"
-    exit 1
+    install_jq
 fi
 
 # Define paths
