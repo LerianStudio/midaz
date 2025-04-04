@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,25 +63,25 @@ func TestHTTPClient_SendRequest_ErrorResponse(t *testing.T) {
 		name       string
 		statusCode int
 		errorBody  map[string]string
-		errorCode  utils.ErrorCode
+		errorCode  errors.ErrorCode
 	}{
 		{
 			name:       "Not Found Error",
 			statusCode: http.StatusNotFound,
 			errorBody:  map[string]string{"error": "not_found", "message": "Organization not found"},
-			errorCode:  utils.CodeNotFound,
+			errorCode:  errors.CodeNotFound,
 		},
 		{
 			name:       "Validation Error",
 			statusCode: http.StatusBadRequest,
-			errorBody:  map[string]string{"code": string(utils.CodeValidation), "message": "Invalid input"},
-			errorCode:  utils.CodeValidation,
+			errorBody:  map[string]string{"code": string(errors.CodeValidation), "message": "Invalid input"},
+			errorCode:  errors.CodeValidation,
 		},
 		{
 			name:       "Authentication Error",
 			statusCode: http.StatusUnauthorized,
 			errorBody:  map[string]string{"error": "unauthorized", "message": "Invalid token"},
-			errorCode:  utils.CodeAuthentication,
+			errorCode:  errors.CodeAuthentication,
 		},
 	}
 
@@ -111,8 +111,8 @@ func TestHTTPClient_SendRequest_ErrorResponse(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.errorBody["message"])
 
 			// Check error type
-			sdkErr, ok := err.(*utils.MidazError)
-			assert.True(t, ok, "Error should be of type *utils.MidazError")
+			sdkErr, ok := err.(*errors.MidazError)
+			assert.True(t, ok, "Error should be of type *errors.MidazError")
 			assert.Equal(t, tc.errorCode, sdkErr.Code, "Error code should match expected code")
 		})
 	}
@@ -150,7 +150,7 @@ func TestHTTPClient_HandleErrorResponse(t *testing.T) {
 	// Create a test response with an error
 	body := map[string]string{
 		"error":   "test_error",
-		"code":    string(utils.CodeValidation),
+		"code":    string(errors.CodeValidation),
 		"message": "Validation failed",
 	}
 	bodyBytes, _ := json.Marshal(body)
@@ -169,7 +169,7 @@ func TestHTTPClient_HandleErrorResponse(t *testing.T) {
 	assert.Contains(t, err.Error(), "Validation failed")
 
 	// Check error type
-	sdkErr, ok := err.(*utils.MidazError)
-	assert.True(t, ok, "Error should be of type *utils.MidazError")
-	assert.Equal(t, utils.CodeValidation, sdkErr.Code, "Error code should match validation code")
+	sdkErr, ok := err.(*errors.MidazError)
+	assert.True(t, ok, "Error should be of type *errors.MidazError")
+	assert.Equal(t, errors.CodeValidation, sdkErr.Code, "Error code should match validation code")
 }

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/errors"
 )
 
 // httpClient encapsulates the HTTP functionality used by entities.
@@ -204,26 +204,26 @@ func (h *httpClient) handleErrorResponse(resp *http.Response) error {
 		return h.mapErrorFromStatus(resp.StatusCode, errorMsg)
 	}
 
-	return utils.NewMidazError(utils.CodeInternal, fmt.Errorf("HTTP error: %d %s - %s", resp.StatusCode, resp.Status, string(body)))
+	return errors.NewMidazError(errors.CodeInternal, fmt.Errorf("HTTP error: %d %s - %s", resp.StatusCode, resp.Status, string(body)))
 }
 
 // mapErrorFromCode maps API error codes to SDK error types.
 func (h *httpClient) mapErrorFromCode(code, message string) error {
 	switch code {
 	case "validation_error":
-		return utils.NewMidazError(utils.CodeValidation, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeValidation, fmt.Errorf("%s", message))
 	case "not_found":
-		return utils.NewMidazError(utils.CodeNotFound, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeNotFound, fmt.Errorf("%s", message))
 	case "already_exists":
-		return utils.NewMidazError(utils.CodeNotFound, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeNotFound, fmt.Errorf("%s", message))
 	case "unauthorized":
-		return utils.NewMidazError(utils.CodeAuthentication, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeAuthentication, fmt.Errorf("%s", message))
 	case "forbidden":
-		return utils.NewMidazError(utils.CodePermission, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodePermission, fmt.Errorf("%s", message))
 	case "internal_error":
-		return utils.NewMidazError(utils.CodeInternal, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeInternal, fmt.Errorf("%s", message))
 	default:
-		return utils.NewMidazError(utils.CodeInternal, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeInternal, fmt.Errorf("%s", message))
 	}
 }
 
@@ -231,18 +231,18 @@ func (h *httpClient) mapErrorFromCode(code, message string) error {
 func (h *httpClient) mapErrorFromStatus(statusCode int, message string) error {
 	switch statusCode {
 	case http.StatusNotFound:
-		return utils.NewMidazError(utils.CodeNotFound, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeNotFound, fmt.Errorf("%s", message))
 	case http.StatusBadRequest:
-		return utils.NewMidazError(utils.CodeValidation, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeValidation, fmt.Errorf("%s", message))
 	case http.StatusUnauthorized:
-		return utils.NewMidazError(utils.CodeAuthentication, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeAuthentication, fmt.Errorf("%s", message))
 	case http.StatusForbidden:
-		return utils.NewMidazError(utils.CodePermission, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodePermission, fmt.Errorf("%s", message))
 	case http.StatusTooManyRequests:
-		return utils.NewMidazError(utils.CodeRateLimit, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeRateLimit, fmt.Errorf("%s", message))
 	case http.StatusGatewayTimeout:
-		return utils.NewMidazError(utils.CodeTimeout, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeTimeout, fmt.Errorf("%s", message))
 	default:
-		return utils.NewMidazError(utils.CodeInternal, fmt.Errorf("%s", message))
+		return errors.NewMidazError(errors.CodeInternal, fmt.Errorf("%s", message))
 	}
 }
