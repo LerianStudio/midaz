@@ -1,18 +1,18 @@
-// Package utils provides utility functions for the Midaz SDK.
+// Package accounts provides account management utilities for the Midaz SDK.
 //
-// This package contains functions for common operations when working with Midaz data:
+// This package contains functions for common operations when working with Midaz accounts:
 // - Account management (filtering, finding, summarizing)
-// - Amount formatting and parsing
-// - Validation of inputs before sending to the API
-// - Transaction helpers for common operations
+// - Balance formatting and reporting
 //
-// These utilities make it easier to work with the data models and perform
+// These utilities make it easier to work with account data models and perform
 // common tasks without having to write boilerplate code.
-package utils
+package accounts
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/format"
 )
 
 // Account represents a simplified account structure for utility functions.
@@ -38,11 +38,11 @@ type Status struct {
 //
 // Example:
 //
-//	account := &utils.Account{ID: "acc_123", Alias: &aliasValue}
-//	identifier := utils.GetAccountIdentifier(account) // Returns aliasValue
+//	account := &accounts.Account{ID: "acc_123", Alias: &aliasValue}
+//	identifier := accounts.GetAccountIdentifier(account) // Returns aliasValue
 //
-//	accountNoAlias := &utils.Account{ID: "acc_456"} // Alias is nil
-//	identifier = utils.GetAccountIdentifier(accountNoAlias) // Returns "acc_456"
+//	accountNoAlias := &accounts.Account{ID: "acc_456"} // Alias is nil
+//	identifier = accounts.GetAccountIdentifier(accountNoAlias) // Returns "acc_456"
 func GetAccountIdentifier(account *Account) string {
 	if account == nil {
 		return ""
@@ -61,14 +61,14 @@ func GetAccountIdentifier(account *Account) string {
 // Example:
 //
 //	// Search for an account by alias in a list of accounts
-//	:= []utils.Account{
+//	accountsList := []accounts.Account{
 //		{
 //			ID: "acc_123",
 //			Name: "Savings Account",
 //			AssetCode: "USD",
 //			Alias: ptr.String("savings"),
 //			Type: "ASSET",
-//			Status: utils.Status{Code: "ACTIVE"},
+//			Status: accounts.Status{Code: "ACTIVE"},
 //		},
 //		{
 //			ID: "acc_456",
@@ -76,11 +76,11 @@ func GetAccountIdentifier(account *Account) string {
 //			AssetCode: "USD",
 //			Alias: ptr.String("checking"),
 //			Type: "ASSET",
-//			Status: utils.Status{Code: "ACTIVE"},
+//			Status: accounts.Status{Code: "ACTIVE"},
 //		},
 //	}
 //
-//	account := utils.FindAccountByAlias(accounts, "savings")
+//	account := accounts.FindAccountByAlias(accountsList, "savings")
 //	if account == nil {
 //	    log.Println("Account not found")
 //	} else {
@@ -101,8 +101,8 @@ func FindAccountByAlias(accounts []Account, alias string) *Account {
 //
 // Example:
 //
-//	accounts := []utils.Account{...}
-//	account := utils.FindAccountByID(accounts, "acc_123")
+//	accountsList := []accounts.Account{...}
+//	account := accounts.FindAccountByID(accountsList, "acc_123")
 //	if account == nil {
 //	    log.Println("Account not found")
 //	} else {
@@ -123,8 +123,8 @@ func FindAccountByID(accounts []Account, id string) *Account {
 //
 // Example:
 //
-//	accounts := []utils.Account{...}
-//	usdAccounts := utils.FindAccountsByAssetCode(accounts, "USD")
+//	accountsList := []accounts.Account{...}
+//	usdAccounts := accounts.FindAccountsByAssetCode(accountsList, "USD")
 //	log.Printf("Found %d USD accounts", len(usdAccounts))
 func FindAccountsByAssetCode(accounts []Account, assetCode string) []Account {
 	var result []Account
@@ -143,8 +143,8 @@ func FindAccountsByAssetCode(accounts []Account, assetCode string) []Account {
 //
 // Example:
 //
-//	accounts := []utils.Account{...}
-//	activeAccounts := utils.FindAccountsByStatus(accounts, "ACTIVE")
+//	accountsList := []accounts.Account{...}
+//	activeAccounts := accounts.FindAccountsByStatus(accountsList, "ACTIVE")
 //	log.Printf("Found %d active accounts", len(activeAccounts))
 func FindAccountsByStatus(accounts []Account, status string) []Account {
 	var result []Account
@@ -184,13 +184,13 @@ func matchesFilter(account Account, key, value string) bool {
 // Example:
 //
 //	// Create a list of accounts
-//	:= []utils.Account{
+//	accountsList := []accounts.Account{
 //		{
 //			ID:        "acc_123",
 //			Name:      "USD Savings",
 //			AssetCode: "USD",
 //			Type:      "ASSET",
-//			Status:    utils.Status{Code: "ACTIVE"},
+//			Status:    accounts.Status{Code: "ACTIVE"},
 //			Alias:     ptr.String("usd_savings"),
 //		},
 //		{
@@ -198,7 +198,7 @@ func matchesFilter(account Account, key, value string) bool {
 //			Name:      "EUR Checking",
 //			AssetCode: "EUR",
 //			Type:      "ASSET",
-//			Status:    utils.Status{Code: "ACTIVE"},
+//			Status:    accounts.Status{Code: "ACTIVE"},
 //			Alias:     ptr.String("eur_checking"),
 //		},
 //		{
@@ -206,13 +206,13 @@ func matchesFilter(account Account, key, value string) bool {
 //			Name:      "USD Frozen Account",
 //			AssetCode: "USD",
 //			Type:      "ASSET",
-//			Status:    utils.Status{Code: "FROZEN"},
+//			Status:    accounts.Status{Code: "FROZEN"},
 //			Alias:     ptr.String("usd_frozen"),
 //		},
 //	}
 //
 //	// Find all active USD accounts
-//	filtered := utils.FilterAccounts(accounts, map[string]string{
+//	filtered := accounts.FilterAccounts(accountsList, map[string]string{
 //	    "assetCode": "USD",
 //	    "status": "ACTIVE",
 //	})
@@ -272,14 +272,14 @@ type Balance struct {
 // Example:
 //
 //	// Create account and balance objects
-//	account := &utils.Account{
+//	account := &accounts.Account{
 //		ID:        "acc_123",
 //		Name:      "Savings Account",
 //		AssetCode: "USD",
 //		Alias:     ptr.String("savings"),
 //	}
 //
-//	balance := &utils.Balance{
+//	balance := &accounts.Balance{
 //		ID:        "bal_456",
 //		AccountID: "acc_123",
 //		AssetCode: "USD",
@@ -288,7 +288,7 @@ type Balance struct {
 //		Scale:     2,
 //	}
 //
-//	summary, err := utils.GetAccountBalanceSummary(account, balance)
+//	summary, err := accounts.GetAccountBalanceSummary(account, balance)
 //	if err != nil {
 //		log.Fatal(err)
 //	}
@@ -318,9 +318,9 @@ func GetAccountBalanceSummary(account *Account, balance *Balance) (AccountBalanc
 	summary.Total = balance.Available + balance.OnHold
 
 	// Format balance strings
-	summary.AvailableStr = FormatAmount(balance.Available, int(balance.Scale))
-	summary.OnHoldStr = FormatAmount(balance.OnHold, int(balance.Scale))
-	summary.TotalStr = FormatAmount(balance.Available+balance.OnHold, int(balance.Scale))
+	summary.AvailableStr = format.FormatAmount(balance.Available, int(balance.Scale))
+	summary.OnHoldStr = format.FormatAmount(balance.OnHold, int(balance.Scale))
+	summary.TotalStr = format.FormatAmount(balance.Available+balance.OnHold, int(balance.Scale))
 
 	return summary, nil
 }
@@ -330,8 +330,8 @@ func GetAccountBalanceSummary(account *Account, balance *Balance) (AccountBalanc
 //
 // Example:
 //
-//	account := &utils.Account{...}
-//	summary := utils.FormatAccountSummary(account)
+//	account := &accounts.Account{...}
+//	summary := accounts.FormatAccountSummary(account)
 //	log.Println(summary)
 //	// Result: "Account: savings (acc_123) - Type: ASSET - Asset: USD - Status: ACTIVE"
 func FormatAccountSummary(account *Account) string {

@@ -1,5 +1,5 @@
-// Package utils provides internal utility functions for the Midaz SDK.
-package utils
+// Package errors provides error handling utilities for the Midaz SDK.
+package errors
 
 import (
 	"errors"

@@ -1,9 +1,9 @@
-package utils_test
+package accounts_test
 
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/accounts"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,7 +15,7 @@ func strPtr(s string) *string {
 func TestGetAccountIdentifier(t *testing.T) {
 	testCases := []struct {
 		name           string
-		account        *utils.Account
+		account        *accounts.Account
 		expectedResult string
 	}{
 		{
@@ -25,7 +25,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 		},
 		{
 			name: "Account with alias",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:    "acc_123",
 				Alias: strPtr("savings"),
 			},
@@ -33,7 +33,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 		},
 		{
 			name: "Account with nil alias",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:    "acc_123",
 				Alias: nil,
 			},
@@ -41,7 +41,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 		},
 		{
 			name: "Account with empty alias",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:    "acc_123",
 				Alias: strPtr(""),
 			},
@@ -51,7 +51,7 @@ func TestGetAccountIdentifier(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.GetAccountIdentifier(tc.account)
+			result := accounts.GetAccountIdentifier(tc.account)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -60,32 +60,32 @@ func TestGetAccountIdentifier(t *testing.T) {
 func TestFindAccountByID(t *testing.T) {
 	testCases := []struct {
 		name          string
-		accounts      []utils.Account
+		accounts      []accounts.Account
 		id            string
 		expectedFound bool
 	}{
 		{
 			name:          "Empty accounts",
-			accounts:      []utils.Account{},
+			accounts:      []accounts.Account{},
 			id:            "acc_123",
 			expectedFound: false,
 		},
 		{
 			name: "Account found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 				{
 					ID:        "acc_456",
 					Name:      "Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 			},
 			id:            "acc_123",
@@ -93,20 +93,20 @@ func TestFindAccountByID(t *testing.T) {
 		},
 		{
 			name: "Account not found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 				{
 					ID:        "acc_456",
 					Name:      "Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 			},
 			id:            "acc_789",
@@ -116,7 +116,7 @@ func TestFindAccountByID(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FindAccountByID(tc.accounts, tc.id)
+			result := accounts.FindAccountByID(tc.accounts, tc.id)
 			if tc.expectedFound {
 				assert.NotNil(t, result)
 				assert.Equal(t, tc.id, result.ID)
@@ -130,25 +130,25 @@ func TestFindAccountByID(t *testing.T) {
 func TestFindAccountByAlias(t *testing.T) {
 	testCases := []struct {
 		name          string
-		accounts      []utils.Account
+		accounts      []accounts.Account
 		alias         string
 		expectedFound bool
 	}{
 		{
 			name:          "Empty accounts",
-			accounts:      []utils.Account{},
+			accounts:      []accounts.Account{},
 			alias:         "savings",
 			expectedFound: false,
 		},
 		{
 			name: "Account found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("savings"),
 				},
 				{
@@ -156,7 +156,7 @@ func TestFindAccountByAlias(t *testing.T) {
 					Name:      "Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("checking"),
 				},
 			},
@@ -165,13 +165,13 @@ func TestFindAccountByAlias(t *testing.T) {
 		},
 		{
 			name: "Account not found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("savings"),
 				},
 				{
@@ -179,7 +179,7 @@ func TestFindAccountByAlias(t *testing.T) {
 					Name:      "Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("checking"),
 				},
 			},
@@ -188,13 +188,13 @@ func TestFindAccountByAlias(t *testing.T) {
 		},
 		{
 			name: "Nil alias",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     nil,
 				},
 				{
@@ -202,7 +202,7 @@ func TestFindAccountByAlias(t *testing.T) {
 					Name:      "Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("checking"),
 				},
 			},
@@ -213,7 +213,7 @@ func TestFindAccountByAlias(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FindAccountByAlias(tc.accounts, tc.alias)
+			result := accounts.FindAccountByAlias(tc.accounts, tc.alias)
 			if tc.expectedFound {
 				assert.NotNil(t, result)
 				assert.Equal(t, tc.alias, *result.Alias)
@@ -227,7 +227,7 @@ func TestFindAccountByAlias(t *testing.T) {
 func TestFindAccountsByAssetCode(t *testing.T) {
 	testCases := []struct {
 		name            string
-		accounts        []utils.Account
+		accounts        []accounts.Account
 		assetCode       string
 		expectedCount   int
 		expectedCodes   []string
@@ -236,7 +236,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 	}{
 		{
 			name:            "Empty accounts",
-			accounts:        []utils.Account{},
+			accounts:        []accounts.Account{},
 			assetCode:       "USD",
 			expectedCount:   0,
 			expectedCodes:   []string{},
@@ -245,13 +245,13 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 		},
 		{
 			name: "Multiple accounts found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -259,7 +259,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 				{
@@ -267,7 +267,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 					Name:      "USD Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "FROZEN"},
+					Status:    accounts.Status{Code: "FROZEN"},
 					Alias:     strPtr("usd_checking"),
 				},
 			},
@@ -279,13 +279,13 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 		},
 		{
 			name: "No accounts found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -293,7 +293,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 			},
@@ -307,7 +307,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FindAccountsByAssetCode(tc.accounts, tc.assetCode)
+			result := accounts.FindAccountsByAssetCode(tc.accounts, tc.assetCode)
 			assert.Equal(t, tc.expectedCount, len(result))
 
 			for i, account := range result {
@@ -322,7 +322,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 func TestFindAccountsByStatus(t *testing.T) {
 	testCases := []struct {
 		name             string
-		accounts         []utils.Account
+		accounts         []accounts.Account
 		status           string
 		expectedCount    int
 		expectedIDs      []string
@@ -330,7 +330,7 @@ func TestFindAccountsByStatus(t *testing.T) {
 	}{
 		{
 			name:             "Empty accounts",
-			accounts:         []utils.Account{},
+			accounts:         []accounts.Account{},
 			status:           "ACTIVE",
 			expectedCount:    0,
 			expectedIDs:      []string{},
@@ -338,27 +338,27 @@ func TestFindAccountsByStatus(t *testing.T) {
 		},
 		{
 			name: "Multiple accounts found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 				{
 					ID:        "acc_456",
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "FROZEN"},
+					Status:    accounts.Status{Code: "FROZEN"},
 				},
 				{
 					ID:        "acc_789",
 					Name:      "USD Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 			},
 			status:           "ACTIVE",
@@ -368,20 +368,20 @@ func TestFindAccountsByStatus(t *testing.T) {
 		},
 		{
 			name: "No accounts found",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 				},
 				{
 					ID:        "acc_456",
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "FROZEN"},
+					Status:    accounts.Status{Code: "FROZEN"},
 				},
 			},
 			status:           "CLOSED",
@@ -393,7 +393,7 @@ func TestFindAccountsByStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FindAccountsByStatus(tc.accounts, tc.status)
+			result := accounts.FindAccountsByStatus(tc.accounts, tc.status)
 			assert.Equal(t, tc.expectedCount, len(result))
 
 			for i, account := range result {
@@ -407,27 +407,27 @@ func TestFindAccountsByStatus(t *testing.T) {
 func TestFilterAccounts(t *testing.T) {
 	testCases := []struct {
 		name          string
-		accounts      []utils.Account
+		accounts      []accounts.Account
 		filters       map[string]string
 		expectedCount int
 		expectedIDs   []string
 	}{
 		{
 			name:          "Empty accounts",
-			accounts:      []utils.Account{},
+			accounts:      []accounts.Account{},
 			filters:       map[string]string{"assetCode": "USD"},
 			expectedCount: 0,
 			expectedIDs:   []string{},
 		},
 		{
 			name: "Filter by asset code",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -435,7 +435,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 				{
@@ -443,7 +443,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "USD Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "FROZEN"},
+					Status:    accounts.Status{Code: "FROZEN"},
 					Alias:     strPtr("usd_checking"),
 				},
 			},
@@ -453,13 +453,13 @@ func TestFilterAccounts(t *testing.T) {
 		},
 		{
 			name: "Filter by asset code and status",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -467,7 +467,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 				{
@@ -475,7 +475,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "USD Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "FROZEN"},
+					Status:    accounts.Status{Code: "FROZEN"},
 					Alias:     strPtr("usd_checking"),
 				},
 			},
@@ -485,13 +485,13 @@ func TestFilterAccounts(t *testing.T) {
 		},
 		{
 			name: "Filter by alias contains",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -499,7 +499,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 				{
@@ -507,7 +507,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "USD Checking",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "FROZEN"},
+					Status:    accounts.Status{Code: "FROZEN"},
 					Alias:     strPtr("usd_checking"),
 				},
 			},
@@ -517,13 +517,13 @@ func TestFilterAccounts(t *testing.T) {
 		},
 		{
 			name: "No matching accounts",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -531,7 +531,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 			},
@@ -541,13 +541,13 @@ func TestFilterAccounts(t *testing.T) {
 		},
 		{
 			name: "Empty filters",
-			accounts: []utils.Account{
+			accounts: []accounts.Account{
 				{
 					ID:        "acc_123",
 					Name:      "USD Savings",
 					AssetCode: "USD",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("usd_savings"),
 				},
 				{
@@ -555,7 +555,7 @@ func TestFilterAccounts(t *testing.T) {
 					Name:      "EUR Checking",
 					AssetCode: "EUR",
 					Type:      "ASSET",
-					Status:    utils.Status{Code: "ACTIVE"},
+					Status:    accounts.Status{Code: "ACTIVE"},
 					Alias:     strPtr("eur_checking"),
 				},
 			},
@@ -567,7 +567,7 @@ func TestFilterAccounts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FilterAccounts(tc.accounts, tc.filters)
+			result := accounts.FilterAccounts(tc.accounts, tc.filters)
 			assert.Equal(t, tc.expectedCount, len(result))
 
 			for i, account := range result {
@@ -580,7 +580,7 @@ func TestFilterAccounts(t *testing.T) {
 func TestFormatAccountSummary(t *testing.T) {
 	testCases := []struct {
 		name           string
-		account        *utils.Account
+		account        *accounts.Account
 		expectedResult string
 	}{
 		{
@@ -590,36 +590,36 @@ func TestFormatAccountSummary(t *testing.T) {
 		},
 		{
 			name: "Account with all fields",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:        "acc_123",
 				Name:      "Savings Account",
 				AssetCode: "USD",
 				Type:      "ASSET",
-				Status:    utils.Status{Code: "ACTIVE"},
+				Status:    accounts.Status{Code: "ACTIVE"},
 				Alias:     strPtr("savings"),
 			},
 			expectedResult: "Account: savings (acc_123) - Type: ASSET - Asset: USD - Status: ACTIVE",
 		},
 		{
 			name: "Account with nil alias",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:        "acc_123",
 				Name:      "Savings Account",
 				AssetCode: "USD",
 				Type:      "ASSET",
-				Status:    utils.Status{Code: "ACTIVE"},
+				Status:    accounts.Status{Code: "ACTIVE"},
 				Alias:     nil,
 			},
 			expectedResult: "Account: <no alias> (acc_123) - Type: ASSET - Asset: USD - Status: ACTIVE",
 		},
 		{
 			name: "Account with empty status",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:        "acc_123",
 				Name:      "Savings Account",
 				AssetCode: "USD",
 				Type:      "ASSET",
-				Status:    utils.Status{Code: ""},
+				Status:    accounts.Status{Code: ""},
 				Alias:     strPtr("savings"),
 			},
 			expectedResult: "Account: savings (acc_123) - Type: ASSET - Asset: USD - Status: <no status>",
@@ -628,7 +628,7 @@ func TestFormatAccountSummary(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FormatAccountSummary(tc.account)
+			result := accounts.FormatAccountSummary(tc.account)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -637,26 +637,26 @@ func TestFormatAccountSummary(t *testing.T) {
 func TestGetAccountBalanceSummary(t *testing.T) {
 	testCases := []struct {
 		name           string
-		account        *utils.Account
-		balance        *utils.Balance
+		account        *accounts.Account
+		balance        *accounts.Balance
 		expectedError  bool
-		expectedResult utils.AccountBalanceSummary
+		expectedResult accounts.AccountBalanceSummary
 	}{
 		{
 			name:          "Nil account",
 			account:       nil,
-			balance:       &utils.Balance{ID: "bal_123", AccountID: "acc_123", AssetCode: "USD", Available: 10000, OnHold: 500, Scale: 2},
+			balance:       &accounts.Balance{ID: "bal_123", AccountID: "acc_123", AssetCode: "USD", Available: 10000, OnHold: 500, Scale: 2},
 			expectedError: true,
 		},
 		{
 			name: "Valid account and balance",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:        "acc_123",
 				Name:      "Savings Account",
 				AssetCode: "USD",
 				Alias:     strPtr("savings"),
 			},
-			balance: &utils.Balance{
+			balance: &accounts.Balance{
 				ID:        "bal_123",
 				AccountID: "acc_123",
 				AssetCode: "USD",
@@ -665,7 +665,7 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 				Scale:     2,
 			},
 			expectedError: false,
-			expectedResult: utils.AccountBalanceSummary{
+			expectedResult: accounts.AccountBalanceSummary{
 				AccountID:    "acc_123",
 				AccountAlias: "savings",
 				AssetCode:    "USD",
@@ -680,13 +680,13 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 		},
 		{
 			name: "Account with nil alias",
-			account: &utils.Account{
+			account: &accounts.Account{
 				ID:        "acc_123",
 				Name:      "Savings Account",
 				AssetCode: "USD",
 				Alias:     nil,
 			},
-			balance: &utils.Balance{
+			balance: &accounts.Balance{
 				ID:        "bal_123",
 				AccountID: "acc_123",
 				AssetCode: "USD",
@@ -695,7 +695,7 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 				Scale:     2,
 			},
 			expectedError: false,
-			expectedResult: utils.AccountBalanceSummary{
+			expectedResult: accounts.AccountBalanceSummary{
 				AccountID:    "acc_123",
 				AccountAlias: "",
 				AssetCode:    "USD",
@@ -712,7 +712,7 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := utils.GetAccountBalanceSummary(tc.account, tc.balance)
+			result, err := accounts.GetAccountBalanceSummary(tc.account, tc.balance)
 			if tc.expectedError {
 				assert.Error(t, err)
 			} else {

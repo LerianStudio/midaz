@@ -1,5 +1,5 @@
-// Package utils provides utility functions for the Midaz SDK.
-package utils
+// Package format provides formatting utilities for the Midaz SDK.
+package format
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 //
 // Example:
 //
-//	formattedAmount := utils.FormatAmount(12345, 2)
+//	formattedAmount := format.FormatAmount(12345, 2)
 //	// Result: "123.45"
 func FormatAmount(amount int64, scale int) string {
 	if scale <= 0 {

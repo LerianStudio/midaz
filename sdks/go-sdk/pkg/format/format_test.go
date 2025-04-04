@@ -1,9 +1,9 @@
-package utils_test
+package format_test
 
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/utils"
+	"github.com/LerianStudio/midaz/sdks/go-sdk/pkg/format"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,7 +54,7 @@ func TestFormatAmount(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := utils.FormatAmount(tc.amount, tc.scale)
+			result := format.FormatAmount(tc.amount, tc.scale)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
