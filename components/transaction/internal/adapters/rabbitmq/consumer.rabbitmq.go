@@ -107,7 +107,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 
 					err := handlerFunc(ctx, msg.Body)
 					if err != nil {
-						cr.Logger.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
+						cr.Errorf("Worker %d: Error processing message from queue %s: %v", workerID, queue, err)
 
 						_ = msg.Nack(false, true)
 

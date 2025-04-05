@@ -33,12 +33,12 @@ func NewServer(cfg *Config, app *fiber.App, logger libLog.Logger, telemetry *lib
 
 // Run runs the server.
 func (s *Server) Run(l *libCommons.Launcher) error {
-	s.Telemetry.InitializeTelemetry(s.Logger)
-	defer s.Telemetry.ShutdownTelemetry()
+	s.InitializeTelemetry(s.Logger)
+	defer s.ShutdownTelemetry()
 
 	defer func() {
-		if err := s.Logger.Sync(); err != nil {
-			s.Logger.Fatalf("Failed to sync logger: %s", err)
+		if err := s.Sync(); err != nil {
+			s.Fatalf("Failed to sync logger: %s", err)
 		}
 	}()
 
