@@ -1,3 +1,123 @@
+## [2.0.0](https://github.com/LerianStudio/midaz/compare/v1.51.0...v2.0.0) (2025-04-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **release:** change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* **release:** change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* **release:** change
+
+BREAKING
+* makefile
+* **release:** change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* **release:** change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* **release:** change
+
+BREAKING
+* sync postman script auto installing dependencies
+* breaking change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* breaking change
+
+BREAKING
+
+* feat(makefile): testing breaking change
+* CHANGE
+* **makefile:** CHANGE
+* sync postman script auto installing dependencies
+* breaking change
+
+BREAKING
+
+* Merge pull request #666 from LerianStudio/fix/pumping-3 ([f8ea3ea](https://github.com/LerianStudio/midaz/commit/f8ea3eade70044f2810c2e22587883cd00a83430)), closes [#666](https://github.com/LerianStudio/midaz/issues/666)
+* Breaking/installing node on sync postman process (#650) ([659c0fb](https://github.com/LerianStudio/midaz/commit/659c0fb6c4f2760323993afb35381308b9c5a498)), closes [#650](https://github.com/LerianStudio/midaz/issues/650)
+* Breaking/installing node on sync postman process (#649) ([4ec2d1b](https://github.com/LerianStudio/midaz/commit/4ec2d1b2ea896c458877cb9e1bd2cff7185ded9f)), closes [#649](https://github.com/LerianStudio/midaz/issues/649)
+* Breaking/installing node on sync postman process (#648) ([42b8dac](https://github.com/LerianStudio/midaz/commit/42b8dac80a2287e9b52a5b0c793349f9c471a91a)), closes [#648](https://github.com/LerianStudio/midaz/issues/648)
+
+
+### Features
+
+* add entity_id optional on post and add on patch to update; :sparkles: ([405cab3](https://github.com/LerianStudio/midaz/commit/405cab3cfa3733c6658208e65b5e2c88ef7021ad))
+* adding plugin auth network into midaz ([3ad0a6f](https://github.com/LerianStudio/midaz/commit/3ad0a6f62236dab02b1a99648de2e12c68147152))
+* adjust mongo.sh to init configs; :sparkles: ([8104d3d](https://github.com/LerianStudio/midaz/commit/8104d3debce27b4a6cd675113da0dac134b333ef))
+* enable logical replication in Postgres and configure MongoDB replica set; :sparkles: ([93e14e9](https://github.com/LerianStudio/midaz/commit/93e14e9af47c4d44ba158336084c9ed5dfc10758))
+* increase checkout for v4 ([ee9d982](https://github.com/LerianStudio/midaz/commit/ee9d982059222a8373883e0aac1f91df6d5d9660))
+* mantain the name of jobs on Midaz ([67c34b3](https://github.com/LerianStudio/midaz/commit/67c34b3d543f0dc54aef1d5249c0072db1edc029))
+* migrate golangci-lint to v2 on pipeline validations ([6fa1dc5](https://github.com/LerianStudio/midaz/commit/6fa1dc57498f081c8d4c32d5352b130627774ee3))
+* organize golangci-lint on module ([d9735f8](https://github.com/LerianStudio/midaz/commit/d9735f8eaf2022188a9d0b63dd182afc8e0cce60))
+* **makefile:** testing breaking change ([1791699](https://github.com/LerianStudio/midaz/commit/17916994923c7ec302d2277598a76903b952c1dd))
+* **makefile:** testing breaking change ([106af7c](https://github.com/LerianStudio/midaz/commit/106af7c21c8abe1f007dafbfe2cae1410bdbf547))
+* update libs on go.mod and go.sum; :sparkles: ([1b04822](https://github.com/LerianStudio/midaz/commit/1b04822c3309fda6c3094988fff3f616bd23d46a))
+
+
+### Bug Fixes
+
+* add error response from lib-commons to return right business error; :bug: ([27af975](https://github.com/LerianStudio/midaz/commit/27af97542a36d619dca0e04bd6039c195701650e))
+* add omitempty to avoid nested erro when metadata receives null; :bug: ([4dbaa6f](https://github.com/LerianStudio/midaz/commit/4dbaa6f4db2419caa35f26d66726823831feb54b))
+* add right return erros and status codes; :bug: ([02791d5](https://github.com/LerianStudio/midaz/commit/02791d5cb29649c6f7b6a7714cad58383bc63e69))
+* **metadata:** add support for updating or removing metadata using JSON Merge Patch; :bug: ([18d2315](https://github.com/LerianStudio/midaz/commit/18d2315a267727066d0500ad5a56e3ca0a784f0b))
+* adjust other places that we change pkg error for lib-commons error; :bug: ([5b07da5](https://github.com/LerianStudio/midaz/commit/5b07da53c91cc006a152211e360bd1d18b11464c))
+* adjust to return right error and status code; :bug: ([7aaca78](https://github.com/LerianStudio/midaz/commit/7aaca782afb65de385f22b0eadb1dbc6c373efcd))
+* adjust to return right error code and status; :bug: ([a887f4f](https://github.com/LerianStudio/midaz/commit/a887f4f6fb876dcf0f7e5bfeec968e0fc9ac3b3d))
+* change return error 400 to 404 when find account by alias; :bug: ([7a4bb31](https://github.com/LerianStudio/midaz/commit/7a4bb31aa84b4c0da73f90462d41d9dce1d3c895))
+* http error code data range and sort fields; :bug: ([b267c47](https://github.com/LerianStudio/midaz/commit/b267c47d5b1a2e4b35870ed4602d9704f8ee110c))
+* improve json unmarshal error handling with detailed field feedback :bug: ([549d5e0](https://github.com/LerianStudio/midaz/commit/549d5e06be8c819815fea8f5b736fdd965aa6297))
+* rabbitmq mispelling name; :bug: ([55e2525](https://github.com/LerianStudio/midaz/commit/55e252565db2675c79a43f9b30f359d3a2d99d7b))
+* update go mod and go sum; :bug: ([0dcd926](https://github.com/LerianStudio/midaz/commit/0dcd92605116ea4c8df9e094a83cff57b8f43136))
+* update go mod and sum; :bug: ([0648e2d](https://github.com/LerianStudio/midaz/commit/0648e2d52208205ea978045431ad3750eb9c536d))
+* update postman add api find by alias; :bug: ([46fcc3c](https://github.com/LerianStudio/midaz/commit/46fcc3c34c76901df34b9ac8ef76822184ccfbf3))
+* update Swagger documentation generation process ([#606](https://github.com/LerianStudio/midaz/issues/606)) ([2cca7a2](https://github.com/LerianStudio/midaz/commit/2cca7a2c3124a3e7c46bf7f642506051e94ba112))
+* use default variable in channel qos; set golangci lint version; :bug: ([a15a80f](https://github.com/LerianStudio/midaz/commit/a15a80fdf2d26cba1eef603d6a74de19de9aeb94))
+
+
+### Miscellaneous Chores
+
+* **release:** 1.51.0-beta.18 ([5c04a37](https://github.com/LerianStudio/midaz/commit/5c04a378a5becc287281cda040775de14cbe4fea)), closes [#650](https://github.com/LerianStudio/midaz/issues/650) [#649](https://github.com/LerianStudio/midaz/issues/649) [#648](https://github.com/LerianStudio/midaz/issues/648)
+* **release:** 2.0.0-beta.1 ([1a79ccd](https://github.com/LerianStudio/midaz/commit/1a79ccd9171bc095463961e1e5c57dec7d771413)), closes [#666](https://github.com/LerianStudio/midaz/issues/666) [#650](https://github.com/LerianStudio/midaz/issues/650) [#649](https://github.com/LerianStudio/midaz/issues/649) [#648](https://github.com/LerianStudio/midaz/issues/648) [#606](https://github.com/LerianStudio/midaz/issues/606) [#650](https://github.com/LerianStudio/midaz/issues/650) [#649](https://github.com/LerianStudio/midaz/issues/649) [#648](https://github.com/LerianStudio/midaz/issues/648)
+
 ## [2.0.0-beta.1](https://github.com/LerianStudio/midaz/compare/v1.51.0...v2.0.0-beta.1) (2025-04-05)
 
 
