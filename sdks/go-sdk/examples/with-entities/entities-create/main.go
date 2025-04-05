@@ -73,14 +73,14 @@ func main() {
 
 	// Run the create workflow
 	fmt.Println("\n🚀 Starting create workflow...")
-	if err := RunCreateWorkflow(ctx, entity, false, mockMode); err != nil {
+	if err := RunCreateWorkflow(ctx, entity, mockMode); err != nil {
 		log.Fatalf("❌ Workflow failed: %v", err)
 	}
 	fmt.Println("\n🎉 Workflow completed successfully!")
 }
 
 // RunCreateWorkflow runs the create workflow.
-func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, mockMode bool) error {
+func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, mockMode bool) error {
 	// Print workflow header
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	fmt.Println("📋 STEP 1: ORGANIZATION CREATION")
@@ -88,7 +88,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 
 	// Create organization
 	fmt.Println("Creating organization...")
-	org, err := createOrganization(ctx, entity.Organizations, debugMode, mockMode)
+	org, err := createOrganization(ctx, entity.Organizations, mockMode)
 	if err != nil {
 		return fmt.Errorf("failed to create organization: %w", err)
 	}
@@ -109,7 +109,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 
 	// Create ledger
 	fmt.Println("Creating ledger...")
-	ledger, err := createLedger(ctx, orgID, entity.Ledgers, debugMode, mockMode)
+	ledger, err := createLedger(ctx, orgID, entity.Ledgers, mockMode)
 	if err != nil {
 		return fmt.Errorf("failed to create ledger: %w", err)
 	}
@@ -131,7 +131,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 	// Create USD asset
 	fmt.Println("Creating USD asset...")
 	usdAsset, err := createAsset(
-		ctx, orgID, ledgerID, "US Dollar", "currency", "USD", entity.Assets, debugMode, mockMode,
+		ctx, orgID, ledgerID, "US Dollar", "currency", "USD", entity.Assets, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD asset: %w", err)
@@ -148,7 +148,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 	// Create EUR asset
 	fmt.Println("\nCreating EUR asset...")
 	eurAsset, err := createAsset(
-		ctx, orgID, ledgerID, "Euro", "currency", "EUR", entity.Assets, debugMode, mockMode,
+		ctx, orgID, ledgerID, "Euro", "currency", "EUR", entity.Assets, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create EUR asset: %w", err)
@@ -170,7 +170,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 	// Create USD accounts
 	fmt.Println("Creating USD savings account...")
 	usdSavingsAccount, err := createAccount(
-		ctx, orgID, ledgerID, "USD Savings", "savings", "USD", "usd_savings", entity.Accounts, debugMode, mockMode,
+		ctx, orgID, ledgerID, "USD Savings", "savings", "USD", "usd_savings", entity.Accounts, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD savings account: %w", err)
@@ -186,7 +186,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 
 	fmt.Println("\nCreating USD checking account...")
 	usdCheckingAccount, err := createAccount(
-		ctx, orgID, ledgerID, "USD Checking", "deposit", "USD", "usd_checking", entity.Accounts, debugMode, mockMode,
+		ctx, orgID, ledgerID, "USD Checking", "deposit", "USD", "usd_checking", entity.Accounts, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD checking account: %w", err)
@@ -203,7 +203,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 	// Create EUR accounts
 	fmt.Println("\nCreating EUR savings account...")
 	eurSavingsAccount, err := createAccount(
-		ctx, orgID, ledgerID, "EUR Savings", "savings", "EUR", "eur_savings", entity.Accounts, debugMode, mockMode,
+		ctx, orgID, ledgerID, "EUR Savings", "savings", "EUR", "eur_savings", entity.Accounts, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create EUR savings account: %w", err)
@@ -219,7 +219,7 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 
 	fmt.Println("\nCreating EUR checking account...")
 	eurCheckingAccount, err := createAccount(
-		ctx, orgID, ledgerID, "EUR Checking", "deposit", "EUR", "eur_checking", entity.Accounts, debugMode, mockMode,
+		ctx, orgID, ledgerID, "EUR Checking", "deposit", "EUR", "eur_checking", entity.Accounts, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create EUR checking account: %w", err)
@@ -245,8 +245,8 @@ func RunCreateWorkflow(ctx context.Context, entity *entities.Entity, debugMode, 
 	return nil
 }
 
-// createOrganization creates a new organization using the entities package.
-func createOrganization(ctx context.Context, orgService entities.OrganizationsService, debug, mockMode bool) (*models.Organization, error) {
+// createOrganization creates a new organization.
+func createOrganization(ctx context.Context, service entities.OrganizationsService, mockMode bool) (*models.Organization, error) {
 	if mockMode {
 		return &models.Organization{
 			ID:        "mock-organization-id",
@@ -286,7 +286,7 @@ func createOrganization(ctx context.Context, orgService entities.OrganizationsSe
 	}
 
 	// Create organization
-	org, err := orgService.CreateOrganization(ctx, input)
+	org, err := service.CreateOrganization(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create organization: %w", err)
 	}
@@ -294,8 +294,8 @@ func createOrganization(ctx context.Context, orgService entities.OrganizationsSe
 	return org, nil
 }
 
-// createLedger creates a new ledger using the entities package.
-func createLedger(ctx context.Context, orgID string, ledgerService entities.LedgersService, debug, mockMode bool) (*models.Ledger, error) {
+// createLedger creates a new ledger.
+func createLedger(ctx context.Context, orgID string, service entities.LedgersService, mockMode bool) (*models.Ledger, error) {
 	if mockMode {
 		return &models.Ledger{
 			ID:        "mock-ledger-id",
@@ -309,7 +309,7 @@ func createLedger(ctx context.Context, orgID string, ledgerService entities.Ledg
 	input := models.NewCreateLedgerInput("Example Ledger")
 
 	// Create ledger
-	ledger, err := ledgerService.CreateLedger(ctx, orgID, input)
+	ledger, err := service.CreateLedger(ctx, orgID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ledger: %w", err)
 	}
@@ -317,8 +317,13 @@ func createLedger(ctx context.Context, orgID string, ledgerService entities.Ledg
 	return ledger, nil
 }
 
-// createAsset creates a new asset using the entities package.
-func createAsset(ctx context.Context, orgID, ledgerID, name, assetType, code string, assetService entities.AssetsService, debug, mockMode bool) (*models.Asset, error) {
+// createAsset creates a new asset.
+func createAsset(
+	ctx context.Context,
+	orgID, ledgerID, name, assetType, code string,
+	service entities.AssetsService,
+	mockMode bool,
+) (*models.Asset, error) {
 	if mockMode {
 		return &models.Asset{
 			ID:        "mock-asset-id",
@@ -357,7 +362,7 @@ func createAsset(ctx context.Context, orgID, ledgerID, name, assetType, code str
 	}
 
 	// Create asset
-	asset, err := assetService.CreateAsset(ctx, orgID, ledgerID, input)
+	asset, err := service.CreateAsset(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create asset: %w", err)
 	}
@@ -365,8 +370,13 @@ func createAsset(ctx context.Context, orgID, ledgerID, name, assetType, code str
 	return asset, nil
 }
 
-// createAccount creates a new account using the entities package.
-func createAccount(ctx context.Context, orgID, ledgerID, name, accountType, assetCode, alias string, accountService entities.AccountsService, debug, mockMode bool) (*models.Account, error) {
+// createAccount creates a new account.
+func createAccount(
+	ctx context.Context,
+	orgID, ledgerID, name, accountType, assetCode, alias string,
+	service entities.AccountsService,
+	mockMode bool,
+) (*models.Account, error) {
 	if mockMode {
 		return &models.Account{
 			ID:        "mock-account-id",
@@ -408,7 +418,7 @@ func createAccount(ctx context.Context, orgID, ledgerID, name, accountType, asse
 	}
 
 	// Create account
-	account, err := accountService.CreateAccount(ctx, orgID, ledgerID, input)
+	account, err := service.CreateAccount(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create account: %w", err)
 	}

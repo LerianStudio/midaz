@@ -79,21 +79,21 @@ func main() {
 
 	// Run the account transfer workflow
 	fmt.Println("\n🚀 Starting account transfer workflow...")
-	if err := RunAccountTransferWorkflow(ctx, entity, false, mockMode); err != nil {
+	if err := RunAccountTransferWorkflow(ctx, entity, mockMode); err != nil {
 		log.Fatalf("❌ Workflow failed: %v", err)
 	}
 	fmt.Println("\n🎉 Workflow completed successfully!")
 }
 
 // RunAccountTransferWorkflow runs the account transfer workflow.
-func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, debugMode, mockMode bool) error {
+func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, mockMode bool) error {
 	// Step 1: Create organization
 	fmt.Println("\n" + strings.Repeat("=", 50))
 	fmt.Println("📋 STEP 1: ORGANIZATION CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("Creating organization...")
-	org, err := createOrganization(ctx, entity.Organizations, debugMode, mockMode)
+	org, err := createOrganization(ctx, entity.Organizations, mockMode)
 	if err != nil {
 		return fmt.Errorf("failed to create organization: %w", err)
 	}
@@ -112,7 +112,7 @@ func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, de
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("Creating ledger...")
-	ledger, err := createLedger(ctx, orgID, entity.Ledgers, debugMode, mockMode)
+	ledger, err := createLedger(ctx, orgID, entity.Ledgers, mockMode)
 	if err != nil {
 		return fmt.Errorf("failed to create ledger: %w", err)
 	}
@@ -132,7 +132,7 @@ func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, de
 
 	fmt.Println("Creating USD asset...")
 	usdAsset, err := createAsset(
-		ctx, orgID, ledgerID, "US Dollar", "currency", "USD", entity.Assets, debugMode, mockMode,
+		ctx, orgID, ledgerID, "US Dollar", "currency", "USD", entity.Assets, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD asset: %w", err)
@@ -154,7 +154,7 @@ func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, de
 	// Create source account
 	fmt.Println("Creating source account...")
 	sourceAccount, err := createAccount(
-		ctx, orgID, ledgerID, "Source Account", "deposit", "USD", "source_account", entity.Accounts, debugMode, mockMode,
+		ctx, orgID, ledgerID, "Source Account", "deposit", "USD", "source_account", entity.Accounts, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create source account: %w", err)
@@ -171,7 +171,7 @@ func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, de
 	// Create destination account
 	fmt.Println("\nCreating destination account...")
 	destAccount, err := createAccount(
-		ctx, orgID, ledgerID, "Destination Account", "deposit", "USD", "dest_account", entity.Accounts, debugMode, mockMode,
+		ctx, orgID, ledgerID, "Destination Account", "deposit", "USD", "dest_account", entity.Accounts, mockMode,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create destination account: %w", err)
@@ -204,7 +204,6 @@ func RunAccountTransferWorkflow(ctx context.Context, entity *entities.Entity, de
 		10000, // $100.00
 		2,     // 2 decimal places
 		"Transfer from source to destination",
-		debugMode,
 		mockMode,
 	)
 	if err != nil {
@@ -244,7 +243,6 @@ func transferFunds(
 	amount,
 	scale int64,
 	description string,
-	debugMode,
 	mockMode bool,
 ) (*models.Transaction, error) {
 	// Create a transaction DSL input
@@ -307,7 +305,7 @@ func transferFunds(
 }
 
 // createOrganization creates a new organization.
-func createOrganization(ctx context.Context, service entities.OrganizationsService, debugMode, mockMode bool) (*models.Organization, error) {
+func createOrganization(ctx context.Context, service entities.OrganizationsService, mockMode bool) (*models.Organization, error) {
 	// Create organization input
 	input := &models.CreateOrganizationInput{
 		LegalName:     "Schowalter, Bahringer and Heller",
@@ -348,7 +346,7 @@ func createOrganization(ctx context.Context, service entities.OrganizationsServi
 }
 
 // createLedger creates a new ledger.
-func createLedger(ctx context.Context, orgID string, service entities.LedgersService, debugMode, mockMode bool) (*models.Ledger, error) {
+func createLedger(ctx context.Context, orgID string, service entities.LedgersService, mockMode bool) (*models.Ledger, error) {
 	// Create ledger input
 	input := &models.CreateLedgerInput{
 		Name: "Example Ledger",
@@ -387,7 +385,7 @@ func createAsset(
 	ctx context.Context,
 	orgID, ledgerID, name, assetType, code string,
 	service entities.AssetsService,
-	debugMode, mockMode bool,
+	mockMode bool,
 ) (*models.Asset, error) {
 	// Create asset input
 	input := &models.CreateAssetInput{
@@ -429,7 +427,7 @@ func createAccount(
 	ctx context.Context,
 	orgID, ledgerID, name, accountType, assetCode, alias string,
 	service entities.AccountsService,
-	debugMode, mockMode bool,
+	mockMode bool,
 ) (*models.Account, error) {
 	// Create account input
 	input := &models.CreateAccountInput{
