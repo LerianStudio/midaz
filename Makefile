@@ -1,5 +1,6 @@
-# Midaz Project Root Makefile
-# Coordinates all component Makefiles and provides centralized commands
+# Project Root Makefile.
+# Coordinates all component Makefiles and provides centralized commands.
+# Midaz Project Management.
 
 # Define the root directory of the project
 MIDAZ_ROOT := $(shell pwd)
@@ -112,6 +113,10 @@ help:
 	@echo "  make regenerate-mocks            - Regenerate mock files for all components"
 	@echo "  make cleanup-mocks               - Remove all existing mock files"
 	@echo "  make cleanup-regenerate-mocks    - Combine both operations and fix unused imports"
+	@echo ""
+	@echo ""
+	@echo "$(BOLD)Development Helper Commands:$(NC)"
+	@echo "  make dev-setup                   - Set up development environment for all components (includes git hooks)"
 	@echo ""
 	@echo ""
 
@@ -369,7 +374,6 @@ start:
 
 .PHONY: stop
 stop:
-	$(call title1,"Stopping all containers")
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "$(CYAN)Stopping containers in $$dir...$(NC)"; \
@@ -380,13 +384,11 @@ stop:
 
 .PHONY: restart
 restart:
-	$(call title1,"Restarting all containers")
 	@make stop && make start
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) All containers restarted successfully$(GREEN) ✔️$(NC)"
 
 .PHONY: rebuild-up
 rebuild-up:
-	$(call title1,"Rebuilding and restarting all services")
 	@for dir in $(COMPONENTS); do \
 		if [ -f "$$dir/docker-compose.yml" ]; then \
 			echo "$(CYAN)Rebuilding and restarting services in $$dir...$(NC)"; \
@@ -484,13 +486,8 @@ generate-docs-all:
 	@cd $(TRANSACTION_DIR) && $(MAKE) generate-docs 2>&1 | grep -v "warning: "
 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Swagger documentation generated successfully for all services$(GREEN) ✔️$(NC)"
 	@echo "$(CYAN)Syncing Postman collection with the generated OpenAPI documentation...$(NC)"
-	@if command -v jq >/dev/null 2>&1; then \
-		sh ./scripts/sync-postman.sh; \
-	else \
-		echo "$(YELLOW)Warning: jq is not installed. Skipping Postman collection sync.$(NC)"; \
-		echo "$(YELLOW)To install jq: brew install jq$(NC)"; \
-		echo "$(YELLOW)Then run: make sync-postman$(NC)"; \
-	fi
+	@sh ./scripts/sync-postman.sh
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Postman collection synced successfully with OpenAPI documentation$(GREEN) ✔️$(NC)"
 
 .PHONY: sync-postman
 sync-postman:
