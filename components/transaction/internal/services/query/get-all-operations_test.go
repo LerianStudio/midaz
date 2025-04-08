@@ -1,14 +1,19 @@
-package query
+package query_test
 
 import (
 	"context"
 	"errors"
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/components/transaction/internal/services"
+	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -25,6 +30,7 @@ func TestGetAllOperations(t *testing.T) {
 		StartDate:    time.Now().AddDate(0, -1, 0),
 		EndDate:      time.Now(),
 		ToAssetCodes: []string{"BRL"},
+		Metadata:     &bson.M{},
 	}
 	mockCur := libHTTP.CursorPagination{
 		Next: "next",
@@ -36,35 +42,114 @@ func TestGetAllOperations(t *testing.T) {
 	defer ctrl.Finish()
 	mockOperationRepo := operation.NewMockRepository(ctrl)
 
-	uc := UseCase{
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := query.UseCase{
 		OperationRepo: mockOperationRepo,
+		MetadataRepo:  mockMetadataRepo,
 	}
 
-	t.Run("Success", func(t *testing.T) {
-		trans := []*operation.Operation{{}}
+	t.Run("Success with metadata", func(t *testing.T) {
+		// Setup test operations
+		op1ID := libCommons.GenerateUUIDv7().String()
+		op2ID := libCommons.GenerateUUIDv7().String()
+		operations := []*operation.Operation{
+			{ID: op1ID},
+			{ID: op2ID},
+		}
+
+		// Setup test metadata
+		metadata := []*mongodb.Metadata{
+			{
+				EntityID: op1ID,
+				Data:     mongodb.JSON{"key1": "value1"},
+			},
+			{
+				EntityID: op2ID,
+				Data:     mongodb.JSON{"key2": "value2"},
+			},
+		}
+
+		// Expect FindAll call
 		mockOperationRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
-			Return(trans, mockCur, nil).
+			Return(operations, mockCur, nil).
 			Times(1)
-		res, cur, err := uc.OperationRepo.FindAll(context.TODO(), organizationID, ledgerID, transactionID, filter.ToCursorPagination())
 
+		// Expect FindList call with proper metadata filter
+		mockMetadataRepo.
+			EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, collection string, queryFilter http.QueryHeader) ([]*mongodb.Metadata, error) {
+				// Verify the filter has the correct metadata type
+				assert.IsType(t, &bson.M{}, queryFilter.Metadata)
+				return metadata, nil
+			}).
+			Times(1)
+
+		// Call the actual function being tested
+		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
+
+		// Assertions
 		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.NotNil(t, cur)
+		assert.Equal(t, 2, len(result))
+		assert.Equal(t, mockCur, cur)
+		
+		// Verify metadata was properly assigned
+		assert.Equal(t, "value1", result[0].Metadata["key1"])
+		assert.Equal(t, "value2", result[1].Metadata["key2"])
 	})
 
-	t.Run("Error", func(t *testing.T) {
-		errMsg := "errDatabaseItemNotFound"
+	t.Run("Success with no operations", func(t *testing.T) {
 		mockOperationRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
-			Return(nil, libHTTP.CursorPagination{}, errors.New(errMsg)).
+			Return(nil, mockCur, nil).
 			Times(1)
-		res, cur, err := uc.OperationRepo.FindAll(context.TODO(), organizationID, ledgerID, transactionID, filter.ToCursorPagination())
 
-		assert.EqualError(t, err, errMsg)
-		assert.Nil(t, res)
-		assert.Equal(t, cur, libHTTP.CursorPagination{})
+		// No metadata call expected when no operations
+
+		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
+
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+		assert.Equal(t, mockCur, cur)
+	})
+
+	t.Run("Error in FindAll", func(t *testing.T) {
+		mockOperationRepo.
+			EXPECT().
+			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+			Return(nil, libHTTP.CursorPagination{}, services.ErrDatabaseItemNotFound).
+			Times(1)
+
+		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cur)
+	})
+
+	t.Run("Error in FindList metadata", func(t *testing.T) {
+		operations := []*operation.Operation{{ID: libCommons.GenerateUUIDv7().String()}}
+
+		mockOperationRepo.
+			EXPECT().
+			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
+			Return(operations, mockCur, nil).
+			Times(1)
+
+		mockMetadataRepo.
+			EXPECT().
+			FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
+			Return(nil, errors.New("metadata error")).
+			Times(1)
+
+		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
+
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 }
