@@ -1,4 +1,4 @@
-package query_test
+package query
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/components/transaction/internal/services"
-	"github.com/LerianStudio/midaz/components/transaction/internal/services/query"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -44,7 +43,7 @@ func TestGetAllOperations(t *testing.T) {
 
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
-	uc := query.UseCase{
+	uc := UseCase{
 		OperationRepo: mockOperationRepo,
 		MetadataRepo:  mockMetadataRepo,
 	}
