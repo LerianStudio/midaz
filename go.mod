@@ -18,9 +18,9 @@ require (
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/icrowley/fake v0.0.0-20240710202011-f797eb4a99c0
 	github.com/jackc/pgx/v5 v5.7.4
-	github.com/jarcoal/httpmock v1.3.1
+	github.com/jarcoal/httpmock v1.4.0
 	github.com/lib/pq v1.10.9
-	github.com/pelletier/go-toml/v2 v2.2.3
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/pkg/errors v0.9.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.7.3
@@ -29,7 +29,7 @@ require (
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.4
 	go.mongodb.org/mongo-driver v1.17.3
-	go.uber.org/mock v0.5.0
+	go.uber.org/mock v0.5.1
 	gotest.tools v2.2.0+incompatible
 )
 
