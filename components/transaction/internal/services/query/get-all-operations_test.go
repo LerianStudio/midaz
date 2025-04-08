@@ -3,6 +3,10 @@ package query_test
 import (
 	"context"
 	"errors"
+	"reflect"
+	"testing"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/mongodb"
@@ -13,12 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.uber.org/mock/gomock"
-	"reflect"
-	"testing"
-	"time"
 )
 
-// TestGetAllOperations is responsible to test GetAllOperations with success and error
 func TestGetAllOperations(t *testing.T) {
 	organizationID := libCommons.GenerateUUIDv7()
 	ledgerID := libCommons.GenerateUUIDv7()
@@ -50,7 +50,6 @@ func TestGetAllOperations(t *testing.T) {
 	}
 
 	t.Run("Success with metadata", func(t *testing.T) {
-		// Setup test operations
 		op1ID := libCommons.GenerateUUIDv7().String()
 		op2ID := libCommons.GenerateUUIDv7().String()
 		operations := []*operation.Operation{
@@ -70,14 +69,12 @@ func TestGetAllOperations(t *testing.T) {
 			},
 		}
 
-		// Expect FindAll call
 		mockOperationRepo.
 			EXPECT().
 			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
 			Return(operations, mockCur, nil).
 			Times(1)
 
-		// Expect FindList call with proper metadata filter
 		mockMetadataRepo.
 			EXPECT().
 			FindList(gomock.Any(), reflect.TypeOf(operation.Operation{}).Name(), gomock.Any()).
@@ -88,15 +85,12 @@ func TestGetAllOperations(t *testing.T) {
 			}).
 			Times(1)
 
-		// Call the actual function being tested
 		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
 
-		// Assertions
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(result))
 		assert.Equal(t, mockCur, cur)
-		
-		// Verify metadata was properly assigned
+
 		assert.Equal(t, "value1", result[0].Metadata["key1"])
 		assert.Equal(t, "value2", result[1].Metadata["key2"])
 	})
@@ -107,8 +101,6 @@ func TestGetAllOperations(t *testing.T) {
 			FindAll(gomock.Any(), organizationID, ledgerID, transactionID, filter.ToCursorPagination()).
 			Return(nil, mockCur, nil).
 			Times(1)
-
-		// No metadata call expected when no operations
 
 		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
 
