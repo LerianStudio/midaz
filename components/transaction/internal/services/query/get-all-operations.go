@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 	"errors"
+	"reflect"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libHTTP "github.com/LerianStudio/lib-commons/commons/net/http"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -12,7 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/pkg/constant"
 	"github.com/LerianStudio/midaz/pkg/net/http"
 	"github.com/google/uuid"
-	"reflect"
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
@@ -38,7 +40,17 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 	}
 
 	if op != nil {
-		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), filter)
+		metadataFilter := http.QueryHeader{
+			Limit:     filter.Limit,
+			Page:      filter.Page,
+			Cursor:    filter.Cursor,
+			SortOrder: filter.SortOrder,
+			StartDate: filter.StartDate,
+			EndDate:   filter.EndDate,
+			Metadata:  &bson.M{},
+		}
+
+		metadata, err := uc.MetadataRepo.FindList(ctx, reflect.TypeOf(operation.Operation{}).Name(), metadataFilter)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(&span, "Failed to get metadata on mongodb operation", err)
 
