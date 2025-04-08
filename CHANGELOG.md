@@ -5,8 +5,8 @@
 
 * fixing import package ([82f51c7](https://github.com/LerianStudio/midaz/commit/82f51c7b773720dba2a1aea2b1d24f563eab652e))
 * removing code comments ([21de234](https://github.com/LerianStudio/midaz/commit/21de23412f05de8a1943fc213eda8275bda998b1))
-* upgrading dependencias ([1f6581f](https://github.com/LerianStudio/midaz/commit/1f6581f25e21d3bd8056e05f24cf4ab8cb9e5b8a))
-* upgrading dependencias ([8511320](https://github.com/LerianStudio/midaz/commit/8511320727031a5eab6b522df25abde46f6eb368))
+* upgrading dependencies ([1f6581f](https://github.com/LerianStudio/midaz/commit/1f6581f25e21d3bd8056e05f24cf4ab8cb9e5b8a))
+* upgrading dependencies ([8511320](https://github.com/LerianStudio/midaz/commit/8511320727031a5eab6b522df25abde46f6eb368))
 * use *bson.M instead of map[string]interface{} for metadata filter and unit testing ([21e63f1](https://github.com/LerianStudio/midaz/commit/21e63f152d97975b374dcbf9e83b619c8cc805c6))
 * use *bson.M instead of map[string]interface{} for metadata filter and unit testing ([92a5d08](https://github.com/LerianStudio/midaz/commit/92a5d082dcfa93816fc166c435a2468c22fa01ac))
 
