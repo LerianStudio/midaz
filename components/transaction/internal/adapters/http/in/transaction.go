@@ -1,6 +1,9 @@
 package in
 
 import (
+	"reflect"
+	"time"
+
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libLog "github.com/LerianStudio/lib-commons/commons/log"
 	libOpentelemetry "github.com/LerianStudio/lib-commons/commons/opentelemetry"
@@ -18,8 +21,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
-	"reflect"
-	"time"
 )
 
 // TransactionHandler struct that handle transaction
@@ -546,6 +547,24 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	spanIdempotency.End()
 
 	_, spanValidateDSL := tracer.Start(ctx, "handler.create_transaction_validate_dsl")
+
+	// Helper function to handle account and accountAlias fields - accountAlias is deprecated
+	handleAccountFields := func(fromTo *libTransaction.FromTo) {
+		if fromTo.AccountAlias != "" && fromTo.Account == "" {
+			fromTo.Account = fromTo.AccountAlias
+		} else if fromTo.Account != "" && fromTo.AccountAlias == "" {
+			logger.Warn("Deprecated field 'account' used instead of 'accountAlias'",
+				"endpoint", "createTransaction")
+		}
+	}
+
+	for i := range parserDSL.Send.Source.From {
+		handleAccountFields(&parserDSL.Send.Source.From[i])
+	}
+
+	for i := range parserDSL.Send.Distribute.To {
+		handleAccountFields(&parserDSL.Send.Distribute.To[i])
+	}
 
 	validate, err := libTransaction.ValidateSendSourceAndDistribute(parserDSL)
 	if err != nil {
