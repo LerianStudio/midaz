@@ -552,6 +552,7 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	handleAccountFields := func(fromTo *libTransaction.FromTo) {
 		if fromTo.AccountAlias != "" && fromTo.Account == "" {
 			fromTo.Account = fromTo.AccountAlias
+		}
 	}
 
 	for i := range parserDSL.Send.Source.From {
