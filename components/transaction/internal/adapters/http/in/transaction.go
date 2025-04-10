@@ -552,10 +552,6 @@ func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog
 	handleAccountFields := func(fromTo *libTransaction.FromTo) {
 		if fromTo.AccountAlias != "" && fromTo.Account == "" {
 			fromTo.Account = fromTo.AccountAlias
-		} else if fromTo.Account != "" && fromTo.AccountAlias == "" {
-			logger.Warn("Deprecated field 'account' used instead of 'accountAlias'",
-				"endpoint", "createTransaction")
-		}
 	}
 
 	for i := range parserDSL.Send.Source.From {
