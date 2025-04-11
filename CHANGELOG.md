@@ -1,3 +1,16 @@
+## [2.2.0-beta.1](https://github.com/LerianStudio/midaz/compare/v2.1.0...v2.2.0-beta.1) (2025-04-10)
+
+
+### Features
+
+* **transaction:** adding accountAlias field to keep backward compatibility ([7c6875c](https://github.com/LerianStudio/midaz/commit/7c6875cf407da06456f5645390b61388f94c9a4b))
+* define gorelease version on pipeline flow ([c845fe1](https://github.com/LerianStudio/midaz/commit/c845fe15ff5af0d562a554b44d6612820589208e))
+* remove discord beta releases flow ([3e050eb](https://github.com/LerianStudio/midaz/commit/3e050eb863b694734c18ee32eb02547eec713056))
+* **transaction:** removing deprecated message when account field is used insted accountAlias ([2e5a1ca](https://github.com/LerianStudio/midaz/commit/2e5a1ca0744362524bbf89fa1f189764a789d87f))
+* **transaction:** removing deprecated message when account field is used insted accountAlias ([c674fde](https://github.com/LerianStudio/midaz/commit/c674fde681a6077af03462c59e094e5786aaa265))
+* **transaction:** removing get-all-metadata-operations.go is not being used ([8a5014c](https://github.com/LerianStudio/midaz/commit/8a5014c0383cd0fddfc8f31625011d086723fb03))
+* **transaction:** upgrading lib-commons to 1.5.0 versionwith new accountAlias field ([e6bb757](https://github.com/LerianStudio/midaz/commit/e6bb757a94c34ddfb39d3d3f2110daa565db7e1c))
+
 ## [2.1.0](https://github.com/LerianStudio/midaz/compare/v2.0.0...v2.1.0) (2025-04-08)
 
 

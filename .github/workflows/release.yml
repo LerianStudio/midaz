@@ -92,7 +92,7 @@ jobs:
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v6
       with:
-        version: latest
+        version: v2.8.2 # removido o goreleaser_version em latest
         args: release --clean
       env:
         GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
