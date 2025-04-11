@@ -7,7 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth v1.12.0
-	github.com/LerianStudio/lib-commons v1.4.0
+	github.com/LerianStudio/lib-commons v1.6.0-beta.1
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/antlr4-go/antlr/v4 v4.13.1
@@ -29,6 +29,8 @@ require (
 	github.com/swaggo/fiber-swagger v1.3.0
 	github.com/swaggo/swag v1.16.4
 	go.mongodb.org/mongo-driver v1.17.3
+	go.opentelemetry.io/otel v1.35.0
+	go.opentelemetry.io/otel/trace v1.35.0
 	go.uber.org/mock v0.5.1
 	gotest.tools v2.2.0+incompatible
 )
@@ -79,7 +81,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelzap v0.10.0 // indirect
-	go.opentelemetry.io/otel v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.11.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.35.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.35.0 // indirect
@@ -89,7 +90,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.35.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.11.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
-	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.38.0 // indirect
@@ -138,7 +138,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/cobra v1.9.1
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.60.0 // indirect
+	github.com/valyala/fasthttp v1.60.0
 	golang.org/x/sys v0.31.0 // indirect
 	gopkg.in/go-playground/validator.v9 v9.31.0
 )
