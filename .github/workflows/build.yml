@@ -10,10 +10,11 @@ permissions:
   pull-requests: write
 
 jobs:
-  detect-changes:
+  detect_changes:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.changed-paths.outputs.matrix }}
+    name: Detect changed paths
     steps:
       - name: Get changed paths
         id: changed-paths
@@ -27,14 +28,14 @@ jobs:
           app_name_prefix: midaz
 
   build_and_publish:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.matrix != '[]'
+    needs: detect_changes
+    if: needs.detect_changes.outputs.matrix != '[]'
     runs-on: ubuntu-24.04
     env:
       DOCKERHUB_ORG: lerianstudio
     strategy:
       matrix:
-        app: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}
 
     name: Build And Publish Docker Image to Midaz
     steps:
