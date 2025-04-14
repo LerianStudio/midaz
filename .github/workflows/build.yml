@@ -24,6 +24,7 @@ jobs:
             components/infra
           get_app_name: true
           path_level: 2
+          app_name_prefix: midaz
 
   build_and_publish:
     needs: detect-changes
