@@ -1,3 +1,16 @@
+## [2.2.0-beta.2](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.1...v2.2.0-beta.2) (2025-04-15)
+
+
+### Features
+
+* Update workflows to use latest versions of dependencies and tools. ([6511248](https://github.com/LerianStudio/midaz/commit/6511248ef2b7a2c116c846675f96a8fb748d224b))
+
+
+### Bug Fixes
+
+* **pipeline:** enable pushing of Docker images in CI workflow ([ffeeb3b](https://github.com/LerianStudio/midaz/commit/ffeeb3b8b6274ce859c912c065eefb5e12fc1abe))
+* **workflow:** update github-actions-changed-paths action to use main branch instead of develop ([fe08d78](https://github.com/LerianStudio/midaz/commit/fe08d789e31d558cec82bd496beb2d12b122d767))
+
 ## [2.2.0-beta.1](https://github.com/LerianStudio/midaz/compare/v2.1.0...v2.2.0-beta.1) (2025-04-10)
 
 
