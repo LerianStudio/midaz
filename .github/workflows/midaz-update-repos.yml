@@ -43,13 +43,13 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           cd midaz-stack
-          
+
           cd midaz
-          git checkout main       
+          git checkout main
           git pull origin main
-          
+
           cd ..
-          
+
           git add midaz
           git commit -S -m "Updating the submodule 'midaz' to the latest version"
           git push origin main
@@ -89,7 +89,7 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           gh repo clone LerianStudio/midaz
-          
+
           gh repo clone LerianStudio/LerianStudio.github.io
 
       - name: Generate Swagger on Onboarding and Transaction
@@ -97,24 +97,24 @@ jobs:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           cd midaz
-          
+
           export PATH=$PATH:/usr/local/go/bin:$(go env GOPATH)/bin
           go install github.com/swaggo/swag/cmd/swag@latest
           swag --version
 
           make tidy
-          
-          make generate-docs-all  
-          
+
+          make generate-docs-all
+
           cd ..
 
       - name: Copy openapi.yaml and swagger.json to Repos to LerianStudio.github.io
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          cp midaz/components/onboarding/api/swagger.json LerianStudio.github.io/onboarding/ 
-          cp midaz/components/onboarding/api/openapi.yaml LerianStudio.github.io/onboarding/ 
-          
+          cp midaz/components/onboarding/api/swagger.json LerianStudio.github.io/onboarding/
+          cp midaz/components/onboarding/api/openapi.yaml LerianStudio.github.io/onboarding/
+
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
           cp midaz/components/transaction/api/openapi.yaml LerianStudio.github.io/transaction/
 
@@ -128,15 +128,15 @@ jobs:
           GIT_COMMITTER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
         run: |
           cd LerianStudio.github.io
-          
+
           if git status --porcelain | grep -qE "^[ MADRCU]"; then
             echo "Changes detected!"
-          
+
             git remote set-url origin https://${{ secrets.MANAGE_TOKEN }}@github.com/LerianStudio/LerianStudio.github.io.git
-          
+
             git add onboarding transaction
             git commit -S -m "Update openapi.yaml and swagger.json from Repositories"
-          
+
             git push origin main
           else
             echo "No changes detected."

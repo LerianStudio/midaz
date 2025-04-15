@@ -11,17 +11,32 @@ permissions:
   pull-requests: write
 
 jobs:
+  detect_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.changed-paths.outputs.matrix }}
+    name: Detect changed paths
+    steps:
+      - name: Get changed paths
+        id: changed-paths
+        uses: LerianStudio/github-actions-changed-paths@main
+        with:
+          filter_paths: |-
+            components/onboarding
+            components/transaction
+          get_app_name: true
+          path_level: 2
+          app_name_prefix: midaz
+
   build_and_publish:
+    needs: detect_changes
+    if: needs.detect_changes.outputs.matrix != '[]'
     runs-on: ubuntu-24.04
     env:
       DOCKERHUB_ORG: lerianstudio
     strategy:
       matrix:
-        app:
-          - name: "midaz-onboarding"
-            working_dir: "components/onboarding"
-          - name: "midaz-transaction"
-            working_dir: "components/transaction"
+        app: ${{ fromJson(needs.detect_changes.outputs.matrix) }}
 
     name: Build And Publish Docker Image to Midaz
     steps:

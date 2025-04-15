@@ -27,7 +27,7 @@ jobs:
       - name: Check for changes in .env.example files
         run: |
           echo "Checking for changes in .env.example..."
-          
+
           # Definindo os commits dinamicamente
           PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
           CURRENT_COMMIT=$(git rev-parse HEAD)
@@ -39,7 +39,7 @@ jobs:
           for file in $(git diff --name-only $PREVIOUS_COMMIT $CURRENT_COMMIT | grep -E 'components/(auth|infra|ledger|mdz|transaction)/.*\.env.example'); do
             # Exibindo qual arquivo estamos verificando
             echo "Checking file: $file"
-            
+
             # Verificando as mudanças no arquivo, mas excluindo as linhas que começam com 'VERSION='
             if git diff --ignore-matching-lines='^VERSION=.*' $PREVIOUS_COMMIT $CURRENT_COMMIT -- "$file" | grep -q .; then
               echo "File $file has changes!"
@@ -70,10 +70,10 @@ jobs:
           SLACK_TITLE: "New PR with .env.example changes!"
           SLACK_MESSAGE: |
             :bell: **A new PR has changes in the `.env.example` file!** :warning:
-            
+
             **PR Title:** ${{ github.event.pull_request.title }}
             **PR URL:** ${{ github.event.pull_request.html_url }}
-            
+
             Please review the changes made to the `.env.example` file.
-            
+
             @LerianStudio/G_Github_Devops @LerianStudio/G_Github_Dev
