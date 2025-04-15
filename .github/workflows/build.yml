@@ -65,7 +65,7 @@ jobs:
         with:
           file: ${{ matrix.app.working_dir }}/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: false
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
 
       - name: Extract tag name
