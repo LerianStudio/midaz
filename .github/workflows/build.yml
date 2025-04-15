@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Get changed paths
         id: changed-paths
-        uses: LerianStudio/github-actions-changed-paths@develop
+        uses: LerianStudio/github-actions-changed-paths@main
         with:
           filter_paths: |-
             components/onboarding
