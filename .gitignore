@@ -60,7 +60,6 @@ postman/backups
 # local env files
 /components/console/.env
 /components/console/.env*.local
-/components/console/.env.playwright
 
 # vercel
 /components/console/.vercel
