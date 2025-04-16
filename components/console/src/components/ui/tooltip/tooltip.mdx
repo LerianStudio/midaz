@@ -1,0 +1,29 @@
+import { Meta, Controls, Primary, Canvas } from '@storybook/blocks'
+import * as Story from './tooltip.stories'
+
+<Meta of={Story} />
+
+# Tooltip
+
+A window overlaid on either the primary window or another dialog window,
+rendering the content underneath inert. \
+[Docs](https://www.radix-ui.com/primitives/docs/components/tooltip)
+
+### Primary
+
+<Canvas of={Story.Primary} />
+
+### Delay
+
+The delay can be changed to zero (instantly) too.
+
+<Canvas of={Story.WithoutDelay} />
+
+### Position
+
+Tooltip can be displayed in all sides of the trigger component.
+
+<Canvas of={Story.WithSides} />
+
+<Primary />
+<Controls />
