@@ -1,0 +1,35 @@
+import { Meta, Controls, Primary, Canvas, Stories } from '@storybook/blocks'
+import * as Story from './input-field.stories'
+
+<Meta of={Story} />
+
+# InputField
+
+An implementation for easy use of Input component.
+
+### Basic
+
+<Canvas of={Story.Primary} />
+
+### Required
+
+<Canvas of={Story.Required} />
+
+### With Tooltip
+
+<Canvas of={Story.WithTooltip} />
+
+### With Label Extra
+
+<Canvas of={Story.WithExtraLabel} />
+
+### Read Only
+
+<Canvas of={Story.ReadOnly} />
+
+### Disabled
+
+<Canvas of={Story.Disabled} />
+
+<Primary />
+<Controls />

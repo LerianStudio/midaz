@@ -1,0 +1,11 @@
+FROM node:18
+WORKDIR /midaz-console
+ARG PORT_BUILD=8080
+ENV PORT=$PORT_BUILD
+EXPOSE $PORT_BUILD
+COPY . .
+RUN npm install
+RUN npm run build-storybook
+RUN npm install -g http-server
+
+ENTRYPOINT npx http-server ./storybook-static
