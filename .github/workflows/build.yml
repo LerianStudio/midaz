@@ -6,9 +6,9 @@ on:
       - '**'
 
 permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
+  id-token: write       # Needed for authentication
+  contents: read        # Needed to check out the repository
+  pull-requests: write  # Needed to comment on PRs
 
 jobs:
   detect_changes:
@@ -17,6 +17,7 @@ jobs:
       matrix: ${{ steps.changed-paths.outputs.matrix }}
     name: Detect changed paths
     steps:
+      # Identify which components have changed to build only those images
       - name: Get changed paths
         id: changed-paths
         uses: LerianStudio/github-actions-changed-paths@main
@@ -24,10 +25,12 @@ jobs:
           filter_paths: |-
             components/onboarding
             components/transaction
+            components/console
           get_app_name: true
           path_level: 2
           app_name_prefix: midaz
 
+  # Job to build and publish Docker images for changed components
   build_and_publish:
     needs: detect_changes
     if: needs.detect_changes.outputs.matrix != '[]'
@@ -40,17 +43,21 @@ jobs:
 
     name: Build And Publish Docker Image to Midaz
     steps:
+      # Checkout the repository code
       - uses: actions/checkout@v4
 
+      # Set up Docker Buildx for multi-architecture builds
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Authenticate with Docker Hub to push images
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: "${{ secrets.DOCKER_USERNAME }}"
           password: "${{ secrets.DOCKER_PASSWORD }}"
 
+      # Generate Docker metadata and tags based on git information
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -60,6 +67,7 @@ jobs:
             type=semver,pattern={{version}}
             type=ref,event=branch,suffix=-${{ github.sha }}
 
+      # Build and push multi-architecture Docker images
       - name: Build and Push Docker image (Multi-Arch)
         uses: docker/build-push-action@v5
         with:
@@ -73,6 +81,7 @@ jobs:
         run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
         id: extract_tag
 
+      # Scan the built image for security vulnerabilities
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:

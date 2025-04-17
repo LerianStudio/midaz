@@ -12,6 +12,7 @@ jobs:
     name: Run Update midaz submodule on midaz-stack
     runs-on: ubuntu-24.04
     steps:
+      # Import GPG key for signing commits
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -24,6 +25,7 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
+      # Checkout midaz-stack repository with all submodules
       - name: Pull midaz-stack and submodules
         uses: actions/checkout@v4
         with:
@@ -33,6 +35,7 @@ jobs:
           submodules: recursive
           token: ${{ secrets.MANAGE_TOKEN }}
 
+      # Update and push the midaz submodule in midaz-stack
       - name: Push midaz-stack and midaz submodule
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
@@ -58,12 +61,14 @@ jobs:
     name: Run Update swagger on onboarding and transaction in LerianStudio.github.io
     runs-on: ubuntu-24.04
     steps:
+      # Create a GitHub App token for authentication
       - uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
+      # Import GPG key for signing commits
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -76,9 +81,11 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
+      # Install GitHub CLI for repository operations
       - name: Install GitHub CLI
         run: sudo apt-get install -y gh
 
+      # Clone both midaz and GitHub Pages repositories
       - name: Get MIDAZ and Pages
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
@@ -92,6 +99,7 @@ jobs:
 
           gh repo clone LerianStudio/LerianStudio.github.io
 
+      # Generate Swagger documentation for API components
       - name: Generate Swagger on Onboarding and Transaction
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -108,6 +116,7 @@ jobs:
 
           cd ..
 
+      # Copy generated API documentation to GitHub Pages repository
       - name: Copy openapi.yaml and swagger.json to Repos to LerianStudio.github.io
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -118,6 +127,7 @@ jobs:
           cp midaz/components/transaction/api/swagger.json LerianStudio.github.io/transaction/
           cp midaz/components/transaction/api/openapi.yaml LerianStudio.github.io/transaction/
 
+      # Commit and push updated API documentation to GitHub Pages
       - name: Commit and Push Swagger to Git Page
         env:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
