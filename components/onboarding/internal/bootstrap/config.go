@@ -26,7 +26,7 @@ import (
 
 const ApplicationName = "onboarding"
 
-// Config is the top level configuration struct for the entire application.
+// Config is top level configuration struct for the entire application.
 type Config struct {
 	EnvName                 string `env:"ENV_NAME"`
 	LogLevel                string `env:"LOG_LEVEL"`
@@ -212,7 +212,7 @@ func InitServers() *Service {
 		Query:   queryUseCase,
 	}
 
-	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled)
+	auth := middleware.NewAuthClient(cfg.AuthHost, cfg.AuthEnabled, &logger)
 
 	httpApp := httpin.NewRouter(logger, telemetry, auth, accountHandler, portfolioHandler, ledgerHandler, assetHandler, organizationHandler, segmentHandler)
 
