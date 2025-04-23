@@ -1,3 +1,10 @@
+## [2.2.0-beta.4](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.3...v2.2.0-beta.4) (2025-04-23)
+
+
+### Bug Fixes
+
+* **pipeline:** execute console integration tests in right directory during release workflow execution ([0c840d1](https://github.com/LerianStudio/midaz/commit/0c840d1999e0298b4edf3edcbc4c21acfb5638a4))
+
 ## [2.2.0-beta.3](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.2...v2.2.0-beta.3) (2025-04-17)
 
 ## [2.2.0-beta.2](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.1...v2.2.0-beta.2) (2025-04-15)
