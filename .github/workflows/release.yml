@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   integration_tests_go:
-    name: Integration test
+    name: Go Integration test
     runs-on: ubuntu-24.04
     steps:
       # Checkout the repository code
@@ -43,8 +43,11 @@ jobs:
         run: make test
 
   integration_tests_console:
-    name: Integration test
+    name: Console Integration test
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: components/console
     steps:
       # Checkout the repository code
       - uses: actions/checkout@v4
