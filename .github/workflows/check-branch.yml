@@ -14,12 +14,14 @@ jobs:
   check-branch:
     runs-on: ubuntu-24.04
     steps:
+      # Create a GitHub App token for authentication with higher rate limits
       - uses: actions/create-github-app-token@v1
         id: app-token
         with:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
+      # Import GPG key for signing commits and comments
       - name: Import GPG key
         uses: crazy-max/ghaction-import-gpg@v6
         id: import_gpg
@@ -32,6 +34,7 @@ jobs:
           git_user_signingkey: true
           git_commit_gpgsign: true
 
+      # Verify that PR is from develop or hotfix branch and block if not
       - name: Check if PR is from develop or hotfix
         if: github.event.pull_request.head.ref != 'develop' && startsWith(github.event.pull_request.head.ref, 'hotfix/') == false
         env:
