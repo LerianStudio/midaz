@@ -205,6 +205,17 @@ cover:
 	$(call title1,"Generating test coverage report")
 	@echo "$(YELLOW)Note: PostgreSQL repository tests are excluded from coverage metrics.$(NC)"
 	@echo "$(YELLOW)See coverage report for details on why and what is being tested.$(NC)"
+ 	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+ 	@sh ./scripts/coverage.sh
+ 	@go tool cover -html=coverage.out -o coverage.html
+ 	@echo "$(GREEN)Coverage report generated at coverage.html$(NC)"
+ 	@echo ""
+ 	@echo "$(CYAN)Coverage Summary:$(NC)"
+ 	@echo "$(CYAN)----------------------------------------$(NC)"
+ 	@go tool cover -func=coverage.out | grep total | awk '{print "Total coverage: " $$3}'
+ 	@echo "$(CYAN)----------------------------------------$(NC)"
+ 	@echo "$(YELLOW)Open coverage.html in your browser to view detailed coverage report$(NC)"
+ 	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Backend Commands
