@@ -102,9 +102,6 @@ jobs:
           mkdir -p reports
           mv .lighthouseci/*.html reports/
           mv .lighthouseci/*.json reports/
-          pwd
-          ls -lah
-          echo ${{ github.workspace }}
 
       # Upload HTML reports as artifacts
       # This makes the human-readable HTML reports available for download from the GitHub Actions UI
@@ -121,7 +118,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-json-report
-          path: reports/*.json
+          path: ${{ github.workspace }}/components/console/reports/*.json
           if-no-files-found: error
 
       # Clean up by killing the Node.js server process
