@@ -10,9 +10,13 @@ INFRA_DIR := ./components/infra
 MDZ_DIR := ./components/mdz
 ONBOARDING_DIR := ./components/onboarding
 TRANSACTION_DIR := ./components/transaction
+CONSOLE_DIR := ./components/console
+
+# Define component groups for easier management
+BACKEND_COMPONENTS := $(ONBOARDING_DIR) $(TRANSACTION_DIR)
 
 # Define a list of all component directories for easier iteration
-COMPONENTS := $(INFRA_DIR) $(MDZ_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR)
+COMPONENTS := $(INFRA_DIR) $(MDZ_DIR) $(ONBOARDING_DIR) $(TRANSACTION_DIR) $(CONSOLE_DIR)
 
 # Include shared color definitions and utility functions
 include $(MIDAZ_ROOT)/pkg/shell/makefile_colors.mk
@@ -87,19 +91,23 @@ help:
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Service Commands:$(NC)"
-	@echo "  make up                          - Start all services with Docker Compose"
-	@echo "  make down                        - Stop all services with Docker Compose"
-	@echo "  make start                       - Start all containers"
-	@echo "  make stop                        - Stop all containers"
-	@echo "  make restart                     - Restart all containers"
-	@echo "  make rebuild-up                  - Rebuild and restart all services"
-	@echo "  make clean-docker                - Clean all Docker resources (containers, networks, volumes)"
-	@echo "  make logs                        - Show logs for all services"
-	@echo "  make infra COMMAND=<cmd>         - Run command in infra component"
-	@echo "  make mdz COMMAND=<cmd>           - Run command in mdz component"
-	@echo "  make onboarding COMMAND=<cmd>    - Run command in onboarding component"
-	@echo "  make transaction COMMAND=<cmd>   - Run command in transaction component"
-	@echo "  make all-components COMMAND=<cmd>- Run command across all components"
+	@echo "  make up                           - Start all services with Docker Compose"
+	@echo "  make down                         - Stop all services with Docker Compose"
+	@echo "  make start                        - Start all containers"
+	@echo "  make stop                         - Stop all containers"
+	@echo "  make restart                      - Restart all containers"
+	@echo "  make rebuild-up                   - Rebuild and restart all services"
+	@echo "  make clean-docker                 - Clean all Docker resources (containers, networks, volumes)"
+	@echo "  make logs                         - Show logs for all services"
+	@echo "  make infra COMMAND=<cmd>          - Run command in infra component"
+	@echo "  make mdz COMMAND=<cmd>            - Run command in mdz component"
+	@echo "  make onboarding COMMAND=<cmd>     - Run command in onboarding component"
+	@echo "  make transaction COMMAND=<cmd>    - Run command in transaction component"
+	@echo "  make console COMMAND=<cmd>        - Run command in console component"
+	@echo "  make all-components COMMAND=<cmd> - Run command across all components"
+	@echo "  make up-backend                   - Start only backend services (onboarding and transaction)"
+	@echo "  make down-backend                 - Stop only backend services (onboarding and transaction)"
+	@echo "  make restart-backend              - Restart only backend services (onboarding and transaction)"
 	@echo ""
 	@echo ""
 	@echo "$(BOLD)Development Commands:$(NC)"
@@ -197,17 +205,45 @@ cover:
 	$(call title1,"Generating test coverage report")
 	@echo "$(YELLOW)Note: PostgreSQL repository tests are excluded from coverage metrics.$(NC)"
 	@echo "$(YELLOW)See coverage report for details on why and what is being tested.$(NC)"
-	$(call check_command,go,"Install Go from https://golang.org/doc/install")
-	@sh ./scripts/coverage.sh
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "$(GREEN)Coverage report generated at coverage.html$(NC)"
-	@echo ""
-	@echo "$(CYAN)Coverage Summary:$(NC)"
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@go tool cover -func=coverage.out | grep total | awk '{print "Total coverage: " $$3}'
-	@echo "$(CYAN)----------------------------------------$(NC)"
-	@echo "$(YELLOW)Open coverage.html in your browser to view detailed coverage report$(NC)"
-	@echo "$(GREEN)$(BOLD)[ok]$(NC) Coverage report generated successfully$(GREEN) ✔️$(NC)"
+
+#-------------------------------------------------------
+# Backend Commands
+#-------------------------------------------------------
+
+.PHONY: up-backend
+up-backend:
+	$(call title1,"Starting backend services")
+	$(call check_env_files)
+	@echo "$(CYAN)Starting infrastructure services first...$(NC)"
+	@cd $(INFRA_DIR) && $(MAKE) up
+	@echo "$(CYAN)Starting backend components...$(NC)"
+	@for dir in $(BACKEND_COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			echo "$(CYAN)Starting services in $$dir...$(NC)"; \
+			(cd $$dir && $(MAKE) up) || exit 1; \
+		fi \
+	done
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Backend services started successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: down-backend
+down-backend:
+	$(call title1,"Stopping backend services")
+	@echo "$(CYAN)Stopping backend components...$(NC)"
+	@for dir in $(BACKEND_COMPONENTS); do \
+		if [ -f "$$dir/docker-compose.yml" ]; then \
+			echo "$(CYAN)Stopping services in $$dir...$(NC)"; \
+			(cd $$dir && $(MAKE) down) || exit 1; \
+		fi \
+	done
+	@echo "$(CYAN)Stopping infrastructure services...$(NC)"
+	@cd $(INFRA_DIR) && $(MAKE) down
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Backend services stopped successfully$(GREEN) ✔️$(NC)"
+
+.PHONY: restart-backend
+restart-backend:
+	$(call title1,"Restarting backend services")
+	@make down-backend && make up-backend
+	@echo "$(GREEN)$(BOLD)[ok]$(NC) Backend services restarted successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -425,7 +461,7 @@ logs:
 	done
 
 # Component-specific command execution
-.PHONY: infra mdz onboarding transaction all-components
+.PHONY: infra mdz onboarding transaction console all-components
 infra:
 	$(call title1,"Running command in infra component")
 	@if [ -z "$(COMMAND)" ]; then \
@@ -457,6 +493,14 @@ transaction:
 		exit 1; \
 	fi
 	@cd $(TRANSACTION_DIR) && $(MAKE) $(COMMAND)
+
+console:
+	$(call title1,"Running command in console component")
+	@if [ -z "$(COMMAND)" ]; then \
+		echo "$(RED)Error: No command specified. Use COMMAND=<cmd> to specify a command.$(NC)"; \
+		exit 1; \
+	fi
+	@cd $(CONSOLE_DIR) && $(MAKE) $(COMMAND)
 
 all-components:
 	$(call title1,"Running command across all components")

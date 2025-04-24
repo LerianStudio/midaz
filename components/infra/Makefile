@@ -5,6 +5,9 @@ SERVICE_NAME := infra-service
 BIN_DIR := ./.bin
 ARTIFACTS_DIR := ./artifacts
 
+# Docker command with fallback
+DOCKER_CMD := $(shell command -v docker-compose || echo "docker compose")
+
 # Ensure artifacts directory exists
 $(shell mkdir -p $(ARTIFACTS_DIR))
 
@@ -163,9 +166,9 @@ start:
 
 .PHONY: down
 down:
-	$(call title1,"Stopping and removing containers, networks, and volumes")
+	$(call title1,"Stopping and removing containers|networks|volumes")
 	@if [ -f "docker-compose.yml" ]; then \
-		docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down; \
+		$(DOCKER_CMD) -f docker-compose.yml down $(c); \
 	else \
 		echo "$(YELLOW)No docker-compose.yml file found. Skipping down command.$(NC)"; \
 	fi
