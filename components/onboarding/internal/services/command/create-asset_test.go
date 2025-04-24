@@ -121,7 +121,6 @@ func TestCreateAsset(t *testing.T) {
 				Code: "INV",
 			},
 			mockSetup: func() {
-				// Mockando para CheckRabbitMQHealth retornar true
 				mockRabbitMQ.EXPECT().
 					CheckRabbitMQHealth().
 					Return(true).

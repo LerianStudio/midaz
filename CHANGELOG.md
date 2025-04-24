@@ -1,3 +1,11 @@
+## [2.2.0-beta.5](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.4...v2.2.0-beta.5) (2025-04-24)
+
+
+### Bug Fixes
+
+* improve transaction processing tracing, code quality and idempotency; ([fd377d9](https://github.com/LerianStudio/midaz/commit/fd377d9364e103dee5bcb8239810c7102b55137c))
+* update go mod and go sum and update lib-auth method newauthclient with new parameter logger; ([13c751d](https://github.com/LerianStudio/midaz/commit/13c751d0e8b465da1ded90ff99d8c2c5f689d7cb))
+
 ## [2.2.0-beta.4](https://github.com/LerianStudio/midaz/compare/v2.2.0-beta.3...v2.2.0-beta.4) (2025-04-23)
 
 
