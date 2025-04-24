@@ -99,11 +99,12 @@ jobs:
       # This organizes the output files into a dedicated directory for artifacts
       - name: Move Lighthouse reports to 'reports' directory
         run: |
-          pwd
-          ls -lah
           mkdir -p reports
           mv .lighthouseci/*.html reports/
           mv .lighthouseci/*.json reports/
+          pwd
+          ls -lah
+          echo ${{ github.workspace }}
 
       # Upload HTML reports as artifacts
       # This makes the human-readable HTML reports available for download from the GitHub Actions UI
@@ -111,7 +112,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-html-report
-          path: reports/*.html
+          path: ${{ github.workspace }}/components/console/reports/*.html
           if-no-files-found: error
 
       # Upload JSON reports as artifacts
