@@ -22,6 +22,16 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 
 	logger.Infof("Trying to create account: %v", cai)
 
+	if !uc.RabbitMQRepo.CheckRabbitMQHealth() {
+		err := pkg.ValidateBusinessError(constant.ErrMessageBrokerUnavailable, reflect.TypeOf(mmodel.Account{}).Name())
+
+		libOpentelemetry.HandleSpanError(&span, "Message Broker is unavailable", err)
+
+		logger.Errorf("Message Broker is unavailable: %v", err)
+
+		return nil, err
+	}
+
 	if libCommons.IsNilOrEmpty(&cai.Name) {
 		cai.Name = cai.AssetCode + " " + cai.Type + " account"
 	}
