@@ -99,6 +99,8 @@ jobs:
       # This organizes the output files into a dedicated directory for artifacts
       - name: Move Lighthouse reports to 'reports' directory
         run: |
+          pwd
+          ls -lah
           mkdir -p reports
           mv .lighthouseci/*.html reports/
           mv .lighthouseci/*.json reports/
