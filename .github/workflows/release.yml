@@ -113,12 +113,12 @@ jobs:
         git_commit_gpgsign: true
       
       # Init package.json if it doesn't exist  
-      - name: Init package.json
-        run: npm init -y
+    - name: Init package.json
+      run: npm init -y
 
       # Install semantic-release plugins
-      - name: Install missing plugin @semantic-release/exec
-        run: npm install --save-dev @semantic-release/exec
+    - name: Install missing plugin @semantic-release/exec
+      run: npm install --save-dev @semantic-release/exec
 
     # Run semantic-release to determine version and create release
     - name: Semantic Release
