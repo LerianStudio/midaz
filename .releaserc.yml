@@ -1,58 +1,60 @@
 plugins:
-  [
-    [
-      "@semantic-release/commit-analyzer",
-      {
-        "preset": "conventionalcommits",
-        "parserOpts":
-          { "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES"] },
-        "releaseRules":
-          [
-            { "type": "feat", "release": "minor" },
-            { "type": "perf", "release": "minor" },
-            { "type": "build", "release": "minor" },
-            { "type": "chore", "release": "patch" },
-            { "type": "ci", "release": "patch" },
-            { "type": "test", "release": "patch" },
-            { "type": "fix", "release": "minor" },
-            { "type": "refactor", "release": "minor" },
-            { "type": "docs", "release": "patch" },
-            { "type": "breaking", "release": "major" },
-          ],
-      },
-    ],
-    [
-      "@semantic-release/release-notes-generator",
-      {
-        "preset": "conventionalcommits",
-        "parserOpts":
-          {
-            "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"],
-          },
-        "writerOpts": { "commitsSort": ["subject", "scope"] },
-      },
-    ],
-    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
-    [
-      "@semantic-release/git",
-      {
-        "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}",
-        "assets": ["CHANGELOG.md"],
-      },
-    ],
-    ["@semantic-release/github"],
-    [
-      "@saithodev/semantic-release-backmerge",
-      {
-        "backmergeBranches": [{ "from": "main", "to": "develop" }],
-        "message": "chore(release): Preparations for next release [skip ci]",
-      },
-    ],
-  ]
+  - path: "@semantic-release/commit-analyzer"
+    preset: conventionalcommits
+    parserOpts:
+      noteKeywords:
+        - "BREAKING CHANGE"
+        - "BREAKING CHANGES"
+    releaseRules:
+      - type: feat
+        release: minor
+      - type: perf
+        release: minor
+      - type: build
+        release: minor
+      - type: chore
+        release: patch
+      - type: ci
+        release: patch
+      - type: test
+        release: patch
+      - type: fix
+        release: minor
+      - type: refactor
+        release: minor
+      - type: docs
+        release: patch
+      - breaking: true
+        release: major
+        
+  # Plugin to version the CHANGELOG.md
+  - path: "@semantic-release/git"
+    assets:
+      - CHANGELOG.md
+    message: "chore(release): ${nextRelease.version}\n\nChangelog atualizado."
+
+  # Plugin to publish the CHANGELOG.md as an asset in the GitHub release
+  - path: "@semantic-release/github"
+    assets:
+      - path: CHANGELOG.md
+        label: "Changelog"
+  
+ # Plugin to perform the backmerge between the 'main' and 'develop' branches
+  - path: "@saithodev/semantic-release-backmerge"
+    backmergeBranches:
+      - from: main
+        to: develop
+    message: "chore(release): Preparations for next release [skip ci]"
+
+  - path: "@semantic-release/exec"
+    backmergeBranches:
+      - from: main 
+        to: develop
+    message: "chore(release): Preparations for next release [skip ci]"
 
 branches:
   - main
   - name: develop
-    prerelease: "beta"
+    prerelease: beta
   - name: hotfix/*
-    prerelease: "hf"
+    prerelease: hf
