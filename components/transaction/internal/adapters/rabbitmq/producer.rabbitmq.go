@@ -15,6 +15,7 @@ import (
 // // It defines methods for sending messages to a queue.
 type ProducerRepository interface {
 	ProducerDefault(ctx context.Context, exchange, key string, message mmodel.Queue) (*string, error)
+	CheckRabbitMQHealth() bool
 }
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
@@ -34,6 +35,11 @@ func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) *ProducerRabbitMQRep
 	}
 
 	return prmq
+}
+
+// CheckRabbitMQHealth checks the health of the rabbitmq connection.
+func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
+	return prmq.conn.HealthCheck()
 }
 
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, queueMessage mmodel.Queue) (*string, error) {

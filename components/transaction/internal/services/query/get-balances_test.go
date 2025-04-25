@@ -6,6 +6,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/commons"
 	libTransaction "github.com/LerianStudio/lib-commons/commons/transaction"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/postgres/balance"
+	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/rabbitmq"
 	"github.com/LerianStudio/midaz/components/transaction/internal/adapters/redis"
 	"github.com/LerianStudio/midaz/pkg/mmodel"
 	"github.com/google/uuid"
@@ -20,10 +21,12 @@ func TestGetBalances(t *testing.T) {
 
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockRabbitMQRepo := rabbitmq.NewMockProducerRepository(ctrl)
 
 	uc := &UseCase{
-		BalanceRepo: mockBalanceRepo,
-		RedisRepo:   mockRedisRepo,
+		BalanceRepo:  mockBalanceRepo,
+		RedisRepo:    mockRedisRepo,
+		RabbitMQRepo: mockRabbitMQRepo,
 	}
 
 	ctx := context.Background()
@@ -87,6 +90,11 @@ func TestGetBalances(t *testing.T) {
 				AssetCode:      "GBP",
 			},
 		}
+
+		mockRabbitMQRepo.EXPECT().
+			CheckRabbitMQHealth().
+			Return(true).
+			Times(1)
 
 		// Mock Redis.Get for alias1 (found in Redis)
 		internalKey1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")
@@ -187,6 +195,11 @@ func TestGetBalances(t *testing.T) {
 			AssetCode:      "EUR",
 		}
 		balance2JSON, _ := json.Marshal(balance2)
+
+		mockRabbitMQRepo.EXPECT().
+			CheckRabbitMQHealth().
+			Return(true).
+			Times(1)
 
 		// Mock Redis.Get for both aliases (found in Redis)
 		internalKey1 := libCommons.LockInternalKey(organizationID, ledgerID, "alias1")

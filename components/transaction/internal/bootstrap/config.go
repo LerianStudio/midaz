@@ -180,6 +180,7 @@ func InitServers() *Service {
 		AssetRateRepo:   assetRatePostgreSQLRepository,
 		BalanceRepo:     balancePostgreSQLRepository,
 		MetadataRepo:    metadataMongoDBRepository,
+		RabbitMQRepo:    producerRabbitMQRepository,
 		RedisRepo:       redisConsumerRepository,
 	}
 
