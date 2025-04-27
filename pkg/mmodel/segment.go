@@ -77,11 +77,56 @@ type Segment struct {
 // @Description Segments represents a paginated collection of segment records returned by list operations.
 type Segments struct {
 	// Array of segment records
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Segment","ledgerId":"00000000-0000-0000-0000-000000000000"}]
 	Items []Segment `json:"items"`
 	
 	// Current page number
+	// example: 1
+	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 	
 	// Maximum number of items per page
+	// example: 10
+	// minimum: 1
+	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
 } // @name Segments
+
+// SegmentResponse represents a success response containing a single segment.
+//
+// swagger:response SegmentResponse
+// @Description Successful response containing a single segment entity.
+type SegmentResponse struct {
+	// in: body
+	Body Segment
+}
+
+// SegmentsResponse represents a success response containing a paginated list of segments.
+//
+// swagger:response SegmentsResponse
+// @Description Successful response containing a paginated list of segments.
+type SegmentsResponse struct {
+	// in: body
+	Body Segments
+}
+
+// SegmentErrorResponse represents an error response for segment operations.
+//
+// swagger:response SegmentErrorResponse
+// @Description Error response for segment operations with error code and message.
+type SegmentErrorResponse struct {
+	// in: body
+	Body struct {
+		// Error code identifying the specific error
+		// example: 400001
+		Code int `json:"code"`
+		
+		// Human-readable error message
+		// example: Invalid input: field 'name' is required
+		Message string `json:"message"`
+		
+		// Additional error details if available
+		// example: {"field": "name", "violation": "required"}
+		Details map[string]interface{} `json:"details,omitempty"`
+	}
+}

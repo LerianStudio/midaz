@@ -89,11 +89,56 @@ type Asset struct {
 //	@Description	Assets represents a paginated collection of asset records returned by list operations.
 type Assets struct {
 	// Array of asset records
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"Brazilian Real","code":"BRL","type":"currency"}]
 	Items []Asset `json:"items"`
 
 	// Current page number
+	// example: 1
+	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 
 	// Maximum number of items per page
+	// example: 10
+	// minimum: 1
+	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
 } //	@name	Assets
+
+// AssetResponse represents a success response containing a single asset.
+//
+// swagger:response AssetResponse
+// @Description Successful response containing a single asset entity.
+type AssetResponse struct {
+	// in: body
+	Body Asset
+}
+
+// AssetsResponse represents a success response containing a paginated list of assets.
+//
+// swagger:response AssetsResponse
+// @Description Successful response containing a paginated list of assets.
+type AssetsResponse struct {
+	// in: body
+	Body Assets
+}
+
+// AssetErrorResponse represents an error response for asset operations.
+//
+// swagger:response AssetErrorResponse
+// @Description Error response for asset operations with error code and message.
+type AssetErrorResponse struct {
+	// in: body
+	Body struct {
+		// Error code identifying the specific error
+		// example: 400001
+		Code int `json:"code"`
+		
+		// Human-readable error message
+		// example: Invalid input: field 'code' is required
+		Message string `json:"message"`
+		
+		// Additional error details if available
+		// example: {"field": "code", "violation": "required"}
+		Details map[string]interface{} `json:"details,omitempty"`
+	}
+}

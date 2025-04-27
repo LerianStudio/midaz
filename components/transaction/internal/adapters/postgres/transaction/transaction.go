@@ -11,33 +11,42 @@ import (
 )
 
 // TransactionPostgreSQLModel represents the entity TransactionPostgreSQLModel into SQL context in Database
+//
+// @Description Database model for storing transaction information in PostgreSQL
 type TransactionPostgreSQLModel struct {
-	ID                       string
-	ParentTransactionID      *string
-	Description              string
-	Template                 string
-	Status                   string
-	StatusDescription        *string
-	Amount                   *int64
-	AmountScale              *int64
-	AssetCode                string
-	ChartOfAccountsGroupName string
-	LedgerID                 string
-	OrganizationID           string
-	Body                     libTransaction.Transaction
-	CreatedAt                time.Time
-	UpdatedAt                time.Time
-	DeletedAt                sql.NullTime
-	Metadata                 map[string]any
+	ID                       string                     // Unique identifier (UUID format)
+	ParentTransactionID      *string                    // Parent transaction ID (for reversals or child transactions)
+	Description              string                     // Human-readable description
+	Template                 string                     // Template used to create this transaction
+	Status                   string                     // Status code (e.g., "ACTIVE", "PENDING")
+	StatusDescription        *string                    // Status description
+	Amount                   *int64                     // Transaction amount value
+	AmountScale              *int64                     // Decimal places for amount
+	AssetCode                string                     // Asset code for the transaction
+	ChartOfAccountsGroupName string                     // Chart of accounts group name for accounting
+	LedgerID                 string                     // Ledger ID
+	OrganizationID           string                     // Organization ID
+	Body                     libTransaction.Transaction // Transaction body containing detailed operation data
+	CreatedAt                time.Time                  // Creation timestamp
+	UpdatedAt                time.Time                  // Last update timestamp
+	DeletedAt                sql.NullTime               // Deletion timestamp (if soft-deleted)
+	Metadata                 map[string]any             // Additional custom attributes
 }
 
 // Status structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Status
-// @Description Status is the struct designed to represent the status of a transaction.
+// @Description Status is the struct designed to represent the status of a transaction. Contains code and optional description for transaction states.
 type Status struct {
-	Code        string  `json:"code" validate:"max=100" example:"ACTIVE"`
-	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status"`
+	// Status code identifying the state of the transaction
+	// example: ACTIVE
+	// maxLength: 100
+	Code string `json:"code" validate:"max=100" example:"ACTIVE" maxLength:"100"`
+	
+	// Optional descriptive text explaining the status
+	// example: Active status
+	// maxLength: 256
+	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
 } // @name Status
 
 // IsEmpty method that set empty or nil in fields
@@ -45,59 +54,165 @@ func (s Status) IsEmpty() bool {
 	return s.Code == "" && s.Description == nil
 }
 
-// CreateTransactionInput is  a struct design to encapsulate payload data.
+// CreateTransactionInput is a struct design to encapsulate payload data.
 //
 // swagger:model CreateTransactionInput
-// @Description CreateTransactionInput is the input payload to create a transaction.
+// @Description CreateTransactionInput is the input payload to create a transaction. Contains all necessary fields to create a financial transaction, including source and destination information.
 type CreateTransactionInput struct {
-	ChartOfAccountsGroupName string               `json:"chartOfAccountsGroupName,omitempty" validate:"max=256"`
-	Description              string               `json:"description,omitempty" validate:"max=256"`
-	Code                     string               `json:"code,omitempty" validate:"max=100"`
-	Pending                  bool                 `json:"pending,omitempty"`
-	Metadata                 map[string]any       `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
-	Send                     *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
+	// Chart of accounts group name for accounting purposes
+	// example: Chart of accounts group name
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty" validate:"max=256" maxLength:"256"`
+	
+	// Human-readable description of the transaction
+	// example: Transaction description
+	// maxLength: 256
+	Description string `json:"description,omitempty" validate:"max=256" example:"Transaction description" maxLength:"256"`
+	
+	// Transaction code for reference
+	// example: TR12345
+	// maxLength: 100
+	Code string `json:"code,omitempty" validate:"max=100" example:"code" maxLength:"100"`
+	
+	// Whether the transaction should be created in pending state
+	// example: true
+	Pending bool `json:"pending,omitempty" example:"true"`
+	
+	// Additional custom attributes
+	// example: {"purpose": "Monthly payment", "category": "Utility"}
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	
+	// Send operation details including source and distribution
+	// required: true
+	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive"`
 } // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.
+//
+// swagger:model InputDSL
+// @Description Template-based transaction input for creating transactions from predefined templates with variable substitution.
 type InputDSL struct {
-	TransactionType     uuid.UUID      `json:"transactionType"`
-	TransactionTypeCode string         `json:"transactionTypeCode"`
-	Variables           map[string]any `json:"variables,omitempty"`
+	// Transaction type identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	TransactionType uuid.UUID `json:"transactionType" format:"uuid"`
+	
+	// Transaction type code for reference
+	// example: PAYMENT
+	// maxLength: 50
+	TransactionTypeCode string `json:"transactionTypeCode" maxLength:"50"`
+	
+	// Variables to substitute in the transaction template
+	// example: {"amount": 1000, "recipient": "@person2"}
+	Variables map[string]any `json:"variables,omitempty"`
 }
 
 // UpdateTransactionInput is a struct design to encapsulate payload data.
 //
 // swagger:model UpdateTransactionInput
-// @Description UpdateTransactionInput is the input payload to update a transaction.
+// @Description UpdateTransactionInput is the input payload to update a transaction. Contains fields that can be modified after a transaction is created.
 type UpdateTransactionInput struct {
-	Description string         `json:"description" validate:"max=256" example:"Transaction description"`
-	Metadata    map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	// Human-readable description of the transaction
+	// example: Transaction description
+	// maxLength: 256
+	Description string `json:"description" validate:"max=256" example:"Transaction description" maxLength:"256"`
+	
+	// Additional custom attributes
+	// example: {"purpose": "Monthly payment", "category": "Utility"}
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 } // @name UpdateTransactionInput
 
 // Transaction is a struct designed to encapsulate response payload data.
 //
 // swagger:model Transaction
-// @Description Transaction is a struct designed to store transaction data.
+// @Description Transaction is a struct designed to store transaction data. Represents a financial transaction that consists of multiple operations affecting account balances, including details about the transaction's status, amounts, and related operations.
 type Transaction struct {
-	ID                       string                     `json:"id" example:"00000000-0000-0000-0000-000000000000"`
-	ParentTransactionID      *string                    `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000"`
-	Description              string                     `json:"description" example:"Transaction description"`
-	Template                 string                     `json:"template" example:"Transaction template"`
-	Status                   Status                     `json:"status"`
-	Amount                   *int64                     `json:"amount" example:"1500"`
-	AmountScale              *int64                     `json:"amountScale" example:"2"`
-	AssetCode                string                     `json:"assetCode" example:"BRL"`
-	ChartOfAccountsGroupName string                     `json:"chartOfAccountsGroupName" example:"Chart of accounts group name"`
-	Source                   []string                   `json:"source" example:"@person1"`
-	Destination              []string                   `json:"destination" example:"@person2"`
-	LedgerID                 string                     `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000"`
-	OrganizationID           string                     `json:"organizationId" example:"00000000-0000-0000-0000-000000000000"`
-	Body                     libTransaction.Transaction `json:"-"`
-	CreatedAt                time.Time                  `json:"createdAt" example:"2021-01-01T00:00:00Z"`
-	UpdatedAt                time.Time                  `json:"updatedAt" example:"2021-01-01T00:00:00Z"`
-	DeletedAt                *time.Time                 `json:"deletedAt" example:"2021-01-01T00:00:00Z"`
-	Metadata                 map[string]any             `json:"metadata,omitempty"`
-	Operations               []*operation.Operation     `json:"operations"`
+	// Unique identifier for the transaction
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Parent transaction identifier (for reversals or child transactions)
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	ParentTransactionID *string `json:"parentTransactionId,omitempty" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable description of the transaction
+	// example: Transaction description
+	// maxLength: 256
+	Description string `json:"description" example:"Transaction description" maxLength:"256"`
+
+	// Template used to create this transaction
+	// example: Transaction template
+	// maxLength: 100
+	Template string `json:"template" example:"Transaction template" maxLength:"100"`
+
+	// Transaction status information
+	Status Status `json:"status"`
+
+	// Transaction amount value in smallest unit of the asset
+	// example: 1500
+	// minimum: 0
+	Amount *int64 `json:"amount" example:"1500" minimum:"0"`
+
+	// Decimal places for the transaction amount
+	// example: 2
+	// minimum: 0
+	AmountScale *int64 `json:"amountScale" example:"2" minimum:"0"`
+
+	// Asset code for the transaction
+	// example: BRL
+	// minLength: 2
+	// maxLength: 10
+	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
+
+	// Chart of accounts group name for accounting purposes
+	// example: Chart of accounts group name
+	// maxLength: 256
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName" example:"Chart of accounts group name" maxLength:"256"`
+
+	// List of source account aliases or identifiers
+	// example: ["@person1"]
+	Source []string `json:"source" example:"@person1"`
+
+	// List of destination account aliases or identifiers
+	// example: ["@person2"]
+	Destination []string `json:"destination" example:"@person2"`
+
+	// Ledger identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Organization identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Transaction body containing detailed operation data (not exposed in JSON)
+	Body libTransaction.Transaction `json:"-"`
+
+	// Timestamp when the transaction was created
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Timestamp when the transaction was last updated
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Timestamp when the transaction was deleted (if soft-deleted)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Additional custom attributes
+	// example: {"purpose": "Monthly payment", "category": "Utility"}
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// List of operations associated with this transaction
+	Operations []*operation.Operation `json:"operations"`
 } // @name Transaction
 
 // IDtoUUID is a func that convert UUID string to uuid.UUID
@@ -236,9 +351,43 @@ func (t Transaction) TransactionRevert() libTransaction.Transaction {
 }
 
 // TransactionQueue this is a struct that is responsible to send and receive from queue.
+//
+// @Description Container for transaction data exchanged via message queues, including validation responses, balances, and transaction details.
 type TransactionQueue struct {
-	Validate    *libTransaction.Responses
-	Balances    []*mmodel.Balance
-	Transaction *Transaction
-	ParseDSL    *libTransaction.Transaction
+	// Validation responses from the transaction processing
+	Validate *libTransaction.Responses `json:"validate"`
+	
+	// Account balances affected by the transaction
+	Balances []*mmodel.Balance `json:"balances"`
+	
+	// The transaction being processed
+	Transaction *Transaction `json:"transaction"`
+	
+	// Parsed transaction DSL
+	ParseDSL *libTransaction.Transaction `json:"parseDSL"`
+}
+
+// TransactionResponse represents a success response containing a single transaction.
+//
+// swagger:response TransactionResponse
+// @Description Successful response containing a single transaction entity.
+type TransactionResponse struct {
+	// in: body
+	Body Transaction
+}
+
+// TransactionsResponse represents a success response containing a paginated list of transactions.
+//
+// swagger:response TransactionsResponse
+// @Description Successful response containing a paginated list of transactions.
+type TransactionsResponse struct {
+	// in: body
+	Body struct {
+		Items      []Transaction `json:"items"`
+		Pagination struct {
+			Limit      int     `json:"limit"`
+			NextCursor *string `json:"next_cursor,omitempty"`
+			PrevCursor *string `json:"prev_cursor,omitempty"`
+		} `json:"pagination"`
+	}
 }

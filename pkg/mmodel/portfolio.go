@@ -86,11 +86,56 @@ type Portfolio struct {
 // @Description Portfolios represents a paginated collection of portfolio records returned by list operations.
 type Portfolios struct {
 	// Array of portfolio records
+	// example: [{"id":"00000000-0000-0000-0000-000000000000","name":"My Portfolio","ledgerId":"00000000-0000-0000-0000-000000000000"}]
 	Items []Portfolio `json:"items"`
 	
 	// Current page number
+	// example: 1
+	// minimum: 1
 	Page int `json:"page" example:"1" minimum:"1"`
 	
 	// Maximum number of items per page
+	// example: 10
+	// minimum: 1
+	// maximum: 100
 	Limit int `json:"limit" example:"10" minimum:"1" maximum:"100"`
 } // @name Portfolios
+
+// PortfolioResponse represents a success response containing a single portfolio.
+//
+// swagger:response PortfolioResponse
+// @Description Successful response containing a single portfolio entity.
+type PortfolioResponse struct {
+	// in: body
+	Body Portfolio
+}
+
+// PortfoliosResponse represents a success response containing a paginated list of portfolios.
+//
+// swagger:response PortfoliosResponse
+// @Description Successful response containing a paginated list of portfolios.
+type PortfoliosResponse struct {
+	// in: body
+	Body Portfolios
+}
+
+// PortfolioErrorResponse represents an error response for portfolio operations.
+//
+// swagger:response PortfolioErrorResponse
+// @Description Error response for portfolio operations with error code and message.
+type PortfolioErrorResponse struct {
+	// in: body
+	Body struct {
+		// Error code identifying the specific error
+		// example: 400001
+		Code int `json:"code"`
+		
+		// Human-readable error message
+		// example: Invalid input: field 'name' is required
+		Message string `json:"message"`
+		
+		// Additional error details if available
+		// example: {"field": "name", "violation": "required"}
+		Details map[string]interface{} `json:"details,omitempty"`
+	}
+}
