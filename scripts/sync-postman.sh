@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to sync Postman collection with OpenAPI documentation
-# This script uses a custom Node.js converter to convert OpenAPI specs to Postman collections
+# Enhanced script to sync Postman collection with OpenAPI documentation
+# This script uses a unified approach to improve documentation and generate Postman collections
 
 # Function to install Node.js
 install_nodejs() {
@@ -108,6 +108,7 @@ fi
 
 # Define paths
 MIDAZ_ROOT=$(pwd)
+SCRIPTS_DIR="${MIDAZ_ROOT}/scripts"
 POSTMAN_DIR="${MIDAZ_ROOT}/postman"
 TEMP_DIR="${MIDAZ_ROOT}/postman/temp"
 ONBOARDING_API="${MIDAZ_ROOT}/components/onboarding/api"
@@ -115,7 +116,7 @@ TRANSACTION_API="${MIDAZ_ROOT}/components/transaction/api"
 POSTMAN_COLLECTION="${POSTMAN_DIR}/MIDAZ.postman_collection.json"
 POSTMAN_ENVIRONMENT="${POSTMAN_DIR}/MIDAZ.postman_environment.json"
 BACKUP_DIR="${POSTMAN_DIR}/backups"
-CONVERTER_SCRIPT="${MIDAZ_ROOT}/scripts/convert-openapi.js"
+ENHANCED_CONVERTER="${SCRIPTS_DIR}/enhanced-convert-openapi.js"
 
 # Create necessary directories
 mkdir -p "${TEMP_DIR}"
@@ -136,13 +137,20 @@ if [ -f "${POSTMAN_ENVIRONMENT}" ]; then
     cp "${POSTMAN_ENVIRONMENT}" "${BACKUP_ENV_FILE}"
 fi
 
+# Install NPM dependencies if needed
+if [ -f "${SCRIPTS_DIR}/package.json" ]; then
+    echo "Installing NPM dependencies..."
+    cd "${SCRIPTS_DIR}" && npm install
+    cd "${MIDAZ_ROOT}"
+fi
+
 # Convert OpenAPI specs to Postman collections with environment templates
-echo "Converting OpenAPI specs to Postman collections..."
+echo "Converting OpenAPI specs to Postman collections with enhanced examples..."
 
 # Process onboarding component
 if [ -f "${ONBOARDING_API}/swagger.json" ]; then
     echo "Processing onboarding component..."
-    node "${CONVERTER_SCRIPT}" "${ONBOARDING_API}/swagger.json" "${TEMP_DIR}/onboarding.postman_collection.json" --env "${TEMP_DIR}/onboarding.environment.json"
+    node "${ENHANCED_CONVERTER}" "${ONBOARDING_API}/swagger.json" "${TEMP_DIR}/onboarding.postman_collection.json" --env "${TEMP_DIR}/onboarding.environment.json"
     if [ $? -ne 0 ]; then
         echo "Failed to convert onboarding API spec to Postman collection."
         echo "Continuing with other components..."
@@ -154,7 +162,7 @@ fi
 # Process transaction component
 if [ -f "${TRANSACTION_API}/swagger.json" ]; then
     echo "Processing transaction component..."
-    node "${CONVERTER_SCRIPT}" "${TRANSACTION_API}/swagger.json" "${TEMP_DIR}/transaction.postman_collection.json" --env "${TEMP_DIR}/transaction.environment.json"
+    node "${ENHANCED_CONVERTER}" "${TRANSACTION_API}/swagger.json" "${TEMP_DIR}/transaction.postman_collection.json" --env "${TEMP_DIR}/transaction.environment.json"
     if [ $? -ne 0 ]; then
         echo "Failed to convert transaction API spec to Postman collection."
         echo "Continuing with other components..."
@@ -168,7 +176,6 @@ if [ -f "${TEMP_DIR}/onboarding.postman_collection.json" ] && [ -f "${TEMP_DIR}/
     echo "Merging collections..."
     
     # Create a new merged collection
-    # This is a simple approach - for more complex merging, consider using a dedicated tool like postman-collection-merger
     jq -s '
         # Merge items
         .[0].item = (.[0].item + .[1].item) | 
@@ -240,7 +247,7 @@ fi
 echo "Cleaning up temporary files..."
 rm -rf "${TEMP_DIR}"
 
-echo "[ok] Postman collection and environment synced successfully with OpenAPI documentation ✔️"
+echo "[ok] Postman collection and environment synced successfully with enhanced OpenAPI documentation ✔️"
 echo "Note: The synced collection is available at ${POSTMAN_COLLECTION}"
 echo "The environment template is available at ${POSTMAN_ENVIRONMENT}"
 echo "Backups of previous files are available in ${BACKUP_DIR}"
@@ -249,5 +256,8 @@ echo "Features in the enhanced collection:"
 echo " - Pre-request scripts for authentication and variable validation"
 echo " - Test scripts to extract IDs and validate responses"
 echo " - Improved request and response examples"
+echo " - Consistent error response handling"
+echo " - Enhanced pagination descriptions"
 echo " - Environment variables for all API dependencies"
+echo " - Separate URLs for onboarding and transaction services"
 echo " - Proper variable substitution in request URLs and bodies"
