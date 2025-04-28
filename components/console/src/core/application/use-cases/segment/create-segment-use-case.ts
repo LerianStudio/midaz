@@ -4,9 +4,9 @@ import type {
   SegmentResponseDto
 } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
-import { CreateSegmentRepository } from '@/core/domain/repositories/segments/create-segment-repository'
+import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface CreateSegment {
   execute: (
@@ -19,8 +19,8 @@ export interface CreateSegment {
 @injectable()
 export class CreateSegmentUseCase implements CreateSegment {
   constructor(
-    @inject(CreateSegmentRepository)
-    private readonly createSegmentRepository: CreateSegmentRepository
+    @inject(SegmentRepository)
+    private readonly segmentRepository: SegmentRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -31,7 +31,7 @@ export class CreateSegmentUseCase implements CreateSegment {
   ): Promise<SegmentResponseDto> {
     const segmentEntity: SegmentEntity = SegmentMapper.toDomain(segment)
 
-    const segmentCreated = await this.createSegmentRepository.create(
+    const segmentCreated = await this.segmentRepository.create(
       organizationId,
       ledgerId,
       segmentEntity

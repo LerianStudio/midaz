@@ -43,6 +43,17 @@ export class NotFoundApiException extends ApiException {
   }
 }
 
+export class UnprocessableEntityApiException extends ApiException {
+  constructor(message: string) {
+    super(
+      '0006',
+      'Unprocessable Entity',
+      message,
+      HttpStatus.UNPROCESSABLE_ENTITY
+    )
+  }
+}
+
 export class InternalServerErrorApiException extends ApiException {
   constructor(message: string) {
     super(
@@ -50,6 +61,17 @@ export class InternalServerErrorApiException extends ApiException {
       'Internal Server Error',
       message,
       HttpStatus.INTERNAL_SERVER_ERROR
+    )
+  }
+}
+
+export class ServiceUnavailableApiException extends ApiException {
+  constructor(message: string) {
+    super(
+      '0005',
+      'Service Unavailable',
+      message,
+      HttpStatus.SERVICE_UNAVAILABLE
     )
   }
 }

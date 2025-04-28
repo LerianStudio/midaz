@@ -1,13 +1,13 @@
-import { UpdatePortfolioRepository } from '@/core/domain/repositories/portfolios/update-portfolio-repository'
+import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
 import {
   CreatePortfolioDto,
   PortfolioResponseDto,
   UpdatePortfolioDto
-} from '../../dto/portfolios-dto'
+} from '../../dto/portfolio-dto'
 import { PortfolioEntity } from '@/core/domain/entities/portfolios-entity'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface UpdatePortfolio {
   execute: (
@@ -21,8 +21,8 @@ export interface UpdatePortfolio {
 @injectable()
 export class UpdatePortfolioUseCase implements UpdatePortfolio {
   constructor(
-    @inject(UpdatePortfolioRepository)
-    private readonly updatePortfolioRepository: UpdatePortfolioRepository
+    @inject(PortfolioRepository)
+    private readonly portfolioRepository: PortfolioRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -40,7 +40,7 @@ export class UpdatePortfolioUseCase implements UpdatePortfolio {
       portfolio as CreatePortfolioDto
     )
     const updatedPortfolio: PortfolioEntity =
-      await this.updatePortfolioRepository.update(
+      await this.portfolioRepository.update(
         organizationId,
         ledgerId,
         portfolioId,

@@ -1,4 +1,4 @@
-import { StatusDto } from '@/core/application/dto/status.dto'
+import { StatusDto } from '@/core/application/dto/status-dto'
 import { StatusEntity } from './status-entity'
 
 export interface AssetEntity {

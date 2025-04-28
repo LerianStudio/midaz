@@ -1,4 +1,4 @@
-import { LedgerResponseDto } from '@/core/application/dto/ledger-response-dto'
+import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'
 import {
   deleteFetcher,
@@ -65,7 +65,6 @@ const useCreateLedger = ({
 
 const useListLedgers = ({
   organizationId,
-  enabled = true,
   limit = 10,
   page = 1
 }: UseListLedgersProps & PaginationRequest) => {
@@ -74,7 +73,7 @@ const useListLedgers = ({
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/ledgers-assets?limit=${limit}&page=${page}`
     ),
-    enabled
+    enabled: !!organizationId
   })
 }
 
@@ -88,6 +87,7 @@ const useLedgerById = ({
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}`
     ),
+    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }

@@ -4,21 +4,14 @@ import { handleMidazError } from './midaz-error-handler'
 import { isNil } from 'lodash'
 import { MidazRequestContext } from '../logger/decorators/midaz-id'
 import { inject, injectable } from 'inversify'
-import { LoggerAggregator } from '@/core/application/logger/logger-aggregator'
+import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { OtelTracerProvider } from '../observability/otel-tracer-provider'
 import { SpanStatusCode } from '@opentelemetry/api'
-
-export enum HTTP_METHODS {
-  GET = 'GET',
-  POST = 'POST',
-  PUT = 'PUT',
-  DELETE = 'DELETE',
-  PATCH = 'PATCH'
-}
+import { HttpMethods } from '@/lib/http'
 
 export type HttpFetchOptions = {
   url: string
-  method: HTTP_METHODS
+  method: HttpMethods
   headers?: Record<string, string>
   body?: string
 }

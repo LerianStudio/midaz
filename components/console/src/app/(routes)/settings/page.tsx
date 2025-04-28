@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/page-header'
 import { SystemTabContent } from './system-tab-content'
 import React from 'react'
 import { UsersTabContent } from './users/users-tab-content'
-import { Enforce } from '@/context/permission-provider/enforce'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 const Page = () => {
   const intl = useIntl()

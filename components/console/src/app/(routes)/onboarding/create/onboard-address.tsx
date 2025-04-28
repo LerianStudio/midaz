@@ -10,7 +10,7 @@ import { useOnboardForm } from './onboard-form-provider'
 import { OnboardTitle } from '../onboard-title'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { addressFormSchema } from './schemas'
-import { usePopulateForm } from '@/lib/form'
+import { getInitialValues } from '@/lib/form'
 
 const initialValues = {
   address: {
@@ -34,10 +34,12 @@ export function OnboardAddress({ onCancel }: OnboardAddressProps) {
 
   const form = useForm({
     resolver: zodResolver(addressFormSchema),
-    defaultValues: initialValues
+    values: getInitialValues(initialValues, data),
+    defaultValues: initialValues,
+    resetOptions: {
+      keepDefaultValues: true
+    }
   })
-
-  usePopulateForm(form, data)
 
   const handleSubmit = form.handleSubmit((data) => {
     setData(data)

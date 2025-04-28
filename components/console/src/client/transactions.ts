@@ -73,6 +73,7 @@ export const useGetTransactionById = ({
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions/${transactionId}`
     ),
+    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }
@@ -90,6 +91,7 @@ export const useListTransactions = ({
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/transactions`,
       { page, limit }
     ),
+    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }

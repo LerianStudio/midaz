@@ -1,5 +1,5 @@
 import { AccountResponseDto } from '@/core/application/dto/account-dto'
-import { StatusDto } from '@/core/application/dto/status.dto'
+import { StatusDto } from '@/core/application/dto/status-dto'
 
 export type PortfolioType = {
   id: string

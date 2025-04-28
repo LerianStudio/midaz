@@ -1,9 +1,9 @@
-import { FetchAllSegmentsRepository } from '@/core/domain/repositories/segments/fetch-all-segments-repository'
+import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { PaginationDto } from '../../dto/pagination-dto'
 import { SegmentResponseDto } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchAllSegments {
   execute: (
@@ -17,8 +17,8 @@ export interface FetchAllSegments {
 @injectable()
 export class FetchAllSegmentsUseCase implements FetchAllSegments {
   constructor(
-    @inject(FetchAllSegmentsRepository)
-    private readonly fetchAllSegmentsRepository: FetchAllSegmentsRepository
+    @inject(SegmentRepository)
+    private readonly segmentRepository: SegmentRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -28,7 +28,7 @@ export class FetchAllSegmentsUseCase implements FetchAllSegments {
     limit: number,
     page: number
   ): Promise<PaginationDto<SegmentResponseDto>> {
-    const segmentsResult = await this.fetchAllSegmentsRepository.fetchAll(
+    const segmentsResult = await this.segmentRepository.fetchAll(
       organizationId,
       ledgerId,
       limit,

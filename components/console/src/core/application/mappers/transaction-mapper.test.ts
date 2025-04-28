@@ -148,41 +148,4 @@ describe('TransactionMapper', () => {
       })
     })
   })
-
-  describe('valueToAmount', () => {
-    it('should convert value to amount with scale', () => {
-      const value = 123.45
-      const amount = TransactionMapper.valueToAmount(value)
-
-      expect(amount).toEqual({ value: 12345, scale: 2 })
-    })
-
-    it('should handle integer values correctly', () => {
-      const value = 100
-      const amount = TransactionMapper.valueToAmount(value)
-
-      expect(amount).toEqual({ value: 100, scale: 0 })
-    })
-
-    it('should throw an error for non-numeric values', () => {
-      const value = 'abc'
-      expect(() => TransactionMapper.valueToAmount(value as any)).toThrow(
-        `TransactionMapper.valueToAmount: value ${value} is not a number`
-      )
-    })
-
-    it('should throw an error for null values', () => {
-      const value = null
-      expect(() => TransactionMapper.valueToAmount(value as any)).toThrow(
-        `TransactionMapper.valueToAmount: value ${value} is not a number`
-      )
-    })
-
-    it('should throw an error for undefined values', () => {
-      const value = undefined
-      expect(() => TransactionMapper.valueToAmount(value as any)).toThrow(
-        `TransactionMapper.valueToAmount: value ${value} is not a number`
-      )
-    })
-  })
 })

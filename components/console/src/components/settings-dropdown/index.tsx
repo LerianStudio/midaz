@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger
 } from '../ui/dropdown-menu'
 import { AboutMidazDialog } from './about-midaz-dialog'
-import { Enforce } from '@/context/permission-provider/enforce'
+import { Enforce } from '@/providers/permission-provider/enforce'
 
 export const SettingsDropdown = () => {
   const intl = useIntl()

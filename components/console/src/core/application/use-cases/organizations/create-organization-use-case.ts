@@ -1,11 +1,13 @@
-import { CreateOrganizationRepository } from '@/core/domain/repositories/organizations/create-organization-repository'
-import type { CreateOrganizationDto } from '../../dto/create-organization-dto'
-import { OrganizationResponseDto } from '../../dto/organization-response-dto'
+import { OrganizationRepository } from '@/core/domain/repositories/organization-repository'
+import type {
+  CreateOrganizationDto,
+  OrganizationResponseDto
+} from '../../dto/organization-dto'
 import { OrganizationEntity } from '@/core/domain/entities/organization-entity'
 import { OrganizationMapper } from '../../mappers/organization-mapper'
 import { inject, injectable } from 'inversify'
 import { validateAvatar } from '@/core/infrastructure/utils/avatar/validate-avatar'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface CreateOrganization {
   execute: (
@@ -16,8 +18,8 @@ export interface CreateOrganization {
 @injectable()
 export class CreateOrganizationUseCase implements CreateOrganization {
   constructor(
-    @inject(CreateOrganizationRepository)
-    private readonly createOrganizationRepository: CreateOrganizationRepository
+    @inject(OrganizationRepository)
+    private readonly organizationRepository: OrganizationRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -30,7 +32,7 @@ export class CreateOrganizationUseCase implements CreateOrganization {
       OrganizationMapper.toDomain(organizationData)
 
     const organizationCreated =
-      await this.createOrganizationRepository.create(organizationEntity)
+      await this.organizationRepository.create(organizationEntity)
 
     return OrganizationMapper.toResponseDto(organizationCreated)
   }

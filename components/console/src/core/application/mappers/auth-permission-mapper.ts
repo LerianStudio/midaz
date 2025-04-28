@@ -1,5 +1,5 @@
 import { AuthPermissionEntity } from '@/core/domain/entities/auth-permission-entity'
-import { AuthPermissionResponseDto } from '../dto/auth-permission-dto'
+import { AuthPermissionResponseDto } from '../dto/auth-dto'
 
 export class AuthPermissionMapper {
   public static toResponseDto(

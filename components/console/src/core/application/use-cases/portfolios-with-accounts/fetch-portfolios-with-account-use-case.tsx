@@ -1,11 +1,10 @@
-import { FetchAllAccountsRepository } from '@/core/domain/repositories/accounts/fetch-all-accounts-repository'
-import { FetchAllPortfoliosRepository } from '@/core/domain/repositories/portfolios/fetch-all-portfolio-repository'
+import { AccountRepository } from '@/core/domain/repositories/account-repository'
+import { PortfolioRepository } from '@/core/domain/repositories/portfolio-repository'
 import { PaginationDto } from '../../dto/pagination-dto'
-import { AccountMapper } from '../../mappers/account-mapper'
 import { inject, injectable } from 'inversify'
 import { groupBy } from 'lodash'
 import { PortfolioMapper } from '../../mappers/portfolio-mapper'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchPortfoliosWithAccounts {
   execute: (
@@ -21,10 +20,10 @@ export class FetchPortfoliosWithAccountsUseCase
   implements FetchPortfoliosWithAccounts
 {
   constructor(
-    @inject(FetchAllPortfoliosRepository)
-    private readonly fetchAllPortfoliosRepository: FetchAllPortfoliosRepository,
-    @inject(FetchAllAccountsRepository)
-    private readonly fetchAllAccountsRepository: FetchAllAccountsRepository
+    @inject(PortfolioRepository)
+    private readonly portfolioRepository: PortfolioRepository,
+    @inject(AccountRepository)
+    private readonly accountRepository: AccountRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -34,14 +33,14 @@ export class FetchPortfoliosWithAccountsUseCase
     limit: number,
     page: number
   ): Promise<PaginationDto<any>> {
-    const portfoliosResult = await this.fetchAllPortfoliosRepository.fetchAll(
+    const portfoliosResult = await this.portfolioRepository.fetchAll(
       organizationId,
       ledgerId,
       limit,
       page
     )
 
-    const allAccountsResult = await this.fetchAllAccountsRepository.fetchAll(
+    const allAccountsResult = await this.accountRepository.fetchAll(
       organizationId,
       ledgerId,
       limit,
@@ -57,7 +56,7 @@ export class FetchPortfoliosWithAccountsUseCase
       portfoliosResult?.items?.map((portfolio) =>
         PortfolioMapper.toDtoWithAccounts(
           portfolio,
-          (accountsGrouped[portfolio.id!] || []).map(AccountMapper.toDto)
+          accountsGrouped[portfolio.id!] ?? []
         )
       ) || []
 

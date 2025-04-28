@@ -13,7 +13,7 @@ import {
   StepperItemNumber,
   StepperItemText
 } from '@/components/ui/stepper'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useSearchParams } from '@/lib/search'
 import { ledger } from '@/schema/ledger'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -27,7 +27,6 @@ import { LedgerCreatedDialog } from './ledger-created-dialog'
 import { useRouter } from 'next/navigation'
 import { useCompleteOnboarding } from '@/client/onboarding'
 import { OnboardTitle } from '../onboard-title'
-import useCustomToast from '@/hooks/use-custom-toast'
 
 const initialValues = {
   name: ''
@@ -44,7 +43,6 @@ export default function Page() {
   const { nextSearchParams: searchParams } = useSearchParams()
   const [open, setOpen] = useState(true)
   const [openCreated, setOpenCreated] = useState(false)
-  const { showError } = useCustomToast()
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -56,9 +54,6 @@ export default function Page() {
       organizationId: currentOrganization.id!,
       onSuccess: () => {
         setOpenCreated(true)
-      },
-      onError: async (error: any) => {
-        showError(error.message)
       }
     })
 

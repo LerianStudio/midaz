@@ -29,7 +29,7 @@ import {
   PaperCollapsibleBanner,
   PaperCollapsibleContent
 } from '@/components/transactions/primitives/paper-collapsible'
-import { usePopulateForm } from '@/lib/form'
+import { getInitialValues } from '@/lib/form'
 
 type OrganizationsViewProps = {
   data?: OrganizationsType
@@ -48,7 +48,7 @@ const formSchema = z.object({
   avatar: organization.avatar
 })
 
-const defaultValues = {
+const initialValues = {
   legalName: '',
   doingBusinessAs: '',
   legalDocument: '',
@@ -70,11 +70,11 @@ const parseInputMetadata = (data?: Partial<OrganizationFormData>) => ({
   accentColor: data?.metadata?.accentColor,
   avatar: data?.metadata?.avatar,
   metadata:
-    omit(data?.metadata, ['accentColor', 'avatar']) || defaultValues.metadata
+    omit(data?.metadata, ['accentColor', 'avatar']) || initialValues.metadata
 })
 
 const parseInputData = (data?: OrganizationsType) =>
-  Object.assign({}, defaultValues, parseInputMetadata(omit(data, ['status'])))
+  Object.assign({}, initialValues, parseInputMetadata(omit(data, ['status'])))
 
 const parseMetadata = (data?: Partial<OrganizationFormData>) => ({
   ...omit(data, ['accentColor', 'avatar']),
@@ -113,7 +113,8 @@ export const OrganizationsForm = ({
 
   const form = useForm<OrganizationFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: parseInputData(data!)
+    values: getInitialValues(initialValues, parseInputData(data)),
+    defaultValues: initialValues
   })
 
   const metadataValue = form.watch('metadata')
@@ -125,8 +126,6 @@ export const OrganizationsForm = ({
       updateOrganization(parseUpdateData(values))
     }
   }
-
-  usePopulateForm(form, data)
 
   return (
     <Form {...form}>

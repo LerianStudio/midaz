@@ -1,3 +1,5 @@
 export * from './http-status'
+export * from './http-methods'
 export * from './http-exception'
 export * from './api-exception'
+export * from './http-service'

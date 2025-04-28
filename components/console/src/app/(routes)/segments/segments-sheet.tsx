@@ -9,7 +9,7 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { segment } from '@/schema/segment'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DialogProps } from '@radix-ui/react-dialog'
@@ -20,13 +20,13 @@ import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCreateSegment, useUpdateSegment } from '@/client/segments'
-import { SegmentResponseDto } from '@/core/application/dto/segment-dto'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { SegmentType } from '@/types/segment-type'
+import { getInitialValues } from '@/lib/form'
 
 export type SegmentsSheetProps = DialogProps & {
   ledgerId: string
   mode: 'create' | 'edit'
-  data?: SegmentResponseDto | null
+  data?: SegmentType | null
   onSuccess?: () => void
 }
 
@@ -58,6 +58,7 @@ export const SegmentsSheet = ({
     ledgerId,
     onSuccess: () => {
       onSuccess?.()
+      form.reset()
       onOpenChange?.(false)
     }
   })
@@ -74,9 +75,9 @@ export const SegmentsSheet = ({
 
   const form = useForm({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data!),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
   const handleSubmit = (data: FormData) => {
     if (mode === 'create') {
@@ -85,8 +86,6 @@ export const SegmentsSheet = ({
       updateSegment(data)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
@@ -180,7 +179,6 @@ export const SegmentsSheet = ({
               <LoadingButton
                 size="lg"
                 type="submit"
-                disabled={!isDirty}
                 fullWidth
                 loading={createPending || updatePending}
               >

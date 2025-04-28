@@ -9,11 +9,11 @@ import {
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { DialogProps } from '@radix-ui/react-dialog'
 import React from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import { z } from 'zod'
 import { LoadingButton } from '@/components/ui/loading-button'
@@ -21,13 +21,13 @@ import { assets } from '@/schema/assets'
 import { SelectItem } from '@/components/ui/select'
 import { currencyObjects } from '@/utils/currency-codes'
 import { useCreateAsset, useUpdateAsset } from '@/client/assets'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { AssetType } from '@/types/assets-type'
 import { CommandItem } from '@/components/ui/command'
 import { ComboBoxField } from '@/components/form'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { useToast } from '@/hooks/use-toast'
+import { getInitialValues } from '@/lib/form'
 
 export type AssetsSheetProps = DialogProps & {
   ledgerId: string
@@ -62,7 +62,7 @@ export const AssetsSheet = ({
 }: AssetsSheetProps) => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
 
   const { mutate: createAsset, isPending: createPending } = useCreateAsset({
     organizationId: currentOrganization.id!,
@@ -71,24 +71,16 @@ export const AssetsSheet = ({
       const formData = data as AssetType
       onSuccess?.()
       onOpenChange?.(false)
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'assets.toast.create.success',
+            id: 'success.assets.create',
             defaultMessage: '{assetName} asset successfully created'
           },
           { assetName: formData.name }
-        )
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'assets.toast.create.error',
-          defaultMessage: 'Error creating Asset'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 
@@ -99,46 +91,32 @@ export const AssetsSheet = ({
     onSuccess: () => {
       onSuccess?.()
       onOpenChange?.(false)
-      showSuccess(
-        intl.formatMessage({
-          id: 'assets.toast.update.success',
+      toast({
+        title: intl.formatMessage({
+          id: 'success.assets.update',
           defaultMessage: 'Asset changes saved successfully'
-        })
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'assets.toast.update.error',
-          defaultMessage: 'Error updating Asset'
-        })
-      )
+        }),
+        variant: 'success'
+      })
     }
   })
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
-  const type = useWatch({
-    control: form.control,
-    name: 'type'
-  })
+  const type = form.watch('type')
 
   const handleSubmit = (data: FormData) => {
     if (mode === 'create') {
-      const payload = { ...data }
-      createAsset(payload)
+      createAsset(data)
     } else if (mode === 'edit') {
       const { type, code, ...payload } = data
       updateAsset(payload)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <Sheet onOpenChange={onOpenChange} {...others}>
@@ -302,7 +280,6 @@ export const AssetsSheet = ({
                 size="lg"
                 type="submit"
                 fullWidth
-                disabled={!isDirty}
                 loading={createPending || updatePending}
               >
                 {intl.formatMessage({

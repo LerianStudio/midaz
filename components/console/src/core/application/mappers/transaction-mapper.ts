@@ -6,10 +6,11 @@ import {
   CreateTransactionDto,
   TransactionResponseDto
 } from '../dto/transaction-dto'
-import { isNumber } from 'lodash'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'
 import { PaginationDto } from '../dto/pagination-dto'
+import { transactions } from '@lerian/lib-commons-js'
+
 export class TransactionMapper {
   static toDomain(transaction: CreateTransactionDto): TransactionCreateEntity {
     const transactionCreateEntity: TransactionCreateEntity = {
@@ -22,20 +23,16 @@ export class TransactionMapper {
         : {}),
 
       metadata:
-        Object.keys(transaction.metadata).length !== 0
+        Object.keys(transaction.metadata ?? {}).length !== 0
           ? transaction.metadata
           : null,
 
       send: {
-        asset: transaction.asset,
-        ...TransactionMapper.valueToAmount(transaction.value),
+        ...transactions.findScale(transaction.asset, transaction.value, 0),
         source: {
           from: transaction.source.map((source) => ({
             account: source.account,
-            amount: {
-              asset: source.asset,
-              ...TransactionMapper.valueToAmount(source.value)
-            },
+            amount: transactions.findScale(source.asset, source.value, 0),
             ...(source.share
               ? {
                   share: {
@@ -53,16 +50,19 @@ export class TransactionMapper {
               : {}),
 
             metadata:
-              Object.keys(source.metadata).length !== 0 ? source.metadata : null
+              Object.keys(source.metadata ?? {}).length !== 0
+                ? source.metadata
+                : null
           }))
         },
         distribute: {
           to: transaction.destination.map((destination) => ({
             account: destination.account,
-            amount: {
-              asset: destination.asset,
-              ...TransactionMapper.valueToAmount(destination.value)
-            },
+            amount: transactions.findScale(
+              destination.asset,
+              destination.value,
+              0
+            ),
             ...(destination.share
               ? {
                   share: {
@@ -80,7 +80,7 @@ export class TransactionMapper {
               ? { description: destination.description }
               : {}),
             metadata:
-              Object.keys(destination.metadata).length !== 0
+              Object.keys(destination.metadata ?? {}).length !== 0
                 ? destination.metadata
                 : null
           }))
@@ -89,10 +89,6 @@ export class TransactionMapper {
     }
 
     return transactionCreateEntity
-  }
-
-  static toDecimalValue(amount: number, amountScale: number): number {
-    return amount / 10 ** amountScale
   }
 
   static toResponseDto(transaction: TransactionEntity): TransactionResponseDto {
@@ -104,9 +100,9 @@ export class TransactionMapper {
         code: transaction.status.code,
         description: transaction.status.description ?? ''
       },
-      amount: TransactionMapper.toDecimalValue(
+      amount: transactions.undoScale(
         transaction.amount,
-        transaction.amountScale
+        -transaction.amountScale
       ),
       amountScale: transaction.amountScale,
       assetCode: transaction.assetCode,
@@ -125,31 +121,31 @@ export class TransactionMapper {
             assetCode: operation.assetCode,
             chartOfAccounts: operation.chartOfAccounts,
             amount: {
-              amount: TransactionMapper.toDecimalValue(
+              amount: transactions.undoScale(
                 operation.amount.amount,
-                operation.amount.scale
+                -operation.amount.scale
               ),
               scale: operation.amount.scale
             },
             balance: {
-              available: TransactionMapper.toDecimalValue(
+              available: transactions.undoScale(
                 operation.balance.available,
-                operation.balance.scale
+                -operation.balance.scale
               ),
-              onHold: TransactionMapper.toDecimalValue(
+              onHold: transactions.undoScale(
                 operation.balance.onHold,
-                operation.balance.scale
+                -operation.balance.scale
               ),
               scale: operation.balance.scale
             },
             balanceAfter: {
-              available: TransactionMapper.toDecimalValue(
+              available: transactions.undoScale(
                 operation.balanceAfter.available,
-                operation.balanceAfter.scale
+                -operation.balanceAfter.scale
               ),
-              onHold: TransactionMapper.toDecimalValue(
+              onHold: transactions.undoScale(
                 operation.balanceAfter.onHold,
-                operation.balanceAfter.scale
+                -operation.balanceAfter.scale
               ),
               scale: operation.balanceAfter.scale
             },
@@ -174,24 +170,6 @@ export class TransactionMapper {
     }
 
     return transactionResponseDto
-  }
-
-  static valueToAmount(value: number) {
-    if (!isNumber(value)) {
-      throw new Error(
-        `TransactionMapper.valueToAmount: value ${value} is not a number`
-      )
-    }
-
-    let resultValue = value
-    let scale = 0
-
-    while (resultValue % 1 !== 0) {
-      resultValue *= 10
-      scale++
-    }
-
-    return { value: resultValue, scale }
   }
 
   static transactionMapperUpdate(

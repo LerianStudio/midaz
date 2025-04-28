@@ -1,25 +1,22 @@
-import { StatusDto } from './status.dto'
+import { MetadataDto } from './metadata-dto'
+import { StatusDto } from './status-dto'
 
-export interface CreateSegmentDto {
+export type CreateSegmentDto = {
   name: string
   status: StatusDto
-  metadata: Record<string, any>
+  metadata?: MetadataDto
 }
 
-export interface SegmentResponseDto {
+export type UpdateSegmentDto = Partial<CreateSegmentDto>
+
+export type SegmentResponseDto = {
   id: string
   ledgerId: string
   organizationId: string
   name: string
   status: StatusDto
-  metadata: Record<string, any>
+  metadata: MetadataDto
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
-}
-
-export interface UpdateSegmentDto {
-  name?: string
-  status?: StatusDto
-  metadata?: Record<string, any>
 }

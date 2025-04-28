@@ -1,6 +1,6 @@
-import { DeleteAccountsRepository } from '@/core/domain/repositories/accounts/delete-accounts-repository'
+import { AccountRepository } from '@/core/domain/repositories/account-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface DeleteAccount {
   execute: (
@@ -12,8 +12,8 @@ export interface DeleteAccount {
 @injectable()
 export class DeleteAccountUseCase implements DeleteAccount {
   constructor(
-    @inject(DeleteAccountsRepository)
-    private readonly deleteAccountRepository: DeleteAccountsRepository
+    @inject(AccountRepository)
+    private readonly accountRepository: AccountRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -22,10 +22,6 @@ export class DeleteAccountUseCase implements DeleteAccount {
     ledgerId: string,
     accountId: string
   ): Promise<void> {
-    await this.deleteAccountRepository.delete(
-      organizationId,
-      ledgerId,
-      accountId
-    )
+    await this.accountRepository.delete(organizationId, ledgerId, accountId)
   }
 }

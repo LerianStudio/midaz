@@ -5,7 +5,7 @@ import {
   LogMetadata,
   LogEntry
 } from '@/core/domain/entities/log-entities'
-import { LoggerRepository } from '@/core/domain/repositories/logger/logger-repository'
+import { LoggerRepository } from '@/core/domain/repositories/logger-repository'
 import pretty from 'pino-pretty'
 
 @injectable()

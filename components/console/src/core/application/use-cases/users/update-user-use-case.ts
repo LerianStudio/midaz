@@ -1,10 +1,9 @@
-import { UpdateUserRepository } from '@/core/domain/repositories/users/update-user-repository'
+import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { UpdateUserDto, UserResponseDto } from '../../dto/user-dto'
-import { FetchUserByIdRepository } from '@/core/domain/repositories/users/fetch-user-by-id-repository'
 import { UserMapper } from '../../mappers/user-mapper'
 import { UserEntity } from '@/core/domain/entities/user-entity'
 import { inject } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface UpdateUser {
   execute: (
@@ -15,10 +14,8 @@ export interface UpdateUser {
 
 export class UpdateUserUseCase implements UpdateUser {
   constructor(
-    @inject(UpdateUserRepository)
-    private readonly updateUserRepository: UpdateUserRepository,
-    @inject(FetchUserByIdRepository)
-    private readonly fetchUserByIdRepository: FetchUserByIdRepository
+    @inject(UserRepository)
+    private readonly userRepository: UserRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -26,7 +23,7 @@ export class UpdateUserUseCase implements UpdateUser {
     userId: string,
     user: Partial<UpdateUserDto>
   ): Promise<UserResponseDto> {
-    const userExists = await this.fetchUserByIdRepository.fetchById(userId)
+    const userExists = await this.userRepository.fetchById(userId)
 
     if (!userExists) {
       throw new Error('User not found')
@@ -39,7 +36,7 @@ export class UpdateUserUseCase implements UpdateUser {
       ...userEntity
     }
 
-    const userUpdated = await this.updateUserRepository.update(
+    const userUpdated = await this.userRepository.update(
       userId,
       userUpdatedData
     )

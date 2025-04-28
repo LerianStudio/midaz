@@ -6,7 +6,7 @@ import {
   TooltipTrigger
 } from '@/components/ui/tooltip'
 import { truncateString } from '@/helpers'
-import useCustomToast from '@/hooks/use-custom-toast'
+import { useToast } from '@/hooks/use-toast'
 import { useIntl } from 'react-intl'
 
 export type IdTableCellProps = {
@@ -15,18 +15,18 @@ export type IdTableCellProps = {
 
 export const IdTableCell = ({ id }: IdTableCellProps) => {
   const intl = useIntl()
-  const { showInfo } = useCustomToast()
+  const { toast } = useToast()
 
   const displayId = id && id.length > 12 ? `${truncateString(id, 12)}` : id
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(id!)
-    showInfo(
-      intl.formatMessage({
-        id: 'ledgers.toast.copyId',
+    toast({
+      description: intl.formatMessage({
+        id: 'table.toast.copyId',
         defaultMessage: 'The id has been copied to your clipboard.'
       })
-    )
+    })
   }
 
   return (

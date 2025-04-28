@@ -9,8 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { Separator } from '@/components/ui/separator'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
-import useCustomToast from '@/hooks/use-custom-toast'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { metadata } from '@/schema/metadata'
 import { Metadata } from '@/types/metadata-type'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -20,6 +19,7 @@ import { z } from 'node_modules/zod/lib'
 import { useEffect, useState } from 'react'
 import { Control, Form, useForm } from 'react-hook-form'
 import { useIntl } from 'react-intl'
+import { useToast } from '@/hooks/use-toast'
 
 export type MetadataAccordionProps = {
   name: string
@@ -42,7 +42,7 @@ export const MetaAccordionTransactionDetails = ({
     transactionId: string
   }>()
   const { currentOrganization, currentLedger } = useOrganization()
-  const { showSuccess } = useCustomToast()
+  const { toast } = useToast()
   const [isFooterOpen, setIsFooterOpen] = useState(false)
 
   const { mutate: updateTransaction, isPending: loading } =
@@ -53,12 +53,13 @@ export const MetaAccordionTransactionDetails = ({
       onSuccess: (response) => {
         form.reset({ metadata: response.metadata })
 
-        showSuccess(
-          intl.formatMessage({
+        toast({
+          description: intl.formatMessage({
             id: 'transactions.toast.update.success',
             defaultMessage: 'Transaction updated successfully'
-          })
-        )
+          }),
+          variant: 'success'
+        })
         setIsFooterOpen(false)
       }
     })

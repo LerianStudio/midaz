@@ -1,7 +1,7 @@
 /**
  * TODO: Better error handling
  */
-import { MidazError } from '@/core/infrastructure/errors/midaz-error'
+import { MidazApiException } from '@/core/infrastructure/midaz/exceptions/midaz-exceptions'
 import { signOut } from 'next-auth/react'
 import { redirect } from 'next/navigation'
 import { createQueryString } from '../search'
@@ -78,7 +78,7 @@ export const serverFetcher = async <T = void>(action: () => Promise<T>) => {
     return await action()
   } catch (error) {
     console.error('Server Fetcher Error', error)
-    if (error instanceof MidazError && error.code === '0042') {
+    if (error instanceof MidazApiException && error.code === '0042') {
       redirect('/signout')
     }
     return null

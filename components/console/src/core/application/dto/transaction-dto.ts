@@ -1,4 +1,5 @@
-import { StatusDto } from './status.dto'
+import { MetadataDto } from './metadata-dto'
+import { StatusDto } from './status-dto'
 
 type CreateTransactionSourceDto = {
   account: string
@@ -10,7 +11,7 @@ type CreateTransactionSourceDto = {
   }
   description?: string
   chartOfAccounts?: string
-  metadata: Record<string, any>
+  metadata: MetadataDto
 }
 
 export type CreateTransactionDto = {
@@ -20,7 +21,12 @@ export type CreateTransactionDto = {
   asset: string
   source: CreateTransactionSourceDto[]
   destination: CreateTransactionSourceDto[]
-  metadata: Record<string, any>
+  metadata: MetadataDto
+}
+
+export type UpdateTransactionDto = {
+  description?: string
+  metadata?: Record<string, unknown>
 }
 
 export type OperationDto = {

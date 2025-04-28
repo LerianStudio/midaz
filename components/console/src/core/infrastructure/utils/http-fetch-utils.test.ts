@@ -1,9 +1,10 @@
-import { LoggerAggregator } from '@/core/application/logger/logger-aggregator'
+import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import { getServerSession } from 'next-auth'
 import { MidazRequestContext } from '../logger/decorators/midaz-id'
 import { OtelTracerProvider } from '../observability/otel-tracer-provider'
-import { HTTP_METHODS, HttpFetchUtils } from './http-fetch-utils'
+import { HttpFetchUtils } from './http-fetch-utils'
 import { handleMidazError } from './midaz-error-handler'
+import { HttpMethods } from '@/lib/http'
 
 jest.mock('next-auth', () => ({
   getServerSession: jest.fn()
@@ -73,7 +74,7 @@ describe('MidazHttpFetchUtils', () => {
 
     const result = await midazHttpFetchUtils.httpMidazFetch({
       url: 'https://api.example.com/test',
-      method: HTTP_METHODS.GET,
+      method: HttpMethods.GET,
       headers: {
         'Custom-Header': 'CustomValue'
       }
@@ -106,7 +107,7 @@ describe('MidazHttpFetchUtils', () => {
     await expect(
       midazHttpFetchUtils.httpMidazFetch({
         url: 'https://api.example.com/test',
-        method: HTTP_METHODS.GET
+        method: HttpMethods.GET
       })
     ).rejects.toThrow('Handled error')
 
@@ -133,7 +134,7 @@ describe('MidazHttpFetchUtils', () => {
 
     await midazHttpFetchUtils.httpMidazFetch({
       url: 'https://api.example.com/test',
-      method: HTTP_METHODS.GET,
+      method: HttpMethods.GET,
       headers: {
         'Custom-Header': 'CustomValue',
         'X-Request-Id': 'test-request-id'
@@ -142,7 +143,7 @@ describe('MidazHttpFetchUtils', () => {
 
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {
       expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test', {
-        method: HTTP_METHODS.GET,
+        method: HttpMethods.GET,
         body: undefined,
         headers: {
           'Custom-Header': 'CustomValue',
@@ -153,7 +154,7 @@ describe('MidazHttpFetchUtils', () => {
       })
     } else {
       expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test', {
-        method: HTTP_METHODS.GET,
+        method: HttpMethods.GET,
         body: undefined,
         headers: {
           'Custom-Header': 'CustomValue',
@@ -178,7 +179,7 @@ describe('MidazHttpFetchUtils', () => {
 
     await midazHttpFetchUtils.httpMidazFetch({
       url: 'https://api.example.com/test',
-      method: HTTP_METHODS.GET
+      method: HttpMethods.GET
     })
 
     expect(otelTracerProvider.startCustomSpan).toHaveBeenCalledWith(

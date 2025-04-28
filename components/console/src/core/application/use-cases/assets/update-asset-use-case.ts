@@ -1,11 +1,10 @@
-import { UpdateAssetRepository } from '@/core/domain/repositories/assets/update-asset-repository'
-import { AssetResponseDto } from '../../dto/asset-response-dto'
-import { UpdateAssetDto } from '../../dto/update-asset-dto'
+import { AssetRepository } from '@/core/domain/repositories/asset-repository'
+import { AssetResponseDto } from '../../dto/asset-dto'
 import { AssetEntity } from '@/core/domain/entities/asset-entity'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { inject, injectable } from 'inversify'
-import { CreateAssetDto } from '../../dto/create-asset-dto'
-import { LogOperation } from '../../decorators/log-operation'
+import { CreateAssetDto, UpdateAssetDto } from '../../dto/asset-dto'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface UpdateAsset {
   execute: (
@@ -19,8 +18,8 @@ export interface UpdateAsset {
 @injectable()
 export class UpdateAssetUseCase implements UpdateAsset {
   constructor(
-    @inject(UpdateAssetRepository)
-    private readonly updateAssetRepository: UpdateAssetRepository
+    @inject(AssetRepository)
+    private readonly assetRepository: AssetRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -34,7 +33,7 @@ export class UpdateAssetUseCase implements UpdateAsset {
       asset as CreateAssetDto
     )
 
-    const updatedAssetEntity = await this.updateAssetRepository.update(
+    const updatedAssetEntity = await this.assetRepository.update(
       organizationId,
       ledgerId,
       assetId,

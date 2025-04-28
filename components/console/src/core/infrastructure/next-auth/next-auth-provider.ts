@@ -1,11 +1,11 @@
 import { AuthSessionDto } from '@/core/application/dto/auth-dto'
-import { LoggerAggregator } from '@/core/application/logger/logger-aggregator'
+import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
 import {
   AuthLogin,
   AuthLoginUseCase
 } from '@/core/application/use-cases/auth/auth-login-use-case'
 import { AuthEntity } from '@/core/domain/entities/auth-entity'
-import { LoggerRepository } from '@/core/domain/repositories/logger/logger-repository'
+import { LoggerRepository } from '@/core/domain/repositories/logger-repository'
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { log } from 'console'
