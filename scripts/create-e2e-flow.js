@@ -76,29 +76,33 @@ const workflowSequence = [
   // Transaction flow
   { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions", name: "26. List Transactions" },
   { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json", name: "27. Create Transaction using JSON" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "28. Get Transaction" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}", name: "29. Update Transaction" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "28. Get Transaction" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{id}", name: "29. Update Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/commit", name: "30. Commit Transaction" },
   
   // Balance flow
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "30. Get Account Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "31. List All Balances" },
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "32. Get Balance by ID" },
-  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "33. Update Balance" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances", name: "31. Get Account Balances" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances", name: "32. List All Balances" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "33. Get Balance by ID" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "34. Update Balance" },
   
-  // Account-scoped operations flow (since global operations endpoints don't exist)
-  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/operations", name: "34. List Account Operations" },
+  // Operation flow
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations", name: "35. List Operations" },
+  { operation: "GET", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "36. Get Operation" },
+  { operation: "PATCH", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/operations/{id}", name: "37. Update Operation" },
   
   // Additional transaction types
-  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "35. Revert Transaction" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/templates", name: "38. Create Transaction Template" },
+  { operation: "POST", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/{transaction_id}/revert", name: "39. Revert Transaction" },
   
   // Delete flow (reverse order of creation to handle dependencies properly)
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{balance_id}", name: "36. Delete Balance" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "37. Delete Account" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "38. Delete Segment" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "39. Delete Portfolio" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "40. Delete Asset" },
-  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "41. Delete Ledger" },
-  { operation: "DELETE", path: "/v1/organizations/{id}", name: "42. Delete Organization" }
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances/{id}", name: "40. Delete Balance" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", name: "41. Delete Account" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", name: "42. Delete Segment" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", name: "43. Delete Portfolio" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{ledger_id}/assets/{id}", name: "44. Delete Asset" },
+  { operation: "DELETE", path: "/v1/organizations/{organization_id}/ledgers/{id}", name: "45. Delete Ledger" },
+  { operation: "DELETE", path: "/v1/organizations/{id}", name: "46. Delete Organization" }
 ];
 
 const workflowFolder = {
@@ -251,62 +255,6 @@ workflowSequence.forEach((step, index) => {
       }
     }
     
-    // Special case for transaction endpoints to use transaction_id param
-    if (step.name === "28. Get Transaction" || step.name === "29. Update Transaction" || step.name === "35. Revert Transaction") {
-      if (clonedRequest.request && clonedRequest.request.url) {
-        // Fix URL path parameters
-        if (clonedRequest.request.url.path) {
-          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
-            // Ensure we're using transaction_id for the URL param
-            if (clonedRequest.request.url.path[i] === "{id}" || 
-                clonedRequest.request.url.path[i] === "{transaction_id}" ||
-                clonedRequest.request.url.path[i] === "{{transactionId}}") {
-              clonedRequest.request.url.path[i] = "{{transaction_id}}";
-            }
-          }
-        }
-        
-        // Update variables if they exist
-        if (clonedRequest.request.url.variable) {
-          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
-            if (clonedRequest.request.url.variable[i].key === "id" || 
-                clonedRequest.request.url.variable[i].key === "transaction_id") {
-              clonedRequest.request.url.variable[i].key = "transaction_id";
-              clonedRequest.request.url.variable[i].value = "{{transaction_id}}";
-            }
-          }
-        }
-      }
-    }
-    
-    // Special case for balance endpoints to use balance_id param
-    if (step.name === "32. Get Balance by ID" || step.name === "33. Update Balance" || step.name === "36. Delete Balance") {
-      if (clonedRequest.request && clonedRequest.request.url) {
-        // Fix URL path parameters
-        if (clonedRequest.request.url.path) {
-          for (let i = 0; i < clonedRequest.request.url.path.length; i++) {
-            // Ensure we're using balance_id for the URL param
-            if (clonedRequest.request.url.path[i] === "{id}" || 
-                clonedRequest.request.url.path[i] === "{balance_id}" ||
-                clonedRequest.request.url.path[i] === "{{balanceId}}") {
-              clonedRequest.request.url.path[i] = "{{balance_id}}";
-            }
-          }
-        }
-        
-        // Update variables if they exist
-        if (clonedRequest.request.url.variable) {
-          for (let i = 0; i < clonedRequest.request.url.variable.length; i++) {
-            if (clonedRequest.request.url.variable[i].key === "id" || 
-                clonedRequest.request.url.variable[i].key === "balance_id") {
-              clonedRequest.request.url.variable[i].key = "balance_id";
-              clonedRequest.request.url.variable[i].value = "{{balance_id}}";
-            }
-          }
-        }
-      }
-    }
-    
     // Special case for creating a transaction to fund account
     if (step.name === "27. Create Transaction using JSON") {
       if (clonedRequest.request && clonedRequest.request.body) {
@@ -343,7 +291,7 @@ workflowSequence.forEach((step, index) => {
             "distribute": {
               "to": [
                 {
-                  "account": "{{accountAlias}}",
+                  "account": "{{accountId}}",
                   "amount": {
                     "asset": "USD",
                     "value": 1000,
@@ -596,7 +544,6 @@ try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("transactionId", jsonData.id);
-    pm.environment.set("transaction_id", jsonData.id);  // For path params that use transaction_id format
     console.log("transactionId set to: " + jsonData.id);
   }
 } catch (error) {
@@ -614,27 +561,26 @@ try {
 } catch (error) {
   console.error("Failed to extract account alias: ", error);
 }`;
-        } else if (step.name === "32. Get Balance by ID") {
+        } else if (step.name === "33. Get Balance by ID") {
           testScript += `
 // Save the balance ID to use in subsequent requests
 try {
   var jsonData = pm.response.json();
   if (jsonData && jsonData.id) {
     pm.environment.set("balanceId", jsonData.id);
-    pm.environment.set("balance_id", jsonData.id);  // For path params that use balance_id format
     console.log("balanceId set to: " + jsonData.id);
   }
 } catch (error) {
   console.error("Failed to extract balanceId: ", error);
 }`;
-        } else if (step.name === "34. List Account Operations") {
+        } else if (step.name === "36. Get Operation") {
           testScript += `
-// Save the first operation ID to use in subsequent requests, if needed
+// Save the operation ID to use in subsequent requests
 try {
   var jsonData = pm.response.json();
-  if (jsonData && jsonData.length > 0 && jsonData[0].id) {
-    pm.environment.set("operationId", jsonData[0].id);
-    console.log("operationId set to: " + jsonData[0].id);
+  if (jsonData && jsonData.id) {
+    pm.environment.set("operationId", jsonData.id);
+    console.log("operationId set to: " + jsonData.id);
   }
 } catch (error) {
   console.error("Failed to extract operationId: ", error);
@@ -659,9 +605,6 @@ try {
     console.log(`Warning: Could not find request for workflow step: ${step.name}`);
   }
 });
-
-// Remove any existing E2E Flow folders from the collection
-collection.item = collection.item.filter(item => item.name !== "E2E Flow");
 
 // Add the workflow folder to the collection
 collection.item.push(workflowFolder);
