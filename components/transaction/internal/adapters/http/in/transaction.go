@@ -521,6 +521,8 @@ func (handler *TransactionHandler) GetAllTransactions(c *fiber.Ctx) error {
 }
 
 // createTransaction func that received struct from DSL parsed and create Transaction
+//
+//nolint:gocognit,gocyclo
 func (handler *TransactionHandler) createTransaction(c *fiber.Ctx, logger libLog.Logger, parserDSL libTransaction.Transaction) error {
 	ctx := c.UserContext()
 	tracer := libCommons.NewTracerFromContext(ctx)

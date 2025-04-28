@@ -80,12 +80,14 @@ type CreateTransactionInput struct {
 	
 	// Additional custom attributes
 	// example: {"reference": "TRANSACTION-001", "source": "api"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{"reference": "TRANSACTION-001", "source": "api"}"`
+	// swagger:type object
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000" example:"{\"reference\": \"TRANSACTION-001\", \"source\": \"api\"}"`
 	
 	// Send operation details including source and distribution
 	// required: true
 	// example: {"asset":"BRL","value":100,"scale":2,"source":{"from":[{"account":"@external/BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Debit Operation","chartOfAccounts":"PIX_DEBIT","metadata":{"operation":"funding","type":"external"}}]},"distribute":{"to":[{"account":"@account1_BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Credit Operation","chartOfAccounts":"PIX_CREDIT","metadata":{"operation":"funding","type":"account"}}]}}
-	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive" example:"{"asset":"BRL","value":100,"scale":2,"source":{"from":[{"account":"@external/BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Debit Operation","chartOfAccounts":"PIX_DEBIT","metadata":{"operation":"funding","type":"external"}}]},"distribute":{"to":[{"account":"@account1_BRL","amount":{"asset":"BRL","value":100,"scale":2},"description":"Credit Operation","chartOfAccounts":"PIX_CREDIT","metadata":{"operation":"funding","type":"account"}}]}}"`
+	// swagger:type object
+	Send *libTransaction.Send `json:"send,omitempty" validate:"required,dive" example:"{\"asset\":\"BRL\",\"value\":100,\"scale\":2,\"source\":{\"from\":[{\"account\":\"@external/BRL\",\"amount\":{\"asset\":\"BRL\",\"value\":100,\"scale\":2},\"description\":\"Debit Operation\",\"chartOfAccounts\":\"PIX_DEBIT\",\"metadata\":{\"operation\":\"funding\",\"type\":\"external\"}}]},\"distribute\":{\"to\":[{\"account\":\"@account1_BRL\",\"amount\":{\"asset\":\"BRL\",\"value\":100,\"scale\":2},\"description\":\"Credit Operation\",\"chartOfAccounts\":\"PIX_CREDIT\",\"metadata\":{\"operation\":\"funding\",\"type\":\"account\"}}]}}"`
 } // @name CreateTransactionInput
 
 // InputDSL is a struct design to encapsulate payload data.
