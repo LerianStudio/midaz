@@ -26,7 +26,7 @@ import {
   CommandGroup,
   CommandItem
 } from '@/components/ui/command'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useListLedgers } from '@/client/ledgers'
 import { Button } from './ui/button'
 import { LedgerType } from '@/types/ledgers-type'

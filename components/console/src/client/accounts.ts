@@ -30,6 +30,7 @@ export const useListAccounts = ({
     queryFn: getFetcher(
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts`
     ),
+    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }
@@ -58,6 +59,7 @@ export const useAccountsWithPortfolios = ({
       `/api/organizations/${organizationId}/ledgers/${ledgerId}/accounts-portfolios`,
       { page, limit }
     ),
+    enabled: !!organizationId && !!ledgerId,
     ...options
   })
 }

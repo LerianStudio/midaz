@@ -1,6 +1,6 @@
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
-import { CreateLedgerDto } from '../dto/create-ledger-dto'
-import { LedgerResponseDto } from '../dto/ledger-response-dto'
+import { CreateLedgerDto } from '../dto/ledger-dto'
+import { LedgerResponseDto } from '../dto/ledger-dto'
 import { UpdateSegmentDto } from '../dto/segment-dto'
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
 import { PaginationMapper } from './pagination-mapper'

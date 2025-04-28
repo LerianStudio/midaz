@@ -96,15 +96,11 @@ export const TransactionReceiptSubjects = forwardRef<
     {...props}
   >
     <div className="flex flex-col text-base font-normal">
-      {sources.map((source, index) => (
-        <p key={index}>{source}</p>
-      ))}
+      {sources?.map((source, index) => <p key={index}>{source}</p>)}
     </div>
     <ArrowRight />
     <div className="flex flex-col text-base font-normal">
-      {destinations.map((source, index) => (
-        <p key={index}>{source}</p>
-      ))}
+      {destinations?.map((source, index) => <p key={index}>{source}</p>)}
     </div>
   </div>
 ))

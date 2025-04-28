@@ -1,8 +1,8 @@
-import { FetchLedgerByIdRepository } from '@/core/domain/repositories/ledgers/fetch-ledger-by-id-repository'
-import { LedgerResponseDto } from '../../dto/ledger-response-dto'
+import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
+import { LedgerResponseDto } from '../../dto/ledger-dto'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchLedgerById {
   execute: (
@@ -14,8 +14,8 @@ export interface FetchLedgerById {
 @injectable()
 export class FetchLedgerByIdUseCase implements FetchLedgerById {
   constructor(
-    @inject(FetchLedgerByIdRepository)
-    private readonly fetchLedgerByIdRepository: FetchLedgerByIdRepository
+    @inject(LedgerRepository)
+    private readonly LedgerRepository: LedgerRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -23,7 +23,7 @@ export class FetchLedgerByIdUseCase implements FetchLedgerById {
     organizationId: string,
     ledgerId: string
   ): Promise<LedgerResponseDto> {
-    const ledgerEntity = await this.fetchLedgerByIdRepository.fetchById(
+    const ledgerEntity = await this.LedgerRepository.fetchById(
       organizationId,
       ledgerId
     )

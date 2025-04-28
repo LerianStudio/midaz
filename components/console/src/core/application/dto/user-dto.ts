@@ -1,4 +1,4 @@
-export interface CreateUserDto {
+export type CreateUserDto = {
   firstName: string
   lastName: string
   email: string
@@ -7,15 +7,9 @@ export interface CreateUserDto {
   password: string
 }
 
-export interface UpdateUserDto {
-  firstName?: string
-  lastName?: string
-  email?: string
-  username?: string
-  groups?: string[]
-}
+export type UpdateUserDto = Omit<Partial<CreateUserDto>, 'password'>
 
-export interface UserResponseDto {
+export type UserResponseDto = {
   id: string
   firstName: string
   lastName: string

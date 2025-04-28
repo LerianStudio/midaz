@@ -4,7 +4,7 @@ import { Breadcrumb } from '@/components/breadcrumb'
 import { TransactionProvider } from './transaction-form-provider'
 import { PageHeader } from '@/components/page-header'
 import { useIntl } from 'react-intl'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 
 export default function RootLayout({
   children

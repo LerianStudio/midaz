@@ -1,11 +1,11 @@
 import { PaginationEntity } from '@/core/domain/entities/pagination-entity'
-import { LedgerResponseDto } from '../../dto/ledger-response-dto'
-import { FetchAllLedgersRepository } from '@/core/domain/repositories/ledgers/fetch-all-ledgers-repository'
+import { LedgerResponseDto } from '../../dto/ledger-dto'
+import { LedgerRepository } from '@/core/domain/repositories/ledger-repository'
 import { LedgerEntity } from '@/core/domain/entities/ledger-entity'
 import { PaginationDto } from '../../dto/pagination-dto'
 import { inject, injectable } from 'inversify'
 import { LedgerMapper } from '../../mappers/ledger-mapper'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchAllLedgers {
   execute: (
@@ -18,8 +18,8 @@ export interface FetchAllLedgers {
 @injectable()
 export class FetchAllLedgersUseCase implements FetchAllLedgers {
   constructor(
-    @inject(FetchAllLedgersRepository)
-    private readonly fetchAllLedgersRepository: FetchAllLedgersRepository
+    @inject(LedgerRepository)
+    private readonly ledgerRepository: LedgerRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -29,7 +29,7 @@ export class FetchAllLedgersUseCase implements FetchAllLedgers {
     page: number
   ): Promise<PaginationDto<LedgerResponseDto>> {
     const ledgersResult: PaginationEntity<LedgerEntity> =
-      await this.fetchAllLedgersRepository.fetchAll(organizationId, limit, page)
+      await this.ledgerRepository.fetchAll(organizationId, limit, page)
 
     return LedgerMapper.toPaginationResponseDto(ledgersResult)
   }

@@ -1,8 +1,8 @@
-import { FetchSegmentByIdRepository } from '@/core/domain/repositories/segments/fetch-segment-by-id-repository'
+import { SegmentRepository } from '@/core/domain/repositories/segment-repository'
 import { SegmentResponseDto } from '../../dto/segment-dto'
 import { SegmentMapper } from '../../mappers/segment-mapper'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchSegmentById {
   execute: (
@@ -15,8 +15,8 @@ export interface FetchSegmentById {
 @injectable()
 export class FetchSegmentByIdUseCase implements FetchSegmentById {
   constructor(
-    @inject(FetchSegmentByIdRepository)
-    private readonly fetchSegmentByIdRepository: FetchSegmentByIdRepository
+    @inject(SegmentRepository)
+    private readonly segmentRepository: SegmentRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -25,7 +25,7 @@ export class FetchSegmentByIdUseCase implements FetchSegmentById {
     ledgerId: string,
     segmentId: string
   ): Promise<SegmentResponseDto> {
-    const segment = await this.fetchSegmentByIdRepository.fetchById(
+    const segment = await this.segmentRepository.fetchById(
       organizationId,
       ledgerId,
       segmentId

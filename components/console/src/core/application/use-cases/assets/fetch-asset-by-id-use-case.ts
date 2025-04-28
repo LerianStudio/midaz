@@ -1,8 +1,8 @@
-import { FetchAssetByIdRepository } from '@/core/domain/repositories/assets/fetch-asset-by-id-repository'
-import { AssetResponseDto } from '../../dto/asset-response-dto'
+import { AssetRepository } from '@/core/domain/repositories/asset-repository'
+import { AssetResponseDto } from '../../dto/asset-dto'
 import { AssetMapper } from '../../mappers/asset-mapper'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface FetchAssetById {
   execute: (
@@ -15,8 +15,8 @@ export interface FetchAssetById {
 @injectable()
 export class FetchAssetByIdUseCase implements FetchAssetById {
   constructor(
-    @inject(FetchAssetByIdRepository)
-    private readonly fetchAssetByIdRepository: FetchAssetByIdRepository
+    @inject(AssetRepository)
+    private readonly assetRepository: AssetRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -25,7 +25,7 @@ export class FetchAssetByIdUseCase implements FetchAssetById {
     ledgerId: string,
     assetId: string
   ): Promise<AssetResponseDto> {
-    const assetEntity = await this.fetchAssetByIdRepository.fetchById(
+    const assetEntity = await this.assetRepository.fetchById(
       organizationId,
       ledgerId,
       assetId

@@ -31,7 +31,7 @@ import { useCreateUpdateSheet } from '@/components/sheet/use-create-update-sheet
 import { EntityDataTable } from '@/components/entity-data-table'
 import { FormProvider, UseFormReturn } from 'react-hook-form'
 import { Table as ReactTableType } from '@tanstack/react-table'
-import { LedgerResponseDto } from '@/core/application/dto/ledger-response-dto'
+import { LedgerResponseDto } from '@/core/application/dto/ledger-dto'
 import { PaginationLimitField } from '@/components/form/pagination-limit-field'
 import { Pagination, PaginationProps } from '@/components/pagination'
 import { PaginationDto } from '@/core/application/dto/pagination-dto'

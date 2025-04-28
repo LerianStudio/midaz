@@ -1,6 +1,6 @@
-import { DeleteAssetRepository } from '@/core/domain/repositories/assets/delete-asset-repository'
+import { AssetRepository } from '@/core/domain/repositories/asset-repository'
 import { inject, injectable } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface DeleteAsset {
   execute: (
@@ -13,8 +13,8 @@ export interface DeleteAsset {
 @injectable()
 export class DeleteAssetUseCase implements DeleteAsset {
   constructor(
-    @inject(DeleteAssetRepository)
-    private readonly deleteAssetRepository: DeleteAssetRepository
+    @inject(AssetRepository)
+    private readonly assetRepository: AssetRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
@@ -23,6 +23,6 @@ export class DeleteAssetUseCase implements DeleteAsset {
     ledgerId: string,
     assetId: string
   ): Promise<void> {
-    await this.deleteAssetRepository.delete(organizationId, ledgerId, assetId)
+    await this.assetRepository.delete(organizationId, ledgerId, assetId)
   }
 }

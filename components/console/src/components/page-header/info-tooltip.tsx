@@ -4,7 +4,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
-import useCustomToast from '@/hooks/use-custom-toast'
+import { useToast } from '@/hooks/use-toast'
 import { Arrow } from '@radix-ui/react-tooltip'
 import { Copy } from 'lucide-react'
 import { useIntl } from 'react-intl'
@@ -15,16 +15,16 @@ type InfoTooltipProps = {
 
 export const InfoTooltip = ({ subtitle }: InfoTooltipProps) => {
   const intl = useIntl()
-  const { showInfo } = useCustomToast()
+  const { toast } = useToast()
 
   const handleCopyToClipboard = (value: string) => {
     navigator.clipboard.writeText(value)
-    showInfo(
-      intl.formatMessage({
+    toast({
+      description: intl.formatMessage({
         id: 'common.copyMessage',
         defaultMessage: 'Copied to clipboard!'
       })
-    )
+    })
   }
 
   return (

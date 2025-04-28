@@ -1,8 +1,8 @@
 import { inject, injectable } from 'inversify'
 import type { CreateUserDto, UserResponseDto } from '../../dto/user-dto'
-import { CreateUserRepository } from '@/core/domain/repositories/users/create-user-repository'
+import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { UserMapper } from '../../mappers/user-mapper'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface CreateUser {
   execute: (user: CreateUserDto) => Promise<UserResponseDto>
@@ -11,14 +11,14 @@ export interface CreateUser {
 @injectable()
 export class CreateUserUseCase implements CreateUser {
   constructor(
-    @inject(CreateUserRepository)
-    private readonly createUserRepository: CreateUserRepository
+    @inject(UserRepository)
+    private readonly userRepository: UserRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(user: CreateUserDto): Promise<UserResponseDto> {
     const userEntity = UserMapper.toDomain(user)
-    const userCreated = await this.createUserRepository.create(userEntity)
+    const userCreated = await this.userRepository.create(userEntity)
     const userResponseDto = UserMapper.toDto(userCreated)
 
     return userResponseDto

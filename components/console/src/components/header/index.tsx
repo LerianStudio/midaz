@@ -4,7 +4,7 @@ import { SettingsDropdown } from '../settings-dropdown'
 import { UserDropdown } from '../user-dropdown'
 import { Separator } from '../ui/separator'
 import Image from 'next/image'
-import MidazLogo from '@/svg/midaz-logo-white.svg'
+import LerianLogo from '@/svg/lerian-logo.svg'
 import { LedgerSelector } from '../ledger-selector'
 import { useIntl } from 'react-intl'
 
@@ -38,9 +38,16 @@ export const Header = () => {
 
 export const StaticHeader = () => {
   return (
-    <div className="flex h-[60px] w-full items-center justify-center border-b bg-white">
+    <div className="flex w-full items-center justify-center border-b bg-white py-6">
       <nav className="flex w-full max-w-[1090px] items-center gap-4">
-        <Image src={MidazLogo} alt="Logo" height={40} width={40} />
+        <Image
+          src={LerianLogo}
+          alt="Logo"
+          height={40}
+          width={40}
+          className="rounded-lg"
+        />
+
         <div className="flex text-base text-zinc-800">Midaz Console</div>
       </nav>
     </div>

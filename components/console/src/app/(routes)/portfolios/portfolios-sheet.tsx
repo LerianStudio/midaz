@@ -14,16 +14,16 @@ import { Form } from '@/components/ui/form'
 import { useIntl } from 'react-intl'
 import { useCreatePortfolio, useUpdatePortfolio } from '@/client/portfolios'
 import { DialogProps } from '@radix-ui/react-dialog'
-import { PortfolioResponseDto } from '@/core/application/dto/portfolios-dto'
+import { PortfolioResponseDto } from '@/core/application/dto/portfolio-dto'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { MetadataField } from '@/components/form/metadata-field'
 import { InputField } from '@/components/form'
 import { portfolio } from '@/schema/portfolio'
 import { TabsContent } from '@radix-ui/react-tabs'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import useCustomToast from '@/hooks/use-custom-toast'
-import { usePopulateCreateUpdateForm } from '@/components/sheet/use-populate-create-update-form'
+import { useToast } from '@/hooks/use-toast'
+import { getInitialValues } from '@/lib/form'
 
 export type PortfolioSheetProps = DialogProps & {
   mode: 'create' | 'edit'
@@ -54,7 +54,7 @@ export const PortfolioSheet = ({
 }: PortfolioSheetProps) => {
   const intl = useIntl()
   const { currentOrganization, currentLedger } = useOrganization()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
 
   const { mutate: createPortfolio, isPending: createPending } =
     useCreatePortfolio({
@@ -63,21 +63,13 @@ export const PortfolioSheet = ({
       onSuccess: () => {
         onSuccess?.()
         onOpenChange?.(false)
-        showSuccess(
-          intl.formatMessage({
-            id: 'portfolios.toast.create.success',
+        toast({
+          description: intl.formatMessage({
+            id: 'success.portfolios.create',
             defaultMessage: 'Portfolio successfully created'
-          })
-        )
-      },
-      onError: () => {
-        onOpenChange?.(false)
-        showError(
-          intl.formatMessage({
-            id: 'portfolios.toast.create.error',
-            defaultMessage: 'Error creating Portfolio'
-          })
-        )
+          }),
+          variant: 'success'
+        })
       }
     })
 
@@ -89,29 +81,21 @@ export const PortfolioSheet = ({
       onSuccess: () => {
         onSuccess?.()
         onOpenChange?.(false)
-        showSuccess(
-          intl.formatMessage({
-            id: 'portfolios.toast.update.success',
+        toast({
+          description: intl.formatMessage({
+            id: 'success.portfolios.update',
             defaultMessage: 'Portfolio changes saved successfully'
-          })
-        )
-      },
-      onError: () => {
-        onOpenChange?.(false)
-        showError(
-          intl.formatMessage({
-            id: 'portfolios.toast.update.error',
-            defaultMessage: 'Error updating Portfolio'
-          })
-        )
+          }),
+          variant: 'success'
+        })
       }
     })
 
   const form = useForm<FormData>({
     resolver: zodResolver(FormSchema),
+    values: getInitialValues(initialValues, data!),
     defaultValues: initialValues
   })
-  const { isDirty } = form.formState
 
   const handleSubmit = (values: FormData) => {
     if (mode === 'create') {
@@ -121,8 +105,6 @@ export const PortfolioSheet = ({
       updatePortfolio(data)
     }
   }
-
-  usePopulateCreateUpdateForm(form, mode, initialValues, data)
 
   return (
     <React.Fragment>
@@ -232,7 +214,6 @@ export const PortfolioSheet = ({
                 <LoadingButton
                   size="lg"
                   type="submit"
-                  disabled={!isDirty}
                   fullWidth
                   loading={createPending || updatePending}
                 >

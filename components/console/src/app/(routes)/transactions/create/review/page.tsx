@@ -24,14 +24,14 @@ import ArrowRightLeftCircle from '/public/svg/arrow-right-left-circle.svg'
 import Image from 'next/image'
 import { isNil } from 'lodash'
 import { useCreateTransaction } from '@/client/transactions'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
-import useCustomToast from '@/hooks/use-custom-toast'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { TransactionFormSchema } from '../schemas'
+import { useToast } from '@/hooks/use-toast'
 
 export default function CreateTransactionReviewPage() {
   const intl = useIntl()
   const router = useRouter()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
 
   const { currentOrganization, currentLedger } = useOrganization()
 
@@ -40,13 +40,15 @@ export default function CreateTransactionReviewPage() {
       organizationId: currentOrganization.id!,
       ledgerId: currentLedger.id!,
       onSuccess: (data) => {
-        showSuccess('Transaction created successfully')
+        toast({
+          description: intl.formatMessage({
+            id: 'success.transactions.create',
+            defaultMessage: 'Transaction created successfully'
+          }),
+          variant: 'success'
+        })
         handleSubmitClose()
         router.push(`/transactions/${data.id}`)
-      },
-      onError(message) {
-        showError(message)
-        handleSubmitClose()
       }
     })
 

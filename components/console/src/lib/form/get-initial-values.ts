@@ -7,13 +7,16 @@ import { isNil, pick } from 'lodash'
  * @param data An object to pre-populate the form
  * @returns
  */
-export function getInitialValues(initialValues?: object, data?: object) {
+export function getInitialValues<TInitialValues>(
+  initialValues?: object,
+  data?: object
+) {
   if (isNil(initialValues)) {
-    return {}
+    return {} as TInitialValues
   }
 
   return {
     ...initialValues,
     ...pick(data, Object.keys(initialValues))
-  }
+  } as TInitialValues
 }

@@ -9,7 +9,6 @@ import { useListGroups } from '@/client/groups'
 import { SelectItem } from '@/components/ui/select'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useUpdateUser, useResetUserPassword } from '@/client/users'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useState, useMemo } from 'react'
 import ConfirmationDialog from '@/components/confirmation-dialog'
@@ -17,9 +16,17 @@ import React from 'react'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { AlertTriangle } from 'lucide-react'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
-import { usePopulateForm } from '@/lib/form'
 import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
+import { getInitialValues } from '@/lib/form'
+import { useToast } from '@/hooks/use-toast'
+
+const initialValues = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  groups: ''
+}
 
 const UpdateFormSchema = z.object({
   firstName: user.firstName,
@@ -53,11 +60,11 @@ export const EditUserForm = ({
   onOpenChange
 }: EditUserFormProps) => {
   const intl = useIntl()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const { data: groups } = useListGroups({})
   const [activeTab, setActiveTab] = useState('personal-information')
 
-  const defaultValues = useMemo(
+  const userData = useMemo(
     () => ({
       ...user,
       groups: user.groups && user.groups.length > 0 ? user.groups[0] : ''
@@ -80,7 +87,7 @@ export const EditUserForm = ({
 
   const form = useForm<UpdateFormData>({
     resolver: zodResolver(UpdateFormSchema),
-    defaultValues
+    defaultValues: getInitialValues(initialValues, userData)
   })
 
   const passwordForm = useForm<PasswordFormData>({
@@ -100,24 +107,16 @@ export const EditUserForm = ({
       await onSuccess?.()
       onOpenChange?.(false)
 
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'users.toast.update.success',
+            id: 'success.users.update',
             defaultMessage: 'User {userName} updated successfully'
           },
           { userName: `${updatedUser.firstName} ${updatedUser.lastName}` }
-        )
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'users.toast.update.error',
-          defaultMessage: 'Error updating User'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 
@@ -127,23 +126,16 @@ export const EditUserForm = ({
       onSuccess: async () => {
         await onSuccess?.()
         onOpenChange?.(false)
-        showSuccess(
-          intl.formatMessage(
+        toast({
+          description: intl.formatMessage(
             {
-              id: 'users.toast.resetPassword.success',
+              id: 'success.users.password.reset',
               defaultMessage: 'Password for {userName} reset successfully'
             },
             { userName: `${user.firstName} ${user.lastName}` }
-          )
-        )
-      },
-      onError: () => {
-        showError(
-          intl.formatMessage({
-            id: 'users.toast.resetPassword.error',
-            defaultMessage: 'Error resetting password'
-          })
-        )
+          ),
+          variant: 'success'
+        })
       }
     })
 
@@ -157,8 +149,6 @@ export const EditUserForm = ({
   const handlePasswordSubmit = (formData: PasswordFormData) => {
     handleDialogOpen('', formData)
   }
-
-  usePopulateForm(form, defaultValues)
 
   return (
     <React.Fragment>
@@ -254,8 +244,8 @@ export const EditUserForm = ({
                       defaultMessage: 'Role'
                     })}
                     placeholder={intl.formatMessage({
-                      id: 'common.select',
-                      defaultMessage: 'Select'
+                      id: 'common.selectPlaceholder',
+                      defaultMessage: 'Select...'
                     })}
                     control={form.control}
                     required

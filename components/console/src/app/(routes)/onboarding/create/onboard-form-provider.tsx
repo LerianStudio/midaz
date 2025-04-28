@@ -5,9 +5,8 @@ import { useRouter } from 'next/navigation'
 import { omit } from 'lodash'
 import { createQueryString } from '@/lib/search'
 import { OrganizationsType } from '@/types/organizations-type'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { useCreateOnboardingOrganization } from '@/client/onboarding'
-import useCustomToast from '@/hooks/use-custom-toast'
 
 type OnboardFormContextProps = ReturnType<typeof useStepper> & {
   data: FormData
@@ -30,7 +29,6 @@ export type OnboardFormProviderProps = PropsWithChildren
 export function OnboardFormProvider({ children }: OnboardFormProviderProps) {
   const router = useRouter()
   const { setOrganization } = useOrganization()
-  const { showError } = useCustomToast()
 
   const [data, _setData] = useState<FormData>({} as FormData)
   const stepper = useStepper({ maxSteps: 3 })
@@ -40,9 +38,6 @@ export function OnboardFormProvider({ children }: OnboardFormProviderProps) {
       onSuccess: (organization: OrganizationsType) => {
         setOrganization(organization)
         router.push(`/onboarding/ledger` + createQueryString({ process: true }))
-      },
-      onError: (error: any) => {
-        showError(error.message)
       }
     })
 

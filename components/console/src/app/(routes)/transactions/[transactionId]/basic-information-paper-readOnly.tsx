@@ -1,7 +1,7 @@
 import { InputField } from '@/components/form'
 import { Paper } from '@/components/ui/paper'
 import { Separator } from '@/components/ui/separator'
-import { useOrganization } from '@/context/organization-provider/organization-provider-client'
+import { useOrganization } from '@/providers/organization-provider/organization-provider-client'
 import { Control, useForm } from 'react-hook-form'
 import { useIntl } from 'react-intl'
 import DolarSign from '/public/svg/dolar-sign.svg'
@@ -12,13 +12,13 @@ import { LoadingButton } from '@/components/ui/loading-button'
 import { ArrowRight } from 'lucide-react'
 import { PageFooter, PageFooterSection } from '@/components/page-footer'
 import { useUpdateTransaction } from '@/client/transactions'
-import useCustomToast from '@/hooks/use-custom-toast'
 import ConfirmationDialog from '@/components/confirmation-dialog'
 import { useConfirmDialog } from '@/components/confirmation-dialog/use-confirm-dialog'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { TRANSACTION_DETAILS_TAB_VALUES } from './transaction-details-tab-values'
 import { transaction } from '@/schema/transactions'
+import { useToast } from '@/hooks/use-toast'
 
 interface TransactionValues {
   chartOfAccountsGroupName?: string
@@ -51,7 +51,7 @@ export const BasicInformationPaperReadOnly = ({
   const { transactionId } = useParams<{
     transactionId: string
   }>()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const { currentOrganization, currentLedger } = useOrganization()
 
   const form = useForm<FormData>({
@@ -66,21 +66,23 @@ export const BasicInformationPaperReadOnly = ({
     ledgerId: currentLedger.id!,
     transactionId: transactionId!,
     onSuccess: () => {
-      showSuccess(
-        intl.formatMessage({
+      toast({
+        description: intl.formatMessage({
           id: 'transactions.toast.update.success',
           defaultMessage: 'Transaction updated successfully'
-        })
-      )
+        }),
+        variant: 'success'
+      })
       handleTabChange?.(TRANSACTION_DETAILS_TAB_VALUES.SUMMARY)
     },
     onError: (error) => {
-      showError(
-        intl.formatMessage({
+      toast({
+        description: intl.formatMessage({
           id: 'transactions.toast.update.error',
           defaultMessage: 'An error occurred while updating the transaction'
-        })
-      ),
+        }),
+        variant: 'destructive'
+      }),
         handleTabChange?.(TRANSACTION_DETAILS_TAB_VALUES.SUMMARY)
     }
   })

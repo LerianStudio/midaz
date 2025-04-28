@@ -9,10 +9,10 @@ import { useListGroups } from '@/client/groups'
 import { SelectItem } from '@/components/ui/select'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { useCreateUser } from '@/client/users'
-import useCustomToast from '@/hooks/use-custom-toast'
 import { GroupResponseDto } from '@/core/application/dto/group-dto'
 import { UsersType } from '@/types/users-type'
 import { PasswordField } from '@/components/form/password-field'
+import { useToast } from '@/hooks/use-toast'
 
 const FormSchema = z
   .object({
@@ -51,7 +51,7 @@ export const CreateUserForm = ({
   onOpenChange
 }: CreateUserFormProps) => {
   const intl = useIntl()
-  const { showSuccess, showError } = useCustomToast()
+  const { toast } = useToast()
   const { data: groups } = useListGroups({})
 
   const form = useForm<FormData>({
@@ -67,24 +67,16 @@ export const CreateUserForm = ({
       await onSuccess?.()
       onOpenChange?.(false)
 
-      showSuccess(
-        intl.formatMessage(
+      toast({
+        description: intl.formatMessage(
           {
-            id: 'users.toast.create.success',
+            id: 'success.users.create',
             defaultMessage: 'User {userName} created successfully'
           },
           { userName: `${newUser.firstName} ${newUser.lastName}` }
-        )
-      )
-    },
-    onError: () => {
-      onOpenChange?.(false)
-      showError(
-        intl.formatMessage({
-          id: 'users.toast.create.error',
-          defaultMessage: 'Error creating User'
-        })
-      )
+        ),
+        variant: 'success'
+      })
     }
   })
 

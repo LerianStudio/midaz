@@ -1,6 +1,6 @@
-import { DeleteUserRepository } from '@/core/domain/repositories/users/delete-user-repository'
+import { UserRepository } from '@/core/domain/repositories/user-repository'
 import { inject } from 'inversify'
-import { LogOperation } from '../../decorators/log-operation'
+import { LogOperation } from '../../../infrastructure/logger/decorators/log-operation'
 
 export interface DeleteUser {
   execute: (userId: string) => Promise<void>
@@ -8,12 +8,12 @@ export interface DeleteUser {
 
 export class DeleteUserUseCase implements DeleteUser {
   constructor(
-    @inject(DeleteUserRepository)
-    private readonly deleteUserRepository: DeleteUserRepository
+    @inject(UserRepository)
+    private readonly userRepository: UserRepository
   ) {}
 
   @LogOperation({ layer: 'application' })
   async execute(userId: string): Promise<void> {
-    await this.deleteUserRepository.delete(userId)
+    await this.userRepository.delete(userId)
   }
 }
