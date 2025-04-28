@@ -291,7 +291,7 @@ workflowSequence.forEach((step, index) => {
             "distribute": {
               "to": [
                 {
-                  "account": "{{accountId}}",
+                  "account": "{{accountAlias}}",
                   "amount": {
                     "asset": "USD",
                     "value": 1000,
