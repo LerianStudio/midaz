@@ -104,7 +104,7 @@ jobs:
 
           make tidy
           
-          make generate-docs-all  
+          make generate-docs  
           
           cd ..
 
