@@ -178,7 +178,8 @@ if [ -f "${TEMP_DIR}/onboarding.postman_collection.json" ] && [ -f "${TEMP_DIR}/
     # Create a new merged collection
     jq -s '
         # Merge items
-        .[0].item = (.[0].item + .[1].item) | 
+        # Filter out any E2E Flow folders that might exist in individual components
+        .[0].item = ([.[0].item[], .[1].item[]] | map(select(.name != "E2E Flow"))) | 
         
         # Combine variables from both collections
         if (.[0].variable != null and .[1].variable != null) then
@@ -196,6 +197,10 @@ if [ -f "${TEMP_DIR}/onboarding.postman_collection.json" ] && [ -f "${TEMP_DIR}/
         # Return the merged collection
         .[0]
     ' "${TEMP_DIR}/onboarding.postman_collection.json" "${TEMP_DIR}/transaction.postman_collection.json" > "${POSTMAN_COLLECTION}"
+    
+    # Add a post-processing step to create the E2E Flow folder
+    echo "Creating E2E Flow in the merged collection..."
+    node "${SCRIPTS_DIR}/create-e2e-flow.js" "${POSTMAN_COLLECTION}"
     
     # Merge environment templates
     if [ -f "${TEMP_DIR}/onboarding.environment.json" ] && [ -f "${TEMP_DIR}/transaction.environment.json" ]; then
