@@ -47,7 +47,7 @@ export class IdentityAuthLoginRepository implements AuthLoginRepository {
 
     try {
       const authResponse: AuthResponseEntity =
-        await this.httpService.post<AuthResponseEntity>(url, {
+        await this.httpService.login<AuthResponseEntity>(url, {
           body: JSON.stringify(loginDataWithClient)
         })
 

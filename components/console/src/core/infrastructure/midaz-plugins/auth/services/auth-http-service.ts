@@ -1,9 +1,11 @@
 import { MidazRequestContext } from '@/core/infrastructure/logger/decorators/midaz-id'
 import { LoggerAggregator } from '@/core/infrastructure/logger/logger-aggregator'
+import { nextAuthOptions } from '@/core/infrastructure/next-auth/next-auth-provider'
 import { OtelTracerProvider } from '@/core/infrastructure/observability/otel-tracer-provider'
-import { HttpService } from '@/lib/http'
+import { FetchModuleOptions, HttpMethods, HttpService } from '@/lib/http'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { inject, injectable } from 'inversify'
+import { getServerSession } from 'next-auth'
 
 @injectable()
 export class AuthHttpService extends HttpService {
@@ -20,11 +22,30 @@ export class AuthHttpService extends HttpService {
 
   private authCustomSpanName: string = 'midaz-auth-request'
 
-  protected async createDefaults() {
-    return {
+  async login<T>(url: string, options: FetchModuleOptions): Promise<T> {
+    const headers = {
       'Content-Type': 'application/json',
       'X-Request-Id': this.midazRequestContext.getMidazId()
     }
+
+    return await this.request<T>(
+      new Request(url, { ...options, method: HttpMethods.POST, headers })
+    )
+  }
+
+  protected async createDefaults() {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Request-Id': this.midazRequestContext.getMidazId()
+    }
+
+    if (process.env.PLUGIN_AUTH_ENABLED === 'true') {
+      const session = await getServerSession(nextAuthOptions)
+      const { access_token } = session?.user
+      headers.Authorization = `${access_token}`
+    }
+
+    return { headers }
   }
 
   protected onBeforeFetch(request: Request): void {

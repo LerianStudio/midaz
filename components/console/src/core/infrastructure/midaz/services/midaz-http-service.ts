@@ -34,10 +34,12 @@ export class MidazHttpService extends HttpService {
     if (process.env.PLUGIN_AUTH_ENABLED === 'true') {
       const session = await getServerSession(nextAuthOptions)
       const { access_token } = session?.user
-      headers.Authorization = `Bearer ${access_token}`
+      headers.Authorization = `${access_token}`
     }
 
-    return headers
+    console.log('MidazHttpService - Headers', headers)
+
+    return { headers }
   }
 
   protected onBeforeFetch(request: Request): void {

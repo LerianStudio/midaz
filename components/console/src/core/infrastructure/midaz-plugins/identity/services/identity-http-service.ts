@@ -33,7 +33,7 @@ export class IdentityHttpService extends HttpService {
       headers.Authorization = `Bearer ${access_token}`
     }
 
-    return headers
+    return { headers }
   }
 
   protected onBeforeFetch(request: Request): void {
